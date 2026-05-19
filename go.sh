@@ -183,8 +183,15 @@ start_pet() {
   fi
   export MINICPM_BRIDGE_DIR="$BRIDGE_DIR"
   export MINICPM_PYTHON="$BRIDGE_DIR/.venv/bin/python"
+  # macOS 26 + torch 2.6: the MPS metal kernel for fused SDPA SIGABRTs on
+  # MiniCPM's GQA broadcast matmul (16h Q × 2h KV). Force the eager
+  # attention path to keep warmup / inference stable. Respect any value
+  # the user already set (they may want to test other impls).
+  : "${MINICPM_ATTN_IMPL:=eager}"
+  export MINICPM_ATTN_IMPL
   green "    MINICPM_BRIDGE_DIR=$MINICPM_BRIDGE_DIR"
   green "    MINICPM_PYTHON=$MINICPM_PYTHON"
+  green "    MINICPM_ATTN_IMPL=$MINICPM_ATTN_IMPL"
   echo
   green "桌宠启动中... 关闭终端 (Ctrl+C) 即停止。"
   cd "$APP_DIR" && exec npm start

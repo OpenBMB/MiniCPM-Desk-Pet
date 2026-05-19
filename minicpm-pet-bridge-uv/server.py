@@ -70,10 +70,27 @@ NEKO_SYSTEM_PROMPT = (
     "配合 (动作) 描述回应主人。回答简洁自然，不要长篇大论。"
 )
 
+CHUUNI_SYSTEM_PROMPT = (
+    "你是克莱姆，一位流落到主人电脑桌面上的异世界勇者。"
+    "你自称「本勇者」或「吾」，称用户为「主人」。说话风格中二、戏剧化，"
+    "夹杂古风词（哉/也/休得/岂能/此乃）。你把电脑当作「魔王城」，"
+    "bug 是「魔物」，git 是「圣物」，IDE 是「封印阵」，报错是「诅咒文」。"
+    "完成任务时会装腔作势报捷。但面对真正的技术问题、安全/隐私问题，"
+    "仍要在中二外衣下给出可靠简洁的答案。单条回复 1-3 句为主。"
+)
+
 # DEFAULT_SYSTEM_PROMPT is *runtime-mutable*; it tracks the active persona,
 # which itself follows whichever adapter is currently loaded. Updated by
 # `set_persona_for_adapter()` whenever the adapter changes.
 DEFAULT_SYSTEM_PROMPT = DEFAULT_PROMPT_BASE
+
+# Adapter-dir-name substring → persona prompt. The key is matched
+# case-insensitively against `adapter_dir.name`. Add a new persona by
+# appending one entry here + updating `current_persona()`.
+PERSONA_PROMPTS = {
+    "neko": NEKO_SYSTEM_PROMPT,
+    "chuuni": CHUUNI_SYSTEM_PROMPT,
+}
 
 
 def set_persona_for_adapter(adapter_dir):
@@ -84,14 +101,18 @@ def set_persona_for_adapter(adapter_dir):
         name = adapter_dir.name.lower() if adapter_dir is not None else ""
     except Exception:
         name = ""
-    if "neko" in name:
-        DEFAULT_SYSTEM_PROMPT = NEKO_SYSTEM_PROMPT
-    else:
-        DEFAULT_SYSTEM_PROMPT = DEFAULT_PROMPT_BASE
+    for key, prompt in PERSONA_PROMPTS.items():
+        if key in name:
+            DEFAULT_SYSTEM_PROMPT = prompt
+            return
+    DEFAULT_SYSTEM_PROMPT = DEFAULT_PROMPT_BASE
 
 
 def current_persona() -> str:
-    return "neko" if DEFAULT_SYSTEM_PROMPT == NEKO_SYSTEM_PROMPT else "default"
+    for key, prompt in PERSONA_PROMPTS.items():
+        if DEFAULT_SYSTEM_PROMPT == prompt:
+            return key
+    return "default"
 
 
 # ----- Schema -----------------------------------------------------------------
@@ -912,7 +933,7 @@ def main() -> None:
                         help="Source for model updates: mock://<path> or hf://<repo_id>")
     parser.add_argument("--adapter", default=os.environ.get("MINICPM_ADAPTER"),
                         help="Optional LoRA adapter dir to apply on top of the base model")
-    parser.add_argument("--persona", choices=["default", "neko"],
+    parser.add_argument("--persona", choices=["default", "neko", "chuuni"],
                         default=os.environ.get("MINICPM_PERSONA", "default"),
                         help="Which built-in system prompt to use")
     args = parser.parse_args()
@@ -932,10 +953,10 @@ def main() -> None:
         adapter_dir = None
 
     # Pick the right persona prompt for whichever adapter (if any) is loaded.
-    if args.persona == "neko":
-        # Forced override regardless of adapter name.
+    # A non-default --persona is a forced override regardless of adapter name.
+    if args.persona in PERSONA_PROMPTS:
         global DEFAULT_SYSTEM_PROMPT
-        DEFAULT_SYSTEM_PROMPT = NEKO_SYSTEM_PROMPT
+        DEFAULT_SYSTEM_PROMPT = PERSONA_PROMPTS[args.persona]
     else:
         set_persona_for_adapter(adapter_dir)
     _safe_print(f"[engine] persona = {current_persona()}", flush=True)

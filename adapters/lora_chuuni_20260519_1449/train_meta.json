@@ -1,0 +1,15 @@
+{
+  "base_model": "/Users/suzhou/code/MiniCPM-test/models/minicpm5-0.9b",
+  "data": "/Users/suzhou/code/MiniCPM-test/training/dataset/chuuni_train.jsonl",
+  "n_train": 323,
+  "n_eval": 16,
+  "epochs": 3.0,
+  "lr": 0.0002,
+  "bs": 1,
+  "grad_acc": 4,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "max_length": 1024,
+  "assistant_only_loss": true,
+  "wall_seconds": 516.7
+}

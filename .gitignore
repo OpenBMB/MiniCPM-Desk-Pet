@@ -39,5 +39,10 @@ models/
 *.pid
 runtime-port.json
 
+# LoRA training scratch — keep scripts (training/*.py + *.md), drop
+# generated datasets and checkpoint runs which are large and re-derivable.
+training/dataset/
+training/runs/
+
 # uv lock — keep
 # (don't ignore uv.lock; it's needed for reproducible installs)

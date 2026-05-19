@@ -630,7 +630,7 @@ RGX.off = /(关掉|关闭|去掉|不要|脱掉|取消|卸|卸载).{0,4}(adapter|
 // With first-token scoring the classifier is ~150-300ms — cheap enough
 // that we can afford to ask the model on basically any message that
 // even hints at a management topic. Keep the gate generous.
-const COMMAND_HINTS = /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i;
+const COMMAND_HINTS = /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|中二|勇者|克莱姆|chuuni|klem|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i;
 
 async function tryHandleAsCommand(text, onProgress) {
   const t = text.trim();
@@ -685,6 +685,9 @@ async function classifyIntentWithLLM(text) {
     "用户：切到猫娘 → SWITCH_TO=猫娘\n" +
     "用户：把猫娘装上 → SWITCH_TO=猫娘\n" +
     "用户：来个 neko → SWITCH_TO=neko\n" +
+    "用户：切到中二 → SWITCH_TO=中二\n" +
+    "用户：换成勇者 → SWITCH_TO=中二\n" +
+    "用户：把克莱姆装上 → SWITCH_TO=中二\n" +
     "用户：回到原版 → DISABLE_ADAPTER\n" +
     "用户：脱掉皮肤 → DISABLE_ADAPTER\n" +
     "用户：我不要用猫娘了 → DISABLE_ADAPTER\n" +
@@ -827,6 +830,11 @@ async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
     "猫娘": "neko",
     "宝宝": "neko",
     "neko": "neko",
+    "中二": "chuuni",
+    "勇者": "chuuni",
+    "克莱姆": "chuuni",
+    "chuuni": "chuuni",
+    "klem": "chuuni",
     "原版": null, "默认": null, "base": null, "原始": null, "裸": null, "纯净": null, "普通": null,
   };
 
