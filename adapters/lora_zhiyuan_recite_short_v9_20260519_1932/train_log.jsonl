@@ -1,0 +1,29 @@
+{"step": 1, "epoch": 0.024, "lr": 0.0, "loss": 5.7477, "wall": 1.49}
+{"step": 5, "epoch": 0.119, "lr": 3.3e-05, "loss": 5.5957, "wall": 5.88}
+{"step": 10, "epoch": 0.238, "lr": 5e-05, "loss": 4.3321, "wall": 10.73}
+{"step": 15, "epoch": 0.357, "lr": 4.9e-05, "loss": 3.2052, "wall": 15.17}
+{"step": 20, "epoch": 0.476, "lr": 4.9e-05, "loss": 3.1036, "wall": 19.83}
+{"step": 25, "epoch": 0.595, "lr": 4.7e-05, "loss": 2.0075, "wall": 23.68}
+{"step": 30, "epoch": 0.714, "lr": 4.6e-05, "loss": 1.4513, "wall": 27.88}
+{"step": 35, "epoch": 0.833, "lr": 4.4e-05, "loss": 1.0964, "wall": 33.99}
+{"step": 40, "epoch": 0.952, "lr": 4.1e-05, "loss": 1.6625, "wall": 38.79}
+{"step": 42, "epoch_end": 1, "eval_loss": 1.9208, "wall": 41.91}
+{"step": 45, "epoch": 1.071, "lr": 3.9e-05, "loss": 0.3617, "wall": 44.55}
+{"step": 50, "epoch": 1.19, "lr": 3.6e-05, "loss": 0.2943, "wall": 48.06}
+{"step": 55, "epoch": 1.31, "lr": 3.3e-05, "loss": 0.386, "wall": 51.63}
+{"step": 60, "epoch": 1.429, "lr": 3e-05, "loss": 0.1125, "wall": 55.0}
+{"step": 65, "epoch": 1.548, "lr": 2.6e-05, "loss": 0.4695, "wall": 58.98}
+{"step": 70, "epoch": 1.667, "lr": 2.3e-05, "loss": 0.4832, "wall": 64.81}
+{"step": 75, "epoch": 1.786, "lr": 2e-05, "loss": 0.4382, "wall": 68.86}
+{"step": 80, "epoch": 1.905, "lr": 1.7e-05, "loss": 0.8135, "wall": 73.1}
+{"step": 84, "epoch_end": 2, "eval_loss": 1.8994, "wall": 77.29}
+{"step": 85, "epoch": 2.024, "lr": 1.4e-05, "loss": 0.0353, "wall": 78.3}
+{"step": 90, "epoch": 2.143, "lr": 1.1e-05, "loss": 0.6307, "wall": 82.49}
+{"step": 95, "epoch": 2.262, "lr": 8e-06, "loss": 0.0471, "wall": 86.7}
+{"step": 100, "epoch": 2.381, "lr": 6e-06, "loss": 0.1814, "wall": 90.31}
+{"step": 105, "epoch": 2.5, "lr": 4e-06, "loss": 0.328, "wall": 94.35}
+{"step": 110, "epoch": 2.619, "lr": 2e-06, "loss": 0.1603, "wall": 97.77}
+{"step": 115, "epoch": 2.738, "lr": 1e-06, "loss": 0.1059, "wall": 102.18}
+{"step": 120, "epoch": 2.857, "lr": 0.0, "loss": 0.3532, "wall": 105.77}
+{"step": 125, "epoch": 2.976, "lr": 0.0, "loss": 0.0207, "wall": 109.57}
+{"step": 126, "epoch_end": 3, "eval_loss": 1.9066, "wall": 111.36}

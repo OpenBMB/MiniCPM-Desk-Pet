@@ -1,0 +1,7 @@
+# LoRA adapter weights live in Git LFS by default (~20MB each, would
+# otherwise bloat the pack and slow down clones). Legacy adapters that
+# predate the LFS switch keep their in-tree blobs so we don't have to
+# rewrite already-pushed history.
+adapters/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
+adapters/lora_chuuni_20260519_1449/adapter_model.safetensors -filter -diff -merge -text
+adapters/lora_nekoqa_adapter_20260515_0738/adapter_model.safetensors -filter -diff -merge -text

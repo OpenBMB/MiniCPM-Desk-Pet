@@ -1,0 +1,15 @@
+{
+  "base_model": "/Users/suzhou/code/MiniCPM-test/models/minicpm5-0.9b",
+  "data": "/Users/suzhou/code/MiniCPM-test/training/dataset/zhiyuan_recite_train.jsonl",
+  "n_train": 84,
+  "n_eval": 8,
+  "epochs": 3.0,
+  "lr": 5e-05,
+  "bs": 1,
+  "grad_acc": 2,
+  "lora_r": 8,
+  "lora_alpha": 16,
+  "max_length": 1024,
+  "assistant_only_loss": true,
+  "wall_seconds": 111.6
+}

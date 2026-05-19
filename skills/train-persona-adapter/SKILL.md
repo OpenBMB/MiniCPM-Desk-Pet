@@ -83,11 +83,22 @@ Pick a lowercase English word, ≤ 10 chars, no overlap with `neko` /
 - Self-reference (吾/本X/俺/etc.)
 - How they address the user (主人/契约者/老板/etc.)
 - 3-5 stylistic keywords (口吻 / 句尾词 / 比喻字典)
-- Length hint (single-line target so the 0.9B doesn't ramble)
+- **Length hint with explicit char count** — `单条回复以 1-3 句、约 100 字为主`
+  is the proven template. Reference values: neko ~50 字 (撒娇 short), chuuni
+  / zhiyuan / default ~100 字. **Vague hints like "回答简洁" or "不要长篇大
+  论" don't work** — the 0.9B model needs a concrete target number.
 
 This exact string will be hardcoded in **two** places — keep them in sync:
 `training/generate_dataset.py:SYSTEM_PROMPT` and
 `minicpm-pet-bridge-uv/server.py:<KEY>_SYSTEM_PROMPT`.
+
+> ⚠️ **The single most expensive lesson from the zhiyuan persona** (v5-v8
+> took 4 wasted iterations to learn this): the SYSTEM_PROMPT used in the
+> dataset generator **and** the one loaded at inference time **must be
+> byte-identical**, including the length hint. If you train with a "回答可
+> 以充分展开" prompt and then swap in a "约 100 字" prompt at inference, the
+> LoRA imprint will spew long answers anyway — prompt change cannot
+> override what the LoRA learned.
 
 ### Step 3 — Dataset generator
 
@@ -118,6 +129,30 @@ uv run python ../training/generate_dataset.py
 
 Confirm counts match the scale target. If too sparse, add more seeds or
 raise `n` in `expand_one()`.
+
+**Answer length policy (critical)**:
+
+```python
+# At end of generator, sanity-check assistant lengths:
+asst_lens = [len(r["messages"][-1]["content"]) for r in train_records]
+print(f"mean/min/max: {sum(asst_lens)/len(asst_lens):.0f}/"
+      f"{min(asst_lens)}/{max(asst_lens)} chars")
+```
+
+Target distribution for a `约 100 字` persona prompt: **mean ≤ 100 chars,
+max ≤ 150 chars**. If your seeds run longer, the LoRA will imprint long
+answers and override the length hint at inference. Three concrete rules:
+
+1. **Don't write seed answers >150 chars** unless the persona is
+   *intentionally* verbose (e.g. a 学者 persona aiming for 300-char essays).
+   v5-v8 of `zhiyuan` learned this the hard way — 200-280 char seeds
+   produced 400-560 char inference outputs even with a "约 100 字" prompt.
+2. **Compress, don't truncate**. Strip ceremonial preface ("同学这其实是个
+   很好的问题——"), strip closing flourishes ("这是我反复跟团队讲的"), keep
+   only the load-bearing sentences with key phrases.
+3. **Don't mix long-form and short-form seeds in one adapter**. Pick one
+   length regime per persona. If you need both, train two adapters and let
+   the user switch.
 
 ### Step 5 — Smoke train (mandatory)
 
@@ -291,6 +326,8 @@ limitations section honestly listing what broke during smoke_inference.
 | Skipping refusal / math buckets | LoRA wipes base safety + arithmetic | Keep all 10 buckets; minimums in Step 3 table |
 | `enable_thinking=True` during training | Model traps tokens inside `<think>` and never closes | `train_lora.py` and chat template both default to `False`; don't toggle |
 | Loss < 0.1 by epoch 2 on `fast_demo` | Severe overfit, in-distribution prompts echo seeds verbatim | Reduce epochs to 2, or add more seed diversity per bucket |
+| Training answer mean >150 chars but prompt says "约 100 字" | Inference outputs 300-500 chars, prompt-change at inference does nothing | Re-compress seeds to mean ≤ 100 chars **and** re-train (see Step 4 length policy) |
+| `SYSTEM_PROMPT` in generator differs from `server.py` | Persona style is right but length / formality drifts; "改 prompt" feels useless | Treat the two prompts as **one** string: diff before every training run; copy-paste rather than re-type |
 
 ## What this skill does NOT do
 

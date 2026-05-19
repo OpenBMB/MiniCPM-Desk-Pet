@@ -157,6 +157,7 @@ class TrainCfg:
     log_every: int = 5
     eval_every: int = 100  # steps; capped at one per epoch anyway
     seed: int = 42
+    init_adapter: Path | None = None  # continue from existing LoRA
 
 
 def pick_device() -> str:
@@ -217,16 +218,26 @@ def train(cfg: TrainCfg) -> Path:
     if hasattr(base, "enable_input_require_grads"):
         base.enable_input_require_grads()
 
-    lora_cfg = LoraConfig(
-        r=cfg.lora_r,
-        lora_alpha=cfg.lora_alpha,
-        lora_dropout=cfg.lora_dropout,
-        bias="none",
-        task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                         "gate_proj", "up_proj", "down_proj"],
-    )
-    model = get_peft_model(base, lora_cfg)
+    if cfg.init_adapter is not None:
+        # Continued LoRA fine-tune: load existing adapter weights and keep
+        # training them. save_pretrained later emits a self-contained adapter
+        # holding the merged delta (init + new gradient updates), so the
+        # consumer only needs the final dir.
+        print(f"[train] init from existing adapter: {cfg.init_adapter}")
+        model = PeftModel.from_pretrained(
+            base, str(cfg.init_adapter), is_trainable=True
+        )
+    else:
+        lora_cfg = LoraConfig(
+            r=cfg.lora_r,
+            lora_alpha=cfg.lora_alpha,
+            lora_dropout=cfg.lora_dropout,
+            bias="none",
+            task_type="CAUSAL_LM",
+            target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                             "gate_proj", "up_proj", "down_proj"],
+        )
+        model = get_peft_model(base, lora_cfg)
     model.to(device)
     model.print_trainable_parameters()
 
@@ -351,10 +362,16 @@ def train(cfg: TrainCfg) -> Path:
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--model", default=str(REPO / "models" / "minicpm5-0.9b"))
-    p.add_argument("--train", default=str(REPO / "training" / "dataset" / "chuuni_train.jsonl"))
-    p.add_argument("--eval", default=str(REPO / "training" / "dataset" / "chuuni_eval.jsonl"))
+    p.add_argument("--persona-key", default="chuuni",
+                   help="Used in default train/eval/output paths: "
+                        "training/dataset/<key>_{train,eval}.jsonl, "
+                        "training/runs/lora_<key>_<ts>/, adapters/lora_<key>_<ts>/")
+    p.add_argument("--train", default=None,
+                   help="Default: training/dataset/<persona-key>_train.jsonl")
+    p.add_argument("--eval", default=None,
+                   help="Default: training/dataset/<persona-key>_eval.jsonl")
     p.add_argument("--output-dir", default=None,
-                   help="Default: training/runs/lora_chuuni_<timestamp>")
+                   help="Default: training/runs/lora_<persona-key>_<timestamp>")
     p.add_argument("--epochs", type=float, default=3.0)
     p.add_argument("--bs", type=int, default=1)
     p.add_argument("--grad-acc", type=int, default=4)
@@ -364,15 +381,22 @@ def main() -> None:
     p.add_argument("--lora-alpha", type=int, default=16)
     p.add_argument("--copy-to-adapters", action="store_true",
                    help="After training, copy the adapter into <repo>/adapters/")
+    p.add_argument("--init-adapter", default=None,
+                   help="Path to an existing LoRA adapter to resume training from. "
+                        "Used for continued fine-tune (e.g. teach an existing "
+                        "persona to produce longer answers without re-training "
+                        "from scratch).")
     args = p.parse_args()
 
     ts = time.strftime("%Y%m%d_%H%M")
-    out = Path(args.output_dir) if args.output_dir else REPO / "training" / "runs" / f"lora_chuuni_{ts}"
+    out = Path(args.output_dir) if args.output_dir else REPO / "training" / "runs" / f"lora_{args.persona_key}_{ts}"
+    train_path = Path(args.train) if args.train else REPO / "training" / "dataset" / f"{args.persona_key}_train.jsonl"
+    eval_path = Path(args.eval) if args.eval else REPO / "training" / "dataset" / f"{args.persona_key}_eval.jsonl"
 
     cfg = TrainCfg(
         model_dir=Path(args.model).resolve(),
-        train_path=Path(args.train).resolve(),
-        eval_path=Path(args.eval).resolve(),
+        train_path=train_path.resolve(),
+        eval_path=eval_path.resolve(),
         output_dir=out.resolve(),
         epochs=args.epochs,
         bs=args.bs,
@@ -381,11 +405,12 @@ def main() -> None:
         max_length=args.max_length,
         lora_r=args.lora_r,
         lora_alpha=args.lora_alpha,
+        init_adapter=Path(args.init_adapter).resolve() if args.init_adapter else None,
     )
     final = train(cfg)
 
     if args.copy_to_adapters:
-        dst = REPO / "adapters" / f"lora_chuuni_{ts}"
+        dst = REPO / "adapters" / f"lora_{args.persona_key}_{ts}"
         if dst.exists():
             shutil.rmtree(dst)
         shutil.copytree(final, dst, ignore=shutil.ignore_patterns(

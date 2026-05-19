@@ -132,6 +132,37 @@
   }
   .last-reply-region::-webkit-scrollbar { width: 4px; }
   .last-reply-region::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  /* User's most-recent question, pinned right-aligned above the assistant
+     reply / streaming text so the conversation context stays visible while
+     the model answers. Uses a soft accent-tinted pill to read as "you"
+     vs. the muted left-aligned assistant text. */
+  .last-user-msg {
+    align-self: flex-end;
+    max-width: 92%;
+    background: rgba(155, 140, 255, 0.14);
+    color: var(--text);
+    border: 1px solid rgba(155, 140, 255, 0.22);
+    border-radius: 10px;
+    padding: 4px 9px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    word-break: break-word;
+    user-select: text;
+    -webkit-app-region: no-drag;
+    max-height: 64px;
+    overflow-y: auto;
+    flex: 0 1 auto;
+  }
+  .last-user-msg::-webkit-scrollbar { width: 4px; }
+  .last-user-msg::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  @media (prefers-color-scheme: light) {
+    .last-user-msg {
+      background: rgba(107, 86, 255, 0.10);
+      border-color: rgba(107, 86, 255, 0.22);
+    }
+  }
   /* Bottom: input grows with typing up to 200px then internally scrolls. */
   .ask-input-wrap {
     flex: 0 0 auto;
@@ -284,7 +315,11 @@ const content = document.getElementById("content");
 let phase = "hidden";        // hidden | starting | ask | thinking | speak | error
 let booted = false;
 let sidecarUrl = null;
-let history = [];            // multi-turn conversation; persists across opens
+// Single-turn by default: we don't accumulate prior turns. Each /api/chat
+// call only sees the current user message, so persona LoRAs (chuuni / zhiyuan
+// / neko …) keep a strong "voice" without context drift on a 0.9B model.
+// `history` is kept around as a stub for cmdReset and any future toggle.
+let history = [];
 let abortCtrl = null;
 let fadeTimer = null;
 let inputEl = null;          // <textarea> while in ask state
@@ -377,10 +412,10 @@ async function showError(msg) {
 
 // ── render: ask (input field) ──
 // When there's a `lastReply`, render in continuous-chat mode: a fixed-
-// size bubble where the previous reply scrolls inside its own region
+// size bubble where the previous Q+A scrolls inside their own regions
 // at the top, and the input box is pinned at the bottom. While typing,
 // the bubble's outer dimensions stay locked — only inner regions scroll.
-async function showAsk(lastReply) {
+async function showAsk(lastReply, lastUserMsg) {
   clearFade();
   phase = "ask";
   abortCtrl = null;
@@ -395,8 +430,12 @@ async function showAsk(lastReply) {
   if (lastReply) {
     // Continuous-chat layout: bubble starts compact, grows as user types.
     // Outer height tracks content.offsetHeight via measureAndShow.
+    const userBlock = lastUserMsg
+      ? `<div class="last-user-msg">${escapeHtml(lastUserMsg)}</div>`
+      : "";
     content.innerHTML = `
       <div class="chat-pane">
+        ${userBlock}
         <div class="last-reply-region" id="last-reply-region">${escapeHtml(lastReply)}</div>
         <div class="ask-input-wrap">
           <textarea id="ask-input" placeholder="问问看…" rows="1"></textarea>
@@ -479,10 +518,17 @@ async function clearChatAnchor() {
 }
 
 // ── render: think-stream (peek of the model's reasoning) ──
-async function showThink() {
+async function showThink(userQuestion) {
   phase = "think-stream";
   await clearChatAnchor();
-  content.innerHTML = `<div class="think-stream" id="think-text"></div>`;
+  const userBlock = userQuestion
+    ? `<div class="last-user-msg">${escapeHtml(userQuestion)}</div>`
+    : "";
+  content.innerHTML = `
+    <div class="chat-pane">
+      ${userBlock}
+      <div class="think-stream" id="think-text"></div>
+    </div>`;
   // Speak/think phases get a comfortable reading width up front so the
   // streaming text doesn't wrap aggressively from the previous narrow
   // ask bubble width.
@@ -490,10 +536,17 @@ async function showThink() {
 }
 
 // ── render: speak (streamed assistant reply) ──
-async function showSpeak() {
+async function showSpeak(userQuestion) {
   phase = "speak";
   await clearChatAnchor();
-  content.innerHTML = `<div class="speak streaming" id="speak"></div>`;
+  const userBlock = userQuestion
+    ? `<div class="last-user-msg">${escapeHtml(userQuestion)}</div>`
+    : "";
+  content.innerHTML = `
+    <div class="chat-pane">
+      ${userBlock}
+      <div class="speak streaming" id="speak"></div>
+    </div>`;
   await measureAndShow({ width: 300 });
 }
 
@@ -630,7 +683,7 @@ RGX.off = /(关掉|关闭|去掉|不要|脱掉|取消|卸|卸载).{0,4}(adapter|
 // With first-token scoring the classifier is ~150-300ms — cheap enough
 // that we can afford to ask the model on basically any message that
 // even hints at a management topic. Keep the gate generous.
-const COMMAND_HINTS = /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|中二|勇者|克莱姆|chuuni|klem|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i;
+const COMMAND_HINTS = /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|中二|勇者|克莱姆|chuuni|klem|刘导|刘知远|知远|zhiyuan|摸鱼|鱼哥|搭子|打工|工友|moyu|slacker|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i;
 
 async function tryHandleAsCommand(text, onProgress) {
   const t = text.trim();
@@ -688,6 +741,12 @@ async function classifyIntentWithLLM(text) {
     "用户：切到中二 → SWITCH_TO=中二\n" +
     "用户：换成勇者 → SWITCH_TO=中二\n" +
     "用户：把克莱姆装上 → SWITCH_TO=中二\n" +
+    "用户：切到刘导 → SWITCH_TO=刘导\n" +
+    "用户：换成刘知远 → SWITCH_TO=刘导\n" +
+    "用户：来个 zhiyuan → SWITCH_TO=zhiyuan\n" +
+    "用户：切到摸鱼 → SWITCH_TO=摸鱼\n" +
+    "用户：换成鱼哥 → SWITCH_TO=摸鱼\n" +
+    "用户：来个上班搭子 → SWITCH_TO=摸鱼\n" +
     "用户：回到原版 → DISABLE_ADAPTER\n" +
     "用户：脱掉皮肤 → DISABLE_ADAPTER\n" +
     "用户：我不要用猫娘了 → DISABLE_ADAPTER\n" +
@@ -835,6 +894,18 @@ async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
     "克莱姆": "chuuni",
     "chuuni": "chuuni",
     "klem": "chuuni",
+    "刘导": "zhiyuan",
+    "刘知远": "zhiyuan",
+    "知远": "zhiyuan",
+    "zhiyuan": "zhiyuan",
+    "摸鱼": "moyu",
+    "鱼哥": "moyu",
+    "搭子": "moyu",
+    "上班搭子": "moyu",
+    "打工人": "moyu",
+    "工友": "moyu",
+    "moyu": "moyu",
+    "slacker": "moyu",
     "原版": null, "默认": null, "base": null, "原始": null, "裸": null, "纯净": null, "普通": null,
   };
 
@@ -917,23 +988,14 @@ async function submit(text) {
       await showCommandProgress(progressText);
     });
     if (cmd) {
-      if (cmd.resetHistory) {
-        // Adapter / model swap: the chat "voice" just changed, so we wipe
-        // the entire prior history AND we don't even keep this admin turn
-        // — meta-config chatter shouldn't anchor the new model.
-        history = [];
-      } else {
-        history.push({ role: "user", content: text });
-        history.push({ role: "assistant", content: cmd.text });
-      }
+      // Single-turn: nothing to accumulate or wipe — the model never sees
+      // prior turns anyway. Keep the command reply path as-is.
       await showCommandReply(cmd);
       return;
     }
   } catch (err) {
     console.error("command dispatch error:", err);
   }
-
-  history.push({ role: "user", content: text });
 
   // Tell the sidecar: start generating. The sidecar pushes pet states
   // (thinking → working → attention) to clawd-on-desk over HTTP, so the
@@ -981,7 +1043,10 @@ async function submit(text) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: history,
+        // Single-turn: send only the current question. Prior turns are
+        // intentionally not included so the persona LoRA's voice stays
+        // strong and small-model context drift can't accumulate.
+        messages: [{ role: "user", content: text }],
         stream: true,
         max_new_tokens: chatParams.max_new_tokens || 768,
         temperature: (typeof chatParams.temperature === "number") ? chatParams.temperature : 0.6,
@@ -1015,7 +1080,7 @@ async function submit(text) {
         if (obj.event === "think" && settings.thinking) {
           if (!sawThink) {
             sawThink = true;
-            await showThink();
+            await showThink(text);
             thinkEl = document.getElementById("think-text");
             typer = new Typewriter(thinkEl, { onChange: onTick });
           }
@@ -1031,7 +1096,7 @@ async function submit(text) {
               await fadeOutAndHide(220);
               await new Promise((r) => setTimeout(r, 100));
             }
-            await showSpeak();
+            await showSpeak(text);
             speakEl = document.getElementById("speak");
             typer = new Typewriter(speakEl, { onChange: onTick });
           }
@@ -1044,7 +1109,7 @@ async function submit(text) {
     }
 
     if (typer) await typer.drain();
-    history.push({ role: "assistant", content: replyAcc });
+    // Single-turn: don't accumulate the assistant reply into history.
     if (speakEl) speakEl.classList.remove("streaming");
 
     // ── New: keep the bubble alive for follow-up turns. After a tiny
@@ -1054,10 +1119,11 @@ async function submit(text) {
     // inactivity window, the bubble fades quietly.
     const readingMs = 1500;
     const lastReply = replyAcc;
+    const lastUser = text;
     fadeTimer = setTimeout(async () => {
       fadeTimer = null;
-      // Re-render with the previous reply pinned dimly above a fresh input.
-      await showAsk(lastReply);
+      // Re-render with the previous Q+A pinned dimly above a fresh input.
+      await showAsk(lastReply, lastUser);
       // Auto-fade if user idles in ask phase for ~25s.
       fadeTimer = setTimeout(() => {
         fadeTimer = null;

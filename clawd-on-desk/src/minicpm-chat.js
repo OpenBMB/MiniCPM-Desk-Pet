@@ -39,7 +39,10 @@ const EDGE_MARGIN = 8;
 const ASK_WIDTH = 120;       // initial empty-input width — tiny pill
 const ASK_HEIGHT = 44;
 const SPEAK_MAX_WIDTH = 360;
-const SPEAK_MAX_HEIGHT = 360;
+// 440 (was 360): leaves headroom so the right-aligned "last user question"
+// pill that sits above the streaming reply / continuous-chat pane never
+// gets clipped from the top when both the question and the reply are long.
+const SPEAK_MAX_HEIGHT = 440;
 const MIN_WIDTH = 100;
 const MIN_HEIGHT = 40;
 
