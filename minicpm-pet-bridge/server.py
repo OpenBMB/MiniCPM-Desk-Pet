@@ -165,12 +165,21 @@ class ChatEngine:
             _safe_print(f"[engine] loading {model_dir} on {self.device} ({self.torch_dtype})...", flush=True)
             t0 = time.time()
             tokenizer = AutoTokenizer.from_pretrained(str(model_dir), trust_remote_code=True)
-            model = AutoModelForCausalLM.from_pretrained(
-                str(model_dir),
+            # On macOS 26 + torch 2.6, the MPS metal kernel for fused SDPA
+            # blows up on GQA broadcast matmul (e.g. Q[16h] x K[2h] -> SIGABRT
+            # with "incompatible dimensions"). Allow MINICPM_ATTN_IMPL=eager
+            # to force the explicit-repeat path. Default: HF picks sdpa/eager
+            # itself per model + transformers version.
+            from_pretrained_kwargs: dict = dict(
                 torch_dtype=self.torch_dtype,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
             )
+            attn_impl = os.environ.get("MINICPM_ATTN_IMPL")
+            if attn_impl:
+                from_pretrained_kwargs["attn_implementation"] = attn_impl
+                _safe_print(f"[engine] attn_implementation = {attn_impl}", flush=True)
+            model = AutoModelForCausalLM.from_pretrained(str(model_dir), **from_pretrained_kwargs)
             if self.adapter_dir is not None:
                 if (self.adapter_dir / "adapter_config.json").exists():
                     _safe_print(f"[engine] applying LoRA adapter: {self.adapter_dir.name}", flush=True)
@@ -892,8 +901,11 @@ def main() -> None:
                              f"Default: {DEFAULT_MODELS_ROOT}")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--dtype", choices=["auto", "bfloat16", "float16", "float32"], default="auto")
-    parser.add_argument("--device", default=None, help="Force device (mps/cuda/cpu); default: autodetect")
+    parser.add_argument("--dtype", choices=["auto", "bfloat16", "float16", "float32"],
+                        default=os.environ.get("MINICPM_DTYPE", "auto"),
+                        help="Tensor dtype. Env override: MINICPM_DTYPE")
+    parser.add_argument("--device", default=os.environ.get("MINICPM_DEVICE") or None,
+                        help="Force device (mps/cuda/cpu); default: autodetect. Env override: MINICPM_DEVICE")
     parser.add_argument("--no-pet", action="store_true", help="Disable clawd-on-desk state push")
     parser.add_argument("--debug-pet", action="store_true")
     parser.add_argument("--update-source", default=os.environ.get("MINICPM_UPDATE_SOURCE", DEFAULT_UPDATE_SOURCE),

@@ -74,10 +74,15 @@ class MockBackend(_Backend):
 
     def __init__(self, root: Path) -> None:
         self.root = Path(root).expanduser().resolve()
-        if not self.root.is_dir():
-            raise FileNotFoundError(f"mock remote root does not exist: {self.root}")
+        # Don't fail eagerly here: the default mock path is dev-machine
+        # specific, and the server should still boot for chat even if the
+        # update source is missing. fetch_revision / stream_files below
+        # already raise descriptive errors when the user actually invokes
+        # update-check / update-apply.
 
     def fetch_revision(self) -> Revision:
+        if not self.root.is_dir():
+            raise FileNotFoundError(f"mock remote root does not exist: {self.root}")
         rf = self.root / "revision.json"
         if not rf.exists():
             raise FileNotFoundError(f"mock remote missing revision.json: {rf}")

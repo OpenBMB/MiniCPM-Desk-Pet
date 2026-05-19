@@ -7,12 +7,23 @@ __pycache__/
 .DS_Store
 *.log
 
+# Electron's npm-install cache (created by clawd-on-desk/ npm install)
+.electron-cache/
+
 # Build / dist outputs
 dist/
 build/
 
 # Model weights — too big to ship, friends/colleagues download separately
 models/
+
+# Model snapshots / training artifacts (e.g. *.mg2hf.tar, ~2GB each).
+# These are shipped over scp/HF, never committed.
+*.tar
+
+# Stray top-level package-lock.json from running `npm install` outside
+# clawd-on-desk/. The real lockfile is clawd-on-desk/package-lock.json.
+/package-lock.json
 
 # Editor / OS junk
 .vscode/
