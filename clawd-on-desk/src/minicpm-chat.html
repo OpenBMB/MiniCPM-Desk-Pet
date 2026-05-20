@@ -683,7 +683,7 @@ RGX.off = /(关掉|关闭|去掉|不要|脱掉|取消|卸|卸载).{0,4}(adapter|
 // With first-token scoring the classifier is ~150-300ms — cheap enough
 // that we can afford to ask the model on basically any message that
 // even hints at a management topic. Keep the gate generous.
-const COMMAND_HINTS = /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|中二|勇者|克莱姆|chuuni|klem|刘导|刘知远|知远|zhiyuan|摸鱼|鱼哥|搭子|打工|工友|moyu|slacker|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i;
+const COMMAND_HINTS = /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|中二|勇者|克莱姆|chuuni|klem|刘导|刘知远|知远|zhiyuan|鱼哥|上班搭子|moyu|slacker|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i;
 
 async function tryHandleAsCommand(text, onProgress) {
   const t = text.trim();
@@ -744,9 +744,9 @@ async function classifyIntentWithLLM(text) {
     "用户：切到刘导 → SWITCH_TO=刘导\n" +
     "用户：换成刘知远 → SWITCH_TO=刘导\n" +
     "用户：来个 zhiyuan → SWITCH_TO=zhiyuan\n" +
-    "用户：切到摸鱼 → SWITCH_TO=摸鱼\n" +
-    "用户：换成鱼哥 → SWITCH_TO=摸鱼\n" +
-    "用户：来个上班搭子 → SWITCH_TO=摸鱼\n" +
+    "用户：切到鱼哥 → SWITCH_TO=鱼哥\n" +
+    "用户：换成鱼哥 → SWITCH_TO=鱼哥\n" +
+    "用户：来个上班搭子 → SWITCH_TO=鱼哥\n" +
     "用户：回到原版 → DISABLE_ADAPTER\n" +
     "用户：脱掉皮肤 → DISABLE_ADAPTER\n" +
     "用户：我不要用猫娘了 → DISABLE_ADAPTER\n" +
@@ -757,6 +757,13 @@ async function classifyIntentWithLLM(text) {
     "用户：今天天气真好 → NONE\n" +
     "用户：1+1 等于几 → NONE\n" +
     "用户：解释一下 LoRA 是什么 → NONE\n" +
+    "用户：我今天想摸鱼 → NONE\n" +
+    "用户：咱们一起摸鱼 → NONE\n" +
+    "用户：摸鱼小技巧 → NONE\n" +
+    "用户：今天打工人真累 → NONE\n" +
+    "用户：工友们都加班 → NONE\n" +
+    "用户：鱼哥你听我说 → NONE\n" +
+    "用户：鱼哥我今天好烦 → NONE\n" +
     "现在分类下面这句：";
   const body = {
     messages: [{ role: "user", content: text }],
@@ -898,12 +905,9 @@ async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
     "刘知远": "zhiyuan",
     "知远": "zhiyuan",
     "zhiyuan": "zhiyuan",
-    "摸鱼": "moyu",
     "鱼哥": "moyu",
-    "搭子": "moyu",
     "上班搭子": "moyu",
-    "打工人": "moyu",
-    "工友": "moyu",
+    "摸鱼": "moyu",
     "moyu": "moyu",
     "slacker": "moyu",
     "原版": null, "默认": null, "base": null, "原始": null, "裸": null, "纯净": null, "普通": null,
