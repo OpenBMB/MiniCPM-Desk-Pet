@@ -38,7 +38,7 @@ test("main falls back before startup theme load when active Codex Pet theme is o
   assert.ok(loadIdx > hydrateIdx, "startup theme load should happen after orphan fallback");
   assert.ok(source.includes("delete nextVariantMap[orphanThemeId];"));
   assert.ok(source.includes("delete nextOverrides[orphanThemeId];"));
-  assert.ok(source.includes('_requestedThemeId = "clawd";'));
+  assert.ok(source.includes("_requestedThemeId = DEFAULT_THEME_ID;"));
   assert.ok(source.includes("codexPetMain.setLastSyncSummary(_startupCodexPetSyncSummary);"));
 });
 

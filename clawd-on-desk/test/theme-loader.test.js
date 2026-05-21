@@ -96,6 +96,7 @@ describe("theme-loader strict mode", () => {
   before(() => {
     fixture = makeFixture([
       { id: "clawd", builtin: true, json: validThemeJson({ name: "Clawd" }) },
+      { id: "calico", builtin: true, json: validThemeJson({ name: "Calico" }) },
       { id: "good", builtin: true, json: validThemeJson({ name: "Good" }) },
       {
         id: "updatevisuals",
@@ -143,14 +144,14 @@ describe("theme-loader strict mode", () => {
   });
   after(() => fixture && fixture.cleanup());
 
-  it("lenient load falls back to clawd when theme missing", () => {
+  it("lenient load falls back to calico when theme missing", () => {
     const theme = themeLoader.loadTheme("doesNotExist");
-    assert.strictEqual(theme._id, "clawd");
+    assert.strictEqual(theme._id, "calico");
   });
 
   it("lenient load falls back when theme validation fails", () => {
     const theme = themeLoader.loadTheme("broken");
-    assert.strictEqual(theme._id, "clawd");
+    assert.strictEqual(theme._id, "calico");
   });
 
   it("strict load throws when theme is missing", () => {

@@ -1,0 +1,123 @@
+name: Build sidecar (llama-server + gateway)
+
+# Triggers the cross-platform sidecar build whenever the C++ vendor pin
+# or the Python gateway changes. Produces uploadable artifacts that
+# downstream (electron-builder release workflow) can consume via
+# actions/download-artifact, dropping them into clawd-on-desk's
+# extraResources path so the dmg / NSIS / AppImage include the prebuilt
+# llama-server and gateway binary.
+
+on:
+  push:
+    paths:
+      - "minicpm-sidecar/**"
+      - ".github/workflows/build-sidecar.yml"
+  pull_request:
+    paths:
+      - "minicpm-sidecar/**"
+      - ".github/workflows/build-sidecar.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14            # Apple Silicon
+            triple: mac-arm64
+            accel: metal
+          - os: macos-13            # Intel
+            triple: mac-x64
+            accel: cpu
+          - os: ubuntu-22.04
+            triple: linux-x64
+            accel: cpu
+          - os: windows-2022
+            triple: win-x64
+            accel: cpu
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.triple }}
+    defaults:
+      run:
+        working-directory: minicpm-sidecar
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cmake (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential
+
+      # cmake ships with macOS / windows runners already.
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+        shell: bash
+        if: runner.os != 'Windows'
+
+      - name: Install uv (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          irm https://astral.sh/uv/install.ps1 | iex
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.local\bin"
+
+      - name: Clone vendored llama.cpp
+        shell: bash
+        run: ./scripts/clone-llama.sh
+
+      - name: Build llama-server (POSIX)
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          LLAMA_ACCEL: ${{ matrix.accel }}
+        run: ./scripts/build-llama.sh
+
+      - name: Build llama-server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LLAMA_ACCEL: ${{ matrix.accel }}
+        run: ./scripts/build-llama.ps1
+
+      - name: Build gateway (PyInstaller)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/build-gateway.sh
+
+      - name: Build gateway (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          uv sync
+          uv pip install "pyinstaller>=6.0"
+          Push-Location build
+          ../.venv/Scripts/pyinstaller.exe gateway.spec `
+            --distpath ../build/dist --workpath ../build/build --clean --noconfirm
+          Pop-Location
+          New-Item -ItemType Directory -Force -Path "bin/${{ matrix.triple }}" | Out-Null
+          Copy-Item -Force build/dist/minicpm-sidecar.exe "bin/${{ matrix.triple }}/"
+
+      - name: Smoke test (gateway --help)
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ./bin/${{ matrix.triple }}/minicpm-sidecar.exe --help
+          else
+            ./bin/${{ matrix.triple }}/minicpm-sidecar --help
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-${{ matrix.triple }}
+          path: minicpm-sidecar/bin/${{ matrix.triple }}/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,28 +1,78 @@
 "use strict";
 
-// ── MiniCPM settings tab ──
-// Status panel + controls for the local MiniCPM sidecar. Reads/writes
-// state via window.minicpmSettings (defined in preload-settings.js).
+// ── MiniCPM settings tab (model-focused, compact) ──
 //
-// Sections:
-//   1. 当前状态        — model / adapter / persona / device
-//   2. 模型更新        — check + apply
-//   3. LoRA / 人格     — list + switch
-//   4. 桌宠旁白         — narration on/off
-//   5. 快捷键 (只读)    — reminder of hotkeys
+// Sections (top → bottom):
+//   1. 状态     —— 模型版本（带「打开模型目录」图标按钮）+ Sidecar 运行状态
+//   2. 行为     —— 桌宠旁白 / 默认思考模式（均真实影响推理路径）
+//   3. 快捷操作 —— 检查模型更新 / 选择本地 .gguf / 重启 Sidecar / 打开日志
+//
+// /api/health is polled at most once a minute (and on focus / manual refresh).
+// Resource usage is intentionally hidden — sidecar health is the only signal
+// regular users care about.
 
 (function initSettingsTabMinicpm(root) {
   let core = null;
   let helpers = null;
-  let cachedAdapters = null;
+
+  let healthTimer = null;
+  let visibilityHandler = null;
+  let mounted = false;
+
+  // Health polling cadence. Cheap (single HTTP GET on localhost), but the
+  // user explicitly asked for "about once a minute" instead of the previous
+  // 4-second resource ticker.
+  const HEALTH_INTERVAL_MS = 60_000;
+
+  // ── Inline SVGs used by the action cards and the folder button ─────────
+  // Same 24x24 / stroke=1.6 visual language as the sidebar icons so they
+  // sit consistently in the panel.
+  const SVG_FOLDER =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>' +
+    '</svg>';
+  const SVG_UPDATE =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<path d="M21 12a9 9 0 1 1-3-6.7"/>' +
+    '<path d="M21 4v5h-5"/>' +
+    '</svg>';
+  const SVG_FILE =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/>' +
+    '<path d="M14 3v5h5"/>' +
+    '</svg>';
+  const SVG_RESTART =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<path d="M12 4v8"/>' +
+    '<path d="M16.24 7.76a6 6 0 1 1-8.49 0"/>' +
+    '</svg>';
+  const SVG_LOG =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<rect x="3" y="4" width="18" height="16" rx="2"/>' +
+    '<path d="M7 9l3 3-3 3"/>' +
+    '<path d="M13 15h5"/>' +
+    '</svg>';
+
+  function cleanupTimers() {
+    if (healthTimer) {
+      clearInterval(healthTimer);
+      healthTimer = null;
+    }
+    if (visibilityHandler) {
+      document.removeEventListener("visibilitychange", visibilityHandler);
+      visibilityHandler = null;
+    }
+    mounted = false;
+  }
 
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
     for (const k of Object.keys(attrs || {})) {
       if (k === "style") Object.assign(e.style, attrs[k]);
       else if (k === "className") e.className = attrs[k];
-      else if (k.startsWith("on") && typeof attrs[k] === "function") e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
-      else e.setAttribute(k, attrs[k]);
+      else if (k.startsWith("on") && typeof attrs[k] === "function") {
+        e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      } else e.setAttribute(k, attrs[k]);
     }
     for (const child of children) {
       if (child == null) continue;
@@ -31,599 +81,390 @@
     return e;
   }
 
-  function row(label, control, hint) {
-    const wrap = el("div", { className: "row" });
-    const text = el("div", { className: "row-text" });
-    text.appendChild(el("span", { className: "row-label" }, label));
-    if (hint) text.appendChild(el("span", { className: "row-desc" }, hint));
-    wrap.appendChild(text);
-    const ctl = el("div", { className: "row-control" });
-    if (control) ctl.appendChild(control);
-    wrap.appendChild(ctl);
-    return wrap;
-  }
-
-  function section(title, ...rows) {
-    const grp = el("section", { className: "section" });
-    grp.appendChild(el("h3", { className: "section-title" }, title));
-    for (const r of rows) if (r) grp.appendChild(r);
-    return grp;
-  }
-
-  function btn(label, onClick, opts = {}) {
-    const b = el("button", { className: "btn" + (opts.primary ? " primary" : ""), onClick });
+  function softBtn(label, onClick, opts = {}) {
+    const b = el("button", {
+      type: "button",
+      className: "soft-btn" + (opts.accent ? " accent" : ""),
+      onClick,
+    });
     b.textContent = label;
     if (opts.disabled) b.disabled = true;
     return b;
   }
 
-  function statusLine(label, value, valueColor) {
-    const r = el("div", { className: "row" });
-    const t = el("div", { className: "row-text" });
-    t.appendChild(el("span", { className: "row-label" }, label));
-    r.appendChild(t);
-    const v = el("div", { className: "row-control" });
-    const span = el("span", {});
-    span.textContent = value || "—";
-    if (valueColor) span.style.color = valueColor;
-    v.appendChild(span);
-    r.appendChild(v);
-    return r;
+  function iconBtn(svgString, onClick, opts = {}) {
+    const b = el("button", {
+      type: "button",
+      className: "soft-btn minicpm-icon-btn",
+      onClick,
+      title: opts.title || "",
+      "aria-label": opts.ariaLabel || opts.title || "",
+    });
+    b.innerHTML = svgString;
+    if (opts.disabled) b.disabled = true;
+    return b;
+  }
+
+  function statusBadge(text, tone) {
+    const cls = tone === "ready"
+      ? "remote-ssh-status-connected"
+      : tone === "starting"
+        ? "remote-ssh-status-connecting"
+        : tone === "offline"
+          ? "remote-ssh-status-failed"
+          : "remote-ssh-status-idle";
+    return el("span", { className: `remote-ssh-status-badge ${cls}` }, text);
+  }
+
+  function statusRow(label, primary, secondary, extras) {
+    const row = el("div", { className: "row minicpm-status-row" });
+    const text = el("div", { className: "row-text" });
+    text.appendChild(el("span", { className: "row-label" }, label));
+    if (secondary) text.appendChild(el("span", { className: "row-desc" }, secondary));
+    row.appendChild(text);
+    const ctl = el("div", { className: "row-control minicpm-status-control" });
+    if (primary) ctl.appendChild(primary);
+    if (Array.isArray(extras)) {
+      for (const node of extras) if (node) ctl.appendChild(node);
+    }
+    row.appendChild(ctl);
+    return row;
+  }
+
+  function switchRow(label, hint, checked, onChange) {
+    const row = el("div", { className: "row" });
+    const text = el("div", { className: "row-text" });
+    text.appendChild(el("span", { className: "row-label" }, label));
+    if (hint) text.appendChild(el("span", { className: "row-desc" }, hint));
+    row.appendChild(text);
+    const sw = el("div", {
+      className: "switch" + (checked ? " on" : ""),
+      role: "switch",
+      tabindex: "0",
+      "aria-checked": checked ? "true" : "false",
+    });
+    const toggle = () => {
+      const next = !sw.classList.contains("on");
+      sw.classList.toggle("on", next);
+      sw.setAttribute("aria-checked", next ? "true" : "false");
+      onChange(next);
+    };
+    sw.addEventListener("click", toggle);
+    sw.addEventListener("keydown", (ev) => {
+      if (ev.key === " " || ev.key === "Enter") {
+        ev.preventDefault();
+        toggle();
+      }
+    });
+    const ctl = el("div", { className: "row-control" });
+    ctl.appendChild(sw);
+    row.appendChild(ctl);
+    return row;
+  }
+
+  function buildSectionHeader(title, rightChild) {
+    const header = el("h2", { className: "section-title minicpm-section-header" });
+    header.appendChild(el("span", {}, title));
+    if (rightChild) header.appendChild(rightChild);
+    return header;
+  }
+
+  // ── Sections ──────────────────────────────────────────────────────────
+
+  async function renderStatusSection(box, ctx) {
+    box.innerHTML = "";
+    const refreshBtn = softBtn("立即刷新", () => { void ctx.refreshAll(); });
+    const section = helpers.buildSection("", []);
+    const rows = section.querySelector(".section-rows");
+    section.insertBefore(buildSectionHeader("状态", refreshBtn), rows);
+
+    let st = null;
+    try { st = await window.minicpmSettings.getStatus(); } catch {}
+
+    const h = (st && st.health) || {};
+    const sidecarReady = !!(st && st.healthy);
+    // Llama subprocess can still be warming up after the FastAPI side comes
+    // online. Use it to choose between "运行中" and "启动中" for the badge.
+    const llamaReady = sidecarReady
+      && (h.alive === true || !!(h.llama_server && h.llama_server.status === "ok"));
+
+    // ── 模型 row ────────────────────────────────────────────────────────
+    // model_name is just the .gguf filename (e.g. MiniCPM5-0.9B-Q4_K_M.gguf)
+    // — surface it as the "model version" because that's what users actually
+    // identify the model by. We fall back to the basename of model_dir for
+    // the rare case where health came back without model_name.
+    const modelName = h.model_name
+      || (h.model_dir ? h.model_dir.split(/[/\\]/).pop() : null);
+    const modelChip = el(
+      "span",
+      { className: "collapsible-summary-chip" + (modelName ? " accent" : "") },
+      modelName || "未加载模型",
+    );
+    const folderBtn = iconBtn(SVG_FOLDER, async () => {
+      const ret = await window.minicpmSettings.openModelDir();
+      if (ret && !ret.ok) alert(ret.error || "无法打开模型目录");
+    }, { title: "打开模型目录", ariaLabel: "打开模型目录" });
+
+    rows.appendChild(statusRow(
+      "模型",
+      modelChip,
+      h.model_dir || "尚未配置模型，使用下方「选择本地 .gguf」",
+      [folderBtn],
+    ));
+
+    // ── Sidecar row ────────────────────────────────────────────────────
+    let sidecarLabel;
+    let sidecarTone;
+    if (!sidecarReady) {
+      sidecarTone = "offline";
+      sidecarLabel = "未连接";
+    } else if (!llamaReady) {
+      sidecarTone = "starting";
+      sidecarLabel = "启动中";
+    } else {
+      sidecarTone = "ready";
+      sidecarLabel = "运行中";
+    }
+    const sidecarHint = sidecarReady
+      ? `${(st && st.sidecarUrl) || ""}  ·  ${h.accel || h.device || "auto"}`
+      : "Sidecar 未运行 — 启动桌宠后会自动连接，或点「立即刷新」";
+
+    rows.appendChild(statusRow(
+      "Sidecar",
+      statusBadge(sidecarLabel, sidecarTone),
+      sidecarHint,
+    ));
+
+    box.appendChild(section);
+  }
+
+  async function renderBehaviorSection(box) {
+    box.innerHTML = "";
+    const section = helpers.buildSection("", []);
+    const rows = section.querySelector(".section-rows");
+    section.insertBefore(buildSectionHeader("行为"), rows);
+
+    let st = null;
+    try { st = await window.minicpmSettings.getStatus(); } catch {}
+    let paramsPayload = null;
+    try { paramsPayload = await window.minicpmSettings.getChatParams(); } catch {}
+    const thinking = !!(paramsPayload && paramsPayload.params && paramsPayload.params.thinking);
+
+    // narrationEnabled gates the narration codepath in minicpm-chat.js
+    // (see `if (!narrationEnabled) return;` in narrateState). Toggling it
+    // through this row is the same source of truth used by the tray menu.
+    rows.appendChild(switchRow(
+      "桌宠旁白",
+      "Cursor / Claude / Codex 事件触发时，桌宠主动用本地模型说话",
+      !!(st && st.narration),
+      async (on) => { await window.minicpmSettings.setNarration(on); },
+    ));
+
+    // chatParams.thinking is read by the chat bubble on each /api/chat
+    // submit and forwarded to the sidecar (server.py honours it via the
+    // thinking flag → llama-cpp prompt template).
+    rows.appendChild(switchRow(
+      "默认思考模式",
+      "新对话默认请求 thinking=true，模型会先输出 <think>…</think> 推理过程",
+      thinking,
+      async (on) => {
+        const cur = (paramsPayload && paramsPayload.params) || {};
+        await window.minicpmSettings.setChatParams({ ...cur, thinking: on });
+      },
+    ));
+
+    box.appendChild(section);
+  }
+
+  function actionCard({ icon, title, desc, onClick, primary = false }) {
+    const card = el("button", {
+      type: "button",
+      className: "minicpm-action-card" + (primary ? " primary" : ""),
+    });
+    const iconBox = el("span", { className: "minicpm-action-icon" });
+    iconBox.innerHTML = icon;
+    const text = el("span", { className: "minicpm-action-text" });
+    text.appendChild(el("span", { className: "minicpm-action-title" }, title));
+    if (desc) text.appendChild(el("span", { className: "minicpm-action-desc" }, desc));
+    card.appendChild(iconBox);
+    card.appendChild(text);
+    // Wrap the click handler so each action can ask the card to swap its
+    // descriptive text and disabled state without juggling DOM lookups
+    // everywhere.
+    const helpers2 = {
+      setBusy(busyDesc) {
+        card.disabled = true;
+        card.classList.add("is-busy");
+        if (busyDesc != null) {
+          const d = card.querySelector(".minicpm-action-desc");
+          if (d) d.textContent = busyDesc;
+        }
+      },
+      setDesc(text2) {
+        const d = card.querySelector(".minicpm-action-desc");
+        if (d) d.textContent = text2;
+      },
+      reset(originalDesc) {
+        card.disabled = false;
+        card.classList.remove("is-busy");
+        const d = card.querySelector(".minicpm-action-desc");
+        if (d && originalDesc != null) d.textContent = originalDesc;
+      },
+    };
+    card.addEventListener("click", () => {
+      if (card.disabled) return;
+      try { void onClick(helpers2, card); } catch (err) {
+        console.warn("minicpm action failed:", err);
+      }
+    });
+    return card;
+  }
+
+  function renderActionsSection(box, ctx) {
+    box.innerHTML = "";
+    const section = helpers.buildSection("", []);
+    const rows = section.querySelector(".section-rows");
+    section.insertBefore(buildSectionHeader("快捷操作"), rows);
+
+    const updateDesc = "对比远端最新 .gguf 修订";
+    const restartDesc = "应用模型 / 加速器变更";
+
+    const grid = el("div", { className: "minicpm-quick-actions" });
+
+    grid.appendChild(actionCard({
+      icon: SVG_UPDATE,
+      title: "检查模型更新",
+      desc: updateDesc,
+      primary: true,
+      onClick: async (api) => {
+        api.setBusy("检查中…");
+        let upd = null;
+        try { upd = await window.minicpmSettings.checkUpdate(); } catch {}
+        if (upd && upd.available) {
+          api.setDesc("发现新版");
+          const ok = confirm(`发现新版：${upd.remote_revision || "?"}\n是否立即下载？`);
+          if (ok) {
+            api.setBusy("下载中…");
+            await window.minicpmSettings.applyUpdate();
+            api.reset(updateDesc);
+            void ctx.refreshAll();
+            return;
+          }
+        } else if (upd) {
+          api.setDesc("已是最新版本");
+        } else {
+          api.setDesc("无法获取版本（sidecar 未就绪？）");
+        }
+        setTimeout(() => api.reset(updateDesc), 4000);
+      },
+    }));
+
+    grid.appendChild(actionCard({
+      icon: SVG_FILE,
+      title: "选择本地 .gguf",
+      desc: "使用你已下载好的模型文件",
+      onClick: async (api) => {
+        const ret = await window.minicpmSettings.pickModelDir();
+        if (ret && ret.ok) {
+          void ctx.refreshAll();
+        } else if (ret && !ret.canceled && ret.error) {
+          alert(ret.error);
+        }
+        api.reset("使用你已下载好的模型文件");
+      },
+    }));
+
+    grid.appendChild(actionCard({
+      icon: SVG_RESTART,
+      title: "重启 Sidecar",
+      desc: restartDesc,
+      onClick: async (api) => {
+        api.setBusy("重启中…");
+        try { await window.minicpmSettings.restartSidecar(); } catch {}
+        api.reset(restartDesc);
+        void ctx.refreshAll();
+      },
+    }));
+
+    grid.appendChild(actionCard({
+      icon: SVG_LOG,
+      title: "打开日志目录",
+      desc: "排查 sidecar / llama 启动问题",
+      onClick: async (api) => {
+        const ret = await window.minicpmSettings.openLogsDir();
+        if (ret && !ret.ok) alert(ret.error || "无法打开日志目录");
+        api.reset("排查 sidecar / llama 启动问题");
+      },
+    }));
+
+    rows.appendChild(grid);
+
+    box.appendChild(section);
+  }
+
+  // ── Refresh + polling ─────────────────────────────────────────────────
+
+  async function refreshAll(ctx) {
+    if (!window.minicpmSettings || !ctx) return;
+    await renderStatusSection(ctx.statusBox, ctx);
+    await renderBehaviorSection(ctx.behaviorBox);
+    renderActionsSection(ctx.actionsBox, ctx);
+  }
+
+  function startHealthPolling(ctx) {
+    if (healthTimer) clearInterval(healthTimer);
+    healthTimer = setInterval(() => {
+      if (!mounted || document.hidden || core.state.activeTab !== "minicpm") return;
+      // Only the status row depends on /api/health — refreshing it alone
+      // keeps the switches and action cards stable across ticks.
+      void renderStatusSection(ctx.statusBox, ctx);
+    }, HEALTH_INTERVAL_MS);
   }
 
   async function render(parent) {
+    cleanupTimers();
     parent.innerHTML = "";
-    const head = el("div", { className: "tab-header" });
-    head.appendChild(el("h2", {}, "MiniCPM"));
-    head.appendChild(el("p", { className: "tab-subtitle" }, "本地推理服务、LoRA 适配器、模型更新和桌宠旁白。"));
-    parent.appendChild(head);
 
-    // State containers — populated async.
-    const statusBox = el("div", { className: "section" });
-    statusBox.appendChild(el("h3", { className: "section-title" }, "当前状态"));
-    statusBox.appendChild(el("div", { className: "row-desc" }, "加载中…"));
-    parent.appendChild(statusBox);
-
-    const updateBox = el("div", {});
-    parent.appendChild(updateBox);
-
-    const adapterBox = el("div", {});
-    parent.appendChild(adapterBox);
-
-    const deviceBox = el("div", {});
-    parent.appendChild(deviceBox);
-
-    const modelDirBox = el("div", {});
-    parent.appendChild(modelDirBox);
-
-    const paramsBox = el("div", {});
-    parent.appendChild(paramsBox);
-
-    const bubblePosBox = el("div", {});
-    parent.appendChild(bubblePosBox);
-
-    const narrationBox = el("div", {});
-    parent.appendChild(narrationBox);
-
-    const advancedBox = el("div", {});
-    parent.appendChild(advancedBox);
-
-    const hotkeysBox = el("div", {});
-    parent.appendChild(hotkeysBox);
-
-    parent.appendChild(section("快捷键",
-      statusLine("⌘⇧M", "开关聊天气泡"),
-      statusLine("⌘⇧T", "切换思考显示"),
-      statusLine("Esc", "关闭气泡 (在气泡内)"),
+    parent.appendChild(el("h1", {}, "MiniCPM"));
+    parent.appendChild(el(
+      "p",
+      { className: "subtitle" },
+      "配置你的本地 MiniCPM 模型。",
     ));
 
     if (!window.minicpmSettings) {
-      statusBox.querySelector(".row-desc").textContent = "MiniCPM IPC 不可用 (preload 未加载)";
+      parent.appendChild(el("div", { className: "row-desc" }, "MiniCPM IPC 不可用 (preload 未加载)"));
       return;
     }
 
-    await refreshAll(statusBox, updateBox, adapterBox, deviceBox, modelDirBox, paramsBox, bubblePosBox, narrationBox, advancedBox);
-  }
+    const ctx = {
+      statusBox: el("div", {}),
+      behaviorBox: el("div", {}),
+      actionsBox: el("div", {}),
+      refreshAll: null,
+    };
+    ctx.refreshAll = () => refreshAll(ctx);
 
-  // Editing flag is module-scoped so navigating away cleans up safely.
-  let editingBubble = false;
-  async function renderBubblePosSection(box) {
-    box.innerHTML = "";
-    let payload = null;
-    try { payload = await window.minicpmSettings.getBubblePos(); } catch {}
-    const pos = (payload && payload.pos) || { side: "left", dx: 0, dy: 0 };
-    const sec = el("section", { className: "section" });
-    sec.appendChild(el("h3", { className: "section-title" }, "气泡位置"));
+    parent.appendChild(ctx.statusBox);
+    parent.appendChild(ctx.behaviorBox);
+    parent.appendChild(ctx.actionsBox);
 
-    // Side preference dropdown.
-    const sideRow = el("div", { className: "row" });
-    const st = el("div", { className: "row-text" });
-    st.appendChild(el("span", { className: "row-label" }, "默认侧边"));
-    st.appendChild(el("span", { className: "row-desc" },
-      "气泡优先出现在桌宠的哪一侧；空间不够会自动翻到对面。"));
-    sideRow.appendChild(st);
-    const sideSel = el("select", { className: "select" });
-    [["left", "左侧"], ["right", "右侧"], ["auto", "自动"]].forEach(([v, label]) => {
-      const opt = el("option", { value: v }, label);
-      if (pos.side === v) opt.selected = true;
-      sideSel.appendChild(opt);
-    });
-    sideSel.addEventListener("change", async () => {
-      const next = { ...pos, side: sideSel.value };
-      await window.minicpmSettings.setBubblePos(next);
-      Object.assign(pos, next);
-    });
-    const sideCtl = el("div", { className: "row-control" });
-    sideCtl.appendChild(sideSel);
-    sideRow.appendChild(sideCtl);
-    sec.appendChild(sideRow);
-
-    // Offset display + drag-to-position controls.
-    const offsetRow = el("div", { className: "row" });
-    const ot = el("div", { className: "row-text" });
-    ot.appendChild(el("span", { className: "row-label" }, "微调偏移"));
-    const desc = el("span", { className: "row-desc" });
-    desc.textContent = `当前 dx=${pos.dx ?? 0}px · dy=${pos.dy ?? 0}px`;
-    ot.appendChild(desc);
-    offsetRow.appendChild(ot);
-    const ctl = el("div", { className: "row-control", style: { gap: "8px" } });
-
-    const editBtn = btn(editingBubble ? "✓ 保存位置" : "📍 拖动调整", null);
-    const cancelBtn = btn("× 取消", null);
-    cancelBtn.style.display = editingBubble ? "" : "none";
-
-    editBtn.addEventListener("click", async () => {
-      if (!editingBubble) {
-        editingBubble = true;
-        editBtn.textContent = "✓ 保存位置";
-        editBtn.classList.add("primary");
-        cancelBtn.style.display = "";
-        await window.minicpmSettings.enterBubbleEdit();
+    mounted = true;
+    visibilityHandler = () => {
+      if (document.hidden || core.state.activeTab !== "minicpm") {
+        if (healthTimer) {
+          clearInterval(healthTimer);
+          healthTimer = null;
+        }
       } else {
-        const r = await window.minicpmSettings.exitBubbleEdit(true);
-        editingBubble = false;
-        if (r && r.pos) Object.assign(pos, r.pos);
-        await renderBubblePosSection(box);
+        void refreshAll(ctx);
+        startHealthPolling(ctx);
       }
-    });
-    cancelBtn.addEventListener("click", async () => {
-      await window.minicpmSettings.exitBubbleEdit(false);
-      editingBubble = false;
-      await renderBubblePosSection(box);
-    });
-    const resetBtn = btn("重置默认", async () => {
-      await window.minicpmSettings.resetBubblePos();
-      await renderBubblePosSection(box);
-    });
-
-    ctl.appendChild(editBtn);
-    ctl.appendChild(cancelBtn);
-    ctl.appendChild(resetBtn);
-    offsetRow.appendChild(ctl);
-    sec.appendChild(offsetRow);
-
-    if (editingBubble) {
-      sec.appendChild(el("div", { className: "row-desc", style: { padding: "4px 12px", color: "var(--accent, #6b56ff)" } },
-        "气泡已弹出 — 直接用鼠标拖到喜欢的位置，回到这里点「保存位置」。"));
-    }
-
-    box.appendChild(sec);
-  }
-
-  // Build a "label · slider · numeric input · hint" row that debounces
-  // writes back to the main process. `key` is the chatParams field name,
-  // `range` is { min, max, step, decimals }, `hint` describes the param.
-  function paramRow(currentValue, key, label, hint, range, onCommit) {
-    const r = el("div", { className: "row" });
-    const tx = el("div", { className: "row-text" });
-    tx.appendChild(el("span", { className: "row-label" }, label));
-    tx.appendChild(el("span", { className: "row-desc" }, hint));
-    r.appendChild(tx);
-
-    const ctl = el("div", { className: "row-control", style: { gap: "8px", alignItems: "center" } });
-    const slider = el("input", {
-      type: "range",
-      min: String(range.min),
-      max: String(range.max),
-      step: String(range.step),
-    });
-    slider.value = String(currentValue);
-    slider.style.width = "150px";
-
-    const num = el("input", { type: "number" });
-    num.min = String(range.min);
-    num.max = String(range.max);
-    num.step = String(range.step);
-    num.value = String(currentValue);
-    num.style.width = "70px";
-    num.style.padding = "4px 6px";
-    num.style.border = "1px solid var(--input-border, rgba(0,0,0,0.08))";
-    num.style.borderRadius = "6px";
-    num.style.background = "var(--input-bg, #f4f4f5)";
-    num.style.color = "var(--text-primary, #18181b)";
-    num.style.fontSize = "12px";
-
-    const sync = (v) => {
-      const fixed = Number.isFinite(v) ? Number(v) : currentValue;
-      slider.value = String(fixed);
-      num.value = String(fixed);
     };
-    let pending = null;
-    const debounceCommit = (v) => {
-      pending = v;
-      if (debounceCommit._t) clearTimeout(debounceCommit._t);
-      debounceCommit._t = setTimeout(() => { if (pending !== null) onCommit(key, pending); pending = null; }, 200);
-    };
-    slider.addEventListener("input", () => { sync(parseFloat(slider.value)); debounceCommit(parseFloat(slider.value)); });
-    num.addEventListener("change", () => { sync(parseFloat(num.value)); onCommit(key, parseFloat(num.value)); });
+    document.addEventListener("visibilitychange", visibilityHandler);
 
-    ctl.appendChild(slider);
-    ctl.appendChild(num);
-    r.appendChild(ctl);
-    return r;
-  }
-
-  function checkboxRow(currentValue, label, hint, onChange) {
-    const cb = el("input", { type: "checkbox" });
-    cb.checked = !!currentValue;
-    cb.addEventListener("change", () => onChange(cb.checked));
-    const r = el("div", { className: "row" });
-    const tx = el("div", { className: "row-text" });
-    tx.appendChild(el("span", { className: "row-label" }, label));
-    tx.appendChild(el("span", { className: "row-desc" }, hint));
-    r.appendChild(tx);
-    const ctl = el("div", { className: "row-control" });
-    ctl.appendChild(cb);
-    r.appendChild(ctl);
-    return r;
-  }
-
-  async function renderParamsSection(paramsBox) {
-    paramsBox.innerHTML = "";
-    let payload = null;
-    try { payload = await window.minicpmSettings.getChatParams(); } catch {}
-    const params = (payload && payload.params) || {};
-    const sec = el("section", { className: "section" });
-    sec.appendChild(el("h3", { className: "section-title" }, "聊天生成参数"));
-
-    const commit = async (key, value) => {
-      const next = { ...params, [key]: value };
-      const r = await window.minicpmSettings.setChatParams(next);
-      if (r && r.params) Object.assign(params, r.params);
-    };
-
-    sec.appendChild(paramRow(
-      params.temperature ?? 0.6, "temperature",
-      "Temperature",
-      "0 = 贪心解码（确定）；1 = 默认；越高越发散",
-      { min: 0, max: 2, step: 0.05 }, commit,
-    ));
-    sec.appendChild(paramRow(
-      params.top_p ?? 0.95, "top_p",
-      "Top-p",
-      "核采样阈值，常用 0.9–0.95",
-      { min: 0.1, max: 1, step: 0.01 }, commit,
-    ));
-    sec.appendChild(paramRow(
-      params.top_k ?? 0, "top_k",
-      "Top-k",
-      "0 = 不限制；典型范围 20–80",
-      { min: 0, max: 200, step: 1 }, commit,
-    ));
-    sec.appendChild(paramRow(
-      params.repetition_penalty ?? 1.05, "repetition_penalty",
-      "Repetition penalty",
-      "1.0 = 不惩罚；> 1 抑制复读",
-      { min: 1, max: 2, step: 0.01 }, commit,
-    ));
-    sec.appendChild(paramRow(
-      params.max_new_tokens ?? 768, "max_new_tokens",
-      "Max new tokens",
-      "单条回复最大 token 数",
-      { min: 16, max: 4096, step: 16 }, commit,
-    ));
-    sec.appendChild(checkboxRow(
-      !!params.thinking,
-      "默认开启思考模式",
-      "新会话默认显示 <think>。LoRA 模型未训练 think 时建议关闭。",
-      (v) => commit("thinking", v),
-    ));
-
-    const resetRow = el("div", { className: "row" });
-    const t = el("div", { className: "row-text" });
-    t.appendChild(el("span", { className: "row-label" }, "重置"));
-    t.appendChild(el("span", { className: "row-desc" }, "把所有参数还原到内置默认值。"));
-    resetRow.appendChild(t);
-    const c = el("div", { className: "row-control" });
-    c.appendChild(btn("重置默认值", async () => {
-      await window.minicpmSettings.resetChatParams();
-      await renderParamsSection(paramsBox);
-    }));
-    resetRow.appendChild(c);
-    sec.appendChild(resetRow);
-
-    paramsBox.appendChild(sec);
-  }
-
-  async function renderDeviceSection(box) {
-    box.innerHTML = "";
-    const sec = el("section", { className: "section" });
-    sec.appendChild(el("h3", { className: "section-title" }, "加速器"));
-    let info = null;
-    try { info = await window.minicpmSettings.listDevices(); } catch {}
-    if (!info || !info.available || info.available.length === 0) {
-      sec.appendChild(el("div", { className: "row-desc" },
-        "无法读取可用加速器；sidecar 可能未启动。"));
-      box.appendChild(sec);
-      return;
-    }
-    const select = el("select", { className: "select" });
-    const autoOpt = el("option", { value: "" }, "自动 (推荐 " + (info.recommended || "?") + ")");
-    select.appendChild(autoOpt);
-    for (const d of info.available) {
-      const label = d === "mps" ? "Apple Silicon GPU (MPS)"
-        : d === "cuda" ? "NVIDIA GPU (CUDA)"
-        : d === "cpu" ? "CPU"
-        : d;
-      const opt = el("option", { value: d }, label);
-      if (d === info.current) opt.selected = true;
-      select.appendChild(opt);
-    }
-    const ctl = el("div", { className: "row-control", style: { gap: "8px" } });
-    ctl.appendChild(select);
-    ctl.appendChild(btn("应用", async () => {
-      await window.minicpmSettings.setDevice(select.value || "");
-    }));
-    ctl.appendChild(btn("立即重启 sidecar", async (ev) => {
-      ev.target.disabled = true;
-      ev.target.textContent = "重启中…";
-      await window.minicpmSettings.restartSidecar();
-      ev.target.disabled = false;
-      ev.target.textContent = "立即重启 sidecar";
-    }));
-    const r = el("div", { className: "row" });
-    const t = el("div", { className: "row-text" });
-    t.appendChild(el("span", { className: "row-label" }, "推理后端"));
-    t.appendChild(el("span", { className: "row-desc" },
-      "当前: " + (info.current || "?") + "。切换后需要重启 sidecar 才生效。"));
-    r.appendChild(t);
-    r.appendChild(ctl);
-    sec.appendChild(r);
-    box.appendChild(sec);
-  }
-
-  async function renderModelDirSection(box) {
-    box.innerHTML = "";
-    const sec = el("section", { className: "section" });
-    sec.appendChild(el("h3", { className: "section-title" }, "模型路径"));
-    let info = null;
-    try { info = await window.minicpmSettings.getModelDir(); } catch {}
-    const r = el("div", { className: "row" });
-    const t = el("div", { className: "row-text" });
-    t.appendChild(el("span", { className: "row-label" }, "当前模型目录"));
-    const desc = el("span", { className: "row-desc" });
-    desc.textContent = info ? info.current : "(读取失败)";
-    if (info && !info.present) {
-      desc.textContent += " · 该路径下未找到 config.json";
-      desc.style.color = "var(--err, #ef4444)";
-    }
-    t.appendChild(desc);
-    r.appendChild(t);
-    const ctl = el("div", { className: "row-control", style: { gap: "8px" } });
-    ctl.appendChild(btn("更换…", async () => {
-      const ret = await window.minicpmSettings.pickModelDir();
-      if (ret && ret.ok) await renderModelDirSection(box);
-      else if (ret && !ret.canceled && ret.error) alert(ret.error);
-    }));
-    ctl.appendChild(btn("重置默认", async () => {
-      await window.minicpmSettings.resetModelDir();
-      await renderModelDirSection(box);
-    }));
-    r.appendChild(ctl);
-    sec.appendChild(r);
-    if (info && info.default !== info.current) {
-      sec.appendChild(el("div", { className: "row-desc", style: { padding: "0 12px" } },
-        "默认路径: " + info.default));
-    }
-    sec.appendChild(el("div", { className: "row-desc", style: { padding: "0 12px" } },
-      "更换或重置后，需重启 sidecar 或重启应用方可生效。"));
-    box.appendChild(sec);
-  }
-
-  async function renderAdvancedSection(box) {
-    box.innerHTML = "";
-    const sec = el("section", { className: "section" });
-    sec.appendChild(el("h3", { className: "section-title" }, "高级 / 开发"));
-
-    // ── Re-run onboarding ──
-    const r = el("div", { className: "row" });
-    const t = el("div", { className: "row-text" });
-    t.appendChild(el("span", { className: "row-label" }, "重新运行首次启动引导"));
-    t.appendChild(el("span", { className: "row-desc" },
-      "用于切设备、换模型路径或调试。点击后需要重启应用。"));
-    r.appendChild(t);
-    const ctl = el("div", { className: "row-control", style: { gap: "8px" } });
-    ctl.appendChild(btn("标记重新引导", async (ev) => {
-      const ret = await window.minicpmSettings.rerunOnboarding();
-      if (ret && ret.ok) {
-        ev.target.textContent = "已标记";
-        ev.target.disabled = true;
-      } else {
-        alert((ret && ret.error) || "操作失败");
-      }
-    }));
-    ctl.appendChild(btn("立即重启应用", async () => {
-      if (confirm("应用将立即重启。是否继续？")) {
-        await window.minicpmSettings.relaunchApp();
-      }
-    }));
-    r.appendChild(ctl);
-    sec.appendChild(r);
-
-    // ── Logs ──
-    const lr = el("div", { className: "row" });
-    const lt = el("div", { className: "row-text" });
-    lt.appendChild(el("span", { className: "row-label" }, "日志"));
-    const ldesc = el("span", { className: "row-desc" });
-    ldesc.textContent = "加载中…";
-    lt.appendChild(ldesc);
-    lr.appendChild(lt);
-    const lctl = el("div", { className: "row-control", style: { gap: "8px" } });
-    lctl.appendChild(btn("打开日志目录", async () => {
-      const ret = await window.minicpmSettings.openLogsDir();
-      if (ret && !ret.ok) alert(ret.error || "无法打开日志目录");
-    }));
-    lr.appendChild(lctl);
-    sec.appendChild(lr);
-
-    // Populate the description asynchronously.
-    (async () => {
-      try {
-        const info = await window.minicpmSettings.getLogsInfo();
-        if (!info) { ldesc.textContent = "无法读取日志目录"; return; }
-        const total = (info.entries || []).reduce((s, e) => s + (e.size || 0), 0);
-        const totalKb = total > 0 ? `${(total / 1024).toFixed(1)} KB` : "0";
-        const count = (info.entries || []).length;
-        ldesc.textContent = `位置: ${info.dir}   ·   ${count} 个文件   ·   总计 ${totalKb}`;
-      } catch {
-        ldesc.textContent = "无法读取日志目录";
-      }
-    })();
-
-    box.appendChild(sec);
-  }
-
-  async function refreshAll(statusBox, updateBox, adapterBox, deviceBox, modelDirBox, paramsBox, bubblePosBox, narrationBox, advancedBox) {
-    // ── status ──
-    let st = null;
-    try { st = await window.minicpmSettings.getStatus(); } catch {}
-    statusBox.innerHTML = "";
-    statusBox.appendChild(el("h3", { className: "section-title" }, "当前状态"));
-    if (!st || !st.healthy) {
-      statusBox.appendChild(el("div", { className: "row-desc" }, "Sidecar 未连接 — 启动桌宠后再试"));
-      return;
-    }
-    const h = st.health || {};
-    statusBox.appendChild(statusLine("模型", h.model_name || h.model_dir || "?"));
-    statusBox.appendChild(statusLine("适配器", h.adapter ? h.adapter.split("/").pop() : "无 (base)"));
-    statusBox.appendChild(statusLine("人格", h.persona || "default"));
-    statusBox.appendChild(statusLine("设备", `${h.device || "?"} · ${h.dtype || "?"}`));
-    statusBox.appendChild(statusLine("Sidecar URL", st.sidecarUrl || ""));
-    statusBox.appendChild(statusLine("Bridge dir", st.bridgeDir || ""));
-
-    // ── update ──
-    updateBox.innerHTML = "";
-    let upd = null;
-    try { upd = await window.minicpmSettings.checkUpdate(); } catch {}
-    const updRow = el("div", { className: "row" });
-    const updText = el("div", { className: "row-text" });
-    updText.appendChild(el("span", { className: "row-label" }, "模型版本"));
-    if (upd) {
-      const desc = upd.available
-        ? `本地 ${upd.local_revision || "?"} · 远端 ${upd.remote_revision || "?"} · 有新版可用`
-        : `${upd.local_revision || "?"}（已是最新）`;
-      const descEl = el("span", { className: "row-desc" }, desc);
-      if (upd.available) descEl.style.color = "var(--accent, #6b56ff)";
-      updText.appendChild(descEl);
-    } else {
-      updText.appendChild(el("span", { className: "row-desc" }, "无法读取版本信息"));
-    }
-    updRow.appendChild(updText);
-    const updCtl = el("div", { className: "row-control" });
-    updCtl.appendChild(btn("重新检查", async () => {
-      await refreshAll(statusBox, updateBox, adapterBox, deviceBox, modelDirBox, paramsBox, bubblePosBox, narrationBox, advancedBox);
-    }));
-    if (upd && upd.available) {
-      updCtl.appendChild(btn("立即更新", async (ev) => {
-        ev.target.disabled = true;
-        ev.target.textContent = "下载中…";
-        await window.minicpmSettings.applyUpdate();
-        ev.target.disabled = false;
-        ev.target.textContent = "立即更新";
-        await refreshAll(statusBox, updateBox, adapterBox, deviceBox, modelDirBox, paramsBox, bubblePosBox, narrationBox, advancedBox);
-      }, { primary: true }));
-    }
-    const updSec = el("section", { className: "section" });
-    updSec.appendChild(el("h3", { className: "section-title" }, "模型更新"));
-    updSec.appendChild(updRow);
-    updateBox.appendChild(updSec);
-
-    // ── adapters ──
-    adapterBox.innerHTML = "";
-    let adapters = null;
-    try { adapters = await window.minicpmSettings.listAdapters(); } catch {}
-    const adapterSec = el("section", { className: "section" });
-    adapterSec.appendChild(el("h3", { className: "section-title" }, "LoRA / 人格"));
-    if (!adapters || !adapters.items || adapters.items.length === 0) {
-      adapterSec.appendChild(el("div", { className: "row-desc" },
-        "在 adapters/ 目录里放 PEFT 格式的 LoRA 才能切换。"));
-    } else {
-      const select = el("select", { className: "select" });
-      const noneOpt = el("option", { value: "" }, "无 LoRA (base 模型)");
-      if (!adapters.current) noneOpt.selected = true;
-      select.appendChild(noneOpt);
-      for (const a of adapters.items) {
-        const opt = el("option", { value: a.path }, a.name);
-        if (a.path === adapters.current) opt.selected = true;
-        select.appendChild(opt);
-      }
-      const applyBtn = btn("应用", async () => {
-        applyBtn.disabled = true;
-        applyBtn.textContent = "切换中…";
-        const target = select.value || null;
-        await window.minicpmSettings.loadAdapter(target);
-        applyBtn.disabled = false;
-        applyBtn.textContent = "应用";
-        await refreshAll(statusBox, updateBox, adapterBox, deviceBox, modelDirBox, paramsBox, bubblePosBox, narrationBox, advancedBox);
-      }, { primary: true });
-      const ctl = el("div", { className: "row-control", style: { gap: "8px" } });
-      ctl.appendChild(select);
-      ctl.appendChild(applyBtn);
-      const r = el("div", { className: "row" });
-      const t = el("div", { className: "row-text" });
-      t.appendChild(el("span", { className: "row-label" }, "选择"));
-      t.appendChild(el("span", { className: "row-desc" }, "切换会清空当前对话历史以避免人格污染。"));
-      r.appendChild(t);
-      r.appendChild(ctl);
-      adapterSec.appendChild(r);
-    }
-    adapterBox.appendChild(adapterSec);
-
-    // ── accelerator ──
-    await renderDeviceSection(deviceBox);
-
-    // ── local model directory override ──
-    await renderModelDirSection(modelDirBox);
-
-    // ── chat generation params ──
-    await renderParamsSection(paramsBox);
-
-    // ── bubble position ──
-    await renderBubblePosSection(bubblePosBox);
-
-    // ── narration ──
-    narrationBox.innerHTML = "";
-    const narrSec = el("section", { className: "section" });
-    narrSec.appendChild(el("h3", { className: "section-title" }, "桌宠旁白"));
-    const cb = el("input", { type: "checkbox" });
-    cb.checked = !!st.narration;
-    cb.addEventListener("change", async () => {
-      await window.minicpmSettings.setNarration(cb.checked);
-    });
-    const nr = el("div", { className: "row" });
-    const nt = el("div", { className: "row-text" });
-    nt.appendChild(el("span", { className: "row-label" }, "启用主动旁白"));
-    nt.appendChild(el("span", { className: "row-desc" },
-      "Cursor / Claude / Codex 完成一轮、报错时桌宠会用一句话点评。"));
-    nr.appendChild(nt);
-    const nc = el("div", { className: "row-control" });
-    nc.appendChild(cb);
-    nr.appendChild(nc);
-    narrSec.appendChild(nr);
-    narrationBox.appendChild(narrSec);
-
-    // ── advanced / dev ──
-    await renderAdvancedSection(advancedBox);
+    await refreshAll(ctx);
+    startHealthPolling(ctx);
   }
 
   function init(coreArg) {

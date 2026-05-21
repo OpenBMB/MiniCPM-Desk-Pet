@@ -10,16 +10,25 @@
 // the renderer keeps the in-memory conversation history across opens.
 //
 // Layout assumption:
-//   <repo-root>/clawd-on-desk      ← this Electron app
-//   <repo-root>/minicpm-pet-bridge ← Python server.py
-//   <repo-root>/models/<name>/     ← HuggingFace model dirs
+//   <repo-root>/clawd-on-desk        ← this Electron app
+//   <repo-root>/minicpm-sidecar      ← llama.cpp-backed sidecar
+//                                       (gateway/ FastAPI + llama-server)
+//   <userData>/models/*.gguf         ← GGUF weights downloaded by Onboarding
 //
 // Override locations via env:
-//   MINICPM_BRIDGE_DIR / MINICPM_PYTHON / MINICPM_CONDA_ENV
+//   MINICPM_SIDECAR_BIN  — point at a prebuilt gateway binary
+//   MINICPM_SIDECAR_DIR  — point at the minicpm-sidecar source tree (dev)
+//   MINICPM_PYTHON       — explicit Python interpreter (dev fallback)
 //
+// Historical note: this used to spawn a PyTorch sidecar via conda / uv.
+// That stack was retired in v0.8 in favour of llama.cpp; the new sidecar
+// has no torch / transformers / peft dependency and ships as a single
+// binary per platform alongside llama-server.
 
 const { BrowserWindow, ipcMain, screen, shell, Menu, app } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 const fs = require("fs");
 const http = require("http");
 const os = require("os");
@@ -47,26 +56,27 @@ const SPEAK_MAX_HEIGHT = 360;
 const MIN_WIDTH = 100;
 const MIN_HEIGHT = 40;
 
-// ── locate sidecar binary / Python bridge dir / Python interpreter ─────────
+// ── locate sidecar binary / dev sources / Python interpreter ───────────────
 //
-// Three runtime modes, in priority order:
-//   A. Packaged app    → PyInstaller binary at <resourcesPath>/sidecar-bin/
-//                         (the only path real users ever hit)
-//   B. Dev with venv   → minicpm-pet-bridge-uv/.venv/bin/python (uv sync)
-//   C. Legacy conda    → ~/miniconda3/envs/minicpm-pet/bin/python (kept for
-//                         contributors who haven't migrated to uv yet)
+// Two runtime modes, in priority order:
+//   A. Packaged app   → bundled binary at <resourcesPath>/sidecar-bin/
+//                         minicpm-sidecar(.exe)   ← PyInstaller gateway
+//                         llama-server(.exe)      ← llama.cpp build product
+//                       (the only path real users ever hit)
+//   B. Dev with venv  → minicpm-sidecar/.venv/bin/python -m gateway
+//                       (created by `uv sync` inside minicpm-sidecar/)
 //
-// MINICPM_BRIDGE_DIR / MINICPM_PYTHON / MINICPM_SIDECAR_BIN env vars
+// MINICPM_SIDECAR_BIN / MINICPM_SIDECAR_DIR / MINICPM_PYTHON env vars
 // override every mode for local debugging.
 
 function locateSidecarBinary(appRoot) {
   const override = process.env.MINICPM_SIDECAR_BIN;
   if (override && fs.existsSync(override)) return path.resolve(override);
+  const ext = process.platform === "win32" ? ".exe" : "";
   if (app && app.isPackaged) {
-    // electron-builder puts our PyInstaller dir under
+    // electron-builder puts the binary under
     //   <Contents>/Resources/sidecar-bin/         (macOS .app bundle)
     //   <install>/resources/sidecar-bin/          (Windows / Linux)
-    const ext = process.platform === "win32" ? ".exe" : "";
     const candidates = [
       path.join(process.resourcesPath, "sidecar-bin", "minicpm-sidecar" + ext),
       path.join(process.resourcesPath, "sidecar-bin", "minicpm-sidecar", "minicpm-sidecar" + ext),
@@ -75,64 +85,67 @@ function locateSidecarBinary(appRoot) {
       try { if (fs.statSync(c).isFile()) return c; } catch {}
     }
   }
+  // Dev convenience: scripts/build-gateway.sh emits binaries under
+  //   <repo>/minicpm-sidecar/bin/<os>-<arch>/minicpm-sidecar
+  // so devs can dogfood the production codepath without rebuilding
+  // electron-builder every time.
+  const triple = triplet();
+  const devBin = path.join(appRoot, "..", "minicpm-sidecar", "bin", triple, "minicpm-sidecar" + ext);
+  try { if (fs.statSync(devBin).isFile()) return devBin; } catch {}
   return null;
 }
 
-function locateBridgeDir(appRoot) {
-  const candidates = [
-    process.env.MINICPM_BRIDGE_DIR,
-    // Packaged path — server.py lives next to the binary so updater.py
-    // and clawd_state.py imports keep working when the sidecar binary
-    // is bypassed (e.g. dev override pointing at a stale venv).
-    app && app.isPackaged
-      ? path.join(process.resourcesPath, "minicpm-pet-bridge")
-      : null,
-    // Dev preferred: uv-managed venv.
-    path.join(appRoot, "..", "minicpm-pet-bridge-uv"),
-    // Dev legacy: conda-managed source.
-    path.join(appRoot, "..", "minicpm-pet-bridge"),
-  ].filter(Boolean);
+function locateSidecarSourceDir(appRoot) {
+  const override = process.env.MINICPM_SIDECAR_DIR;
+  if (override) {
+    try {
+      if (fs.statSync(path.join(override, "gateway", "__main__.py")).isFile()) {
+        return path.resolve(override);
+      }
+    } catch {}
+  }
+  const candidates = [];
+  if (app && app.isPackaged) {
+    // Packaged builds ship the source next to the binary so a dev
+    // override at MINICPM_PYTHON still has somewhere to point at.
+    candidates.push(path.join(process.resourcesPath, "minicpm-sidecar"));
+  }
+  candidates.push(path.join(appRoot, "..", "minicpm-sidecar"));
   for (const c of candidates) {
     try {
-      if (fs.statSync(path.join(c, "server.py")).isFile()) return path.resolve(c);
+      if (fs.statSync(path.join(c, "gateway", "__main__.py")).isFile()) {
+        return path.resolve(c);
+      }
     } catch {}
   }
   return null;
 }
 
-function locatePython(appRoot) {
+function locatePython(sidecarDir) {
   // 1. Explicit override always wins.
   const explicit = process.env.MINICPM_PYTHON;
-  if (explicit && fs.existsSync(explicit)) {
-    return { python: explicit, viaShell: false };
-  }
+  if (explicit && fs.existsSync(explicit)) return explicit;
 
-  // 2. Dev venv created by `uv sync` in minicpm-pet-bridge-uv/.
-  //    This is the recommended dev path now that go.sh exists.
+  if (!sidecarDir) return null;
   const venvCandidates = [
-    path.join(appRoot, "..", "minicpm-pet-bridge-uv", ".venv", "bin", "python"),
-    path.join(appRoot, "..", "minicpm-pet-bridge-uv", ".venv", "bin", "python3"),
-    // Windows layout when we eventually add it
-    path.join(appRoot, "..", "minicpm-pet-bridge-uv", ".venv", "Scripts", "python.exe"),
+    path.join(sidecarDir, ".venv", "bin", "python"),
+    path.join(sidecarDir, ".venv", "bin", "python3"),
+    path.join(sidecarDir, ".venv", "Scripts", "python.exe"),
   ];
   for (const p of venvCandidates) {
-    try { if (fs.statSync(p).isFile()) return { python: p, viaShell: false }; } catch {}
+    try { if (fs.statSync(p).isFile()) return p; } catch {}
   }
+  return null;
+}
 
-  // 3. Legacy conda env (mac/linux), for contributors who still have it.
-  const envName = process.env.MINICPM_CONDA_ENV || "minicpm-pet";
-  const condaCandidates = [
-    path.join(os.homedir(), "miniconda3", "envs", envName, "bin", "python"),
-    path.join(os.homedir(), "anaconda3", "envs", envName, "bin", "python"),
-    path.join("/opt", "miniconda3", "envs", envName, "bin", "python"),
-    path.join("/opt", "anaconda3", "envs", envName, "bin", "python"),
-    path.join("/opt", "homebrew", "Caskroom", "miniconda", "base", "envs", envName, "bin", "python"),
-  ];
-  for (const p of condaCandidates) {
-    try { if (fs.statSync(p).isFile()) return { python: p, viaShell: false }; } catch {}
-  }
-
-  return { python: null, viaShell: true, condaEnv: envName };
+function triplet() {
+  // Matches electron-builder's `${os}-${arch}` expansion so extraResources
+  // paths and our dev bin/<triple>/ layout line up.
+  const arch = process.arch === "arm64" ? "arm64" : process.arch === "x64" ? "x64" : process.arch;
+  if (process.platform === "darwin") return "mac-"   + arch;
+  if (process.platform === "win32")  return "win-"   + arch;
+  if (process.platform === "linux")  return "linux-" + arch;
+  return process.platform + "-" + arch;
 }
 
 // ── HTTP probe helpers ──────────────────────────────────────────────────────
@@ -170,11 +183,13 @@ function httpJson(method, urlStr, body, timeoutMs = 4000) {
 // ── Sidecar manager ─────────────────────────────────────────────────────────
 
 class Sidecar {
-  constructor({ bridgeDir, sidecarBin, appRoot, port, host, log, logFile }) {
-    this.bridgeDir = bridgeDir;
-    // Optional PyInstaller binary; when set we skip the Python interpreter
-    // lookup entirely. Populated in packaged builds via electron-builder
-    // extraResources → resources/sidecar-bin/.
+  constructor({ sidecarDir, sidecarBin, appRoot, port, host, log, logFile }) {
+    // Source tree of minicpm-sidecar; used only in dev when no prebuilt
+    // binary is present. Packaged builds ignore it entirely.
+    this.sidecarDir = sidecarDir || null;
+    // Optional prebuilt gateway binary. When set we skip Python lookup.
+    // Populated in packaged builds via electron-builder extraResources →
+    // resources/sidecar-bin/minicpm-sidecar[.exe].
     this.sidecarBin = sidecarBin || null;
     this.appRoot = appRoot || null;
     this.port = port;
@@ -283,14 +298,16 @@ class Sidecar {
   }
 
   async _spawnAndWait(initialModelDir) {
-    // We need at least one of (PyInstaller binary, Python source) to spawn.
-    if (!this.sidecarBin && !this.bridgeDir) {
-      throw new Error("找不到 sidecar。打包模式下应内置 sidecar-bin/，开发模式请设置 MINICPM_BRIDGE_DIR 或 uv sync。");
+    // We need either the prebuilt gateway binary or the source tree
+    // (with a Python venv) to spawn.
+    if (!this.sidecarBin && !this.sidecarDir) {
+      throw new Error(
+        "找不到 sidecar。打包模式下应内置 sidecar-bin/，开发模式请 cd minicpm-sidecar && uv sync。"
+      );
     }
 
-    // PyInstaller binary takes both `server.py`-equivalent args as flags;
-    // Python interpreter mode prepends `server.py` because cwd is the
-    // bridge dir.
+    // Both the binary and `python -m gateway` accept the same flags;
+    // we treat them uniformly here.
     const argsCommon = [
       "--host", this.host,
       "--port", String(this.port),
@@ -300,77 +317,34 @@ class Sidecar {
     const env = {
       ...process.env,
       PYTHONUNBUFFERED: "1",
-      // Belt-and-suspenders for Apple Silicon: any op MPS can't lower
-      // (some MiniCPM5 GQA / matmul shapes still hit
-      // "Failed to infer result type(s) for mps.matmul" in MPSGraph)
-      // falls back to CPU instead of crashing the process.
-      PYTORCH_ENABLE_MPS_FALLBACK: process.env.PYTORCH_ENABLE_MPS_FALLBACK || "1",
-      // Point the sidecar's own RotatingFileHandler at the same folder
-      // the Electron host writes to. Result: both `sidecar.log` (what
-      // the parent saw) and `sidecar-internal.log` (full Python tracebacks)
-      // sit side by side, easy to grab via Settings → "打开日志目录".
+      // Mirror our sidecar.log directory into the gateway so its
+      // RotatingFileHandler drops sidecar-internal.log next to what
+      // Electron captures — easy to grab via Settings → "打开日志目录".
       MINICPM_LOG_DIR: this.logFile ? path.dirname(this.logFile) : (process.env.MINICPM_LOG_DIR || ""),
     };
-    // Auto-discover a LoRA adapter if the user hasn't explicitly set one.
-    // Looks at <packaged resources>/adapters/ in production or
-    // <repo-root>/adapters/ in dev mode.
-    if (!env.MINICPM_ADAPTER) {
-      const adapterCandidates = [];
-      if (app && app.isPackaged) {
-        adapterCandidates.push(path.join(process.resourcesPath, "adapters"));
-      }
-      if (this.bridgeDir) {
-        adapterCandidates.push(path.resolve(this.bridgeDir, "..", "adapters"));
-      }
-      if (this.appRoot) {
-        adapterCandidates.push(path.resolve(this.appRoot, "..", "adapters"));
-      }
-      outer: for (const adaptersRoot of adapterCandidates) {
-        try {
-          if (!fs.statSync(adaptersRoot).isDirectory()) continue;
-          for (const name of fs.readdirSync(adaptersRoot)) {
-            const cand = path.join(adaptersRoot, name);
-            if (fs.existsSync(path.join(cand, "adapter_config.json"))) {
-              env.MINICPM_ADAPTER = cand;
-              this.log(`[minicpm-chat] auto-detected LoRA adapter: ${cand}`);
-              break outer;
-            }
-          }
-        } catch {}
-      }
-    }
 
     let proc;
     if (this.sidecarBin) {
-      // Production path: a self-contained PyInstaller binary. No Python
-      // interpreter required on the host.
+      // Production path: a self-contained gateway binary. No Python
+      // interpreter required on the host. The gateway itself locates
+      // and spawns the llama-server binary sitting next to it.
       this.log(`[minicpm-chat] spawn binary ${this.sidecarBin} --port ${this.port}`);
       proc = spawn(this.sidecarBin, argsCommon, {
-        cwd: this.bridgeDir || path.dirname(this.sidecarBin),
+        cwd: path.dirname(this.sidecarBin),
         env,
       });
     } else {
-      // Dev path: locate a Python interpreter and run server.py from the
-      // bridge dir.
-      const { python, viaShell, condaEnv } = locatePython(this.appRoot || path.dirname(this.bridgeDir));
-      const args = ["server.py", ...argsCommon];
-
-      if (python) {
-        this.log(`[minicpm-chat] spawn ${python} server.py --port ${this.port}`);
-        proc = spawn(python, args, { cwd: this.bridgeDir, env });
-      } else if (viaShell) {
-        const cmd = [
-          `eval "$(conda shell.bash hook)"`,
-          `conda activate ${condaEnv}`,
-          `exec python ${args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(" ")}`,
-        ].join(" && ");
-        this.log(`[minicpm-chat] spawn via shell (conda env: ${condaEnv})`);
-        proc = spawn("/bin/bash", ["-lc", cmd], { cwd: this.bridgeDir, env });
-      } else {
+      const python = locatePython(this.sidecarDir);
+      if (!python) {
         throw new Error(
-          "找不到 Python 解释器。请安装应用打包版（推荐），或 cd minicpm-pet-bridge-uv && uv sync。"
+          "找不到 Python 解释器。请安装应用打包版（推荐），或 cd minicpm-sidecar && uv sync。"
         );
       }
+      this.log(`[minicpm-chat] spawn ${python} -m gateway --port ${this.port}`);
+      proc = spawn(python, ["-m", "gateway", ...argsCommon], {
+        cwd: this.sidecarDir,
+        env,
+      });
     }
 
     this.proc = proc;
@@ -521,7 +495,7 @@ function computeBubbleBoundsForSide(side, petBounds, workArea, width, height, op
 
 module.exports = function initMinicpmChat(ctx) {
   const appRoot = path.resolve(__dirname, "..");
-  const bridgeDir = locateBridgeDir(appRoot);
+  const sidecarDir = locateSidecarSourceDir(appRoot);
   const sidecarBin = locateSidecarBinary(appRoot);
   const port = Number(process.env.MINICPM_PORT || DEFAULT_PORT);
   const host = process.env.MINICPM_HOST || DEFAULT_HOST;
@@ -541,7 +515,7 @@ module.exports = function initMinicpmChat(ctx) {
   const sidecarLogPath = path.join(logsDir, "sidecar.log");
 
   const sidecar = new Sidecar({
-    bridgeDir, sidecarBin, appRoot, port, host, log,
+    sidecarDir, sidecarBin, appRoot, port, host, log,
     logFile: sidecarLogPath,
   });
 
@@ -609,20 +583,45 @@ module.exports = function initMinicpmChat(ctx) {
   }
   function getChatParams() { return { ...chatParams }; }
 
-  // ── Model directory resolution ─────────────────────────────────────────
-  // Production: <userData>/models/minicpm5-0.9b/ (downloaded by Onboarding).
-  // Dev: <repo>/models/minicpm5-0.9b/ (the existing convention).
+  // ── Model path resolution ─────────────────────────────────────────────
+  // Production: <userData>/models/<model>.gguf (downloaded by Onboarding).
+  // Dev: <repo>/models/<model>.gguf (developer convenience).
   // Users can override via Settings → MiniCPM → 本地模型路径 (writes
   // minicpm-prefs.json model_dir field), or MINICPM_MODEL_DIR env at launch.
-  const MODEL_DIRNAME = "minicpm5-0.9b";
+  //
+  // Legacy v0.7.x onboarding wrote a HuggingFace directory path here. We
+  // accept either form: if the configured path is a directory, we scan
+  // it for a *.gguf inside; if it's a file, we use it as-is.
+  const MODELS_SUBDIR = "models";
   function getUserDataDir() {
     try { return app.getPath("userData"); } catch { return os.tmpdir(); }
   }
   function getDefaultModelDir() {
     if (app && app.isPackaged) {
-      return path.join(getUserDataDir(), "models", MODEL_DIRNAME);
+      return path.join(getUserDataDir(), MODELS_SUBDIR);
     }
-    return path.resolve(appRoot, "..", "models", MODEL_DIRNAME);
+    return path.resolve(appRoot, "..", MODELS_SUBDIR);
+  }
+  function _firstGgufIn(dir) {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      // Direct hit first
+      const here = entries
+        .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".gguf"))
+        .map((e) => path.join(dir, e.name));
+      if (here.length) return here[0];
+      // One level deep (Onboarding may have nested by repo name)
+      for (const e of entries) {
+        if (!e.isDirectory()) continue;
+        const sub = path.join(dir, e.name);
+        try {
+          const inner = fs.readdirSync(sub)
+            .filter((n) => n.toLowerCase().endsWith(".gguf"));
+          if (inner.length) return path.join(sub, inner[0]);
+        } catch {}
+      }
+    } catch {}
+    return null;
   }
   function getEffectiveModelDir() {
     if (process.env.MINICPM_MODEL_DIR) return process.env.MINICPM_MODEL_DIR;
@@ -647,9 +646,91 @@ module.exports = function initMinicpmChat(ctx) {
     return getEffectiveModelDir();
   }
   function isModelPresent(dir) {
+    const target = dir || getEffectiveModelDir();
     try {
-      return fs.statSync(path.join(dir || getEffectiveModelDir(), "config.json")).isFile();
-    } catch { return false; }
+      const st = fs.statSync(target);
+      if (st.isFile()) return target.toLowerCase().endsWith(".gguf");
+      if (st.isDirectory()) return _firstGgufIn(target) !== null;
+    } catch {}
+    return false;
+  }
+  function resolveCurrentGgufPath(healthJson) {
+    const candidates = [];
+    if (healthJson && healthJson.model_dir) candidates.push(healthJson.model_dir);
+    candidates.push(getEffectiveModelDir());
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      try {
+        const st = fs.statSync(candidate);
+        if (st.isFile() && candidate.toLowerCase().endsWith(".gguf")) return candidate;
+        if (st.isDirectory()) {
+          const gguf = _firstGgufIn(candidate);
+          if (gguf) return gguf;
+        }
+      } catch {}
+    }
+    return null;
+  }
+
+  // ── Process tree RSS (Settings → 资源占用) ───────────────────────────
+  async function listAllProcesses() {
+    if (isWin) {
+      const ps =
+        "$OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; " +
+        "Get-CimInstance Win32_Process | " +
+        "Select-Object ProcessId,ParentProcessId,WorkingSetSize,Name,CommandLine | " +
+        "ConvertTo-Json -Compress";
+      const { stdout } = await execFileAsync(
+        "powershell.exe",
+        ["-NoProfile", "-Command", ps],
+        { maxBuffer: 12 * 1024 * 1024, windowsHide: true },
+      );
+      const parsed = JSON.parse(stdout || "[]");
+      const arr = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      return arr.map((p) => ({
+        pid: Number(p.ProcessId),
+        ppid: Number(p.ParentProcessId),
+        rss: Math.round(Number(p.WorkingSetSize || 0) / 1024),
+        cpu: 0,
+        cmd: String(p.CommandLine || p.Name || ""),
+      })).filter((p) => Number.isFinite(p.pid) && p.pid > 0);
+    }
+    const { stdout } = await execFileAsync(
+      "ps",
+      ["-axo", "pid=,ppid=,rss=,pcpu=,command="],
+      { maxBuffer: 12 * 1024 * 1024 },
+    );
+    return stdout.trim().split("\n").map((line) => {
+      const trimmed = line.trim();
+      const m = trimmed.match(/^(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/);
+      if (!m) return null;
+      return {
+        pid: Number(m[1]),
+        ppid: Number(m[2]),
+        rss: Number(m[3]),
+        cpu: parseFloat(m[4]) || 0,
+        cmd: m[5] || "",
+      };
+    }).filter(Boolean);
+  }
+  function collectProcessTree(rootPid, allProcs) {
+    const byPpid = new Map();
+    for (const proc of allProcs) {
+      if (!byPpid.has(proc.ppid)) byPpid.set(proc.ppid, []);
+      byPpid.get(proc.ppid).push(proc);
+    }
+    const tree = [];
+    const queue = [rootPid];
+    const seen = new Set();
+    while (queue.length) {
+      const pid = queue.shift();
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      const proc = allProcs.find((p) => p.pid === pid);
+      if (proc) tree.push(proc);
+      for (const child of byPpid.get(pid) || []) queue.push(child.pid);
+    }
+    return tree;
   }
 
   // ── Bubble position (side preference + drag offset) ───────────────────
@@ -1560,17 +1641,97 @@ module.exports = function initMinicpmChat(ctx) {
     "minicpm-settings:pick-model-dir": async () => {
       const { dialog } = require("electron");
       const ret = await dialog.showOpenDialog({
-        title: "选择 MiniCPM 模型目录",
-        properties: ["openDirectory"],
-        message: "目录中必须包含 config.json",
+        title: "选择本地 MiniCPM 模型 (.gguf 文件或包含 .gguf 的目录)",
+        properties: ["openFile", "openDirectory"],
+        filters: [{ name: "GGUF model", extensions: ["gguf"] }],
+        message: "可以是单个 .gguf 文件，或包含 .gguf 的目录",
       });
       if (ret.canceled || !ret.filePaths.length) return { ok: false, canceled: true };
-      const dir = ret.filePaths[0];
-      if (!fs.existsSync(path.join(dir, "config.json"))) {
-        return { ok: false, error: `所选目录不包含 config.json：\n${dir}` };
+      const picked = ret.filePaths[0];
+      let target = picked;
+      try {
+        const st = fs.statSync(picked);
+        if (st.isDirectory()) {
+          const entries = fs.readdirSync(picked)
+            .filter((n) => n.toLowerCase().endsWith(".gguf"));
+          if (!entries.length) {
+            return { ok: false, error: `所选目录不包含 .gguf：\n${picked}` };
+          }
+          target = path.join(picked, entries[0]);
+        } else if (!picked.toLowerCase().endsWith(".gguf")) {
+          return { ok: false, error: `请选择 .gguf 文件：\n${picked}` };
+        }
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
       }
-      setEffectiveModelDir(dir);
-      return { ok: true, modelDir: dir };
+      setEffectiveModelDir(target);
+      return { ok: true, modelDir: target };
+    },
+    "minicpm-settings:open-model-dir": async () => {
+      const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+      const gguf = resolveCurrentGgufPath(health ? health.json : null);
+      if (gguf) {
+        try {
+          shell.showItemInFolder(gguf);
+          return { ok: true, path: gguf, highlighted: true };
+        } catch (err) {
+          return { ok: false, error: String(err && err.message || err) };
+        }
+      }
+      const dir = getEffectiveModelDir();
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        const err = await shell.openPath(dir);
+        if (err) return { ok: false, error: err };
+        return { ok: true, dir, highlighted: false };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+    "minicpm-settings:get-resources": async () => {
+      const root = sidecar.proc && sidecar.proc.pid;
+      if (!root) return { ok: false, reason: "no-sidecar" };
+      try {
+        const all = await listAllProcesses();
+        const tree = collectProcessTree(root, all);
+        const total_rss_kb = tree.reduce((sum, p) => sum + (p.rss || 0), 0);
+        const total_cpu = tree.reduce((sum, p) => sum + (p.cpu || 0), 0);
+        const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+        const h = health && health.json ? health.json : {};
+        const gguf_path = resolveCurrentGgufPath(h);
+        let gguf_size = null;
+        if (gguf_path) {
+          try { gguf_size = fs.statSync(gguf_path).size; } catch {}
+        }
+        const llama = tree.find((p) => /llama-server/i.test(p.cmd));
+        const ctx_size = Number(process.env.MINICPM_CTX) || 4096;
+        const mmap_kb = gguf_size ? Math.round(gguf_size / 1024) : null;
+        const private_kb = mmap_kb != null
+          ? Math.max(0, total_rss_kb - mmap_kb)
+          : total_rss_kb;
+        return {
+          ok: true,
+          total_rss_kb,
+          total_cpu,
+          private_kb,
+          mmap_kb,
+          gguf_size,
+          gguf_path,
+          ctx_size,
+          accel: h.accel || h.device || null,
+          backend: h.backend || null,
+          llama_alive: !!(h.alive || (h.llama_server && h.llama_server.status === "ok")),
+          processes: tree.map((p) => ({
+            pid: p.pid,
+            rss: p.rss,
+            cpu: p.cpu,
+            cmd: p.cmd.slice(0, 160),
+          })),
+          llama_pid: llama ? llama.pid : null,
+        };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
     },
     "minicpm-settings:reset-model-dir": async () => {
       setEffectiveModelDir(null);

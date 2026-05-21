@@ -5,9 +5,16 @@
   --border: rgba(255,255,255,0.08);
   --text: #e8e8ec;
   --text-dim: #9a9aa3;
-  --accent: #7c6cff;
-  --accent-soft: rgba(124,108,255,0.18);
-  --ok: #4ade80;
+  --accent: #373ED8;
+  --accent-soft: rgba(55, 62, 216, 0.22);
+  /* Softer mint-green so the wizard reads calmly even with several
+     success states on screen. --ok is the tinted accent (text/border);
+     --ok-soft is the panel background; --ok-border is the divider. */
+  --ok: #86efac;
+  --ok-strong: #4ade80;
+  --ok-text: #bbf7d0;
+  --ok-soft: rgba(134, 239, 172, 0.16);
+  --ok-border: rgba(134, 239, 172, 0.42);
   --warn: #fbbf24;
   --err: #f87171;
   --radius: 10px;
@@ -22,8 +29,13 @@
     --border: rgba(0,0,0,0.08);
     --text: #18181b;
     --text-dim: #6b6b75;
-    --accent: #6b56ff;
-    --accent-soft: rgba(107,86,255,0.12);
+    --accent: #373ED8;
+    --accent-soft: rgba(55, 62, 216, 0.14);
+    --ok: #86efac;
+    --ok-strong: #16a34a;
+    --ok-text: #166534;
+    --ok-soft: rgba(134, 239, 172, 0.22);
+    --ok-border: rgba(134, 239, 172, 0.55);
   }
 }
 
@@ -94,9 +106,9 @@ body {
   border-color: var(--accent);
 }
 .step.done .dot {
-  background: var(--ok);
-  color: #0f0f12;
-  border-color: var(--ok);
+  background: var(--ok-soft);
+  color: var(--ok-text);
+  border-color: var(--ok-border);
 }
 .step.done .dot::after {
   content: "✓";
@@ -201,93 +213,119 @@ body {
   color: var(--text-dim);
   font-size: 12px;
 }
-.checks li.ok .icon { background: var(--ok); color: #0f0f12; }
+.checks li.ok {
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
+}
+.checks li.ok .icon {
+  background: var(--ok-border);
+  color: var(--ok-text);
+  border: 1px solid var(--ok-border);
+}
 .checks li.ok .icon::after { content: "✓"; }
 .checks li.ok .icon > * { display: none; }
 .checks li.err .icon { background: var(--err); color: white; }
 .checks li.err .icon::after { content: "!"; }
 .checks li.err .icon > * { display: none; }
 
-/* ── Device picker ──────────────────────────────────────────────────── */
-.device-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 8px;
+/* ── Model cards (Step 2) ──────────────────────────────────────────── */
+.model-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 4px;
 }
-.device-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: border-color 0.12s;
-}
-.device-option:hover { border-color: var(--accent); }
-.device-option.selected {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-.device-option .radio {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--text-dim);
-  display: inline-block;
+.model-card {
   position: relative;
-}
-.device-option.selected .radio {
-  border-color: var(--accent);
-}
-.device-option.selected .radio::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.device-option .title {
-  font-weight: 600;
-  font-size: 13px;
-}
-.device-option .reason {
-  display: block;
-  color: var(--text-dim);
-  font-size: 12px;
-  margin-top: 3px;
-}
-.device-option .pill {
-  margin-left: auto;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-/* ── Progress card ──────────────────────────────────────────────────── */
-.progress-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  transition: border-color 0.15s, background 0.15s, opacity 0.15s;
 }
-.progress-track {
-  height: 10px;
+.model-card.selected {
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
+}
+.model-card.disabled {
+  opacity: 0.45;
+}
+.model-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.model-card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.badge-check {
+  width: 20px;
+  height: 20px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--ok-border);
+  color: var(--ok-text);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--ok-border);
+}
+.model-card.selected .badge-check { display: inline-flex; }
+.model-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.model-card-desc {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.model-card-status {
+  font-size: 12px;
+  color: var(--ok-text);
+  padding: 6px 10px;
+  background: var(--ok-soft);
+  border: 1px solid var(--ok-border);
+  border-radius: 8px;
+  word-break: break-all;
+}
+.model-card-status.hidden { display: none; }
+.model-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Progress card (inside download model card) ───────────────────── */
+.progress-card {
   background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.progress-card.hidden { display: none; }
+.progress-track {
+  height: 8px;
+  background: var(--bg);
   border-radius: 999px;
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--accent), #a596ff);
+  background: linear-gradient(90deg, var(--ok-strong), var(--ok));
   transition: width 0.25s ease-out;
 }
 .progress-text {
@@ -297,6 +335,44 @@ body {
 }
 .progress-text .dim { color: var(--text-dim); }
 
+/* ── Warmup row (below cards) ─────────────────────────────────────── */
+.warmup-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+.warmup-row.hidden { display: none; }
+.warmup-row.done {
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
+  color: var(--ok-text);
+}
+.warmup-row.err {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: var(--err);
+}
+.warmup-row .warmup-check {
+  display: none;
+}
+.warmup-row.done .warmup-check {
+  display: inline-flex;
+}
+.warmup-row.done .spinner {
+  display: none;
+}
+.warmup-retry {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.warmup-retry.hidden { display: none; }
+
 /* ── Misc ───────────────────────────────────────────────────────────── */
 .row {
   display: flex;
@@ -304,18 +380,6 @@ body {
   gap: 10px;
 }
 .dim { color: var(--text-dim); font-size: 12px; }
-.banner {
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 12px;
-}
-.banner.ok {
-  background: rgba(74, 222, 128, 0.1);
-  border-color: rgba(74, 222, 128, 0.4);
-  color: var(--ok);
-}
 .error {
   color: var(--err);
   padding: 10px 14px;
@@ -327,22 +391,14 @@ body {
 }
 .error.hidden { display: none; }
 
-.spinner-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
 .spinner {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
+  flex-shrink: 0;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 

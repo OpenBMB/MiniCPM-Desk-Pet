@@ -152,6 +152,10 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   // Logs
   getLogsInfo: () => ipcRenderer.invoke("minicpm-settings:get-logs-info"),
   openLogsDir: () => ipcRenderer.invoke("minicpm-settings:open-logs-dir"),
+
+  // Resource usage + model directory shortcuts
+  getResources: () => ipcRenderer.invoke("minicpm-settings:get-resources"),
+  openModelDir: () => ipcRenderer.invoke("minicpm-settings:open-model-dir"),
 });
 
 contextBridge.exposeInMainWorld("doctor", {

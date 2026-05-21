@@ -14,8 +14,9 @@
 | 日期 | 2026-05-20 |
 | 作者 | 项目负责人 |
 | 评审人 | 待定 |
-| 状态 | Draft，待评审 |
+| 状态 | Draft，已部分由 v0.8 重构落地 |
 | 关联文档 | [docs/architecture-and-cross-platform-report.md](architecture-and-cross-platform-report.md)（架构调研与三端打包改造报告，作为本 PRD 的技术细节附录） |
+| 勘误 | **v0.8 起推理后端从 PyTorch 切换为 llama.cpp**。本 PRD 中提到的 §6.1（PyInstaller 嵌入 torch ~700MB）、§6.4（Linux/Windows 的 torch CUDA wheel 索引）等章节已不再适用，请参考 [docs/llama-cpp-migration.md](llama-cpp-migration.md)。其它产品诉求（北极星指标、Onboarding 流程、签名 / 自动更新策略、Voca 对标）仍然作为 v0.8 的设计输入。 |
 
 ---
 

@@ -1,8 +1,10 @@
 # MiniCPM-test 架构调研与三端打包改造报告
 
 > 生成日期：2026-05-20  
-> 调研范围：整个仓库（截至 HEAD）  
+> 调研范围：整个仓库（截至 v0.7 HEAD）  
 > 目的：（1）盘点当前能力与架构，便于新接手成员快速了解；（2）评估将本项目作为桌面应用打包分发到 macOS / Windows / Linux 所需的工程改动。
+>
+> **v0.8 勘误**：报告中"PyTorch sidecar + PyInstaller 嵌入 torch"的设计已被 [`minicpm-sidecar/`](../minicpm-sidecar/) （llama.cpp + 瘦 gateway）取代。本报告中 §6.1 / §6.4 / §1.5.2 中关于 torch wheel 分发、MPS workaround、PyInstaller torch 体积的章节请以 [`docs/llama-cpp-migration.md`](llama-cpp-migration.md) 为准。其它跨平台分析（底座三端能力、Onboarding、签名、自动更新）仍然适用。
 
 ---
 

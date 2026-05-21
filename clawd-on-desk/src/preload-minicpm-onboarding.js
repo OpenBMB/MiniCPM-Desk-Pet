@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld("onboarding", {
   startModelDownload: () => ipcRenderer.invoke("onboarding:start-model-download"),
   warmup: () => ipcRenderer.invoke("onboarding:warmup"),
   complete: () => ipcRenderer.invoke("onboarding:complete"),
+  // Used when the user switches between online download and local file
+  // after one source already loaded — restarts the sidecar so warmup
+  // picks up the new model file.
+  restartSidecar: () => ipcRenderer.invoke("onboarding:restart-sidecar"),
 
   // Streaming progress (download + warmup)
   onProgress: (cb) => {

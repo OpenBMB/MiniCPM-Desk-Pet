@@ -10,8 +10,10 @@
     "build:win:arm64": "electron-builder --win nsis:arm64",
     "build:win:all": "electron-builder --win nsis:x64 nsis:arm64",
     "build:mac": "electron-builder --mac",
-    "build:mac:mvp": "bash ../build/build-sidecar.sh && electron-builder --mac --arm64 -c.mac.target=dmg",
+    "build:mac:mvp": "bash ../minicpm-sidecar/scripts/build-all.sh && electron-builder --mac --arm64 -c.mac.target=dmg",
     "build:mac:repack": "electron-builder --mac --arm64 -c.mac.target=dmg",
+    "build:mac:notarize": "bash scripts/build-dmg-notarize.sh",
+    "build:mac:mvp:notarize": "bash ../minicpm-sidecar/scripts/build-all.sh && bash scripts/build-dmg-notarize.sh",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder --win --mac --linux",
     "test": "node --test test/*.test.js",
@@ -42,6 +44,12 @@
   ],
   "author": "OpenBMB",
   "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EEEEEKKO/MiniCPM-test.git"
+  },
+  "homepage": "https://github.com/EEEEEKKO/MiniCPM-test",
+  "upstreamRepository": "https://github.com/rullerzhou-afk/clawd-on-desk",
   "type": "commonjs",
   "build": {
     "appId": "com.openbmb.minicpm-desk-pet",
@@ -67,6 +75,10 @@
         }
       ],
       "category": "public.app-category.entertainment",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "extendInfo": {
         "LSUIElement": true
       }
@@ -112,6 +124,7 @@
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico"
     },
+    "afterSign": "scripts/notarize.js",
     "files": [
       "NOTICE.md",
       "src/**/*",
@@ -138,22 +151,15 @@
         "to": "icon.ico"
       },
       {
-        "from": "dist/sidecar/${os}-${arch}",
+        "from": "../minicpm-sidecar/bin/${os}-${arch}",
         "to": "sidecar-bin"
       },
       {
-        "from": "../adapters",
-        "to": "adapters"
-      },
-      {
-        "from": "../minicpm-pet-bridge-uv",
-        "to": "minicpm-pet-bridge",
+        "from": "../minicpm-sidecar",
+        "to": "minicpm-sidecar",
         "filter": [
-          "server.py",
-          "updater.py",
-          "clawd_state.py",
+          "gateway/**/*.py",
           "pyproject.toml",
-          "uv.lock",
           ".python-version",
           "README.md"
         ]
@@ -162,12 +168,13 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "rullerzhou-afk",
-        "repo": "clawd-on-desk"
+        "owner": "EEEEEKKO",
+        "repo": "MiniCPM-test"
       }
     ]
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "electron": "^41.0.2",
     "electron-builder": "^26.8.1"
   },

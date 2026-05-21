@@ -937,11 +937,30 @@ def build_app(
         bridge.post(state, event=payload.get("event"))
         return {"ok": True}
 
-    @app.get("/")
-    def index():
-        return FileResponse(str(STATIC_DIR / "index.html"))
+    # The browser test page and its asset directory are optional. In dev
+    # checkouts they sit at minicpm-pet-bridge/static/, but PyInstaller
+    # builds may ship without them (the real UI is the Electron app).
+    # Mounting StaticFiles against a missing directory raises at boot,
+    # which previously crashed the entire sidecar — see crash dump
+    # `sidecar-crash-2026-05-20T12-25-19-030Z.log`. Skip gracefully if
+    # the directory isn't present.
+    if STATIC_DIR.is_dir():
+        @app.get("/")
+        def index():
+            return FileResponse(str(STATIC_DIR / "index.html"))
 
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    else:
+        @app.get("/")
+        def index():
+            return JSONResponse({
+                "ok": True,
+                "note": "browser test page not shipped in this build; use the Electron app instead",
+                "endpoints": [
+                    "/api/health", "/api/chat", "/api/warmup", "/api/devices",
+                    "/api/onboarding", "/api/adapters", "/api/load-adapter",
+                ],
+            })
     return app
 
 

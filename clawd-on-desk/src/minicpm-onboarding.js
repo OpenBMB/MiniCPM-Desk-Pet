@@ -4,13 +4,18 @@
 //
 // Lives as a single BrowserWindow (NOT a panel) shown before the pet
 // when <userData>/minicpm-onboarding.json is missing or stale. Drives
-// the user through the 5 stages mirrored after Voca:
-//   1 env-check      — disk space + network reachability
-//   2 device-pick    — pick MPS / CUDA / CPU
-//   3 model-download — pull MiniCPM5-0.9B from HF (or point at a local
-//                      directory the user already has)
-//   4 warmup         — start sidecar + run /api/warmup
-//   5 ready          — handoff to the pet window
+// the user through 3 stages (compressed from the earlier 5 in v0.8.1):
+//   1 env-check  — disk space + network + platform sanity
+//   2 model      — user picks online download OR loads a local .gguf;
+//                  warmup runs inline on the same panel
+//   3 ready      — handoff to the pet window
+//
+// Accelerator selection was retired in this redesign — sidecar picks
+// the right backend automatically (Metal on mac, CUDA/CPU elsewhere).
+// The legacy `onboarding:list-devices` / `onboarding:select-device`
+// IPC handlers are kept untouched so that other call sites (Settings
+// tab, automation scripts) keep working, but the wizard renderer no
+// longer invokes them.
 //
 // On `onboarding:complete` we write a sentinel file and invoke the
 // `onComplete` callback supplied by main.js, which then constructs the
@@ -279,20 +284,36 @@ module.exports = function initOnboarding(ctx) {
     },
 
     "onboarding:pick-local-model": async () => {
+      // The llama.cpp backend takes a single .gguf file, but for back-
+      // compat with users who pre-staged HF directories we accept a
+      // directory too (the gateway picks the first .gguf inside).
       const ret = await dialog.showOpenDialog({
-        title: "选择已有的 MiniCPM 模型目录",
-        properties: ["openDirectory"],
-        message: "目录中必须包含 config.json",
+        title: "选择本地 MiniCPM 模型 (.gguf 文件或包含 .gguf 的目录)",
+        properties: ["openFile", "openDirectory"],
+        filters: [{ name: "GGUF model", extensions: ["gguf"] }],
+        message: "可以是单个 .gguf 文件，或包含 .gguf 的目录",
       });
       if (ret.canceled || !ret.filePaths.length) return { ok: false, canceled: true };
-      const dir = ret.filePaths[0];
-      const cfg = path.join(dir, "config.json");
-      if (!fs.existsSync(cfg)) {
-        return { ok: false, error: `所选目录不包含 config.json：\n${dir}` };
+      const picked = ret.filePaths[0];
+      let target = picked;
+      try {
+        const st = fs.statSync(picked);
+        if (st.isDirectory()) {
+          const entries = fs.readdirSync(picked)
+            .filter((n) => n.toLowerCase().endsWith(".gguf"));
+          if (!entries.length) {
+            return { ok: false, error: `所选目录不包含 .gguf：\n${picked}` };
+          }
+          target = path.join(picked, entries[0]);
+        } else if (!picked.toLowerCase().endsWith(".gguf")) {
+          return { ok: false, error: `请选择 .gguf 文件：\n${picked}` };
+        }
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
       }
       const chat = ctx.getChat();
-      if (chat && chat.setModelDir) chat.setModelDir(dir);
-      return { ok: true, modelDir: dir };
+      if (chat && chat.setModelDir) chat.setModelDir(target);
+      return { ok: true, modelDir: target };
     },
 
     "onboarding:start-model-download": async () => {
@@ -332,7 +353,10 @@ module.exports = function initOnboarding(ctx) {
     },
 
     "onboarding:complete": async () => {
-      writeSentinel({ device: process.env.MINICPM_DEVICE || "auto" });
+      // device is intentionally pinned to "auto" since v0.8.1 — the
+      // wizard no longer exposes accelerator selection. The Settings
+      // tab can still override later via MINICPM_DEVICE.
+      writeSentinel({ device: "auto" });
       try { ctx.onComplete && ctx.onComplete(); } catch (err) {
         log(`[onboarding] onComplete callback failed: ${err && err.message}`);
       }
@@ -343,6 +367,23 @@ module.exports = function initOnboarding(ctx) {
     "onboarding:reset": async () => {
       reset();
       return { ok: true };
+    },
+
+    // Triggered when the user switches model source mid-wizard (download
+    // ↔ local). We stop and re-spawn the sidecar so it picks up the new
+    // effective model path; otherwise warmup would no-op against the
+    // previously-loaded weights.
+    "onboarding:restart-sidecar": async () => {
+      try {
+        const chat = ctx.getChat();
+        if (chat && typeof chat.restartSidecar === "function") {
+          const r = await chat.restartSidecar();
+          return { ok: true, status: r && r.status };
+        }
+        return { ok: false, error: "chat.restartSidecar unavailable" };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
     },
   };
 

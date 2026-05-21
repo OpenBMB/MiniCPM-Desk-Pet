@@ -10,17 +10,15 @@
 <main class="wizard">
   <header class="steps" id="steps">
     <div class="step active" data-step="env-check"><span class="dot">1</span><span class="label">环境检查</span></div>
-    <div class="step" data-step="device-pick"><span class="dot">2</span><span class="label">加速器</span></div>
-    <div class="step" data-step="model-download"><span class="dot">3</span><span class="label">下载模型</span></div>
-    <div class="step" data-step="warmup"><span class="dot">4</span><span class="label">加载模型</span></div>
-    <div class="step" data-step="ready"><span class="dot">5</span><span class="label">就绪</span></div>
+    <div class="step" data-step="model"><span class="dot">2</span><span class="label">准备模型</span></div>
+    <div class="step" data-step="ready"><span class="dot">3</span><span class="label">就绪</span></div>
   </header>
 
   <section class="content">
     <!-- Step 1: env-check -->
     <div class="panel" data-panel="env-check">
       <h1>欢迎使用 MiniCPM 桌宠</h1>
-      <p class="lede">本地端侧推理 + 桌宠主动旁白。第一次启动需要做几件事，全部完成大约 5–8 分钟。</p>
+      <p class="lede">本地端侧推理 + 桌宠主动旁白。加速器会按平台自动选择（mac → Metal，win/linux → CUDA 或 CPU）。</p>
       <ul class="checks">
         <li id="check-disk"><span class="icon">…</span>磁盘空间可用</li>
         <li id="check-net"><span class="icon">…</span>网络可达（Hugging Face）</li>
@@ -31,63 +29,71 @@
       </div>
     </div>
 
-    <!-- Step 2: device-pick -->
-    <div class="panel hidden" data-panel="device-pick">
-      <h1>选择推理加速器</h1>
-      <p class="lede">将由系统自动检测，可在 Settings 中随时切换。</p>
-      <div class="device-list" id="device-list"></div>
-      <div class="bottom">
-        <button class="btn ghost" data-back="env-check">上一步</button>
-        <button class="btn primary" id="device-next">下一步</button>
-      </div>
-    </div>
+    <!-- Step 2: model -->
+    <div class="panel hidden" data-panel="model">
+      <h1>准备模型</h1>
+      <p class="lede">从 Hugging Face 拉取 <code>openbmb/MiniCPM5-0.9B-GGUF</code>（约 600 MB – 1 GB），或直接指向本地已有的 <code>.gguf</code> 文件。</p>
 
-    <!-- Step 3: model-download -->
-    <div class="panel hidden" data-panel="model-download">
-      <h1>下载模型</h1>
-      <p class="lede" id="model-lede">默认从 Hugging Face 拉取 <code>openbmb/MiniCPM5-0.9B</code>（约 2 GB）。</p>
+      <div class="model-cards">
+        <!-- Card A: online download -->
+        <div class="model-card" id="model-card-download">
+          <div class="model-card-head">
+            <span class="model-card-title">在线下载</span>
+            <span class="badge-check" aria-hidden="true">✓</span>
+          </div>
+          <div class="model-card-body">
+            <p class="model-card-desc">默认 GGUF Q4_K_M，国内首选源会自动选择。</p>
+            <div class="progress-card hidden" id="model-progress-card">
+              <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+              <div class="progress-text">
+                <span id="progress-percent">0%</span>
+                <span class="dim" id="progress-detail">准备中...</span>
+              </div>
+            </div>
+            <div class="model-card-status hidden" id="model-download-status">
+              <span class="model-status-text" id="model-download-status-text"></span>
+            </div>
+          </div>
+          <div class="model-card-foot">
+            <button class="btn primary" id="model-download-btn">开始下载</button>
+          </div>
+        </div>
 
-      <div id="model-already" class="hidden">
-        <div class="banner ok">检测到本地已存在模型，将直接使用：<br><code id="model-already-path"></code></div>
-      </div>
-
-      <div id="model-progress-card" class="progress-card hidden">
-        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-        <div class="progress-text">
-          <span id="progress-percent">0%</span>
-          <span class="dim" id="progress-detail">准备中...</span>
+        <!-- Card B: local file -->
+        <div class="model-card" id="model-card-local">
+          <div class="model-card-head">
+            <span class="model-card-title">加载本地模型</span>
+            <span class="badge-check" aria-hidden="true">✓</span>
+          </div>
+          <div class="model-card-body">
+            <p class="model-card-desc">已经下好 GGUF 权重？直接指向 <code>.gguf</code> 文件或包含它的目录。</p>
+            <div class="model-card-status hidden" id="model-local-status">
+              <span class="model-status-text" id="model-local-status-text"></span>
+            </div>
+          </div>
+          <div class="model-card-foot">
+            <button class="btn ghost" id="model-pick-local">选择文件…</button>
+          </div>
         </div>
       </div>
 
-      <div class="row">
-        <button class="btn ghost" id="model-pick-local">选择本地路径</button>
-        <span class="dim" id="model-local-hint">如果你已经下载过模型，可以直接指向该目录</span>
-      </div>
-
-      <div class="bottom">
-        <button class="btn ghost" data-back="device-pick">上一步</button>
-        <button class="btn primary" id="model-download-btn">开始下载</button>
-        <button class="btn primary hidden" id="model-next">下一步</button>
+      <!-- Warmup status row (shows once model is ready) -->
+      <div class="warmup-row hidden" id="warmup-row">
+        <div class="spinner" id="warmup-spinner"></div>
+        <span class="badge-check warmup-check" aria-hidden="true">✓</span>
+        <span id="warmup-status">正在加载模型...</span>
+        <button class="btn ghost warmup-retry hidden" id="warmup-retry">重试</button>
       </div>
 
       <div class="error hidden" id="model-error"></div>
-    </div>
 
-    <!-- Step 4: warmup -->
-    <div class="panel hidden" data-panel="warmup">
-      <h1>正在加载模型</h1>
-      <p class="lede">把权重载入内存并预热推理 kernel，约需 30–60 秒。完成后第一次聊天会非常快。</p>
-      <div class="spinner-row">
-        <div class="spinner"></div>
-        <span id="warmup-status">正在启动 sidecar...</span>
-      </div>
       <div class="bottom">
-        <button class="btn primary" id="warmup-next" disabled>稍候...</button>
+        <button class="btn ghost" data-back="env-check">上一步</button>
+        <button class="btn primary" id="model-next" disabled>下一步</button>
       </div>
-      <div class="error hidden" id="warmup-error"></div>
     </div>
 
-    <!-- Step 5: ready -->
+    <!-- Step 3: ready -->
     <div class="panel hidden" data-panel="ready">
       <h1>一切就绪</h1>
       <p class="lede">桌宠马上登场。日常使用：</p>
@@ -96,7 +102,7 @@
         <li><kbd>⌘</kbd><kbd>⇧</kbd><kbd>T</kbd>切换思考模式</li>
         <li><kbd>Esc</kbd>在气泡内焦点时关闭气泡</li>
       </ul>
-      <p class="dim">想换适配器、调整气泡位置、改加速器？打开右键菜单的 <em>Settings → 🐾 MiniCPM</em>。</p>
+      <p class="dim">想换模型、查看资源占用、重启 sidecar？打开右键菜单的 <em>Settings → MiniCPM</em>。</p>
       <div class="bottom">
         <button class="btn primary" id="ready-finish">让桌宠登场</button>
       </div>

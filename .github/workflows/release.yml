@@ -1,0 +1,231 @@
+name: Release MiniCPM Desk Pet
+
+# Cross-platform release pipeline. Each job:
+#   1) builds the llama.cpp-backed sidecar (llama-server + gateway) for
+#      its target triple under minicpm-sidecar/bin/<triple>/
+#   2) runs electron-builder in clawd-on-desk/ — extraResources picks up
+#      the sidecar binaries automatically
+#   3) uploads the resulting installers as workflow artifacts; the
+#      release job stitches everything into a GitHub Release.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14    # Apple Silicon
+            triple: mac-arm64
+            accel: metal
+            arch_flag: --arm64
+          - runner: macos-13    # Intel
+            triple: mac-x64
+            accel: cpu
+            arch_flag: --x64
+    runs-on: ${{ matrix.runner }}
+    name: mac-${{ matrix.triple }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build sidecar
+        env:
+          LLAMA_ACCEL: ${{ matrix.accel }}
+        working-directory: minicpm-sidecar
+        run: ./scripts/build-all.sh
+
+      - name: Import Apple Developer ID certificate
+        if: ${{ secrets.CSC_LINK != '' }}
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$CSC_LINK" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$CSC_KEY_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+      - name: npm install
+        working-directory: clawd-on-desk
+        run: npm install --no-audit --no-fund
+
+      - name: electron-builder (dmg, sign + notarize)
+        working-directory: clawd-on-desk
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx electron-builder --mac ${{ matrix.arch_flag }} --publish never
+
+      - name: Verify code signature
+        if: ${{ secrets.CSC_LINK != '' }}
+        run: |
+          DMG_FILE=$(find clawd-on-desk/dist -name '*.dmg' | head -1)
+          if [ -n "$DMG_FILE" ]; then
+            echo "Verifying: $DMG_FILE"
+            codesign --verify --deep --strict --verbose=2 "$DMG_FILE" || true
+            spctl --assess --type open --context context:primary-signature --verbose "$DMG_FILE" || true
+          fi
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          if [ -f "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" || true
+          fi
+          rm -f $RUNNER_TEMP/certificate.p12
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer-${{ matrix.triple }}
+          path: |
+            clawd-on-desk/dist/*.dmg
+            clawd-on-desk/dist/latest-mac.yml
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    name: linux-x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build sidecar
+        working-directory: minicpm-sidecar
+        run: ./scripts/build-all.sh
+
+      - name: npm install
+        working-directory: clawd-on-desk
+        run: npm install --no-audit --no-fund
+
+      - name: electron-builder (AppImage + deb)
+        working-directory: clawd-on-desk
+        run: npx electron-builder --linux --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: |
+            clawd-on-desk/dist/*.AppImage
+            clawd-on-desk/dist/*.deb
+            clawd-on-desk/dist/latest-linux.yml
+
+  build-windows:
+    runs-on: windows-2022
+    name: win-x64
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          irm https://astral.sh/uv/install.ps1 | iex
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.local\bin"
+
+      - name: Clone llama.cpp
+        working-directory: minicpm-sidecar
+        shell: bash
+        run: ./scripts/clone-llama.sh
+
+      - name: Build llama-server
+        working-directory: minicpm-sidecar
+        run: ./scripts/build-llama.ps1
+
+      - name: Build gateway (PyInstaller)
+        working-directory: minicpm-sidecar
+        run: |
+          uv sync
+          uv pip install "pyinstaller>=6.0"
+          Push-Location build
+          ../.venv/Scripts/pyinstaller.exe gateway.spec `
+            --distpath ../build/dist --workpath ../build/build --clean --noconfirm
+          Pop-Location
+          New-Item -ItemType Directory -Force -Path "bin/win-x64" | Out-Null
+          Copy-Item -Force build/dist/minicpm-sidecar.exe bin/win-x64/
+
+      - name: npm install
+        working-directory: clawd-on-desk
+        run: npm install --no-audit --no-fund
+
+      - name: electron-builder (nsis)
+        working-directory: clawd-on-desk
+        shell: cmd
+        run: npx electron-builder --win --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            clawd-on-desk/dist/*.exe
+            clawd-on-desk/dist/latest.yml
+
+  release:
+    needs: [build-mac, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          fail_on_unmatched_files: false

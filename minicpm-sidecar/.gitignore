@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+
+# llama.cpp vendored source — too big to commit; cloned by
+# scripts/clone-llama.sh at build time.
+third_party/llama.cpp/
+
+# Build outputs (PyInstaller intermediates + final binaries).
+build/build/
+build/dist/
+bin/
+
+# Local model cache (developer convenience).
+models/
+*.gguf

@@ -54,6 +54,12 @@ datas += [
     (str(BRIDGE / "clawd_state.py"), "."),
     (str(BRIDGE / "updater.py"), "."),
 ]
+# Ship the optional browser test page so /static keeps working when
+# someone curls the sidecar directly. server.py treats this as optional
+# and falls back to a JSON description if the dir is missing.
+_static = BRIDGE / "static"
+if _static.is_dir():
+    datas += [(str(_static / "index.html"), "static")]
 
 a = Analysis(
     [str(BRIDGE / "server.py")],

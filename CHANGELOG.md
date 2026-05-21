@@ -1,3 +1,46 @@
+# v0.8 — 2026-05-20
+
+## 重构主线：推理后端 PyTorch → llama.cpp，删除两套 bridge 合一
+
+### 新增
+
+- 单一推理目录 [`minicpm-sidecar/`](minicpm-sidecar/)，结构为「llama-server（vendor llama.cpp）+ 瘦 FastAPI gateway」。
+- vendor 子模块脚本 [`scripts/clone-llama.sh`](minicpm-sidecar/scripts/clone-llama.sh)（pin 在 [zhangtao2-1/llama.cpp@c5ede29](https://github.com/zhangtao2-1/llama.cpp)，即 [PR #23384](https://github.com/ggml-org/llama.cpp/pull/23384) 的 MiniCPM5 tokenizer 提交）。
+- 各平台编译脚本：`scripts/build-llama.sh`（macOS / Linux）+ `scripts/build-llama.ps1`（Windows），按 `LLAMA_ACCEL=metal|cuda|cpu` 走 cmake。
+- Gateway PyInstaller 单文件打包：`scripts/build-gateway.sh` + [`build/gateway.spec`](minicpm-sidecar/build/gateway.spec)，无 torch 依赖，最终二进制几十 MB 量级。
+- `scripts/build-all.sh` / `scripts/run-dev.sh` 一站式入口。
+- GitHub Actions：
+  - [`.github/workflows/build-sidecar.yml`](.github/workflows/build-sidecar.yml) — 四平台矩阵编 sidecar artifact
+  - [`.github/workflows/release.yml`](.github/workflows/release.yml) — tag push 触发，每平台 inline 编 sidecar + electron-builder 出安装包
+- Gateway / Electron 双侧单元测试：think 块拆分、GGUF 模型扫描、Electron 三个 locator 函数。
+
+### 变更
+
+- [`clawd-on-desk/src/minicpm-chat.js`](clawd-on-desk/src/minicpm-chat.js) spawn 大幅简化：删除 conda / uv-venv 三路径查找 + `/bin/bash` viaShell 分支，只保留「packaged binary」与「dev 下 `MINICPM_SIDECAR_DIR + .venv/bin/python -m gateway`」两种模式；移除 `PYTORCH_ENABLE_MPS_FALLBACK` 与 `MINICPM_ADAPTER` 自动发现。
+- [`clawd-on-desk/package.json`](clawd-on-desk/package.json) `extraResources`：从打包 `minicpm-pet-bridge-uv/` 源码 + `adapters/` 改为 `minicpm-sidecar/bin/<triple>/` + 瘦 gateway 源；`build:mac:mvp` 指向 `minicpm-sidecar/scripts/build-all.sh`。
+- 模型路径语义：从「HF 目录含 `config.json`」改为「`.gguf` 文件（或含 `.gguf` 的目录）」。Onboarding 选本地模型支持新旧两种输入。
+- Onboarding 文案：模型大小 / 加速器命名（MPS → Metal）等更新到 llama.cpp 语义。
+- 跟 sidecar 同源的开发脚本 [`go.sh`](go.sh) 完全重写：自动装 cmake、首次自动编 llama-server、`uv sync` 给 gateway 装几十 MB 依赖（不再下 torch）。
+
+### 移除
+
+- 旧 PyInstaller spec / 构建脚本（`build/sidecar.spec`、`build/build-sidecar.sh`）—已加 [DEPRECATED.md](build/DEPRECATED.md)。
+- conda + `start.sh` 路径在 spawn 层全删（旧目录仍保留 README 引用以便历史追溯）。
+- 自动加载 LoRA 适配器（`MINICPM_ADAPTER` env + `auto-detected LoRA adapter`）。
+
+### 暂未实现（v2 路线）
+
+- LoRA / `disable_adapter` 旁白绕过 / 猫娘人格切换（待 GGUF LoRA 工具链稳定）
+- `POST /api/classify`（短期返回 501，UI 未调用此端点）
+
+### 文档
+
+- 新增 [`docs/llama-cpp-migration.md`](docs/llama-cpp-migration.md) 记录本次变动 + vendor 升级路径。
+- [`README.md`](README.md) 顶部状态行 / 安装步骤 / 文档索引同步更新到 v0.8。
+- 旧的两套 bridge 目录写入 [`DEPRECATED.md`](minicpm-pet-bridge/DEPRECATED.md)。
+
+---
+
 # v0.3 — 2026-05-20
 
 ## 重构主线：从 "clone + ./go.sh" 转为 "下载 dmg + 双击安装"

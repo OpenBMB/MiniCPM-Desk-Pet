@@ -1,5 +1,7 @@
 "use strict";
 
+const { DEFAULT_THEME_ID } = require("./default-theme");
+
 // ── Preferences (pure data layer) ──
 //
 // This module is the canonical schema definition + load/save/migrate/validate
@@ -127,7 +129,7 @@ const SCHEMA = {
     normalize: normalizeShortcuts,
   },
   // Theme
-  theme: { type: "string", default: "clawd" },
+  theme: { type: "string", default: DEFAULT_THEME_ID },
   // Phase 2/3 placeholders — schema reserves the keys so future migrations don't need v2.
   agents: {
     type: "object",

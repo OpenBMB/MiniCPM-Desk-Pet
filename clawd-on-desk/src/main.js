@@ -44,6 +44,7 @@ const {
 } = require("./session-focus");
 const { focusCodexThreadTarget } = require("./session-focus-handoff");
 const { getAllAgents } = require("../agents/registry");
+const { DEFAULT_THEME_ID } = require("./default-theme");
 
 // ── Autoplay policy: allow sound playback without user gesture ──
 // MUST be set before any BrowserWindow is created (before app.whenReady)
@@ -407,14 +408,14 @@ codexPetMain = createCodexPetMain({
 });
 const REGISTER_PROTOCOL_DEV_ARG = codexPetMain.REGISTER_PROTOCOL_DEV_ARG;
 // Lenient load so a missing/corrupt user-selected theme can't brick boot.
-// If lenient fell back to "clawd" OR the variant fell back to "default",
+// If lenient fell back to DEFAULT_THEME_ID OR the variant fell back to "default",
 // hydrate prefs to match so the store stays truth.
 //
 // Startup runs BEFORE the window is ready, so we call the runtime's initial
 // load path, not activateTheme (which requires ready windows) and not the
 // setThemeSelection command (which goes through activateTheme). The runtime
 // switch path via UI goes through setThemeSelection post-window-ready.
-let _requestedThemeId = _settingsController.get("theme") || "clawd";
+let _requestedThemeId = _settingsController.get("theme") || DEFAULT_THEME_ID;
 const _initialVariantMap = _settingsController.get("themeVariant") || {};
 let _requestedVariantId = _initialVariantMap[_requestedThemeId] || "default";
 const _initialThemeOverrides = _settingsController.get("themeOverrides") || {};
@@ -427,7 +428,7 @@ if (codexPetMain.summaryHasActiveOrphan(_startupCodexPetSyncSummary, _requestedT
   delete nextVariantMap[orphanThemeId];
   delete nextOverrides[orphanThemeId];
 
-  _requestedThemeId = "clawd";
+  _requestedThemeId = DEFAULT_THEME_ID;
   _requestedVariantId = nextVariantMap[_requestedThemeId] || "default";
   _requestedThemeOverrides = nextOverrides[_requestedThemeId] || null;
   const result = _settingsController.hydrate({
@@ -1394,7 +1395,7 @@ const _menuCtx = {
   getNearestWorkArea,
   reapplyMacVisibility,
   discoverThemes: () => themeLoader.discoverThemes(),
-  getActiveThemeId: () => themeRuntime.getActiveThemeId("clawd"),
+  getActiveThemeId: () => themeRuntime.getActiveThemeId(DEFAULT_THEME_ID),
   getActiveThemeCapabilities: () => themeRuntime.getActiveThemeCapabilities(),
   ensureUserThemesDir: () => themeLoader.ensureUserThemesDir(),
   openSettingsWindow: () => settingsWindowRuntime.open(),
@@ -1590,7 +1591,7 @@ registerSettingsIpc({
   getSoundVolume: () => soundVolume,
   getAllAgents,
   checkForUpdates,
-  aboutHeroSvgPath: path.join(__dirname, "..", "assets", "svg", "clawd-about-hero.svg"),
+  aboutHeroSvgPath: path.join(__dirname, "..", "assets", "svg", "minicpm-logo.svg"),
 });
 
 registerSessionIpc({

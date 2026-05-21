@@ -1238,7 +1238,12 @@ describe("settings renderer browser environment", () => {
     assert.ok(css.includes("--doctor-pass"));
     assert.ok(css.includes("--doctor-warning"));
     assert.ok(css.includes("--doctor-critical"));
-    assert.ok(css.includes("--doctor-critical-rgb: 220, 38, 38;"));
+    // --doctor-critical-rgb now references the shared status palette
+    // (--status-critical-rgb) instead of hard-coding "220, 38, 38". The
+    // resolved value is still the same in light mode; assert both link and
+    // source so future tweaks to the palette keep the chain intact.
+    assert.ok(css.includes("--doctor-critical-rgb: var(--status-critical-rgb)"));
+    assert.ok(css.includes("--status-critical-rgb: 220, 38, 38;"));
     assert.ok(css.includes(".doctor-check-skeleton"));
     assert.ok(css.includes("@keyframes doctor-skeleton-sheen"));
     assert.ok(css.includes(".doctor-connection-panel.testing"));
@@ -1253,7 +1258,10 @@ describe("settings renderer browser environment", () => {
     assert.ok(/\.doctor-agent-collapsible\.expanded \.doctor-agent-body\s*\{[\s\S]*grid-template-rows:\s*1fr;/.test(css));
     assert.ok(/\.doctor-check-row\s*\{[\s\S]*border-left-width:\s*3px;/.test(css));
     assert.ok(/\.doctor-check-status\s*\{[\s\S]*border-radius:\s*999px;/.test(css));
-    assert.ok(/\.doctor-close:hover\s*\{[\s\S]*background:\s*rgba\(217,\s*119,\s*87,\s*0\.1\);[\s\S]*transform:\s*scale\(1\.04\);/.test(css));
+    // Accent palette is now MiniCPM blue (#373ED8 = 55, 62, 216) — was
+    // previously Claude orange (217, 119, 87). The hover treatment kept the
+    // 0.1 / scale(1.04) recipe, just swapped the brand RGB.
+    assert.ok(/\.doctor-close:hover\s*\{[\s\S]*background:\s*rgba\(55,\s*62,\s*216,\s*0\.1\);[\s\S]*transform:\s*scale\(1\.04\);/.test(css));
     assert.ok(/\.doctor-close:focus-visible\s*\{[\s\S]*outline:\s*2px solid var\(--accent\);/.test(css));
     assert.ok(/\.doctor-agent-toggle:focus-visible\s*\{[\s\S]*outline:\s*2px solid var\(--accent\);/.test(css));
     assert.ok(/@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*\.doctor-modal-entering[\s\S]*animation:\s*none;/.test(css));

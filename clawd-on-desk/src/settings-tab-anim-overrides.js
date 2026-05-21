@@ -1,6 +1,12 @@
 "use strict";
 
 (function initSettingsTabAnimOverrides(root) {
+  // Renderer context (nodeIntegration: false) — read the shared constant
+  // from the global exposed by default-theme.js, which is loaded earlier
+  // in settings.html. Keep a literal fallback so unit tests that eval
+  // this file in isolation still work.
+  const { DEFAULT_THEME_ID } = (typeof globalThis !== "undefined" && globalThis.ClawdDefaultTheme)
+    || { DEFAULT_THEME_ID: "calico" };
   const animMergeApi = root.ClawdSettingsAnimOverridesMerge || {};
   const getAssetPreviewUrl = animMergeApi.getAssetPreviewUrl || ((asset) => {
     if (!asset) return null;
@@ -1138,7 +1144,7 @@
     themeMeta.className = "anim-override-meta";
     const themeLabel = document.createElement("div");
     themeLabel.className = "anim-override-meta-label";
-    themeLabel.textContent = `${t("animOverridesCurrentTheme")}: ${(data.theme && data.theme.name) || "clawd"}`;
+    themeLabel.textContent = `${t("animOverridesCurrentTheme")}: ${(data.theme && data.theme.name) || DEFAULT_THEME_ID}`;
     themeMeta.appendChild(themeLabel);
 
     const primaryActions = document.createElement("div");
