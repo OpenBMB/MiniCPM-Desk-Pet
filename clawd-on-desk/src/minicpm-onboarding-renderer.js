@@ -53,37 +53,49 @@ function basename(p) {
 }
 
 // ── Step 1: env-check ─────────────────────────────────────────────────
+// Each row resolves live from the main process: disk space pulls fs.statfs
+// against userData, chip pulls sysctl / os.cpus(). The detail cell on the
+// right shows the actual values so the user knows exactly what they have.
 async function runEnvCheck() {
-  const checks = [
-    { id: "check-disk", run: async () => (await window.onboarding.checkDisk()).ok },
-    {
-      id: "check-net",
-      run: async () => {
-        // We can't ping HF directly from the renderer with no-cors, so just
-        // trust the platform here. Real network errors surface during the
-        // download step with retry UI.
-        return true;
-      },
-    },
-    {
-      id: "check-platform",
-      run: async () => {
-        const s = await window.onboarding.getState();
-        return s && (s.platform === "darwin" || s.platform === "linux" || s.platform === "win32");
-      },
-    },
-  ];
-  for (const c of checks) {
-    const li = el(c.id);
-    li.classList.remove("ok", "err");
-    try {
-      const ok = await c.run();
-      li.classList.add(ok ? "ok" : "err");
-    } catch {
-      li.classList.add("err");
-    }
-    await new Promise((r) => setTimeout(r, 150));
-  }
+  const diskLi = el("check-disk");
+  const diskDetail = el("check-disk-detail");
+  const platLi = el("check-platform");
+  const platDetail = el("check-platform-detail");
+
+  diskLi.classList.remove("ok", "err");
+  platLi.classList.remove("ok", "err");
+  diskDetail.textContent = "检测中…";
+  platDetail.textContent = "检测中…";
+
+  await Promise.all([
+    (async () => {
+      try {
+        const info = await window.onboarding.diskInfo();
+        const free = Number.isFinite(info.freeBytes) ? bytesPretty(info.freeBytes) : "—";
+        const need = Number.isFinite(info.requiredBytes) ? bytesPretty(info.requiredBytes) : "5 GB";
+        diskDetail.textContent = info.ok
+          ? `可用 ${free}（需要 ${need}）`
+          : (info.error
+              ? `检测失败：${info.error}`
+              : `仅剩 ${free}，需要 ${need}`);
+        diskLi.classList.add(info.ok ? "ok" : "err");
+      } catch (err) {
+        diskDetail.textContent = `检测失败：${err && err.message || err}`;
+        diskLi.classList.add("err");
+      }
+    })(),
+    (async () => {
+      try {
+        const info = await window.onboarding.platformInfo();
+        const chip = info && info.chip ? info.chip : "未知";
+        platDetail.textContent = info && info.arch ? `${chip}（${info.arch}）` : chip;
+        platLi.classList.add(info && info.supported ? "ok" : "err");
+      } catch (err) {
+        platDetail.textContent = `检测失败：${err && err.message || err}`;
+        platLi.classList.add("err");
+      }
+    })(),
+  ]);
 }
 
 // ── Step 2: model panel ───────────────────────────────────────────────

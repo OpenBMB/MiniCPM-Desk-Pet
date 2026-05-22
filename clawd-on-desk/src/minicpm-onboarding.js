@@ -110,9 +110,18 @@ module.exports = function initOnboarding(ctx) {
   //                         restart sidecar, etc.)
   //   onComplete()       — called once user finishes the wizard; main.js
   //                         creates the pet window inside this callback
+  //   onCancel()         — called when the user closes the wizard window
+  //                         without finishing it; main.js should quit the
+  //                         entire app so the spawned sidecar / llama-
+  //                         server children don't get orphaned (LSUIElement
+  //                         apps never reach `window-all-closed` → quit
+  //                         on their own with no pet window or tray yet).
   const log = (msg) => { try { console.log(msg); } catch {} };
   let win = null;
-  let modelDownloadAbort = null;
+  // True while the close was initiated by `onboarding:complete` (or any
+  // other internal call to close()). Lets the `closed` handler tell user-
+  // cancel apart from completion so onCancel only fires on the former.
+  let internalClose = false;
 
   // ── sentinel file (records "did the user already finish onboarding") ───
   function readSentinel() {
@@ -181,7 +190,22 @@ module.exports = function initOnboarding(ctx) {
       win.show();
       win.focus();
     });
-    win.on("closed", () => { win = null; });
+    // User-initiated close (red traffic light, Cmd+W, Cmd+Q) reaches us
+    // through "closed" with `internalClose === false`. In that case the
+    // sidecar / llama-server children we may have spawned during the
+    // download / warmup phases would be orphaned (no pet window or tray
+    // yet, so window-all-closed has nothing to anchor onto). Bubble up
+    // a cancel so main.js can drive a clean app shutdown.
+    win.on("closed", () => {
+      const wasInternal = internalClose;
+      internalClose = false;
+      win = null;
+      if (!wasInternal && ctx && typeof ctx.onCancel === "function") {
+        try { ctx.onCancel(); } catch (err) {
+          log(`[onboarding] onCancel callback failed: ${err && err.message}`);
+        }
+      }
+    });
     return win;
   }
 
@@ -196,6 +220,7 @@ module.exports = function initOnboarding(ctx) {
 
   function close() {
     if (win && !win.isDestroyed()) {
+      internalClose = true;
       try { win.close(); } catch {}
     }
     win = null;
@@ -246,6 +271,79 @@ module.exports = function initOnboarding(ctx) {
       } catch (err) {
         return { ok: false, error: String(err && err.message || err) };
       }
+    },
+
+    // Real free-space probe + 5 GB threshold for the model + caches.
+    // Uses fs.statfs (Node 18.15+) — Electron 41 ships Node 22 so it's
+    // always available. Probes the userData directory because that's
+    // where the model lands by default.
+    "onboarding:disk-info": async () => {
+      const REQUIRED_BYTES = 5 * 1024 * 1024 * 1024;
+      let freeBytes = null;
+      let totalBytes = null;
+      let probedPath = null;
+      try {
+        probedPath = userDataPath(".");
+        fs.mkdirSync(probedPath, { recursive: true });
+        if (typeof fs.statfs === "function") {
+          const stats = await new Promise((resolve, reject) => {
+            fs.statfs(probedPath, (err, s) => err ? reject(err) : resolve(s));
+          });
+          // bavail × bsize is "free space available to a non-root user",
+          // which is what we actually care about for the download.
+          freeBytes = Number(stats.bavail) * Number(stats.bsize);
+          totalBytes = Number(stats.blocks) * Number(stats.bsize);
+        }
+      } catch (err) {
+        return {
+          ok: false,
+          error: String(err && err.message || err),
+          freeBytes: null,
+          totalBytes: null,
+          requiredBytes: REQUIRED_BYTES,
+          probedPath,
+        };
+      }
+      return {
+        ok: freeBytes != null && freeBytes >= REQUIRED_BYTES,
+        freeBytes,
+        totalBytes,
+        requiredBytes: REQUIRED_BYTES,
+        probedPath,
+      };
+    },
+
+    // Real-time chip / platform info. On darwin we ask sysctl for the
+    // full brand string ("Apple M3 Pro" / "Intel(R) Core(TM) ...") since
+    // os.cpus()[0].model sometimes truncates Apple Silicon variants.
+    // Falls back to os.cpus on win/linux.
+    "onboarding:platform-info": async () => {
+      let chip = null;
+      if (process.platform === "darwin") {
+        try {
+          const { execFileSync } = require("child_process");
+          const out = execFileSync("/usr/sbin/sysctl", ["-n", "machdep.cpu.brand_string"], {
+            timeout: 1500,
+            encoding: "utf-8",
+          });
+          chip = (out || "").trim() || null;
+        } catch {}
+      }
+      if (!chip) {
+        try {
+          const cpus = os.cpus();
+          chip = (cpus && cpus[0] && cpus[0].model) ? String(cpus[0].model).trim() : null;
+        } catch {}
+      }
+      const supported = process.platform === "darwin"
+        || process.platform === "linux"
+        || process.platform === "win32";
+      return {
+        platform: process.platform,
+        arch: process.arch,
+        chip: chip || null,
+        supported,
+      };
     },
 
     "onboarding:list-devices": async () => {

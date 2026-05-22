@@ -9,20 +9,24 @@
 <body>
 <main class="wizard">
   <header class="steps" id="steps">
-    <div class="step active" data-step="env-check"><span class="dot">1</span><span class="label">环境检查</span></div>
-    <div class="step" data-step="model"><span class="dot">2</span><span class="label">准备模型</span></div>
-    <div class="step" data-step="ready"><span class="dot">3</span><span class="label">就绪</span></div>
+    <div class="step active" data-step="env-check"><span class="dot"><span class="num">1</span></span><span class="label">环境检查</span></div>
+    <div class="step" data-step="model"><span class="dot"><span class="num">2</span></span><span class="label">准备模型</span></div>
+    <div class="step" data-step="ready"><span class="dot"><span class="num">3</span></span><span class="label">就绪</span></div>
   </header>
 
   <section class="content">
     <!-- Step 1: env-check -->
     <div class="panel" data-panel="env-check">
       <h1>欢迎使用 MiniCPM 桌宠</h1>
-      <p class="lede">本地端侧推理 + 桌宠主动旁白。加速器会按平台自动选择（mac → Metal，win/linux → CUDA 或 CPU）。</p>
       <ul class="checks">
-        <li id="check-disk"><span class="icon">…</span>磁盘空间可用</li>
-        <li id="check-net"><span class="icon">…</span>网络可达（Hugging Face）</li>
-        <li id="check-platform"><span class="icon">…</span>当前平台支持</li>
+        <li id="check-disk">
+          <span class="check-label">磁盘空间</span>
+          <span class="check-detail" id="check-disk-detail">检测中…</span>
+        </li>
+        <li id="check-platform">
+          <span class="check-label">芯片</span>
+          <span class="check-detail" id="check-platform-detail">检测中…</span>
+        </li>
       </ul>
       <div class="bottom">
         <button class="btn primary" id="env-next">下一步</button>
@@ -32,7 +36,7 @@
     <!-- Step 2: model -->
     <div class="panel hidden" data-panel="model">
       <h1>准备模型</h1>
-      <p class="lede">从 Hugging Face 拉取 <code>openbmb/MiniCPM5-0.9B-GGUF</code>（约 600 MB – 1 GB），或直接指向本地已有的 <code>.gguf</code> 文件。</p>
+      <p class="lede">安装 MiniCPM5 0.9B</p>
 
       <div class="model-cards">
         <!-- Card A: online download -->
@@ -42,7 +46,7 @@
             <span class="badge-check" aria-hidden="true">✓</span>
           </div>
           <div class="model-card-body">
-            <p class="model-card-desc">默认 GGUF Q4_K_M，国内首选源会自动选择。</p>
+            <p class="model-card-desc">默认 GGUF Q8_0，会根据你的网络情况自动选择下载源。</p>
             <div class="progress-card hidden" id="model-progress-card">
               <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
               <div class="progress-text">
@@ -66,7 +70,7 @@
             <span class="badge-check" aria-hidden="true">✓</span>
           </div>
           <div class="model-card-body">
-            <p class="model-card-desc">已经下好 GGUF 权重？直接指向 <code>.gguf</code> 文件或包含它的目录。</p>
+            <p class="model-card-desc">已经下好 GGUF 权重？直接导入模型文件。</p>
             <div class="model-card-status hidden" id="model-local-status">
               <span class="model-status-text" id="model-local-status-text"></span>
             </div>

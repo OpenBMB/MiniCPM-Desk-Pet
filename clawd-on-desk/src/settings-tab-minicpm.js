@@ -1,46 +1,45 @@
 "use strict";
 
-// ── MiniCPM settings tab (model-focused, compact) ──
+// ── MiniCPM settings tab ──
 //
-// Sections (top → bottom):
-//   1. 状态     —— 模型版本（带「打开模型目录」图标按钮）+ Sidecar 运行状态
-//   2. 行为     —— 桌宠旁白 / 默认思考模式（均真实影响推理路径）
-//   3. 快捷操作 —— 检查模型更新 / 选择本地 .gguf / 重启 Sidecar / 打开日志
+// Page layout (top → bottom):
+//   • Page header: title + subtitle on the left, sidecar status pill on the right
+//   • 行为 / Behavior              — narration + default thinking switches
+//   • 模型 / Model                  — fixed model label + truncated path + buttons
+//   • 高级设置 / Advanced (collapsed by default) — restart Sidecar, open logs
 //
-// /api/health is polled at most once a minute (and on focus / manual refresh).
-// Resource usage is intentionally hidden — sidecar health is the only signal
-// regular users care about.
+// Sidecar health is polled at most once a minute (5s during cold-start
+// grace), and now only re-renders the header pill. The rest of the page
+// stays stable across ticks so the user can interact with switches and
+// buttons without re-mount flicker.
 
 (function initSettingsTabMinicpm(root) {
   let core = null;
   let helpers = null;
+  let ops = null;
 
   let healthTimer = null;
   let visibilityHandler = null;
   let mounted = false;
+  // Survives re-renders within the same Settings session so the user
+  // doesn't have to re-expand Advanced every time they revisit the tab.
+  let advancedExpanded = false;
 
-  // Health polling cadence. Cheap (single HTTP GET on localhost), but the
-  // user explicitly asked for "about once a minute" instead of the previous
-  // 4-second resource ticker.
-  const HEALTH_INTERVAL_MS = 60_000;
+  // The product surface treats MiniCPM5 0.9B as the canonical bundled
+  // model. Showing the actual gguf filename here would create noise once
+  // users sideload variants — we still expose that in the path row.
+  const MODEL_INFO_LABEL = "MiniCPM5 0.9B";
+  const PATH_TRUNCATE_MAX = 56;
 
-  // ── Inline SVGs used by the action cards and the folder button ─────────
-  // Same 24x24 / stroke=1.6 visual language as the sidebar icons so they
-  // sit consistently in the panel.
-  const SVG_FOLDER =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
-    '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>' +
-    '</svg>';
-  const SVG_UPDATE =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
-    '<path d="M21 12a9 9 0 1 1-3-6.7"/>' +
-    '<path d="M21 4v5h-5"/>' +
-    '</svg>';
-  const SVG_FILE =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
-    '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/>' +
-    '<path d="M14 3v5h5"/>' +
-    '</svg>';
+  const HEALTH_INTERVAL_MS_SLOW = 60_000;
+  const HEALTH_INTERVAL_MS_FAST = 5_000;
+  const HEALTH_FAST_ATTEMPTS = 6;
+
+  function t(key) {
+    return helpers.t(key);
+  }
+
+  // ── Inline SVGs ────────────────────────────────────────────────────────
   const SVG_RESTART =
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
     '<path d="M12 4v8"/>' +
@@ -52,10 +51,14 @@
     '<path d="M7 9l3 3-3 3"/>' +
     '<path d="M13 15h5"/>' +
     '</svg>';
+  const SVG_CHEVRON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<path d="M9 6l6 6-6 6"/>' +
+    '</svg>';
 
   function cleanupTimers() {
     if (healthTimer) {
-      clearInterval(healthTimer);
+      clearTimeout(healthTimer);
       healthTimer = null;
     }
     if (visibilityHandler) {
@@ -92,20 +95,19 @@
     return b;
   }
 
-  function iconBtn(svgString, onClick, opts = {}) {
-    const b = el("button", {
-      type: "button",
-      className: "soft-btn minicpm-icon-btn",
-      onClick,
-      title: opts.title || "",
-      "aria-label": opts.ariaLabel || opts.title || "",
-    });
-    b.innerHTML = svgString;
-    if (opts.disabled) b.disabled = true;
-    return b;
+  // ── Status pill (top-right of page header) ────────────────────────────
+  //
+  // Three states. We deliberately collapse the original "probing" and
+  // "starting" labels into a single yellow "starting" pill: at the page
+  // level the user only cares whether things are healthy, warming up, or
+  // broken. The full debug breakdown lives in the logs.
+  function deriveStatus(sidecarReady, llamaReady, probing) {
+    if (sidecarReady && llamaReady) return { tone: "ready", label: t("minicpmStatusRunning") };
+    if (sidecarReady || probing) return { tone: "starting", label: t("minicpmStatusStarting") };
+    return { tone: "offline", label: t("minicpmStatusError") };
   }
 
-  function statusBadge(text, tone) {
+  function statusPill(tone, label) {
     const cls = tone === "ready"
       ? "remote-ssh-status-connected"
       : tone === "starting"
@@ -113,24 +115,10 @@
         : tone === "offline"
           ? "remote-ssh-status-failed"
           : "remote-ssh-status-idle";
-    return el("span", { className: `remote-ssh-status-badge ${cls}` }, text);
+    return el("span", { className: `remote-ssh-status-badge ${cls}` }, label);
   }
 
-  function statusRow(label, primary, secondary, extras) {
-    const row = el("div", { className: "row minicpm-status-row" });
-    const text = el("div", { className: "row-text" });
-    text.appendChild(el("span", { className: "row-label" }, label));
-    if (secondary) text.appendChild(el("span", { className: "row-desc" }, secondary));
-    row.appendChild(text);
-    const ctl = el("div", { className: "row-control minicpm-status-control" });
-    if (primary) ctl.appendChild(primary);
-    if (Array.isArray(extras)) {
-      for (const node of extras) if (node) ctl.appendChild(node);
-    }
-    row.appendChild(ctl);
-    return row;
-  }
-
+  // ── Switch row (committed-vs-pending; rolls back on IPC failure) ──────
   function switchRow(label, hint, checked, onChange) {
     const row = el("div", { className: "row" });
     const text = el("div", { className: "row-text" });
@@ -143,17 +131,60 @@
       tabindex: "0",
       "aria-checked": checked ? "true" : "false",
     });
-    const toggle = () => {
-      const next = !sw.classList.contains("on");
-      sw.classList.toggle("on", next);
-      sw.setAttribute("aria-checked", next ? "true" : "false");
-      onChange(next);
-    };
-    sw.addEventListener("click", toggle);
+
+    let committedOn = !!checked;
+    let pending = false;
+
+    function applyVisual(on, isPending) {
+      sw.classList.toggle("on", !!on);
+      sw.classList.toggle("pending", !!isPending);
+      sw.setAttribute("aria-checked", on ? "true" : "false");
+    }
+
+    function isOk(result) {
+      if (!result) return false;
+      if (result.ok === true) return true;
+      if (result.status === "ok") return true;
+      return false;
+    }
+
+    function notifyFailure(message) {
+      if (ops && typeof ops.showToast === "function") {
+        ops.showToast(t("toastSaveFailed") + (message || "unknown error"), { error: true });
+      }
+    }
+
+    async function runToggle() {
+      if (pending) return;
+      const next = !committedOn;
+      pending = true;
+      applyVisual(next, true);
+      let ok = false;
+      let message = "";
+      try {
+        const result = await onChange(next);
+        ok = isOk(result);
+        if (!ok) message = (result && (result.error || result.message)) || "";
+      } catch (err) {
+        ok = false;
+        message = (err && err.message) || "";
+      } finally {
+        pending = false;
+      }
+      if (ok) {
+        committedOn = next;
+        applyVisual(next, false);
+      } else {
+        applyVisual(committedOn, false);
+        notifyFailure(message);
+      }
+    }
+
+    sw.addEventListener("click", () => { void runToggle(); });
     sw.addEventListener("keydown", (ev) => {
       if (ev.key === " " || ev.key === "Enter") {
         ev.preventDefault();
-        toggle();
+        void runToggle();
       }
     });
     const ctl = el("div", { className: "row-control" });
@@ -162,302 +193,408 @@
     return row;
   }
 
-  function buildSectionHeader(title, rightChild) {
-    const header = el("h2", { className: "section-title minicpm-section-header" });
-    header.appendChild(el("span", {}, title));
-    if (rightChild) header.appendChild(rightChild);
-    return header;
+  // ── Path helpers ───────────────────────────────────────────────────────
+  //
+  // Path-aware middle truncation: always keeps the filename + its parent
+  // directory, then greedily extends the tail and starts the head with the
+  // leading components until we run out of room. Character-level fallback
+  // for inputs that don't look like a path. Tooltip restores the full
+  // string so we never hide information, only collapse it.
+  function truncatePath(p, maxLen = PATH_TRUNCATE_MAX) {
+    if (!p) return "";
+    if (p.length <= maxLen) return p;
+    const usesBackslash = p.includes("\\") && !p.includes("/");
+    const sep = usesBackslash ? "\\" : "/";
+    const parts = p.split(sep);
+    if (parts.length < 3) {
+      const headLen = Math.ceil((maxLen - 1) / 2);
+      const tailLen = Math.floor((maxLen - 1) / 2);
+      return p.slice(0, headLen) + "…" + p.slice(-tailLen);
+    }
+    const fileName = parts[parts.length - 1];
+    const tailPieces = [fileName];
+    let tailLen = fileName.length;
+    let i = parts.length - 2;
+    while (i >= 0 && tailLen + parts[i].length + 1 < maxLen - 6) {
+      tailPieces.unshift(parts[i]);
+      tailLen += parts[i].length + 1;
+      i--;
+    }
+    const headPieces = [];
+    let headLen = 0;
+    for (let j = 0; j <= i; j++) {
+      const piece = parts[j];
+      const pieceTotal = piece.length + (j === 0 ? 0 : 1);
+      if (headLen + pieceTotal + tailLen + 3 > maxLen) break;
+      headPieces.push(piece);
+      headLen += pieceTotal;
+    }
+    if (headPieces.length === 0) headPieces.push(parts[0] || "");
+    return headPieces.join(sep) + sep + "…" + sep + tailPieces.join(sep);
+  }
+
+  // ── Section header (matches the small-caps title used elsewhere) ──────
+  function sectionTitle(text) {
+    return el("h2", { className: "section-title minicpm-section-title" }, text);
+  }
+
+  // ── Header (title + subtitle on left, status pill on right) ───────────
+  function renderHeader(ctx) {
+    ctx.headerBox.innerHTML = "";
+    const wrap = el("div", { className: "minicpm-page-header" });
+    const textCol = el("div", { className: "minicpm-page-header-text" });
+    textCol.appendChild(el("h1", {}, t("minicpmTitle")));
+    textCol.appendChild(el("p", { className: "subtitle" }, t("minicpmSubtitle")));
+    wrap.appendChild(textCol);
+    ctx.statusPillSlot = el("div", { className: "minicpm-page-header-status" });
+    wrap.appendChild(ctx.statusPillSlot);
+    ctx.headerBox.appendChild(wrap);
+    syncStatusPill(ctx);
+  }
+
+  function syncStatusPill(ctx) {
+    if (!ctx.statusPillSlot) return;
+    const { sidecarReady, llamaReady, probing } = ctx.healthSnapshot;
+    const { tone, label } = deriveStatus(sidecarReady, llamaReady, probing);
+    ctx.statusPillSlot.innerHTML = "";
+    ctx.statusPillSlot.appendChild(statusPill(tone, label));
+  }
+
+  // ── Health probe → updates ctx.healthSnapshot ─────────────────────────
+  async function probeHealth(ctx) {
+    let st = null;
+    try { st = await window.minicpmSettings.getStatus(); } catch {}
+    const h = (st && st.health) || {};
+    const sidecarReady = !!(st && st.healthy);
+    const llamaReady = sidecarReady
+      && (h.alive === true || !!(h.llama_server && h.llama_server.status === "ok"));
+    if (sidecarReady) ctx.everHealthy = true;
+    const probing = !sidecarReady && !ctx.everHealthy && ctx.fastAttemptsLeft > 0;
+
+    const modelNameNow = h.model_name
+      || (h.model_dir ? h.model_dir.split(/[/\\]/).pop() : null);
+    if (modelNameNow) {
+      ctx.lastModelName = modelNameNow;
+      ctx.lastModelDir = h.model_dir || ctx.lastModelDir;
+    }
+
+    ctx.healthSnapshot = {
+      st, h, sidecarReady, llamaReady, probing,
+      modelName: modelNameNow
+        || ((probing || sidecarReady) ? ctx.lastModelName : null),
+      modelDir: h.model_dir || ctx.lastModelDir,
+    };
+    return ctx.healthSnapshot;
   }
 
   // ── Sections ──────────────────────────────────────────────────────────
 
-  async function renderStatusSection(box, ctx) {
+  async function renderBehaviorSection(box, ctx) {
     box.innerHTML = "";
-    const refreshBtn = softBtn("立即刷新", () => { void ctx.refreshAll(); });
-    const section = helpers.buildSection("", []);
-    const rows = section.querySelector(".section-rows");
-    section.insertBefore(buildSectionHeader("状态", refreshBtn), rows);
-
-    let st = null;
-    try { st = await window.minicpmSettings.getStatus(); } catch {}
-
-    const h = (st && st.health) || {};
-    const sidecarReady = !!(st && st.healthy);
-    // Llama subprocess can still be warming up after the FastAPI side comes
-    // online. Use it to choose between "运行中" and "启动中" for the badge.
-    const llamaReady = sidecarReady
-      && (h.alive === true || !!(h.llama_server && h.llama_server.status === "ok"));
-
-    // ── 模型 row ────────────────────────────────────────────────────────
-    // model_name is just the .gguf filename (e.g. MiniCPM5-0.9B-Q4_K_M.gguf)
-    // — surface it as the "model version" because that's what users actually
-    // identify the model by. We fall back to the basename of model_dir for
-    // the rare case where health came back without model_name.
-    const modelName = h.model_name
-      || (h.model_dir ? h.model_dir.split(/[/\\]/).pop() : null);
-    const modelChip = el(
-      "span",
-      { className: "collapsible-summary-chip" + (modelName ? " accent" : "") },
-      modelName || "未加载模型",
-    );
-    const folderBtn = iconBtn(SVG_FOLDER, async () => {
-      const ret = await window.minicpmSettings.openModelDir();
-      if (ret && !ret.ok) alert(ret.error || "无法打开模型目录");
-    }, { title: "打开模型目录", ariaLabel: "打开模型目录" });
-
-    rows.appendChild(statusRow(
-      "模型",
-      modelChip,
-      h.model_dir || "尚未配置模型，使用下方「选择本地 .gguf」",
-      [folderBtn],
-    ));
-
-    // ── Sidecar row ────────────────────────────────────────────────────
-    let sidecarLabel;
-    let sidecarTone;
-    if (!sidecarReady) {
-      sidecarTone = "offline";
-      sidecarLabel = "未连接";
-    } else if (!llamaReady) {
-      sidecarTone = "starting";
-      sidecarLabel = "启动中";
-    } else {
-      sidecarTone = "ready";
-      sidecarLabel = "运行中";
-    }
-    const sidecarHint = sidecarReady
-      ? `${(st && st.sidecarUrl) || ""}  ·  ${h.accel || h.device || "auto"}`
-      : "Sidecar 未运行 — 启动桌宠后会自动连接，或点「立即刷新」";
-
-    rows.appendChild(statusRow(
-      "Sidecar",
-      statusBadge(sidecarLabel, sidecarTone),
-      sidecarHint,
-    ));
-
-    box.appendChild(section);
-  }
-
-  async function renderBehaviorSection(box) {
-    box.innerHTML = "";
-    const section = helpers.buildSection("", []);
-    const rows = section.querySelector(".section-rows");
-    section.insertBefore(buildSectionHeader("行为"), rows);
-
-    let st = null;
-    try { st = await window.minicpmSettings.getStatus(); } catch {}
+    const st = ctx.healthSnapshot && ctx.healthSnapshot.st;
     let paramsPayload = null;
     try { paramsPayload = await window.minicpmSettings.getChatParams(); } catch {}
     const thinking = !!(paramsPayload && paramsPayload.params && paramsPayload.params.thinking);
 
+    box.appendChild(sectionTitle(t("minicpmSectionBehavior")));
+    const section = helpers.buildSection("", []);
+    const rows = section.querySelector(".section-rows");
+
     // narrationEnabled gates the narration codepath in minicpm-chat.js
-    // (see `if (!narrationEnabled) return;` in narrateState). Toggling it
-    // through this row is the same source of truth used by the tray menu.
+    // (`if (!narrationEnabled) return;` in narrateState). Same source of
+    // truth as the tray menu — they read/write the same prefs file.
     rows.appendChild(switchRow(
-      "桌宠旁白",
-      "Cursor / Claude / Codex 事件触发时，桌宠主动用本地模型说话",
+      t("minicpmRowNarration"),
+      t("minicpmRowNarrationDesc"),
       !!(st && st.narration),
-      async (on) => { await window.minicpmSettings.setNarration(on); },
+      (on) => window.minicpmSettings.setNarration(on),
     ));
 
-    // chatParams.thinking is read by the chat bubble on each /api/chat
-    // submit and forwarded to the sidecar (server.py honours it via the
-    // thinking flag → llama-cpp prompt template).
+    // chatParams.thinking is persisted to minicpm-prefs.json and read by
+    // the chat bubble on each submit (unless ⌘⇧T overrides for the session).
     rows.appendChild(switchRow(
-      "默认思考模式",
-      "新对话默认请求 thinking=true，模型会先输出 <think>…</think> 推理过程",
+      t("minicpmRowDefaultThinking"),
+      t("minicpmRowDefaultThinkingDesc"),
       thinking,
-      async (on) => {
+      (on) => {
         const cur = (paramsPayload && paramsPayload.params) || {};
-        await window.minicpmSettings.setChatParams({ ...cur, thinking: on });
+        return window.minicpmSettings.setChatParams({ ...cur, thinking: on });
       },
     ));
+    box.appendChild(section);
+  }
+
+  function renderModelSection(box, ctx) {
+    box.innerHTML = "";
+    const snap = ctx.healthSnapshot || {};
+    const modelDir = snap.modelDir || "";
+    const hasPath = !!modelDir;
+    const truncated = hasPath ? truncatePath(modelDir, PATH_TRUNCATE_MAX) : t("minicpmModelPathUnset");
+
+    box.appendChild(sectionTitle(t("minicpmSectionModel")));
+    const section = helpers.buildSection("", []);
+    const rows = section.querySelector(".section-rows");
+
+    // ── Model info row (hardcoded product name) ───────────────────────
+    const infoRow = el("div", { className: "row minicpm-info-row" });
+    const infoText = el("div", { className: "row-text" });
+    infoText.appendChild(el("span", { className: "row-label" }, t("minicpmRowModelInfo")));
+    infoRow.appendChild(infoText);
+    const infoVal = el("div", { className: "row-control minicpm-info-value" }, MODEL_INFO_LABEL);
+    infoRow.appendChild(infoVal);
+    rows.appendChild(infoRow);
+
+    // ── Model path row (truncated + tooltip + two buttons) ────────────
+    const pathRow = el("div", { className: "row minicpm-path-row" });
+    const pathText = el("div", { className: "row-text" });
+    pathText.appendChild(el("span", { className: "row-label" }, t("minicpmRowModelPath")));
+    const pathDesc = el("span", {
+      className: "row-desc minicpm-path-value" + (hasPath ? "" : " is-unset"),
+    }, truncated);
+    if (hasPath) pathDesc.setAttribute("title", modelDir);
+    pathText.appendChild(pathDesc);
+    pathRow.appendChild(pathText);
+
+    const ctl = el("div", { className: "row-control minicpm-path-actions" });
+    const showBtn = softBtn(t("minicpmOpenModelPath"), async () => {
+      const ret = await window.minicpmSettings.openModelDir();
+      if (ret && !ret.ok) alert(ret.error || t("minicpmOpenModelDirFailed"));
+    });
+    if (!hasPath) showBtn.disabled = true;
+    const changeLabel = t("minicpmChangeModel");
+    // The IPC handler also kicks off /api/load-model after persisting, so
+    // resolution may take 5–30s depending on model size. Show a busy state
+    // on both buttons so the user gets immediate feedback rather than
+    // staring at a frozen dialog while llama-server re-spawns.
+    const changeBtn = softBtn(changeLabel, async () => {
+      if (changeBtn.disabled) return;
+      showBtn.disabled = true;
+      changeBtn.disabled = true;
+      changeBtn.classList.add("is-busy");
+      changeBtn.textContent = t("minicpmChangeModelBusy");
+      let ret = null;
+      try {
+        ret = await window.minicpmSettings.pickModelDir();
+      } catch (err) {
+        alert(t("minicpmReloadError") + (err && err.message || err));
+      }
+      // refreshAll() rebuilds the model section from scratch (replacing
+      // these buttons), so restoring the busy state explicitly is only
+      // necessary on the canceled / error paths.
+      if (ret && ret.ok) {
+        if (ret.reloadError) alert(t("minicpmReloadError") + ret.reloadError);
+        void ctx.refreshAll();
+        return;
+      }
+      if (ret && !ret.canceled && ret.error) alert(ret.error);
+      changeBtn.classList.remove("is-busy");
+      changeBtn.textContent = changeLabel;
+      changeBtn.disabled = false;
+      showBtn.disabled = !hasPath;
+    }, { accent: true });
+    ctl.appendChild(showBtn);
+    ctl.appendChild(changeBtn);
+    pathRow.appendChild(ctl);
+    rows.appendChild(pathRow);
 
     box.appendChild(section);
   }
 
-  function actionCard({ icon, title, desc, onClick, primary = false }) {
-    const card = el("button", {
-      type: "button",
-      className: "minicpm-action-card" + (primary ? " primary" : ""),
-    });
-    const iconBox = el("span", { className: "minicpm-action-icon" });
-    iconBox.innerHTML = icon;
-    const text = el("span", { className: "minicpm-action-text" });
-    text.appendChild(el("span", { className: "minicpm-action-title" }, title));
-    if (desc) text.appendChild(el("span", { className: "minicpm-action-desc" }, desc));
-    card.appendChild(iconBox);
-    card.appendChild(text);
-    // Wrap the click handler so each action can ask the card to swap its
-    // descriptive text and disabled state without juggling DOM lookups
-    // everywhere.
-    const helpers2 = {
-      setBusy(busyDesc) {
-        card.disabled = true;
-        card.classList.add("is-busy");
-        if (busyDesc != null) {
-          const d = card.querySelector(".minicpm-action-desc");
-          if (d) d.textContent = busyDesc;
-        }
-      },
-      setDesc(text2) {
-        const d = card.querySelector(".minicpm-action-desc");
-        if (d) d.textContent = text2;
-      },
-      reset(originalDesc) {
-        card.disabled = false;
-        card.classList.remove("is-busy");
-        const d = card.querySelector(".minicpm-action-desc");
-        if (d && originalDesc != null) d.textContent = originalDesc;
-      },
-    };
-    card.addEventListener("click", () => {
-      if (card.disabled) return;
-      try { void onClick(helpers2, card); } catch (err) {
-        console.warn("minicpm action failed:", err);
-      }
-    });
-    return card;
-  }
-
-  function renderActionsSection(box, ctx) {
+  // ── Advanced (collapsible) — restart Sidecar + open logs ──────────────
+  //
+  // Hand-rolled instead of using helpers.buildCollapsibleGroup so the
+  // disclosure trigger can sit in the small-caps section-title style. The
+  // body is just a standard section-rows block of two rows; we toggle its
+  // visibility with display:none rather than a height animation because
+  // the row count is tiny (2) and reflow is instant.
+  function renderAdvancedSection(box, ctx) {
     box.innerHTML = "";
+    const wrap = el("section", { className: "section minicpm-advanced-section" });
+
+    const trigger = el("button", {
+      type: "button",
+      className: "minicpm-advanced-trigger" + (advancedExpanded ? " open" : ""),
+      "aria-expanded": advancedExpanded ? "true" : "false",
+    });
+    const chev = el("span", { className: "minicpm-advanced-chevron", "aria-hidden": "true" });
+    chev.innerHTML = SVG_CHEVRON;
+    trigger.appendChild(chev);
+    trigger.appendChild(el("span", { className: "section-title minicpm-advanced-title" }, t("minicpmSectionAdvanced")));
+    wrap.appendChild(trigger);
+
     const section = helpers.buildSection("", []);
+    section.classList.add("minicpm-advanced-body");
     const rows = section.querySelector(".section-rows");
-    section.insertBefore(buildSectionHeader("快捷操作"), rows);
 
-    const updateDesc = "对比远端最新 .gguf 修订";
-    const restartDesc = "应用模型 / 加速器变更";
-
-    const grid = el("div", { className: "minicpm-quick-actions" });
-
-    grid.appendChild(actionCard({
-      icon: SVG_UPDATE,
-      title: "检查模型更新",
-      desc: updateDesc,
-      primary: true,
-      onClick: async (api) => {
-        api.setBusy("检查中…");
-        let upd = null;
-        try { upd = await window.minicpmSettings.checkUpdate(); } catch {}
-        if (upd && upd.available) {
-          api.setDesc("发现新版");
-          const ok = confirm(`发现新版：${upd.remote_revision || "?"}\n是否立即下载？`);
-          if (ok) {
-            api.setBusy("下载中…");
-            await window.minicpmSettings.applyUpdate();
-            api.reset(updateDesc);
-            void ctx.refreshAll();
-            return;
-          }
-        } else if (upd) {
-          api.setDesc("已是最新版本");
-        } else {
-          api.setDesc("无法获取版本（sidecar 未就绪？）");
-        }
-        setTimeout(() => api.reset(updateDesc), 4000);
-      },
-    }));
-
-    grid.appendChild(actionCard({
-      icon: SVG_FILE,
-      title: "选择本地 .gguf",
-      desc: "使用你已下载好的模型文件",
-      onClick: async (api) => {
-        const ret = await window.minicpmSettings.pickModelDir();
-        if (ret && ret.ok) {
-          void ctx.refreshAll();
-        } else if (ret && !ret.canceled && ret.error) {
-          alert(ret.error);
-        }
-        api.reset("使用你已下载好的模型文件");
-      },
-    }));
-
-    grid.appendChild(actionCard({
+    rows.appendChild(buildAdvancedRow({
       icon: SVG_RESTART,
-      title: "重启 Sidecar",
-      desc: restartDesc,
-      onClick: async (api) => {
-        api.setBusy("重启中…");
+      title: t("minicpmActionRestartSidecar"),
+      desc: t("minicpmActionRestartSidecarDesc"),
+      busyLabel: t("minicpmActionRestartSidecarBusy"),
+      onClick: async () => {
         try { await window.minicpmSettings.restartSidecar(); } catch {}
-        api.reset(restartDesc);
         void ctx.refreshAll();
       },
     }));
-
-    grid.appendChild(actionCard({
+    rows.appendChild(buildAdvancedRow({
       icon: SVG_LOG,
-      title: "打开日志目录",
-      desc: "排查 sidecar / llama 启动问题",
-      onClick: async (api) => {
+      title: t("minicpmActionOpenLogs"),
+      desc: t("minicpmActionOpenLogsDesc"),
+      onClick: async () => {
         const ret = await window.minicpmSettings.openLogsDir();
-        if (ret && !ret.ok) alert(ret.error || "无法打开日志目录");
-        api.reset("排查 sidecar / llama 启动问题");
+        if (ret && !ret.ok) alert(ret.error || t("minicpmActionOpenLogsFailed"));
       },
     }));
 
-    rows.appendChild(grid);
+    wrap.appendChild(section);
+    box.appendChild(wrap);
 
-    box.appendChild(section);
+    function applyExpanded() {
+      trigger.classList.toggle("open", advancedExpanded);
+      trigger.setAttribute("aria-expanded", advancedExpanded ? "true" : "false");
+      section.style.display = advancedExpanded ? "" : "none";
+    }
+    applyExpanded();
+    trigger.addEventListener("click", () => {
+      advancedExpanded = !advancedExpanded;
+      applyExpanded();
+    });
+  }
+
+  function buildAdvancedRow({ icon, title, desc, busyLabel, onClick }) {
+    const row = el("div", { className: "row minicpm-advanced-row" });
+    const iconBox = el("span", { className: "minicpm-advanced-row-icon", "aria-hidden": "true" });
+    iconBox.innerHTML = icon;
+    row.appendChild(iconBox);
+    const text = el("div", { className: "row-text" });
+    text.appendChild(el("span", { className: "row-label" }, title));
+    if (desc) text.appendChild(el("span", { className: "row-desc" }, desc));
+    row.appendChild(text);
+    const ctl = el("div", { className: "row-control" });
+    // The trigger button blends visually with the row; we keep the entire
+    // row clickable so the touch target matches the visual surface.
+    row.classList.add("clickable");
+    row.setAttribute("role", "button");
+    row.setAttribute("tabindex", "0");
+    let pending = false;
+    async function run() {
+      if (pending) return;
+      pending = true;
+      row.classList.add("is-busy");
+      if (busyLabel) text.querySelector(".row-label").textContent = busyLabel;
+      try { await onClick(); } catch {}
+      pending = false;
+      row.classList.remove("is-busy");
+      if (busyLabel) text.querySelector(".row-label").textContent = title;
+    }
+    row.addEventListener("click", () => { void run(); });
+    row.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); void run(); }
+    });
+    row.appendChild(ctl);
+    return row;
   }
 
   // ── Refresh + polling ─────────────────────────────────────────────────
 
   async function refreshAll(ctx) {
     if (!window.minicpmSettings || !ctx) return;
-    await renderStatusSection(ctx.statusBox, ctx);
-    await renderBehaviorSection(ctx.behaviorBox);
-    renderActionsSection(ctx.actionsBox, ctx);
+    await probeHealth(ctx);
+    syncStatusPill(ctx);
+    await renderBehaviorSection(ctx.behaviorBox, ctx);
+    renderModelSection(ctx.modelBox, ctx);
+    renderAdvancedSection(ctx.advancedBox, ctx);
   }
 
+  function nextHealthDelay(ctx) {
+    if (!ctx.everHealthy && ctx.fastAttemptsLeft > 0) return HEALTH_INTERVAL_MS_FAST;
+    return HEALTH_INTERVAL_MS_SLOW;
+  }
+
+  // The polling loop refreshes only the status pill + model path (cheap)
+  // so switches and the advanced collapsible state stay put across ticks.
   function startHealthPolling(ctx) {
-    if (healthTimer) clearInterval(healthTimer);
-    healthTimer = setInterval(() => {
+    if (healthTimer) {
+      clearTimeout(healthTimer);
+      healthTimer = null;
+    }
+    const tick = async () => {
+      healthTimer = null;
       if (!mounted || document.hidden || core.state.activeTab !== "minicpm") return;
-      // Only the status row depends on /api/health — refreshing it alone
-      // keeps the switches and action cards stable across ticks.
-      void renderStatusSection(ctx.statusBox, ctx);
-    }, HEALTH_INTERVAL_MS);
+      const wasHealthy = ctx.everHealthy;
+      await probeHealth(ctx);
+      syncStatusPill(ctx);
+      // Path may have switched after a load-model — keep the model card
+      // honest, but never re-render Behavior/Advanced (would lose focus).
+      renderModelSection(ctx.modelBox, ctx);
+      if (!ctx.everHealthy && ctx.fastAttemptsLeft > 0) ctx.fastAttemptsLeft -= 1;
+      if (!wasHealthy && ctx.everHealthy) ctx.fastAttemptsLeft = 0;
+      healthTimer = setTimeout(tick, nextHealthDelay(ctx));
+    };
+    healthTimer = setTimeout(tick, nextHealthDelay(ctx));
+  }
+
+  function armFastProbes(ctx) {
+    ctx.fastAttemptsLeft = HEALTH_FAST_ATTEMPTS;
   }
 
   async function render(parent) {
     cleanupTimers();
     parent.innerHTML = "";
 
-    parent.appendChild(el("h1", {}, "MiniCPM"));
-    parent.appendChild(el(
-      "p",
-      { className: "subtitle" },
-      "配置你的本地 MiniCPM 模型。",
-    ));
+    const ctx = {
+      headerBox: el("div", {}),
+      behaviorBox: el("div", { className: "minicpm-section-box" }),
+      modelBox: el("div", { className: "minicpm-section-box" }),
+      advancedBox: el("div", { className: "minicpm-section-box" }),
+      statusPillSlot: null,
+      everHealthy: false,
+      fastAttemptsLeft: HEALTH_FAST_ATTEMPTS,
+      lastModelName: null,
+      lastModelDir: null,
+      healthSnapshot: {
+        st: null, h: {}, sidecarReady: false, llamaReady: false, probing: true,
+        modelName: null, modelDir: null,
+      },
+      refreshAll: null,
+    };
+    ctx.refreshAll = () => {
+      armFastProbes(ctx);
+      const p = refreshAll(ctx);
+      startHealthPolling(ctx);
+      return p;
+    };
+
+    // Build the header eagerly so the page never flashes empty before
+    // /api/health resolves — the pill starts in the "starting" yellow
+    // state via the initial probing=true snapshot.
+    renderHeader(ctx);
 
     if (!window.minicpmSettings) {
-      parent.appendChild(el("div", { className: "row-desc" }, "MiniCPM IPC 不可用 (preload 未加载)"));
+      parent.appendChild(ctx.headerBox);
+      parent.appendChild(el("div", { className: "row-desc" }, t("minicpmIpcUnavailable")));
       return;
     }
 
-    const ctx = {
-      statusBox: el("div", {}),
-      behaviorBox: el("div", {}),
-      actionsBox: el("div", {}),
-      refreshAll: null,
-    };
-    ctx.refreshAll = () => refreshAll(ctx);
-
-    parent.appendChild(ctx.statusBox);
+    parent.appendChild(ctx.headerBox);
     parent.appendChild(ctx.behaviorBox);
-    parent.appendChild(ctx.actionsBox);
+    parent.appendChild(ctx.modelBox);
+    parent.appendChild(ctx.advancedBox);
 
     mounted = true;
     visibilityHandler = () => {
       if (document.hidden || core.state.activeTab !== "minicpm") {
         if (healthTimer) {
-          clearInterval(healthTimer);
+          clearTimeout(healthTimer);
           healthTimer = null;
         }
       } else {
-        void refreshAll(ctx);
+        armFastProbes(ctx);
+        void (async () => {
+          await probeHealth(ctx);
+          syncStatusPill(ctx);
+          renderModelSection(ctx.modelBox, ctx);
+        })();
         startHealthPolling(ctx);
       }
     };
@@ -470,6 +607,7 @@
   function init(coreArg) {
     core = coreArg;
     helpers = core.helpers;
+    ops = core.ops;
     core.tabs.minicpm = {
       render: (parent) => { void render(parent); },
     };

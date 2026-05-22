@@ -3295,3 +3295,171 @@ html, body {
     background: rgba(255, 255, 255, 0.06);
   }
 }
+
+/* ── MiniCPM page header (title + subtitle + top-right status pill) ── */
+.minicpm-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.minicpm-page-header-text {
+  min-width: 0;
+}
+.minicpm-page-header-text h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.minicpm-page-header-text .subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.minicpm-page-header-status {
+  flex-shrink: 0;
+  padding-top: 6px;
+}
+.minicpm-page-header-status .remote-ssh-status-badge {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+/* ── Section title in the new layout — small caps over a card ── */
+.minicpm-section-box + .minicpm-section-box {
+  margin-top: 4px;
+}
+.minicpm-section-title {
+  margin: 0 0 8px;
+  padding: 0 4px;
+}
+
+/* ── Model section: info row (right-aligned value) and path row ── */
+.minicpm-info-row .minicpm-info-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.minicpm-path-row {
+  align-items: center;
+  gap: 12px;
+}
+.minicpm-path-row .row-text {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.minicpm-path-value {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+.minicpm-path-value.is-unset {
+  font-family: inherit;
+  font-style: italic;
+}
+.minicpm-path-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.minicpm-path-actions .soft-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
+/* ── Advanced collapsible (chevron + small-caps title) ── */
+.minicpm-advanced-section {
+  margin-bottom: 28px;
+}
+.minicpm-advanced-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  padding: 0 4px;
+  margin: 0 0 8px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  -webkit-app-region: no-drag;
+}
+.minicpm-advanced-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.minicpm-advanced-trigger:hover {
+  color: var(--text-secondary);
+}
+.minicpm-advanced-trigger .minicpm-advanced-title {
+  margin: 0;
+  padding: 0;
+}
+.minicpm-advanced-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0.75;
+}
+.minicpm-advanced-chevron svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+.minicpm-advanced-trigger.open .minicpm-advanced-chevron {
+  transform: rotate(90deg);
+  opacity: 1;
+}
+
+/* Clickable rows inside Advanced — icon + label + desc, whole row taps */
+.minicpm-advanced-row {
+  cursor: pointer;
+  gap: 12px;
+  transition: background 0.12s ease;
+}
+.minicpm-advanced-row .minicpm-advanced-row-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--input-bg, rgba(0, 0, 0, 0.04));
+  color: var(--text-secondary);
+}
+.minicpm-advanced-row .minicpm-advanced-row-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+.minicpm-advanced-row:hover {
+  background: rgba(0, 0, 0, 0.025);
+}
+.minicpm-advanced-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.minicpm-advanced-row.is-busy {
+  opacity: 0.7;
+  cursor: progress;
+}
+@media (prefers-color-scheme: dark) {
+  .minicpm-advanced-row:hover {
+    background: rgba(255, 255, 255, 0.035);
+  }
+  .minicpm-advanced-row .minicpm-advanced-row-icon {
+    background: rgba(255, 255, 255, 0.06);
+  }
+}

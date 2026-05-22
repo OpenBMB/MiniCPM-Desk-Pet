@@ -1,4 +1,5 @@
 const { notarize } = require("@electron/notarize");
+const { execFileSync } = require("child_process");
 const path = require("path");
 
 /**
@@ -43,4 +44,12 @@ module.exports = async function afterSign(context) {
   });
 
   console.log(`✅ Notarization complete: ${appPath}`);
+
+  // Staple the notarization ticket onto the .app so Gatekeeper can verify
+  // it offline. Without this, the first launch on a fresh machine has to
+  // phone home to Apple — and the DMG would have an un-stapled .app
+  // inside, which is what currently causes spctl to reject the DMG.
+  console.log(`📎 Stapling ticket to ${appPath} ...`);
+  execFileSync("xcrun", ["stapler", "staple", appPath], { stdio: "inherit" });
+  console.log(`✅ Stapled: ${appPath}`);
 };

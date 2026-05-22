@@ -71,13 +71,16 @@ fi
 
 echo "📦 Built: ${DMG_FILE}"
 
-# ── Verify code signature ───────────────────────────────────────
-echo "🔍 Verifying code signature ..."
-codesign --verify --deep --strict --verbose=2 "${DMG_FILE}" || true
-
-# ── Verify notarization (the afterSign hook already notarized) ──
-echo "📋 Checking notarization status ..."
-spctl --assess --type open --context context:primary-signature --verbose "${DMG_FILE}" 2>&1 || true
+# ── Submit the DMG itself for notarization ─────────────────────
+# The afterSign hook only notarizes the .app bundle; the DMG wrapper
+# needs its own ticket so Gatekeeper accepts the downloaded .dmg on
+# first mount without requiring an internet roundtrip.
+echo "🔏 Notarizing DMG ..."
+xcrun notarytool submit "${DMG_FILE}" \
+  --apple-id "${APPLE_ID}" \
+  --password "${APPLE_APP_SPECIFIC_PASSWORD}" \
+  --team-id "${APPLE_TEAM_ID}" \
+  --wait
 
 # ── Staple the ticket to the DMG ────────────────────────────────
 echo "📎 Stapling notarization ticket to DMG ..."

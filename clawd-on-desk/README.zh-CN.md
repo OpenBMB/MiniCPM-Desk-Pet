@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/tray-icon.png" width="128" alt="Clawd">
+  <img src="assets/tray-icon.png" width="128" alt="MiniCPM Desk Pet">
 </p>
 <h1 align="center">Clawd 桌宠</h1>
 <p align="center">
