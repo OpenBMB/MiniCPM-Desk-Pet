@@ -53,6 +53,20 @@ class ChatRequest(BaseModel):
     disable_adapter: bool = False
 
 
+# When thinking=true the model emits a <think> block before the
+# answer; both share one max_new_tokens budget. Bump the floor so reasoning
+# doesn't eat the entire allowance and truncate the reply.
+THINKING_MIN_MAX_NEW_TOKENS = 1280
+MAX_NEW_TOKENS_CAP = 4096
+
+
+def _effective_max_new_tokens(req: ChatRequest) -> int:
+    base = int(max(1, min(req.max_new_tokens, MAX_NEW_TOKENS_CAP)))
+    if req.thinking:
+        return min(MAX_NEW_TOKENS_CAP, max(base, THINKING_MIN_MAX_NEW_TOKENS))
+    return base
+
+
 # ── Model discovery ─────────────────────────────────────────────────────────
 
 
@@ -396,7 +410,7 @@ async def _stream_chat(
     try:
         agen = server.stream_chat(
             messages=messages,
-            max_tokens=int(max(1, min(req.max_new_tokens, 4096))),
+            max_tokens=_effective_max_new_tokens(req),
             temperature=max(0.0, float(req.temperature)),
             top_p=float(req.top_p),
             top_k=int(req.top_k),
@@ -469,7 +483,7 @@ async def _blocking_chat(server: LlamaServer, bridge: ClawdBridge, req: ChatRequ
     try:
         async for kind, piece in server.stream_chat(
             messages=messages,
-            max_tokens=int(max(1, min(req.max_new_tokens, 4096))),
+            max_tokens=_effective_max_new_tokens(req),
             temperature=max(0.0, float(req.temperature)),
             top_p=float(req.top_p),
             top_k=int(req.top_k),

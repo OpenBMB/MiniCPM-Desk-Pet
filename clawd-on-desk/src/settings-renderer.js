@@ -9,7 +9,7 @@ const core = globalThis.ClawdSettingsCore;
 // system fonts and didn't dark-mode well).
 const SIDEBAR_TABS = [
   { id: "general", labelKey: "sidebarGeneral", available: true },
-  { id: "minicpm", labelKey: "sidebarMinicpm", available: true, label: "MiniCPM" },
+  { id: "minicpm", labelKey: "sidebarMinicpm", available: true },
   { id: "agents", labelKey: "sidebarAgents", available: true },
   { id: "theme", labelKey: "sidebarTheme", available: true },
   { id: "animMap", labelKey: "sidebarAnimMap", available: true },

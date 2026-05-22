@@ -118,6 +118,8 @@ contextBridge.exposeInMainWorld("settingsAPI", {
 //   checkUpdate()      Promise<{ available, local_revision, remote_revision, ... }>
 //   applyUpdate()      Promise<{ ok, error? }>
 //   setNarration(on)   Promise<{ ok, enabled }>
+//   getChatParams()    Promise<{ params, defaults }>
+//   setChatParams(p)   Promise<{ ok, params }>
 //
 contextBridge.exposeInMainWorld("minicpmSettings", {
   getStatus: () => ipcRenderer.invoke("minicpm-settings:get-status"),

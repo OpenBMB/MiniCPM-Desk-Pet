@@ -1145,6 +1145,15 @@ const _minicpmOnboarding = require("./minicpm-onboarding")({
       }
     }, 500);
   },
+  onCancel: () => {
+    // User closed the onboarding window without finishing. There's no
+    // pet window or tray yet to keep the process alive, but a sidecar
+    // (and its llama-server child) may already be spawned from the
+    // download / warmup steps. app.quit() routes through before-quit
+    // which calls _minicpmChat.shutdown() → sidecar.stop(), so the
+    // children get SIGTERM/SIGKILL instead of being orphaned (ppid=1).
+    app.quit();
+  },
 });
 
 // ── Derived states: overload + failure-streak ──────────────────────────────

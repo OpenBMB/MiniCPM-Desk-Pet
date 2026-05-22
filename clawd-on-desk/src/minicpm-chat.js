@@ -540,6 +540,11 @@ module.exports = function initMinicpmChat(ctx) {
   // Persisted to <userData>/minicpm-prefs.json so they survive restart.
   // Values are validated/clamped on every set; the chat bubble fetches
   // them on each submit, the Settings tab reads/writes via IPC.
+  //
+  // Several unrelated settings share this file (chat params, `model_dir`,
+  // `narration_enabled`, ...). Every writer MUST go through
+  // `mergeMinicpmPrefs()` — a naive `JSON.stringify(chatParams)` would erase
+  // `model_dir` the next time the user toggled "thinking", etc.
   const PARAMS_PATH = (() => {
     try { return path.join(app.getPath("userData"), "minicpm-prefs.json"); }
     catch { return path.join(os.tmpdir(), "minicpm-prefs.json"); }
@@ -552,13 +557,52 @@ module.exports = function initMinicpmChat(ctx) {
     repetition_penalty: 1.05,
     thinking: false,           // default off (LoRA usually wasn't trained on <think>)
   };
-  let chatParams = { ...DEFAULT_CHAT_PARAMS };
-  try {
-    if (fs.existsSync(PARAMS_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(PARAMS_PATH, "utf-8"));
-      chatParams = { ...DEFAULT_CHAT_PARAMS, ...(raw && typeof raw === "object" ? raw : {}) };
+  const CHAT_PARAM_KEYS = Object.keys(DEFAULT_CHAT_PARAMS);
+
+  function readMinicpmPrefsRaw() {
+    try {
+      if (!fs.existsSync(PARAMS_PATH)) return {};
+      const parsed = JSON.parse(fs.readFileSync(PARAMS_PATH, "utf-8"));
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (err) {
+      log(`[minicpm] prefs read failed: ${err && err.message}`);
+      return {};
     }
-  } catch (err) { log(`[minicpm] params load failed: ${err && err.message}`); }
+  }
+
+  function writeMinicpmPrefsRaw(raw) {
+    try {
+      fs.writeFileSync(PARAMS_PATH, JSON.stringify(raw, null, 2), "utf-8");
+      return true;
+    } catch (err) {
+      log(`[minicpm] prefs save failed: ${err && err.message}`);
+      return false;
+    }
+  }
+
+  // Read-modify-write merge so each setting only touches its own keys.
+  // Passing `undefined` for a key removes it from the persisted file.
+  function mergeMinicpmPrefs(partial) {
+    if (!partial || typeof partial !== "object") return false;
+    const current = readMinicpmPrefsRaw();
+    for (const key of Object.keys(partial)) {
+      const next = partial[key];
+      if (next === undefined) delete current[key];
+      else current[key] = next;
+    }
+    return writeMinicpmPrefsRaw(current);
+  }
+
+  // Bootstrap chatParams restricted to known keys so unrelated sibling
+  // fields (model_dir / narration_enabled / ...) can't leak into the in-
+  // memory chatParams and accidentally get echoed back on the next save.
+  let chatParams = { ...DEFAULT_CHAT_PARAMS };
+  {
+    const raw = readMinicpmPrefsRaw();
+    for (const key of CHAT_PARAM_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(raw, key)) chatParams[key] = raw[key];
+    }
+  }
   function clampChatParams(input) {
     const out = { ...chatParams };
     if (!input || typeof input !== "object") return out;
@@ -575,10 +619,12 @@ module.exports = function initMinicpmChat(ctx) {
     if (typeof input.thinking === "boolean") out.thinking = input.thinking;
     return out;
   }
+  // Re-clamp bootstrap so a corrupt persisted value (e.g. max_new_tokens
+  // outside range) doesn't ride along into runtime.
+  chatParams = clampChatParams(chatParams);
   function setChatParams(input) {
     chatParams = clampChatParams(input);
-    try { fs.writeFileSync(PARAMS_PATH, JSON.stringify(chatParams, null, 2), "utf-8"); }
-    catch (err) { log(`[minicpm] params save failed: ${err && err.message}`); }
+    mergeMinicpmPrefs(chatParams);
     return chatParams;
   }
   function getChatParams() { return { ...chatParams }; }
@@ -625,24 +671,15 @@ module.exports = function initMinicpmChat(ctx) {
   }
   function getEffectiveModelDir() {
     if (process.env.MINICPM_MODEL_DIR) return process.env.MINICPM_MODEL_DIR;
-    try {
-      const raw = JSON.parse(fs.readFileSync(PARAMS_PATH, "utf-8"));
-      if (raw && typeof raw.model_dir === "string" && raw.model_dir.trim()) {
-        return raw.model_dir.trim();
-      }
-    } catch {}
+    const raw = readMinicpmPrefsRaw();
+    if (typeof raw.model_dir === "string" && raw.model_dir.trim()) {
+      return raw.model_dir.trim();
+    }
     return getDefaultModelDir();
   }
   function setEffectiveModelDir(dir) {
-    let raw = {};
-    try { raw = JSON.parse(fs.readFileSync(PARAMS_PATH, "utf-8")) || {}; } catch {}
-    if (typeof dir === "string" && dir.trim()) {
-      raw.model_dir = dir.trim();
-    } else {
-      delete raw.model_dir;
-    }
-    try { fs.writeFileSync(PARAMS_PATH, JSON.stringify(raw, null, 2), "utf-8"); }
-    catch (err) { log(`[minicpm] model_dir save failed: ${err && err.message}`); }
+    const next = (typeof dir === "string" && dir.trim()) ? dir.trim() : undefined;
+    mergeMinicpmPrefs({ model_dir: next });
     return getEffectiveModelDir();
   }
   function isModelPresent(dir) {
@@ -780,9 +817,13 @@ module.exports = function initMinicpmChat(ctx) {
   let bubbleEditing = false;
 
   // ── Narration (model reacts to coding-agent events) ──────────────────────
-  // Default ON during dev so we can iterate; flip to false (or persist via
-  // settings) before shipping.
-  let narrationEnabled = true;
+  // Persisted under `narration_enabled` in minicpm-prefs.json so the user's
+  // choice survives restart. Default true keeps the previous dev behaviour
+  // when the key is missing (first launch after upgrade, fresh install).
+  let narrationEnabled = (() => {
+    const raw = readMinicpmPrefsRaw();
+    return typeof raw.narration_enabled === "boolean" ? raw.narration_enabled : true;
+  })();
   const NARRATE_THROTTLE_MS = 10_000;     // gap between any two narrations
   const SESSION_DEDUP_MS = 5_000;         // ignore repeats for the same session
   const QUEUED_EVENT_MAX_AGE_MS = 60_000; // drop stale queued events after chat ends
@@ -1243,7 +1284,14 @@ module.exports = function initMinicpmChat(ctx) {
     }
   }
 
-  function setNarrationEnabled(value) { narrationEnabled = !!value; }
+  function setNarrationEnabled(value) {
+    const next = !!value;
+    if (narrationEnabled !== next) {
+      narrationEnabled = next;
+      mergeMinicpmPrefs({ narration_enabled: narrationEnabled });
+    }
+    return narrationEnabled;
+  }
   function isNarrationEnabled() { return narrationEnabled; }
 
   function pruneStaleQueue() {
@@ -1396,7 +1444,7 @@ module.exports = function initMinicpmChat(ctx) {
       label: `桌宠旁白 (Stop / 错误时吐槽)`,
       type: "checkbox",
       checked: narrationEnabled,
-      click: (it) => { narrationEnabled = !!it.checked; },
+      click: (it) => { setNarrationEnabled(!!it.checked); },
     });
     items.push({ type: "separator" });
     items.push({
@@ -1518,10 +1566,14 @@ module.exports = function initMinicpmChat(ctx) {
   // Surface the MiniCPM panel state to the main Settings window.
   const settingsHandlers = {
     "minicpm-settings:get-status": async () => {
-      const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+      // /api/health internally chains a call into llama-server's /health, so
+      // a too-tight timeout falsely paints a live sidecar as "offline" the
+      // moment llama is briefly busy (KV flush after a chat, model swap,
+      // adapter load, etc). 5s keeps the probe still cheap but resilient to
+      // that micro-jitter.
+      const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 5000).catch(() => null);
       return {
         sidecarUrl: sidecar.baseUrl(),
-        bridgeDir,
         healthy: !!(health && health.json && health.json.ok),
         health: health ? health.json : null,
         narration: narrationEnabled,
@@ -1601,7 +1653,7 @@ module.exports = function initMinicpmChat(ctx) {
       }
     },
     "minicpm-settings:set-narration": async (_evt, payload) => {
-      narrationEnabled = !!(payload && payload.enabled);
+      setNarrationEnabled(!!(payload && payload.enabled));
       return { ok: true, enabled: narrationEnabled };
     },
 
@@ -1665,7 +1717,20 @@ module.exports = function initMinicpmChat(ctx) {
         return { ok: false, error: String(err && err.message || err) };
       }
       setEffectiveModelDir(target);
-      return { ok: true, modelDir: target };
+      // Persisting the prefs only takes effect on the next sidecar spawn —
+      // hot-swap via /api/load-model so the running llama-server actually
+      // picks up the new .gguf without a manual restart. swap_model on the
+      // gateway stops + respawns llama-server with the new --model and
+      // blocks until the /health probe returns 200, so a successful
+      // resolution here means the new model is already serving requests.
+      let reloadError = null;
+      try {
+        const r = await sidecar.loadModel(target);
+        if (r && r.error) reloadError = String(r.error);
+      } catch (err) {
+        reloadError = String(err && err.message || err);
+      }
+      return { ok: true, modelDir: target, reloaded: !reloadError, reloadError };
     },
     "minicpm-settings:open-model-dir": async () => {
       const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
@@ -1795,6 +1860,7 @@ module.exports = function initMinicpmChat(ctx) {
         return { ok: false, error: String(err && err.message || err) };
       }
     },
+
     "minicpm-settings:get-chat-params": async () => ({
       params: getChatParams(),
       defaults: { ...DEFAULT_CHAT_PARAMS },

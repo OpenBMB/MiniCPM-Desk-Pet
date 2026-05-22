@@ -196,37 +196,59 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   font-size: 13px;
 }
-.checks li .icon {
+.checks li .check-label {
+  flex: 0 0 auto;
+  font-weight: 500;
+  color: var(--text);
+}
+.checks li .check-detail {
+  flex: 1 1 auto;
+  color: var(--text-dim);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+/* Trailing status pill — single character (✓ / !) inside a soft circle
+   so the row reads at a glance without needing the noisy "..." spinner. */
+.checks li::after {
+  content: "";
+  flex: 0 0 auto;
   width: 18px;
   height: 18px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--surface-2);
-  color: var(--text-dim);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: transparent;
 }
 .checks li.ok {
   background: var(--ok-soft);
   border-color: var(--ok-border);
 }
-.checks li.ok .icon {
+.checks li.ok .check-detail { color: var(--ok-text); }
+.checks li.ok::after {
+  content: "✓";
   background: var(--ok-border);
   color: var(--ok-text);
-  border: 1px solid var(--ok-border);
 }
-.checks li.ok .icon::after { content: "✓"; }
-.checks li.ok .icon > * { display: none; }
-.checks li.err .icon { background: var(--err); color: white; }
-.checks li.err .icon::after { content: "!"; }
-.checks li.err .icon > * { display: none; }
+.checks li.err {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+.checks li.err .check-detail { color: var(--err); }
+.checks li.err::after {
+  content: "!";
+  background: var(--err);
+  color: #fff;
+}
 
 /* ── Model cards (Step 2) ──────────────────────────────────────────── */
 .model-cards {

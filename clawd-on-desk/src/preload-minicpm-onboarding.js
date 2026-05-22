@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("onboarding", {
   getState: () => ipcRenderer.invoke("onboarding:get-state"),
   listDevices: () => ipcRenderer.invoke("onboarding:list-devices"),
   checkDisk: () => ipcRenderer.invoke("onboarding:check-disk"),
+  diskInfo: () => ipcRenderer.invoke("onboarding:disk-info"),
+  platformInfo: () => ipcRenderer.invoke("onboarding:platform-info"),
 
   // User actions
   selectDevice: (device) => ipcRenderer.invoke("onboarding:select-device", { device }),

@@ -158,6 +158,55 @@
   }
   @keyframes blink { 50% { opacity: 0; } }
 
+  /* — Rendered Markdown — applies after streaming completes (.rendered)
+     and to the pinned previous reply in continuous-chat mode. Keep the
+     vertical rhythm tight so multi-paragraph replies still fit. */
+  .speak.rendered, .last-reply-region.rendered {
+    white-space: normal;
+  }
+  .speak.rendered p,
+  .last-reply-region.rendered p { margin: 0 0 0.55em; }
+  .speak.rendered p:last-child,
+  .last-reply-region.rendered p:last-child { margin-bottom: 0; }
+  .speak.rendered h1, .last-reply-region.rendered h1 { font-size: 1.18em; font-weight: 700; margin: 0.45em 0 0.28em; line-height: 1.35; }
+  .speak.rendered h2, .last-reply-region.rendered h2 { font-size: 1.10em; font-weight: 700; margin: 0.40em 0 0.25em; line-height: 1.35; }
+  .speak.rendered h3, .last-reply-region.rendered h3 { font-size: 1.04em; font-weight: 700; margin: 0.40em 0 0.20em; line-height: 1.35; }
+  .speak.rendered h1:first-child, .speak.rendered h2:first-child, .speak.rendered h3:first-child,
+  .last-reply-region.rendered h1:first-child, .last-reply-region.rendered h2:first-child, .last-reply-region.rendered h3:first-child {
+    margin-top: 0;
+  }
+  .speak.rendered strong, .last-reply-region.rendered strong { font-weight: 600; }
+  .speak.rendered em, .last-reply-region.rendered em { font-style: italic; }
+  .speak.rendered ul, .speak.rendered ol,
+  .last-reply-region.rendered ul, .last-reply-region.rendered ol {
+    margin: 0 0 0.55em; padding-left: 1.4em;
+  }
+  .speak.rendered li, .last-reply-region.rendered li { margin: 0.12em 0; }
+  .speak.rendered hr, .last-reply-region.rendered hr {
+    border: none; border-top: 1px solid var(--border);
+    margin: 0.55em 0;
+  }
+  .speak.rendered code, .last-reply-region.rendered code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: rgba(127, 127, 127, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .speak.rendered pre, .last-reply-region.rendered pre {
+    background: rgba(127, 127, 127, 0.10);
+    padding: 8px 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0 0 0.55em;
+    white-space: pre;
+  }
+  .speak.rendered pre code, .last-reply-region.rendered pre code {
+    background: transparent;
+    padding: 0;
+    font-size: 0.86em;
+  }
+
   /* Whispered thought stream — soft gray text with a left border that
      stands in for "this is a quoted side-channel". No italic (Chinese
      fonts get visually skewed) and no emoji. */
@@ -289,12 +338,15 @@ let abortCtrl = null;
 let fadeTimer = null;
 let inputEl = null;          // <textarea> while in ask state
 
-// thinking defaults to false because:
-//   1) the persona LoRA isn't fine-tuned with <think>...</think> structure,
-//      so it traps all output inside the think block and never emits </think>
-//   2) for casual chat the answer should arrive fast, not after deliberation
-// User can still flip it on with ⌘⇧T (works fine on base model).
-let settings = { thinking: false };
+// Persisted default lives in minicpm-prefs.json (Settings → 默认思考模式).
+// thinkingOverride is a per-session override from ⌘⇧T; null means follow
+// the persisted default on each submit.
+let thinkingOverride = null;
+
+function resolveThinking(chatParams) {
+  if (typeof thinkingOverride === "boolean") return thinkingOverride;
+  return !!(chatParams && chatParams.thinking);
+}
 
 // ── window helpers ──
 function clearFade() {
@@ -397,7 +449,7 @@ async function showAsk(lastReply) {
     // Outer height tracks content.offsetHeight via measureAndShow.
     content.innerHTML = `
       <div class="chat-pane">
-        <div class="last-reply-region" id="last-reply-region">${escapeHtml(lastReply)}</div>
+        <div class="last-reply-region rendered" id="last-reply-region">${renderMarkdown(lastReply)}</div>
         <div class="ask-input-wrap">
           <textarea id="ask-input" placeholder="问问看…" rows="1"></textarea>
         </div>
@@ -520,6 +572,88 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[c]);
+}
+
+// ── tiny Markdown → HTML renderer ─────────────────────────────────────
+// Handles **bold**, *italic*, headings (h1–h3), unordered / ordered
+// lists, horizontal rules, inline / fenced code, and paragraphs. Always
+// HTML-escapes the input first so model output cannot inject markup.
+// Used for the post-streaming reply and the pinned last-reply pane —
+// during streaming the typewriter still feeds plain text via textContent
+// so the user sees a smooth char-by-char reveal.
+function renderMarkdown(text) {
+  if (text == null) return "";
+  let s = escapeHtml(String(text));
+
+  // Reserve code spans first so later inline / block rules can't
+  // mangle code contents. The \x00 sentinel never appears in normal
+  // text and survives the HTML-escape step above.
+  const blocks = [];
+  s = s.replace(/```[^\n]*\n?([\s\S]*?)```/g, (_m, code) => {
+    const i = blocks.length;
+    blocks.push(`<pre><code>${code.replace(/^\n|\n+$/g, "")}</code></pre>`);
+    return `\x00B${i}\x00`;
+  });
+  const inlines = [];
+  s = s.replace(/`([^`\n]+)`/g, (_m, code) => {
+    const i = inlines.length;
+    inlines.push(`<code>${code}</code>`);
+    return `\x00I${i}\x00`;
+  });
+
+  // Inline emphasis. Bold first so paired `**` never gets eaten by the
+  // single-`*` italic rule. The italic lookbehind/lookahead avoid
+  // matching mid-word `*` (e.g. function names with stars).
+  s = s.replace(/\*\*([^*\n][^\n]*?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__([^_\n][^\n]*?)__/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[\s>(])\*([^*\n]+?)\*(?=[\s<.,;:!?)\]]|$)/g, "$1<em>$2</em>");
+  s = s.replace(/(^|[\s>(])_([^_\n]+?)_(?=[\s<.,;:!?)\]]|$)/g, "$1<em>$2</em>");
+
+  // Block rules, line-anchored. Anything that doesn't match a block
+  // becomes a paragraph (consecutive non-block lines joined with <br>).
+  const lines = s.split("\n");
+  const out = [];
+  const isPlaceholder = (l) => /^\x00B\d+\x00$/.test(l.trim());
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isPlaceholder(line)) { out.push(line.trim()); i++; continue; }
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (h) { out.push(`<h${h[1].length}>${h[2]}</h${h[1].length}>`); i++; continue; }
+    if (/^\s*---+\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+    if (/^[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+        items.push(`<li>${lines[i].replace(/^[-*]\s+/, "")}</li>`);
+        i++;
+      }
+      out.push(`<ul>${items.join("")}</ul>`);
+      continue;
+    }
+    if (/^\d+\.\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        items.push(`<li>${lines[i].replace(/^\d+\.\s+/, "")}</li>`);
+        i++;
+      }
+      out.push(`<ol>${items.join("")}</ol>`);
+      continue;
+    }
+    if (line.trim() === "") { i++; continue; }
+    const para = [];
+    while (i < lines.length) {
+      const l = lines[i];
+      if (l.trim() === "" || /^(?:#{1,3}\s|[-*]\s|\d+\.\s|\s*---+\s*$)/.test(l) || isPlaceholder(l)) break;
+      para.push(l);
+      i++;
+    }
+    if (para.length) out.push(`<p>${para.join("<br>")}</p>`);
+  }
+
+  let result = out.join("");
+  result = result.replace(/\x00B(\d+)\x00/g, (_m, idx) => blocks[+idx]);
+  result = result.replace(/\x00I(\d+)\x00/g, (_m, idx) => inlines[+idx]);
+  return result;
 }
 
 // Hidden measurement span — used to compute the natural width of the
@@ -887,8 +1021,14 @@ async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
     // the user's preference alone.
     let extra = "";
     const newPersona = sd.persona || "default";
-    if (newPersona !== "default" && settings.thinking) {
-      settings.thinking = false;
+    let chatParams = {};
+    try {
+      chatParams = (window.minicpm && typeof window.minicpm.getChatParams === "function")
+        ? (await window.minicpm.getChatParams()) || {}
+        : {};
+    } catch {}
+    if (newPersona !== "default" && resolveThinking(chatParams)) {
+      thinkingOverride = false;
       extra = "（关掉了思考模式）";
     }
     return {
@@ -962,11 +1102,12 @@ async function submit(text) {
       ? (await window.minicpm.getChatParams()) || {}
       : {};
   } catch {}
-  // settings.thinking (in-bubble toggle, ⌘⇧T) takes precedence over the
-  // persisted default when the user has toggled it during this session.
-  const effectiveThinking = (typeof settings.thinking === "boolean")
-    ? settings.thinking
-    : !!chatParams.thinking;
+  // thinkingOverride (⌘⇧T) takes precedence over the persisted default
+  // when the user has overridden this session.
+  const effectiveThinking = resolveThinking(chatParams);
+  // Sidecar bumps max_new_tokens to ≥1280 when thinking=true so the
+  // <think> block doesn't consume the whole generation budget.
+  const maxNewTokens = chatParams.max_new_tokens || 768;
 
   try {
     const resp = await fetch(sidecarUrl + "/api/chat", {
@@ -975,7 +1116,7 @@ async function submit(text) {
       body: JSON.stringify({
         messages: history,
         stream: true,
-        max_new_tokens: chatParams.max_new_tokens || 768,
+        max_new_tokens: maxNewTokens,
         temperature: (typeof chatParams.temperature === "number") ? chatParams.temperature : 0.6,
         top_p: (typeof chatParams.top_p === "number") ? chatParams.top_p : 0.95,
         top_k: (typeof chatParams.top_k === "number") ? chatParams.top_k : 0,
@@ -1004,7 +1145,7 @@ async function submit(text) {
         let obj;
         try { obj = JSON.parse(payload); } catch { continue; }
 
-        if (obj.event === "think" && settings.thinking) {
+        if (obj.event === "think" && effectiveThinking) {
           if (!sawThink) {
             sawThink = true;
             await showThink();
@@ -1037,7 +1178,15 @@ async function submit(text) {
 
     if (typer) await typer.drain();
     history.push({ role: "assistant", content: replyAcc });
-    if (speakEl) speakEl.classList.remove("streaming");
+    if (speakEl) {
+      speakEl.classList.remove("streaming");
+      // Swap the plain typewriter text for a markdown-rendered version
+      // once the stream completes — keeps the streaming reveal smooth
+      // (no HTML thrash per chunk) while still presenting bold/italics/
+      // headings/lists/code in their final form.
+      speakEl.classList.add("rendered");
+      speakEl.innerHTML = renderMarkdown(replyAcc);
+    }
 
     // ── New: keep the bubble alive for follow-up turns. After a tiny
     // dwell so the streaming animation settles, swap the speak content
@@ -1149,12 +1298,14 @@ async function cmdDismiss() {
 
 async function cmdReset() {
   history = [];
+  thinkingOverride = null;
   if (phase === "ask" && inputEl) inputEl.value = "";
 }
 
 function cmdToggleThinking() {
-  settings.thinking = !settings.thinking;
-  return settings.thinking;
+  // Legacy sync helper — the live path is onToggleThinking below.
+  thinkingOverride = !resolveThinking({});
+  return thinkingOverride;
 }
 
 async function dismiss() { await cmdDismiss(); }
@@ -1193,13 +1344,19 @@ if (window.minicpm) {
       const d = await r.json();
       persona = d.persona || "default";
     } catch {}
-    const willEnable = !settings.thinking;
+    let chatParams = {};
+    try {
+      chatParams = (window.minicpm && typeof window.minicpm.getChatParams === "function")
+        ? (await window.minicpm.getChatParams()) || {}
+        : {};
+    } catch {}
+    const willEnable = !resolveThinking(chatParams);
     if (willEnable && persona !== "default") {
       showToast(`当前 ${persona} 人格不支持思考模式，先切到原版再开`);
       return;
     }
-    settings.thinking = !settings.thinking;
-    showToast(`思考已${settings.thinking ? "开启" : "关闭"}`);
+    thinkingOverride = willEnable;
+    showToast(`思考已${willEnable ? "开启" : "关闭"}`);
   });
   if (window.minicpm.onUpdateStatus) window.minicpm.onUpdateStatus(updateBadge);
   if (window.minicpm.onUpdateApplying) window.minicpm.onUpdateApplying(showUpdateProgress);
