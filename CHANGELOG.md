@@ -1,3 +1,28 @@
+# v0.9 — 2026-05-22
+
+## 主线：仓库目录大扫除 + 开源就绪
+
+### 移除
+
+- 整体删除 v0.8 标记为 DEPRECATED 的 `minicpm-pet-bridge/`、`minicpm-pet-bridge-uv/`、`build/` 三个目录（v2 LoRA 已通过 GGUF 路径在 v0.8 末期落地，旧 PyTorch 源码不再需要保留作为参考）。
+- 删除根目录残留的 `state.js`（与 [`clawd-on-desk/src/state.js`](clawd-on-desk/src/state.js) 重复且过期）。
+- 清理 `models/` 下的失效绝对路径符号链接，保留空目录占位。
+
+### 新增
+
+- 根级 [`LICENSE`](LICENSE)（AGPL-3.0-only，与 `clawd-on-desk/LICENSE` 同源）。
+- 根级 [`NOTICE.md`](NOTICE.md)：fork 声明 + llama.cpp / MiniCPM / OpenClaw 等第三方 attribution。
+- 根级 [`CONTRIBUTING.md`](CONTRIBUTING.md)：quickstart、测试要求、commit / PR 约定。
+- [`docs/archive/`](docs/archive/) 子目录，迁入 v0.7 时代的设计文档（[PRD-sidecar-cross-platform-refactor.md](docs/archive/PRD-sidecar-cross-platform-refactor.md)、[architecture-and-cross-platform-report.md](docs/archive/architecture-and-cross-platform-report.md)），并附 [`README.md`](docs/archive/README.md) 解释归档背景。
+
+### 变更
+
+- [`README.md`](README.md) 删除 deprecated 目录段落，文档索引指向归档后的新路径，新增 CONTRIBUTING 链接。
+- [`docs/development.md`](docs/development.md) 删除 conda 路径、双份 sidecar 同步注意事项、旧 `build/build-sidecar.sh` 引用；"仓库结构"框图按新平铺布局重写。
+- [`docs/llama-cpp-migration.md`](docs/llama-cpp-migration.md) 旧 PyTorch sidecar / PyInstaller 路径改为历史叙述。
+- [`skills/deploy-minicpm-pet/SKILL.md`](skills/deploy-minicpm-pet/SKILL.md) 完整改写：所有 `minicpm-pet-bridge*` 引用替换为 `minicpm-sidecar`，安装步骤更新到 cmake + uv + 几十 MB gateway。
+- [`.gitignore`](.gitignore) 删除 `build/*` 历史例外规则。
+
 # v0.8 — 2026-05-20
 
 ## 重构主线：推理后端 PyTorch → llama.cpp，删除两套 bridge 合一

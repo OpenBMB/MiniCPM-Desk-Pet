@@ -113,11 +113,28 @@ gateway 对 Electron 暴露下列端点（保持与旧 bridge 完全兼容）：
 | `GET /api/onboarding` | ok | model_present / stage_hint |
 | `GET /api/update-check`, `POST /api/update-apply` | ok | GGUF 增量下载 |
 | `POST /api/state` | ok | 手动桌宠状态推送 |
-| `GET /api/adapters` | stub | v1 返回空列表 |
-| `POST /api/load-adapter` | stub | v1 返回 501 |
+| `GET /api/adapters` | ok | 扫描 `<MINICPM_ADAPTER_DIR>/**/*.gguf`，返回 `{items, current, current_name, adapter_dir}` |
+| `POST /api/load-adapter` | ok | 切换全局激活 LoRA（`{path}`，`null` 卸载）；新文件会触发 llama-server 子进程重启 |
 | `POST /api/classify` | stub | v1 返回 501 |
 
 字段细节参见 [`gateway/server.py`](gateway/server.py)。
+
+### LoRA 适配器协议
+
+- 启动时 gateway 扫描 `MINICPM_ADAPTER_DIR`（或默认 `<userData>/adapters/`、dev 下 `<repo>/adapters/`）并把每个 `*.gguf` 通过 `llama-server --lora` 全部预加载。
+- "激活"是 gateway 内存里的单值 `current_adapter`，并不直接修改 llama-server 的全局 scale。
+- 每次 `POST /api/chat` 时，根据当前激活 adapter + 请求体的 `disable_adapter` 注入 OpenAI 请求体的 `lora: [...]` 字段（PR #10994）：
+
+| `disable_adapter` | active adapter | 注入到 llama-server 的 `lora` |
+|------|------|------|
+| `false`（默认） | 无 | （不发字段，走 base） |
+| `false` | `lora_neko.gguf` | `[{"id": 0, "scale": 1.0}]` |
+| `true` | 任意 | `[]`（本次请求显式禁用所有 adapter，桌宠旁白用） |
+
+这样主对话和旁白可以并发，不会因为全局 scale 切换产生人格污染。
+
+- 用户拖入新 `.gguf` 后，下一次 `POST /api/load-adapter` 会触发 llama-server 重启（~2-4s）并把新文件加进 `--lora` 列表；后续在已加载 adapter 间切换是纯内存变更，零开销。
+- 适配器持久权重格式必须是 GGUF。从 PEFT safetensors 转换的脚本与示例在 [`adapters/README.md`](../adapters/README.md)。
 
 ## 与 llama-server 的 thinking 协议
 

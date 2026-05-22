@@ -3375,6 +3375,188 @@ html, body {
   white-space: nowrap;
 }
 
+/* ── Adapter (LoRA) section ── */
+/*
+ * Adapter list lives in the row-control slot (right column) so the
+ * label/desc stays in the row-text column matching every other row.
+ * We use radio inputs for keyboard navigability and visually style the
+ * surrounding <label> as a tappable chip.
+ */
+.minicpm-adapter-row {
+  align-items: flex-start;
+}
+.minicpm-adapter-choices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 200px;
+}
+.minicpm-adapter-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  border: 1px solid transparent;
+  background: rgba(0, 0, 0, 0.03);
+}
+.minicpm-adapter-choice:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.minicpm-adapter-choice.selected {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.minicpm-adapter-choice input[type="radio"] {
+  margin: 0;
+}
+.minicpm-adapter-choice-label {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.minicpm-adapter-choice-tag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.minicpm-adapter-choice-tag.is-missing {
+  background: rgba(220, 70, 70, 0.18);
+  color: rgb(170, 50, 50);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.minicpm-adapter-empty {
+  font-style: italic;
+  padding: 4px 0;
+}
+.minicpm-adapter-actions-row .row-control {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.minicpm-adapter-choice.is-missing {
+  opacity: 0.55;
+}
+.minicpm-adapter-choice-controls {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.minicpm-adapter-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.minicpm-adapter-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-secondary);
+}
+.minicpm-adapter-icon-btn.is-danger:hover {
+  background: rgba(220, 70, 70, 0.15);
+  color: rgb(180, 50, 50);
+}
+.minicpm-adapter-icon-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.minicpm-adapter-editor {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.minicpm-adapter-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.minicpm-adapter-editor-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.minicpm-adapter-editor-input {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+.minicpm-adapter-editor-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.minicpm-adapter-editor-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.minicpm-adapter-editor-buttons .soft-btn {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+@media (prefers-color-scheme: dark) {
+  .minicpm-adapter-choice {
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .minicpm-adapter-choice:hover {
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .minicpm-adapter-choice.selected {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .minicpm-adapter-choice-tag {
+    background: rgba(255, 255, 255, 0.12);
+  }
+  .minicpm-adapter-choice-tag.is-missing {
+    background: rgba(220, 70, 70, 0.25);
+    color: rgb(255, 150, 150);
+  }
+  .minicpm-adapter-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .minicpm-adapter-editor {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+  .minicpm-adapter-editor-input {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: var(--text-primary);
+  }
+}
+
 /* ── Advanced collapsible (chevron + small-caps title) ── */
 .minicpm-advanced-section {
   margin-bottom: 28px;

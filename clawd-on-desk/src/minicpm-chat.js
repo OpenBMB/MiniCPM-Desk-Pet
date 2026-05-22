@@ -148,6 +148,104 @@ function triplet() {
   return process.platform + "-" + arch;
 }
 
+// ── Adapter manifest pure helpers ──────────────────────────────────────
+//
+// These work on plain JS objects with no IO so they're easy to unit-test
+// without mocking Electron's `app`. The closure-level wrappers inside
+// `initMinicpmChat` do the actual fs reads / writes and call into here.
+
+function parseManifestJson(text) {
+  try {
+    const raw = JSON.parse(text);
+    if (!raw || typeof raw !== "object" || !Array.isArray(raw.items)) {
+      return { version: 1, items: [] };
+    }
+    return {
+      version: Number(raw.version) || 1,
+      items: raw.items.filter((it) => it && typeof it === "object"),
+    };
+  } catch {
+    return { version: 1, items: [] };
+  }
+}
+
+function manifestUpsertItem(items, entry) {
+  if (!entry || !entry.id) return Array.isArray(items) ? items.slice() : [];
+  const out = Array.isArray(items) ? items.slice() : [];
+  const idx = out.findIndex((it) => it && it.id === entry.id);
+  if (idx >= 0) {
+    out[idx] = { ...out[idx], ...entry };
+  } else {
+    out.push({ createdAt: new Date().toISOString(), ...entry });
+  }
+  return out;
+}
+
+function manifestRemoveItem(items, id) {
+  const out = Array.isArray(items) ? items.filter((it) => it && it.id !== id) : [];
+  return out;
+}
+
+// Recursive copy of bundled LoRA adapters from `srcDir` (where
+// electron-builder dropped them via extraResources) into `dstDir`
+// (the user-writable `<userData>/adapters/` we point the gateway at).
+//
+// Idempotent: skips any file that already exists at the destination so
+// user deletions stick across app restarts. Only copies the file kinds
+// the gateway and Settings UI care about (`.gguf` weights + README /
+// adapter_config metadata), to keep the user dir tidy.
+//
+// Returns `{ copied, skipped, errors }` for log + test introspection.
+// Failures on individual files don't abort the walk — we want best
+// effort, the worst case is the user just doesn't see the default
+// nekoqa preset and has to drop the .gguf in by hand.
+function seedAdaptersFromBundle(srcDir, dstDir, fsImpl = fs, log = () => {}) {
+  const result = { copied: [], skipped: [], errors: [] };
+  if (!srcDir) return result;
+  try { fsImpl.mkdirSync(dstDir, { recursive: true }); } catch {}
+
+  function walk(curSrc, curDst) {
+    let entries;
+    try { entries = fsImpl.readdirSync(curSrc, { withFileTypes: true }); }
+    catch { return; }
+    for (const entry of entries) {
+      const s = path.join(curSrc, entry.name);
+      const d = path.join(curDst, entry.name);
+      if (entry.isDirectory()) {
+        try { fsImpl.mkdirSync(d, { recursive: true }); } catch {}
+        walk(s, d);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const lower = entry.name.toLowerCase();
+      const isAllowed =
+        lower.endsWith(".gguf") ||
+        lower.endsWith(".md") ||
+        lower === "adapter_config.json";
+      if (!isAllowed) continue;
+      try {
+        if (fsImpl.existsSync(d)) {
+          result.skipped.push(d);
+          continue;
+        }
+        fsImpl.copyFileSync(s, d);
+        result.copied.push(d);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        log(`[minicpm] adapter seed copy failed: ${entry.name} -> ${msg}`);
+        result.errors.push({ path: d, error: msg });
+      }
+    }
+  }
+  try { walk(srcDir, dstDir); }
+  catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    log(`[minicpm] seedAdaptersFromBundle walk failed: ${msg}`);
+    result.errors.push({ path: dstDir, error: msg });
+  }
+  return result;
+}
+
 // ── HTTP probe helpers ──────────────────────────────────────────────────────
 
 function httpJson(method, urlStr, body, timeoutMs = 4000) {
@@ -183,7 +281,7 @@ function httpJson(method, urlStr, body, timeoutMs = 4000) {
 // ── Sidecar manager ─────────────────────────────────────────────────────────
 
 class Sidecar {
-  constructor({ sidecarDir, sidecarBin, appRoot, port, host, log, logFile }) {
+  constructor({ sidecarDir, sidecarBin, appRoot, port, host, log, logFile, adapterDir }) {
     // Source tree of minicpm-sidecar; used only in dev when no prebuilt
     // binary is present. Packaged builds ignore it entirely.
     this.sidecarDir = sidecarDir || null;
@@ -198,6 +296,11 @@ class Sidecar {
     this.proc = null;
     this.starting = null;
     this.stderrTail = [];
+    // Where the gateway should scan for *.gguf LoRA adapters. We pass
+    // it via MINICPM_ADAPTER_DIR env at spawn time so /api/adapters and
+    // /api/load-adapter see the same directory Settings → "open adapter
+    // folder" exposes to the user.
+    this.adapterDir = adapterDir || null;
     // Append-mode file stream where every stdout / stderr line from the
     // sidecar gets persisted to <userData>/logs/sidecar.log. Critical
     // for packaged builds where console.log goes nowhere.
@@ -321,6 +424,9 @@ class Sidecar {
       // RotatingFileHandler drops sidecar-internal.log next to what
       // Electron captures — easy to grab via Settings → "打开日志目录".
       MINICPM_LOG_DIR: this.logFile ? path.dirname(this.logFile) : (process.env.MINICPM_LOG_DIR || ""),
+      // Point gateway at the writable user adapter dir so /api/adapters
+      // and /api/load-adapter see exactly what Settings UI shows.
+      MINICPM_ADAPTER_DIR: this.adapterDir || process.env.MINICPM_ADAPTER_DIR || "",
     };
 
     let proc;
@@ -514,9 +620,252 @@ module.exports = function initMinicpmChat(ctx) {
   try { fs.mkdirSync(logsDir, { recursive: true }); } catch {}
   const sidecarLogPath = path.join(logsDir, "sidecar.log");
 
+  // ── Adapter (LoRA) path resolution ────────────────────────────────────
+  // Same shape as the model paths: <userData>/adapters/ in packaged
+  // mode, <repo>/adapters/ in dev. The sidecar gateway scans this dir
+  // for *.gguf files at boot and exposes them via /api/adapters; the
+  // Settings tab lets the user pick which one is active.
+  //
+  // Bundled defaults live in <resources>/adapters/ (filled by
+  // electron-builder extraResources). On first launch we copy any
+  // *.gguf in there into the user dir so the file is editable by the
+  // user (delete, rename) and visible in Finder via the same "open
+  // adapter folder" shortcut.
+  //
+  // These helpers live here (before `new Sidecar(...)`) because the
+  // seed + dir resolution must happen synchronously at boot, before
+  // anything reads them. `const` has TDZ semantics so moving the
+  // declarations earlier than their callers is mandatory; the model
+  // helpers further down don't have this problem because nothing reads
+  // them until IPC handlers fire.
+  const ADAPTERS_SUBDIR = "adapters";
+  function getDefaultAdapterDir() {
+    if (app && app.isPackaged) {
+      return path.join(getUserDataDir(), ADAPTERS_SUBDIR);
+    }
+    return path.resolve(appRoot, "..", ADAPTERS_SUBDIR);
+  }
+  function getBundledAdapterDir() {
+    // process.resourcesPath only exists in packaged builds; dev builds
+    // already point getDefaultAdapterDir at the repo so no seeding is
+    // needed.
+    try {
+      if (app && app.isPackaged && process.resourcesPath) {
+        return path.join(process.resourcesPath, ADAPTERS_SUBDIR);
+      }
+    } catch {}
+    return null;
+  }
+  // Wrapper around the module-level pure function so we can unit-test
+  // the copy walker without needing to mock Electron's `app` / `process`.
+  function seedBundledAdapters() {
+    const src = getBundledAdapterDir();
+    if (!src) return;
+    const dst = getDefaultAdapterDir();
+    seedAdaptersFromBundle(src, dst, fs, log);
+  }
+  function getEffectiveAdapterDir() {
+    if (process.env.MINICPM_ADAPTER_DIR) return process.env.MINICPM_ADAPTER_DIR;
+    // We're called from two places: the synchronous boot block above
+    // (before PARAMS_PATH has been initialised, so readMinicpmPrefsRaw
+    // would log a noisy TDZ warning) and the Settings IPC handler
+    // (where prefs are fully available). The try/catch lets the boot
+    // case fall through silently without changing the IPC-time
+    // behaviour.
+    let raw = {};
+    try { raw = readMinicpmPrefsRaw(); } catch {}
+    if (typeof raw.adapter_dir === "string" && raw.adapter_dir.trim()) {
+      return raw.adapter_dir.trim();
+    }
+    return getDefaultAdapterDir();
+  }
+
+  // ── Adapter manifest (display names + aliases) ────────────────────────
+  //
+  // The gateway only knows about physical *.gguf files and a coarse
+  // persona slug derived from filename hints. Everything user-facing —
+  // friendly names like "猫娘 宝宝" and the alias list that powers chat
+  // commands ("切到猫娘") — lives in this manifest, owned by the Electron
+  // main process. Two consumers read it:
+  //
+  //   1. The Settings UI (via IPC) — for rendering chip labels and
+  //      letting users rename / delete / upload entries.
+  //   2. The sidecar (gateway) — we drop a copy as `.manifest.json` in
+  //      the adapter dir so gateway can merge displayName/aliases into
+  //      its `/api/adapters` response, which the chat bubble HTML
+  //      reads directly (the chat web view has no preload bridge).
+  //
+  // Schema is documented in adapters/README.md.
+  const ADAPTER_MANIFEST_FILE = "minicpm-adapters.json";
+  // Mirror file the gateway reads on every /api/adapters call. Lives in
+  // the adapter dir so a single watch / FS lookup is enough; the dot
+  // prefix keeps it out of the *.gguf scan.
+  const ADAPTER_MANIFEST_MIRROR = ".manifest.json";
+
+  // Built-in presets that ship with the app. After the bundled .gguf
+  // files have been copied into <userData>/adapters/ on first launch we
+  // resolve `filenameHint` against the actual on-disk file and write a
+  // manifest entry — so the user sees "猫娘 宝宝" the first time they
+  // open Settings without any extra UI interaction.
+  const DEFAULT_PRESET_ENTRIES = [
+    {
+      id: "preset:nekoqa",
+      displayName: "猫娘",
+      aliases: ["猫娘", "宝宝", "neko"],
+      persona: "neko",
+      filenameHint: "lora_nekoqa",
+    },
+  ];
+
+  function adapterManifestPath() {
+    return path.join(getUserDataDir(), ADAPTER_MANIFEST_FILE);
+  }
+  function emptyManifest() {
+    return { version: 1, items: [] };
+  }
+  function readAdapterManifest() {
+    const p = adapterManifestPath();
+    try {
+      if (!fs.existsSync(p)) return emptyManifest();
+      return parseManifestJson(fs.readFileSync(p, "utf-8"));
+    } catch (err) {
+      log(`[minicpm] adapter manifest read failed: ${err && err.message}`);
+      return emptyManifest();
+    }
+  }
+  function writeAdapterManifest(obj) {
+    const p = adapterManifestPath();
+    try {
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      fs.writeFileSync(p, JSON.stringify(obj || emptyManifest(), null, 2), "utf-8");
+      // Mirror to the adapter dir for the gateway to read. Strip the
+      // `id` field (gateway doesn't need internal identifiers) and
+      // re-key by path so the gateway can resolve in O(1).
+      try {
+        const dir = getEffectiveAdapterDir();
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+          path.join(dir, ADAPTER_MANIFEST_MIRROR),
+          JSON.stringify(obj || emptyManifest(), null, 2),
+          "utf-8",
+        );
+      } catch (mirrorErr) {
+        log(`[minicpm] adapter manifest mirror failed: ${mirrorErr && mirrorErr.message}`);
+      }
+      return true;
+    } catch (err) {
+      log(`[minicpm] adapter manifest write failed: ${err && err.message}`);
+      return false;
+    }
+  }
+  function upsertAdapterEntry(entry) {
+    if (!entry || !entry.id) return null;
+    const manifest = readAdapterManifest();
+    manifest.items = manifestUpsertItem(manifest.items, entry);
+    writeAdapterManifest(manifest);
+    return manifest.items.find((it) => it.id === entry.id) || null;
+  }
+  function removeAdapterEntry(id) {
+    const manifest = readAdapterManifest();
+    const before = manifest.items.length;
+    manifest.items = manifestRemoveItem(manifest.items, id);
+    if (manifest.items.length === before) return false;
+    writeAdapterManifest(manifest);
+    return true;
+  }
+  // Walk the adapter dir for a .gguf whose filename includes `hint`
+  // (case-insensitive). Returns the absolute path, or null. Used by
+  // seedDefaultManifest to bind built-in presets to whichever file
+  // electron-builder actually shipped (filenames carry timestamps so
+  // we can't hardcode them).
+  function findAdapterByHint(dir, hint) {
+    if (!hint) return null;
+    const needle = String(hint).toLowerCase();
+    function walk(cur) {
+      let entries;
+      try { entries = fs.readdirSync(cur, { withFileTypes: true }); }
+      catch { return null; }
+      for (const e of entries) {
+        const p = path.join(cur, e.name);
+        if (e.isDirectory()) {
+          const hit = walk(p);
+          if (hit) return hit;
+          continue;
+        }
+        if (!e.isFile()) continue;
+        const lower = e.name.toLowerCase();
+        if (!lower.endsWith(".gguf")) continue;
+        // Match against both filename and the immediate parent dir name
+        // so a hint like "lora_nekoqa" hits the file even when the
+        // .gguf itself is named generically (adapter_model.f16.gguf).
+        const parent = path.basename(path.dirname(p)).toLowerCase();
+        if (lower.includes(needle) || parent.includes(needle)) return p;
+      }
+      return null;
+    }
+    return walk(dir);
+  }
+  // First-run helper: if the user has no manifest yet, build one from
+  // DEFAULT_PRESET_ENTRIES by resolving each preset's filenameHint
+  // against the adapter dir. Skips presets whose backing .gguf isn't
+  // there (e.g. the user deleted it before first launch).
+  //
+  // Idempotent: only writes when the manifest is missing or empty;
+  // subsequent launches see the user's choices and don't touch them.
+  function seedDefaultManifest() {
+    const existing = readAdapterManifest();
+    if (existing.items && existing.items.length > 0) return;
+    const dir = getEffectiveAdapterDir();
+    const items = [];
+    for (const preset of DEFAULT_PRESET_ENTRIES) {
+      const matched = findAdapterByHint(dir, preset.filenameHint);
+      if (!matched) {
+        log(`[minicpm] preset ${preset.id} has no matching .gguf in ${dir}, skipping seed`);
+        continue;
+      }
+      items.push({
+        id: preset.id,
+        path: matched,
+        displayName: preset.displayName,
+        aliases: Array.isArray(preset.aliases) ? [...preset.aliases] : [],
+        persona: preset.persona || "default",
+        source: "bundled",
+        createdAt: new Date().toISOString(),
+      });
+    }
+    writeAdapterManifest({ version: 1, items });
+  }
+
+  // Copy bundled adapters (from <resources>/adapters/) into the
+  // writable user dir on first run. Cheap idempotent walk; skips
+  // anything the user already has. Runs once before the sidecar
+  // spawns so /api/adapters returns the seeded files immediately.
+  try { seedBundledAdapters(); } catch (err) {
+    log(`[minicpm] seedBundledAdapters threw: ${err && err.message}`);
+  }
+  const adapterDir = getEffectiveAdapterDir();
+  try { fs.mkdirSync(adapterDir, { recursive: true }); } catch {}
+  // Manifest seed runs AFTER the .gguf copy so filenameHint lookups
+  // can resolve against actual disk files. Also writes the mirror for
+  // the gateway to read on its first /api/adapters call.
+  try { seedDefaultManifest(); } catch (err) {
+    log(`[minicpm] seedDefaultManifest threw: ${err && err.message}`);
+  }
+  // Always ensure the mirror exists, even when the manifest is non-empty
+  // (user already has a manifest from a previous launch, but the mirror
+  // file may be missing if they upgraded across the change).
+  try {
+    const dir = getEffectiveAdapterDir();
+    const mirror = path.join(dir, ADAPTER_MANIFEST_MIRROR);
+    if (!fs.existsSync(mirror)) {
+      writeAdapterManifest(readAdapterManifest());
+    }
+  } catch {}
+
   const sidecar = new Sidecar({
     sidecarDir, sidecarBin, appRoot, port, host, log,
     logFile: sidecarLogPath,
+    adapterDir,
   });
 
   let bubble = null;
@@ -1580,8 +1929,59 @@ module.exports = function initMinicpmChat(ctx) {
       };
     },
     "minicpm-settings:list-adapters": async () => {
+      // Gateway is the source of truth for the *physical* adapter set
+      // (which files exist, persona slug, current active). The manifest
+      // adds product-layer metadata (displayName, aliases, source,
+      // entry id). We join by absolute path so renames + uploads in
+      // the same dir resolve correctly.
       const r = await httpJson("GET", `${sidecar.baseUrl()}/api/adapters`, null, 2000).catch(() => null);
-      return r ? r.json : null;
+      const remote = r && r.json ? r.json : { items: [], current: null, current_name: null };
+      const manifest = readAdapterManifest();
+      const byPath = new Map();
+      for (const item of manifest.items || []) {
+        if (!item || !item.path) continue;
+        try { byPath.set(path.resolve(item.path), item); }
+        catch { byPath.set(item.path, item); }
+      }
+      const remoteItems = Array.isArray(remote.items) ? remote.items : [];
+      const merged = remoteItems.map((g) => {
+        let entry = null;
+        try { entry = byPath.get(path.resolve(g.path)) || null; }
+        catch { entry = null; }
+        return {
+          ...g,
+          id: entry && entry.id ? entry.id : `external:${g.path}`,
+          displayName: entry && entry.displayName ? entry.displayName : g.name,
+          aliases: entry && Array.isArray(entry.aliases) ? entry.aliases : [],
+          source: entry && entry.source ? entry.source : "external",
+        };
+      });
+      // Surface manifest entries whose .gguf went missing too, so the
+      // user can clean them up from the UI rather than wondering why
+      // their preset vanished.
+      const remoteSet = new Set();
+      for (const g of remoteItems) {
+        try { remoteSet.add(path.resolve(g.path)); } catch { remoteSet.add(g.path); }
+      }
+      for (const entry of manifest.items || []) {
+        if (!entry || !entry.path) continue;
+        const key = (() => { try { return path.resolve(entry.path); } catch { return entry.path; } })();
+        if (remoteSet.has(key)) continue;
+        merged.push({
+          name: path.basename(entry.path),
+          path: entry.path,
+          persona: entry.persona || "default",
+          id: entry.id,
+          displayName: entry.displayName || path.basename(entry.path),
+          aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
+          source: entry.source || "external",
+          missing: true,
+        });
+      }
+      return {
+        ...remote,
+        items: merged,
+      };
     },
     "minicpm-settings:load-adapter": async (_evt, payload) => {
       const requested = (payload && payload.path) || null;
@@ -1752,6 +2152,132 @@ module.exports = function initMinicpmChat(ctx) {
       } catch (err) {
         return { ok: false, error: String(err && err.message || err) };
       }
+    },
+
+    // ── Adapter (LoRA) directory ────────────────────────────────────────
+    // Same shape as the model dir handlers: read the effective path,
+    // open it in Finder/Explorer (creating it if missing), and let the
+    // Settings tab refresh after the user drops new .gguf files in.
+    "minicpm-settings:get-adapter-dir": async () => ({
+      current: getEffectiveAdapterDir(),
+      default: getDefaultAdapterDir(),
+    }),
+    "minicpm-settings:open-adapter-dir": async () => {
+      const dir = getEffectiveAdapterDir();
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        const err = await shell.openPath(dir);
+        if (err) return { ok: false, error: err };
+        return { ok: true, dir };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+
+    // ── Adapter manifest CRUD ───────────────────────────────────────────
+    // The Settings UI reads the merged list via `list-adapters` (which
+    // joins gateway items with manifest metadata) and mutates the
+    // manifest through these handlers. After every mutation we also
+    // refresh the gateway's mirror (handled inside writeAdapterManifest)
+    // so chat-bubble keyword routing — which goes straight to the
+    // sidecar HTTP API — sees the updated displayName / aliases on the
+    // next /api/adapters call.
+
+    "minicpm-settings:get-adapter-manifest": async () => readAdapterManifest(),
+
+    "minicpm-settings:upload-adapter": async (_evt, payload) => {
+      const { dialog } = require("electron");
+      const ret = await dialog.showOpenDialog({
+        title: "选择 LoRA 适配器 (.gguf)",
+        properties: ["openFile"],
+        filters: [{ name: "GGUF adapter", extensions: ["gguf"] }],
+        message: "选一个 GGUF 格式的 LoRA 适配器文件；会被复制到本应用的 adapters 目录。",
+      });
+      if (ret.canceled || !ret.filePaths.length) {
+        return { ok: false, canceled: true };
+      }
+      const src = ret.filePaths[0];
+      const lower = src.toLowerCase();
+      if (!lower.endsWith(".gguf")) {
+        return { ok: false, error: `必须是 .gguf 文件：${src}` };
+      }
+      let srcStat;
+      try { srcStat = fs.statSync(src); }
+      catch (err) { return { ok: false, error: `读不到所选文件：${err && err.message}` }; }
+      if (!srcStat.isFile()) {
+        return { ok: false, error: `不是普通文件：${src}` };
+      }
+      const ts = Date.now();
+      const safeBasename = path.basename(src).replace(/[^A-Za-z0-9._-]+/g, "_");
+      const uploadsDir = path.join(getEffectiveAdapterDir(), "uploads");
+      const destName = `${ts}_${safeBasename}`;
+      const dest = path.join(uploadsDir, destName);
+      try { fs.mkdirSync(uploadsDir, { recursive: true }); }
+      catch (err) { return { ok: false, error: `无法创建 uploads 目录：${err && err.message}` }; }
+      try {
+        fs.copyFileSync(src, dest);
+      } catch (err) {
+        return { ok: false, error: `复制文件失败：${err && err.message}` };
+      }
+      const displayName = (payload && typeof payload.displayName === "string" && payload.displayName.trim())
+        ? payload.displayName.trim()
+        : path.basename(src, ".gguf");
+      const aliases = Array.isArray(payload && payload.aliases)
+        ? payload.aliases.map((s) => String(s || "").trim()).filter(Boolean)
+        : [];
+      const entry = upsertAdapterEntry({
+        id: `upload:${ts}`,
+        path: dest,
+        displayName,
+        aliases,
+        persona: "custom",
+        source: "user-upload",
+      });
+      return { ok: true, item: entry };
+    },
+
+    "minicpm-settings:rename-adapter": async (_evt, payload) => {
+      if (!payload || typeof payload.id !== "string") {
+        return { ok: false, error: "id is required" };
+      }
+      const manifest = readAdapterManifest();
+      const idx = manifest.items.findIndex((it) => it && it.id === payload.id);
+      if (idx < 0) return { ok: false, error: `adapter not found: ${payload.id}` };
+      const patch = {};
+      if (typeof payload.displayName === "string") patch.displayName = payload.displayName.trim() || manifest.items[idx].displayName;
+      if (Array.isArray(payload.aliases)) {
+        patch.aliases = payload.aliases.map((s) => String(s || "").trim()).filter(Boolean);
+      }
+      const merged = upsertAdapterEntry({ ...manifest.items[idx], ...patch });
+      return { ok: true, item: merged };
+    },
+
+    "minicpm-settings:remove-adapter": async (_evt, payload) => {
+      if (!payload || typeof payload.id !== "string") {
+        return { ok: false, error: "id is required" };
+      }
+      const manifest = readAdapterManifest();
+      const target = manifest.items.find((it) => it && it.id === payload.id);
+      if (!target) return { ok: false, error: `adapter not found: ${payload.id}` };
+      if (target.source !== "user-upload") {
+        return { ok: false, error: "只能删除自行上传的 LoRA，预置项请保留。" };
+      }
+      // If the user just removed the currently active adapter, unload
+      // it on the sidecar side first so llama-server's per-request
+      // `lora` array doesn't reference a path we're about to unlink.
+      try {
+        const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+        const currentPath = health && health.json && health.json.adapter ? String(health.json.adapter) : null;
+        if (currentPath && target.path && path.resolve(currentPath) === path.resolve(target.path)) {
+          await httpJson("POST", `${sidecar.baseUrl()}/api/load-adapter`, { path: null }, 30000).catch(() => null);
+        }
+      } catch {}
+      if (payload.deleteFile && target.path) {
+        try { fs.unlinkSync(target.path); }
+        catch (err) { log(`[minicpm] adapter file unlink failed: ${err && err.message}`); }
+      }
+      removeAdapterEntry(payload.id);
+      return { ok: true, id: payload.id };
     },
     "minicpm-settings:get-resources": async () => {
       const root = sidecar.proc && sidecar.proc.pid;

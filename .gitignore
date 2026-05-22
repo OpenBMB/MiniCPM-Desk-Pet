@@ -9,15 +9,9 @@ __pycache__/
 
 # Build / dist outputs
 dist/
-# Legacy build dir — keep the spec + script committed alongside the
-# DEPRECATED marker.
-build/*
-!build/sidecar.spec
-!build/build-sidecar.sh
-!build/DEPRECATED.md
 
-# New sidecar build artifacts. Spec / scripts under minicpm-sidecar/
-# stay committed via that directory's own .gitignore.
+# Sidecar build artifacts. Spec / scripts under minicpm-sidecar/ stay
+# committed via that directory's own .gitignore.
 minicpm-sidecar/bin/
 minicpm-sidecar/build/build/
 minicpm-sidecar/build/dist/
@@ -42,6 +36,9 @@ temp/
 # Bridge runtime files
 *.pid
 runtime-port.json
+
+# Adapter manifest is rebuilt at runtime with machine-local absolute paths
+adapters/.manifest.json
 
 # uv lock — keep
 # (don't ignore uv.lock; it's needed for reproducible installs)

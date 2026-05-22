@@ -163,6 +163,16 @@
           ".python-version",
           "README.md"
         ]
+      },
+      {
+        "from": "../adapters",
+        "to": "adapters",
+        "filter": [
+          "**/*.gguf",
+          "**/README.md",
+          "**/USAGE.md",
+          "**/adapter_config.json"
+        ]
       }
     ],
     "publish": [

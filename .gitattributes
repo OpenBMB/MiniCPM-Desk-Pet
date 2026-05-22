@@ -1,0 +1,12 @@
+# LoRA adapter weights live in Git LFS by default (~20MB each, would
+# otherwise bloat the pack and slow down clones). Both the PEFT
+# safetensors source and the converted GGUF artefact we ship to the
+# Electron app get tracked here.
+adapters/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
+adapters/**/*.gguf filter=lfs diff=lfs merge=lfs -text
+
+# Legacy adapters that predate the LFS switch keep their in-tree blobs
+# so we don't have to rewrite already-pushed history. Add new exceptions
+# here as needed; they MUST come AFTER the catch-all rule above.
+adapters/lora_chuuni_20260519_1449/adapter_model.safetensors -filter -diff -merge -text
+adapters/lora_nekoqa_adapter_20260515_0738/adapter_model.safetensors -filter -diff -merge -text

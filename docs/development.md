@@ -44,24 +44,6 @@ rm "$HOME/Library/Application Support/Clawd on Desk/minicpm-onboarding.json"
 MINICPM_FORCE_ONBOARDING=1 ./go.sh start
 ```
 
-### 用原版 conda 而非 uv
-
-`./go.sh` 走的是 uv 路径。如果你顽固地想用 conda：
-
-```bash
-conda create -n minicpm-pet python=3.11 -y
-conda activate minicpm-pet
-
-cd minicpm-pet-bridge
-pip install -r requirements.txt
-python server.py --host 127.0.0.1 --port 18765
-# 另开终端
-cd ../clawd-on-desk
-npm install && npm start
-```
-
-Electron 的 sidecar 管理逻辑会自动发现 `~/miniconda3/envs/minicpm-pet/bin/python` 之类的路径（参考 [minicpm-chat.js `locatePython()`](../clawd-on-desk/src/minicpm-chat.js)）。
-
 ---
 
 ## 仓库结构
@@ -70,31 +52,16 @@ Electron 的 sidecar 管理逻辑会自动发现 `~/miniconda3/envs/minicpm-pet/
 MiniCPM-test/
 ├── clawd-on-desk/              ← Electron 桌宠 (vendored fork of clawd-on-desk@5b1f003)
 │                                  + MiniCPM 集成层：聊天气泡 / Onboarding / Settings
-├── minicpm-pet-bridge/         ← Python sidecar 原始 conda 版（FastAPI + transformers）
-├── minicpm-pet-bridge-uv/      ← 同源 sidecar 的 uv 版（默认）
-├── adapters/                   ← LoRA 适配器
-├── build/                      ← PyInstaller spec + build-sidecar.sh
+├── minicpm-sidecar/            ← llama.cpp 推理服务 + 瘦 FastAPI gateway
+├── adapters/                   ← LoRA 适配器（.gguf + safetensors source）
 ├── skills/deploy-minicpm-pet/  ← Cursor Agent Skill（dev 部署引导）
-├── docs/                       ← 架构调研、PRD、本文档
+├── docs/                       ← 开发者文档，归档调研在 docs/archive/
+├── models/                     ← GGUF 模型文件（gitignored）
 ├── go.sh                       ← 开发者快捷脚本
 └── README.md                   ← 用户向（dmg 安装 + 引导）
 ```
 
-### sidecar 双份代码
-
-- `minicpm-pet-bridge/server.py` ↔ `minicpm-pet-bridge-uv/server.py`
-- `minicpm-pet-bridge/updater.py` ↔ `minicpm-pet-bridge-uv/updater.py`
-- `minicpm-pet-bridge/clawd_state.py` ↔ `minicpm-pet-bridge-uv/clawd_state.py`
-
-**这三对文件必须 byte-identical**。改了原版就立刻同步：
-
-```bash
-cp minicpm-pet-bridge/server.py     minicpm-pet-bridge-uv/server.py
-cp minicpm-pet-bridge/updater.py    minicpm-pet-bridge-uv/updater.py
-cp minicpm-pet-bridge/clawd_state.py minicpm-pet-bridge-uv/clawd_state.py
-```
-
-未来计划：把这三个文件抽到 `minicpm-pet-bridge-shared/` 单一目录，两边都软链过去；或者删除 conda 版只保留 uv 版。
+> v0.7 时代的双份 PyTorch sidecar（`minicpm-pet-bridge/` 与 `minicpm-pet-bridge-uv/`）以及 PyInstaller `build/sidecar.spec` 已在 v0.9 删除。如需历史信息，参考 [docs/archive/](archive/) 与 [docs/llama-cpp-migration.md](llama-cpp-migration.md)。
 
 ---
 
@@ -117,13 +84,10 @@ cp minicpm-pet-bridge/clawd_state.py minicpm-pet-bridge-uv/clawd_state.py
 等价于：
 
 ```bash
-# 1. uv sync sidecar venv（首次 ~3 分钟）
-cd minicpm-pet-bridge-uv && uv sync && cd ..
+# 1. 编 llama-server + uv sync gateway + PyInstaller 打 gateway（首次 ~10 分钟）
+cd minicpm-sidecar && ./scripts/build-all.sh && cd ..
 
-# 2. PyInstaller 打 sidecar binary（~10–30 分钟，产物 ~1 GB）
-./build/build-sidecar.sh
-
-# 3. electron-builder 出 dmg
+# 2. electron-builder 出 dmg
 cd clawd-on-desk
 npx electron-builder --mac --arm64 -c.mac.target=dmg
 ```

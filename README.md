@@ -34,7 +34,7 @@ coding agent 完成事件触发桌宠主动旁白。
 - `⌘⇧M`：开关聊天气泡
 - `⌘⇧T`：切换"思考模式"显示
 - `Esc`：在气泡内焦点时关闭气泡
-- 右键桌宠 → **Settings → 🐾 MiniCPM**：换 GGUF 路径、调整气泡位置、开关旁白、切换加速器（LoRA 适配器切换计划在 v2 重新支持）
+- 右键桌宠 → **Settings → 🐾 MiniCPM**：换 GGUF 路径、调整气泡位置、开关旁白、切换加速器，以及在「人格 LoRA」里挑选 / 切换 / 拖入用户自带的 GGUF 适配器
 
 ### 已知限制
 
@@ -61,9 +61,9 @@ cp /path/to/your/minicpm5-0.9b.Q4_K_M.gguf models/
 ./go.sh build       # 出 dmg（mac arm64）
 ```
 
-新增子目录 [`minicpm-sidecar/`](minicpm-sidecar/) 是 llama.cpp 后端的实现入口；
-旧的 [`minicpm-pet-bridge/`](minicpm-pet-bridge/) 与 [`minicpm-pet-bridge-uv/`](minicpm-pet-bridge-uv/)
-已标记为 deprecated（仅保留作为历史和 v2 LoRA 移植参考）。
+推理 sidecar 入口位于 [`minicpm-sidecar/`](minicpm-sidecar/)（llama.cpp + 瘦 FastAPI gateway）。
+v0.7 时代的 PyTorch sidecar（`minicpm-pet-bridge*`）与旧 PyInstaller `build/`
+目录已在 v0.9 整体移除；如需历史代码，请查阅 `v0.8.x` 之前的 git 历史。
 
 ---
 
@@ -73,7 +73,7 @@ cp /path/to/your/minicpm5-0.9b.Q4_K_M.gguf models/
 - 桌宠主动旁白（Cursor / Claude / Codex 完成事件）
 - Settings → 🐾 MiniCPM：模型参数、气泡位置、旁白开关、加速器、本地模型路径、重跑 Onboarding
 - 跨 agent 事件 merge：Cursor + Claude Code 同时为一个会话触发时自动选 transcript 上下文最丰富的那条
-- **v2 路线**：LoRA 人格切换（"用猫娘" / "切回原版"）— 待 llama.cpp GGUF LoRA 工具链稳定后回归
+- **v2 已落地**：LoRA 人格切换（"用猫娘" / "切回原版"）通过 per-request `lora` 数组实现，主对话与旁白零并发污染；详见 [docs/llama-cpp-migration.md](docs/llama-cpp-migration.md#v2已落地) 和 [adapters/README.md](adapters/README.md)
 
 完整变更见 [CHANGELOG.md](./CHANGELOG.md)。
 
@@ -81,7 +81,7 @@ cp /path/to/your/minicpm5-0.9b.Q4_K_M.gguf models/
 
 - [minicpm-sidecar/README.md](minicpm-sidecar/README.md) — 新推理 sidecar（llama.cpp）总览、API、构建与 vendor 分支说明
 - [docs/llama-cpp-migration.md](docs/llama-cpp-migration.md) — v0.8 PyTorch → llama.cpp 迁移记录
-- [docs/PRD-sidecar-cross-platform-refactor.md](docs/PRD-sidecar-cross-platform-refactor.md) — 产品需求文档（v0.7 写就，部分章节按 v0.8 状态在迁移文档里勘误）
-- [docs/architecture-and-cross-platform-report.md](docs/architecture-and-cross-platform-report.md) — 架构调研与三端打包改造报告（同上）
 - [docs/development.md](docs/development.md) — 开发者指南
+- [CONTRIBUTING.md](CONTRIBUTING.md) — 贡献指南（quickstart / 测试 / commit 风格）
 - [clawd-on-desk/AGENTS.md](clawd-on-desk/AGENTS.md) — 底座 Electron 桌宠的开发约束（fork from rullerzhou-afk/clawd-on-desk）
+- [docs/archive/](docs/archive/) — v0.7 历史调研文档（PRD、架构报告）

@@ -953,65 +953,87 @@ async function runAdapterOff(progress) {
   };
 }
 
+// Keywords that mean "stop using any LoRA" rather than "switch to a
+// specific persona". These stay hardcoded because they're product
+// vocabulary, not adapter metadata; the rest of the routing is fully
+// data-driven from the manifest exposed via /api/adapters.
+const DISABLE_ADAPTER_KEYWORDS = new Set([
+  "原版", "默认", "base", "原始", "裸", "纯净", "普通",
+]);
+
+// Find the manifest item that best matches `kw` (already lowercased).
+// Strategies in descending confidence:
+//   1) exact alias hit
+//   2) alias substring (tolerates classifier truncation like "猫娘"→"娘")
+//   3) displayName substring
+//   4) filename substring (legacy fallback for adapters without a
+//      manifest entry — preserves the pre-manifest UX)
+function pickAdapterByKeyword(items, kw) {
+  const probe = (kw || "").toLowerCase().trim();
+  if (!probe) return null;
+  const visible = items.filter((it) => !it.missing);
+  // 1) exact alias
+  for (const it of visible) {
+    const aliases = Array.isArray(it.aliases) ? it.aliases : [];
+    if (aliases.some((a) => String(a).toLowerCase() === probe)) return it;
+  }
+  // 2) alias substring
+  for (const it of visible) {
+    const aliases = Array.isArray(it.aliases) ? it.aliases : [];
+    if (aliases.some((a) => {
+      const al = String(a).toLowerCase();
+      return al && (al.includes(probe) || probe.includes(al));
+    })) return it;
+  }
+  // 3) displayName substring
+  for (const it of visible) {
+    const dn = String(it.displayName || "").toLowerCase();
+    if (dn && (dn.includes(probe) || probe.includes(dn))) return it;
+  }
+  // 4) filename substring fallback
+  for (const it of visible) {
+    if (String(it.name || "").toLowerCase().includes(probe)) return it;
+  }
+  return null;
+}
+
 async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
   const onProgress = progress || (async () => {});
-  // Synonym table: human keywords → adapter-name probe. `null` = "user
-  // wants to disable any adapter" (synonym for runAdapterOff).
-  const SYNONYMS = {
-    "猫娘": "neko",
-    "宝宝": "neko",
-    "neko": "neko",
-    "原版": null, "默认": null, "base": null, "原始": null, "裸": null, "纯净": null, "普通": null,
-  };
+  const kw = (keyword || "").toLowerCase().trim();
+
+  // Disable keywords short-circuit before we even touch /api/adapters,
+  // so "切回原版" still works when the user has no LoRAs registered.
+  if (DISABLE_ADAPTER_KEYWORDS.has(kw)) {
+    return runAdapterOff(onProgress);
+  }
 
   const r = await fetch(sidecarUrl + "/api/adapters");
   const d = await r.json();
-  if (!d.items || !d.items.length) {
+  const items = (d && Array.isArray(d.items)) ? d.items : [];
+  if (!items.length) {
     return { ok: true, text: "找不到 adapter 仓库，先把 LoRA 放进 adapters/" };
   }
 
-  // ── Tolerant keyword resolution ──────────────────────────────────────
-  // The classifier sometimes truncates a multi-char Chinese keyword
-  // (e.g. "猫娘" → "娘"). To survive that, try several strategies in
-  // order of confidence and short-circuit on the first hit.
-  const kw = keyword.toLowerCase().trim();
+  const pick = pickAdapterByKeyword(items, kw);
+  if (!pick) {
+    const names = items
+      .map((a) => a.displayName || a.name)
+      .filter(Boolean)
+      .join("、");
+    return { ok: true, text: `没找到「${keyword}」对应的 LoRA。我有的：${names}` };
+  }
+  if (pick.path === d.current) {
+    return { ok: true, text: `${pick.displayName || pick.name} 已经在用啦，不用切` };
+  }
+  return await doSwap(pick);
 
-  // 1) Direct synonym hit.
-  if (kw in SYNONYMS) {
-    const target = SYNONYMS[kw];
-    if (target === null) return runAdapterOff(onProgress);
-    return await applySwitch(target);
-  }
-  // 2) The keyword is a *substring* of some known synonym key (handles
-  //    classifier truncations like "娘" → matches "猫娘").
-  for (const key of Object.keys(SYNONYMS)) {
-    if (key.includes(kw) || kw.includes(key)) {
-      const target = SYNONYMS[key];
-      if (target === null) return runAdapterOff(onProgress);
-      return await applySwitch(target);
-    }
-  }
-  // 3) Direct match against adapter names (substring, case-insensitive).
-  return await applySwitch(kw);
-
-  // ── helpers ──
-  async function applySwitch(probe) {
-    const pick = d.items.find((a) => a.name.toLowerCase().includes(probe.toLowerCase()));
-    if (!pick) {
-      const names = d.items.map((a) => a.name).join("、");
-      return { ok: true, text: `没找到「${keyword}」对应的 LoRA。我有的：${names}` };
-    }
-    if (pick.path === d.current) {
-      return { ok: true, text: `${pick.name} 已经在用啦，不用切` };
-    }
-    return await doSwap(pick);
-  }
-  async function doSwap(pick) {
-    await onProgress(`正在切到 ${pick.name}…加载 LoRA 大概要几秒`);
+  async function doSwap(picked) {
+    const label = picked.displayName || picked.name;
+    await onProgress(`正在切到 ${label}…加载 LoRA 大概要几秒`);
     const swap = await fetch(sidecarUrl + "/api/load-adapter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pick.path }),
+      body: JSON.stringify({ path: picked.path }),
     });
     const sd = await swap.json();
     if (!swap.ok || !sd.ok) return { ok: false, text: "切换失败：" + (sd.error || swap.status) };
@@ -1033,7 +1055,7 @@ async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
     }
     return {
       ok: true,
-      text: `好啦，已经切到 ${pick.name}${extra}（清掉了之前的对话）`,
+      text: `好啦，已经切到 ${label}${extra}（清掉了之前的对话）`,
       resetHistory: true,
     };
   }

@@ -48,8 +48,12 @@ class ChatRequest(BaseModel):
     system: Optional[str] = None
     thinking: bool = False
     silent: bool = False  # bypass pet state pushes (used by narrator)
-    # v1: kept for compat — currently a no-op since llama.cpp lacks PEFT.
-    # The renderer still sends it for narrator calls; harmless.
+    # When true the gateway sends `lora: []` to llama-server for THIS
+    # request only, which disables every pre-loaded LoRA adapter for the
+    # current generation without touching global scales. Used by the
+    # narrator so its informational replies don't pick up the active
+    # persona's stylistic bias. No-op when no adapter is currently
+    # active.
     disable_adapter: bool = False
 
 
@@ -107,6 +111,151 @@ def _default_model_roots() -> List[Path]:
     ]
 
 
+# ── LoRA adapter discovery ──────────────────────────────────────────────────
+
+
+# Filename-keyword → persona slug. The slug is the stable identifier the
+# Electron renderer keys off ("default" / "neko" / "muice" / ...) when
+# deciding things like whether to flip `thinking` off (persona LoRAs don't
+# carry <think> training, so reasoning collides with their style).
+# Matching is substring + case-insensitive against the filename stem.
+PERSONA_HINTS: dict[str, str] = {
+    "nekoqa": "neko",
+    "neko": "neko",
+    "muice": "muice",
+    "chuuni": "chuuni",
+    "moyu": "moyu",
+    "zhiyuan": "zhiyuan",
+}
+
+
+def _persona_for(path: Path) -> str:
+    stem = path.stem.lower()
+    parent = path.parent.name.lower()
+    haystack = f"{parent}/{stem}"
+    for needle, slug in PERSONA_HINTS.items():
+        if needle in haystack:
+            return slug
+    return "custom"
+
+
+def _default_adapter_roots() -> List[Path]:
+    """Where to scan for `*.gguf` LoRA adapters when no `MINICPM_ADAPTER_DIR`
+    env is set. The Electron host normally injects that env, so this only
+    runs for direct CLI / dev / test invocations.
+
+    The order here mirrors `_default_model_roots`: per-user app data first,
+    then the dev-only repo path next to the sidecar package.
+    """
+    here = Path(__file__).resolve().parent.parent
+    return [
+        Path.home() / "Library" / "Application Support" / "Clawd on Desk" / "adapters",
+        Path.home() / ".local" / "share" / "Clawd on Desk" / "adapters",
+        here.parent / "adapters",   # <repo>/adapters/ in dev checkouts
+    ]
+
+
+def discover_adapters(roots: List[Path]) -> List[dict]:
+    """Return [{name, path, persona}] for every `*.gguf` LoRA under `roots`.
+
+    Skips electron-builder staging / backup directories the same way
+    `discover_models` does, so we don't accidentally surface half-downloaded
+    adapters."""
+    seen_files: set[Path] = set()
+    out: List[dict] = []
+    for root in roots:
+        try:
+            r = root.expanduser().resolve()
+        except Exception:
+            continue
+        if not r.exists() or not r.is_dir():
+            continue
+        for p in sorted(r.rglob("*.gguf")):
+            if any(part.endswith(".update-staging") or part.endswith(".bak") for part in p.parts):
+                continue
+            try:
+                resolved = p.resolve()
+            except Exception:
+                continue
+            if resolved in seen_files:
+                continue
+            seen_files.add(resolved)
+            out.append({
+                "name": p.name,
+                "path": str(p),
+                "persona": _persona_for(p),
+            })
+    return out
+
+
+def _resolve_adapter_root(initial_model: Optional[Path]) -> Optional[Path]:
+    """Pick the canonical writable adapter dir for `/api/load-adapter`
+    "open in Finder" hints. Resolution order:
+
+    1. `MINICPM_ADAPTER_DIR` env (Electron host injects this in packaged
+       mode pointing at `<userData>/adapters/`)
+    2. First default root that already exists
+    3. First default root regardless of existence (the caller can then
+       `mkdir -p` before opening Finder)
+    """
+    env_dir = os.environ.get("MINICPM_ADAPTER_DIR")
+    if env_dir:
+        return Path(env_dir).expanduser()
+    for cand in _default_adapter_roots():
+        if cand.exists() and cand.is_dir():
+            return cand
+    defaults = _default_adapter_roots()
+    return defaults[-1] if defaults else None
+
+
+# Mirror file Electron writes after every manifest mutation. Lives in
+# the adapter dir under a dot prefix so `discover_adapters`'s `*.gguf`
+# scan misses it. Schema mirrors `<userData>/minicpm-adapters.json` 1:1
+# (see clawd-on-desk/src/minicpm-chat.js).
+_MANIFEST_MIRROR = ".manifest.json"
+
+
+def read_adapter_manifest(adapter_root: Optional[Path]) -> dict:
+    """Return the parsed `.manifest.json` from `adapter_root`, or an
+    empty manifest if the file is absent / malformed.
+
+    The gateway is a pure reader here — Electron owns the data and
+    re-writes the mirror on every CRUD operation. Reading on every
+    `/api/adapters` request keeps us a snapshot fresh without an
+    explicit refresh endpoint."""
+    if adapter_root is None:
+        return {"version": 1, "items": []}
+    try:
+        mirror = Path(adapter_root) / _MANIFEST_MIRROR
+        if not mirror.is_file():
+            return {"version": 1, "items": []}
+        with mirror.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return {"version": 1, "items": []}
+    if not isinstance(data, dict):
+        return {"version": 1, "items": []}
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    return {"version": int(data.get("version") or 1), "items": items}
+
+
+def _manifest_by_resolved_path(manifest: dict) -> dict[Path, dict]:
+    """Index manifest items by their resolved absolute path so the
+    `/api/adapters` merge step is O(1) per scanned file."""
+    out: dict[Path, dict] = {}
+    for entry in manifest.get("items", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        raw = entry.get("path")
+        if not isinstance(raw, str) or not raw:
+            continue
+        try:
+            out[Path(raw).expanduser().resolve()] = entry
+        except Exception:
+            continue
+    return out
+
+
 # ── App factory ──────────────────────────────────────────────────────────────
 
 
@@ -120,12 +269,29 @@ def build_app(
 ) -> FastAPI:
     log = get_logger()
     bridge = ClawdBridge(enabled=True, debug=False)
+
+    # Resolve the adapter root *before* boot so we can pre-register every
+    # discovered GGUF LoRA via llama-server's `--lora`. This keeps adapter
+    # switching to "change in-memory current_adapter + inject per-request
+    # lora array" without restarting the subprocess.
+    adapter_root = _resolve_adapter_root(initial_model)
+    initial_adapter_items = (
+        discover_adapters([adapter_root]) if adapter_root else []
+    )
+    initial_adapter_paths = [Path(item["path"]) for item in initial_adapter_items]
+
     server = LlamaServer(
         model_path=initial_model,
         ctx_size=ctx_size,
         n_gpu_layers=n_gpu_layers,
         threads=threads,
+        adapters=initial_adapter_paths,
     )
+
+    # In-memory adapter state. Single source of truth for what the
+    # Electron app sees as "the active LoRA". Updated by /api/load-adapter
+    # and consumed by /api/health + chat request routing below.
+    state: dict[str, Optional[Path]] = {"current_adapter": None}
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -190,6 +356,7 @@ def build_app(
     async def health():
         sub_health = await server.health()
         backend = detect_backend()
+        adapter = state["current_adapter"]
         return {
             "ok": True,
             "alive": server.alive,
@@ -199,8 +366,8 @@ def build_app(
             "dtype": "gguf",
             "model_dir": str(server.model_path) if server.model_path else None,
             "model_name": server.model_path.name if server.model_path else None,
-            "adapter": None,
-            "persona": "default",
+            "adapter": str(adapter) if adapter else None,
+            "persona": _persona_for(adapter) if adapter else "default",
             "llama_server": sub_health,
             "port": server.port,
         }
@@ -231,13 +398,14 @@ def build_app(
     def onboarding():
         path = server.model_path or _get_active_model_path()
         present = path.exists() if path else False
+        adapter = state["current_adapter"]
         return {
             "model_present": present,
             "model_dir": str(path) if path else None,
             "device": detect_backend()["recommended"],
             "dtype": "gguf",
-            "adapter": None,
-            "persona": "default",
+            "adapter": str(adapter) if adapter else None,
+            "persona": _persona_for(adapter) if adapter else "default",
             "stage_hint": "ready" if present else "model-download",
         }
 
@@ -271,19 +439,103 @@ def build_app(
         bridge.post("idle")
         return {"ok": True, "model_dir": str(target), "model_name": target.name}
 
-    # Adapter endpoints are stubs in v1 — kept so the Electron Settings
-    # tab can render "no adapters yet" without 404 errors.
+    def _scan_adapters() -> List[dict]:
+        # Re-resolve the root each call so Settings → "open adapter dir"
+        # → drop new .gguf → "refresh" picks up files added at runtime
+        # without restarting the sidecar. Also re-read the manifest
+        # mirror on every call so rename / upload mutations show up in
+        # the next /api/adapters response without any explicit refresh
+        # ping from Electron.
+        root = _resolve_adapter_root(server.model_path)
+        if not root:
+            return []
+        items = discover_adapters([root])
+        manifest = read_adapter_manifest(root)
+        by_path = _manifest_by_resolved_path(manifest)
+        for item in items:
+            try:
+                key = Path(item["path"]).expanduser().resolve()
+            except Exception:
+                continue
+            entry = by_path.get(key)
+            if not entry:
+                continue
+            # Only surface the product-layer fields; gateway's persona
+            # slug already on `item` wins by default but a manifest
+            # override (user typed their own) takes precedence.
+            if isinstance(entry.get("displayName"), str) and entry["displayName"].strip():
+                item["displayName"] = entry["displayName"].strip()
+            if isinstance(entry.get("aliases"), list):
+                item["aliases"] = [str(a).strip() for a in entry["aliases"] if str(a).strip()]
+            if isinstance(entry.get("source"), str):
+                item["source"] = entry["source"]
+            if isinstance(entry.get("id"), str):
+                item["id"] = entry["id"]
+            if isinstance(entry.get("persona"), str) and entry["persona"].strip():
+                item["persona"] = entry["persona"].strip()
+        return items
 
     @app.get("/api/adapters")
     def list_adapters():
-        return {"items": [], "current": None, "current_name": None}
+        items = _scan_adapters()
+        current = state["current_adapter"]
+        return {
+            "items": items,
+            "current": str(current) if current else None,
+            "current_name": current.name if current else None,
+            "adapter_dir": str(_resolve_adapter_root(server.model_path) or ""),
+        }
 
     @app.post("/api/load-adapter")
-    def load_adapter(payload: dict):
-        return JSONResponse(
-            {"error": "LoRA adapters not supported in this build; landing in v2."},
-            status_code=501,
-        )
+    async def load_adapter(payload: dict):
+        raw = payload.get("path")
+        # path = null  →  deactivate any LoRA (back to base model)
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            state["current_adapter"] = None
+            return {"ok": True, "adapter": None, "persona": "default"}
+
+        target = Path(str(raw)).expanduser()
+        try:
+            target = target.resolve(strict=True)
+        except FileNotFoundError:
+            return JSONResponse(
+                {"error": f"adapter file not found: {target}"},
+                status_code=400,
+            )
+        if target.suffix.lower() != ".gguf":
+            return JSONResponse(
+                {"error": f"not a .gguf adapter: {target}"},
+                status_code=400,
+            )
+
+        # If the requested adapter wasn't `--lora`-loaded at boot (user
+        # just dropped a new file into adapters/), tell llama-server to
+        # restart with the expanded list before activating. This is the
+        # one path where we pay a sidecar restart; subsequent toggles
+        # between known adapters are pure in-memory state changes.
+        if server.adapter_id_for(target) is None:
+            current_paths = list(server.adapter_paths)
+            if target.resolve() not in {p.resolve() for p in current_paths}:
+                current_paths.append(target)
+            bridge.post("working", event="LoadAdapter", title=f"加载 {target.name}")
+            try:
+                await server.reload_adapters(current_paths)
+            except Exception as exc:
+                bridge.post("error")
+                return JSONResponse({"error": str(exc)}, status_code=500)
+            bridge.post("idle")
+            if server.adapter_id_for(target) is None:
+                return JSONResponse(
+                    {"error": f"llama-server refused adapter: {target}"},
+                    status_code=500,
+                )
+
+        state["current_adapter"] = target
+        return {
+            "ok": True,
+            "adapter": str(target),
+            "persona": _persona_for(target),
+        }
 
     @app.post("/api/classify")
     def classify_endpoint(payload: dict):
@@ -356,6 +608,28 @@ def build_app(
         except Exception as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
+    def _lora_arr_for(req: ChatRequest) -> Optional[List[dict]]:
+        """Compute the per-request `lora` array (or None).
+
+        - disable_adapter=true  → []   (force base for this request)
+        - active adapter set    → [{id, scale: 1.0}]
+        - no adapter active     → None (don't include the field at all)
+        """
+        if req.disable_adapter:
+            return []
+        current = state["current_adapter"]
+        if not current:
+            return None
+        idx = server.adapter_id_for(current)
+        if idx is None:
+            # State got out of sync (e.g. sidecar restarted without
+            # re-registering this path). Fail open to base rather than
+            # 500 — the user will notice the persona is gone and can
+            # re-select from Settings.
+            log.warning("active adapter %s missing from llama-server index", current)
+            return None
+        return [{"id": idx, "scale": 1.0}]
+
     @app.post("/api/chat")
     async def chat(req: ChatRequest):
         if not req.messages:
@@ -365,9 +639,13 @@ def build_app(
                 {"error": "llama-server not running — open Onboarding to download the model"},
                 status_code=503,
             )
+        lora_arr = _lora_arr_for(req)
         if req.stream:
-            return StreamingResponse(_stream_chat(server, bridge, req), media_type="text/event-stream")
-        return JSONResponse(await _blocking_chat(server, bridge, req))
+            return StreamingResponse(
+                _stream_chat(server, bridge, req, lora=lora_arr),
+                media_type="text/event-stream",
+            )
+        return JSONResponse(await _blocking_chat(server, bridge, req, lora=lora_arr))
 
     @app.post("/api/state")
     def manual_state(payload: dict):
@@ -400,6 +678,8 @@ async def _stream_chat(
     server: LlamaServer,
     bridge: ClawdBridge,
     req: ChatRequest,
+    *,
+    lora: Optional[List[dict]] = None,
 ) -> AsyncGenerator[bytes, None]:
     if not req.silent:
         bridge.new_session()
@@ -416,6 +696,7 @@ async def _stream_chat(
             top_k=int(req.top_k),
             repetition_penalty=float(req.repetition_penalty),
             enable_thinking=bool(req.thinking),
+            lora=lora,
         )
     except Exception as exc:
         if not req.silent:
@@ -470,7 +751,13 @@ async def _stream_chat(
         bridge.post("attention")
 
 
-async def _blocking_chat(server: LlamaServer, bridge: ClawdBridge, req: ChatRequest) -> dict:
+async def _blocking_chat(
+    server: LlamaServer,
+    bridge: ClawdBridge,
+    req: ChatRequest,
+    *,
+    lora: Optional[List[dict]] = None,
+) -> dict:
     if not req.silent:
         bridge.new_session()
         bridge.post("thinking")
@@ -489,6 +776,7 @@ async def _blocking_chat(server: LlamaServer, bridge: ClawdBridge, req: ChatRequ
             top_k=int(req.top_k),
             repetition_penalty=float(req.repetition_penalty),
             enable_thinking=bool(req.thinking),
+            lora=lora,
         ):
             if kind == "reasoning":
                 think_parts.append(piece)
