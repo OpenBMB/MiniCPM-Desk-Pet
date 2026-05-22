@@ -113,11 +113,19 @@ contextBridge.exposeInMainWorld("settingsAPI", {
 // ── MiniCPM settings tab API ──
 //
 //   getStatus()        Promise<{ healthy, health, narration, sidecarUrl, bridgeDir }>
-//   listAdapters()     Promise<{ items, current, current_name }>
+//   listAdapters()     Promise<{ items, current, current_name, adapter_dir }>
 //   loadAdapter(path)  Promise<{ ok, adapter, persona, error? }>  (path null = unload)
+//   getAdapterDir()    Promise<{ current, default }>
+//   openAdapterDir()   Promise<{ ok, dir, error? }>
+//   getAdapterManifest()  Promise<{ version, items }>
+//   uploadAdapter({displayName?, aliases?})  Promise<{ ok, item, canceled?, error? }>
+//   renameAdapter({id, displayName?, aliases?})  Promise<{ ok, item, error? }>
+//   removeAdapter({id, deleteFile?})  Promise<{ ok, id, error? }>
 //   checkUpdate()      Promise<{ available, local_revision, remote_revision, ... }>
 //   applyUpdate()      Promise<{ ok, error? }>
 //   setNarration(on)   Promise<{ ok, enabled }>
+//   getChatParams()    Promise<{ params, defaults }>
+//   setChatParams(p)   Promise<{ ok, params }>
 //
 contextBridge.exposeInMainWorld("minicpmSettings", {
   getStatus: () => ipcRenderer.invoke("minicpm-settings:get-status"),
@@ -134,6 +142,57 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   resetBubblePos: () => ipcRenderer.invoke("minicpm-settings:reset-bubble-pos"),
   enterBubbleEdit: () => ipcRenderer.invoke("minicpm-settings:enter-bubble-edit"),
   exitBubbleEdit: (save) => ipcRenderer.invoke("minicpm-settings:exit-bubble-edit", { save: !!save }),
+
+  // Accelerator (device) manual override
+  listDevices: () => ipcRenderer.invoke("minicpm-settings:list-devices"),
+  setDevice: (device) => ipcRenderer.invoke("minicpm-settings:set-device", { device }),
+  restartSidecar: () => ipcRenderer.invoke("minicpm-settings:restart-sidecar"),
+
+  // Local model directory override
+  getModelDir: () => ipcRenderer.invoke("minicpm-settings:get-model-dir"),
+  pickModelDir: () => ipcRenderer.invoke("minicpm-settings:pick-model-dir"),
+  resetModelDir: () => ipcRenderer.invoke("minicpm-settings:reset-model-dir"),
+
+  // Re-run onboarding (developer / recovery flow)
+  rerunOnboarding: () => ipcRenderer.invoke("minicpm-settings:rerun-onboarding"),
+  relaunchApp: () => ipcRenderer.invoke("minicpm-settings:relaunch-app"),
+
+  // Logs
+  getLogsInfo: () => ipcRenderer.invoke("minicpm-settings:get-logs-info"),
+  openLogsDir: () => ipcRenderer.invoke("minicpm-settings:open-logs-dir"),
+
+  // Resource usage + model directory shortcuts
+  getResources: () => ipcRenderer.invoke("minicpm-settings:get-resources"),
+  openModelDir: () => ipcRenderer.invoke("minicpm-settings:open-model-dir"),
+
+  // Adapter directory (LoRA): same UX pattern as the model dir handlers.
+  // `getAdapterDir` returns { current, default }; `openAdapterDir` opens
+  // the writable dir in Finder/Explorer so the user can drop new .gguf
+  // files in, then `listAdapters()` + `loadAdapter()` (already exposed
+  // above) handle the activation flow.
+  getAdapterDir: () => ipcRenderer.invoke("minicpm-settings:get-adapter-dir"),
+  openAdapterDir: () => ipcRenderer.invoke("minicpm-settings:open-adapter-dir"),
+
+  // Adapter manifest: friendly names + aliases the chat command router
+  // uses. The manifest lives in <userData>/minicpm-adapters.json; the
+  // gateway gets a mirror in <adapterDir>/.manifest.json on every write.
+  //
+  //   getAdapterManifest()          → { version, items: [...] }
+  //   uploadAdapter({displayName, aliases})
+  //                                 → { ok, item } | { ok: false, canceled, error }
+  //                                   opens a file dialog (.gguf only),
+  //                                   copies the file into uploads/, writes
+  //                                   a `source: "user-upload"` manifest entry
+  //   renameAdapter({id, displayName, aliases})
+  //                                 → { ok, item }
+  //   removeAdapter({id, deleteFile})
+  //                                 → { ok, id } | { ok: false, error }
+  //                                   only allowed for user-upload entries;
+  //                                   auto-unloads on the sidecar if active
+  getAdapterManifest: () => ipcRenderer.invoke("minicpm-settings:get-adapter-manifest"),
+  uploadAdapter: (payload) => ipcRenderer.invoke("minicpm-settings:upload-adapter", payload || {}),
+  renameAdapter: (payload) => ipcRenderer.invoke("minicpm-settings:rename-adapter", payload || {}),
+  removeAdapter: (payload) => ipcRenderer.invoke("minicpm-settings:remove-adapter", payload || {}),
 });
 
 contextBridge.exposeInMainWorld("doctor", {

@@ -22,6 +22,12 @@ contextBridge.exposeInMainWorld("minicpm", {
   // Chat generation parameters (shared with Settings tab)
   getChatParams: () => ipcRenderer.invoke("minicpm:get-chat-params"),
 
+  // Adapter (LoRA) load/unload — same IPC handler the Settings tab
+  // uses, so chat-based switching ("切到猫娘") persists the user's
+  // choice to prefs and shares the 90s timeout + bubble notification
+  // pipeline. Pass `null` to unload.
+  loadAdapter: (pathOrNull) => ipcRenderer.invoke("minicpm-settings:load-adapter", { path: pathOrNull }),
+
   // Messages from main → renderer
   onOpen:           (cb) => ipcRenderer.on("minicpm:cmd-open",            (_e, payload) => cb(payload || {})),
   onDismiss:        (cb) => ipcRenderer.on("minicpm:cmd-dismiss",         () => cb()),

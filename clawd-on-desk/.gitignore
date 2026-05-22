@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.apple-notarize.local
 __pycache__/
 *.pyc
 .DS_Store
@@ -81,6 +82,8 @@ scripts/*
 !scripts/monitor-clawd-power.ps1
 !scripts/validate-theme.js
 !scripts/create-theme.js
+!scripts/notarize.js
+!scripts/build-dmg-notarize.sh
 
 # oh-my-cursor state
 .omc/

@@ -3,9 +3,11 @@ const { execFile } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const electron = require("electron");
+const productMetadata = require("./product-metadata");
 
 const isMac = process.platform === "darwin";
-const RELEASES_LATEST_URL = "https://github.com/rullerzhou-afk/clawd-on-desk/releases/latest";
+const RELEASES_LATEST_URL = productMetadata.releasesLatestUrl
+  || "https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases/latest";
 
 function makeTranslate(ctx) {
   return (key, fallback) => {
@@ -265,10 +267,12 @@ function initUpdater(ctx, deps = {}) {
 
   function fetchLatestRelease() {
     return new Promise((resolve, reject) => {
+      const apiPath = productMetadata.githubReleasesApiPath
+        || "/repos/OpenBMB/MiniCPM-Desk-Pet/releases/latest";
       const req = httpsGet({
         hostname: "api.github.com",
-        path: "/repos/rullerzhou-afk/clawd-on-desk/releases/latest",
-        headers: { "User-Agent": "Clawd-on-Desk" },
+        path: apiPath,
+        headers: { "User-Agent": productMetadata.userAgent },
       }, (res) => {
         let data = "";
         res.on("data", (chunk) => { data += chunk; });

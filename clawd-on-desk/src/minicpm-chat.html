@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self' 'unsafe-inline'; connect-src http://127.0.0.1:8765 http://localhost:8765; img-src 'self' data:;">
+      content="default-src 'self' 'unsafe-inline'; connect-src http://127.0.0.1:18765 http://localhost:18765; img-src 'self' data:;">
 <title>MiniCPM</title>
 <style>
   :root {
     --bg: rgba(22, 26, 34, 0.92);
     --text: #e6e8ee;
     --muted: #9aa3b6;
-    --accent: #9b8cff;
+    --accent: #6A70E5;
     --border: rgba(255, 255, 255, 0.06);
     --inner-edge: rgba(255, 255, 255, 0.04);
   }
@@ -19,7 +19,7 @@
       --bg: rgba(255, 255, 255, 0.94);
       --text: #1c1c20;
       --muted: #6c7180;
-      --accent: #6b56ff;
+      --accent: #373ED8;
       --border: rgba(0, 0, 0, 0.05);
       --inner-edge: rgba(255, 255, 255, 0.6);
     }
@@ -158,6 +158,55 @@
   }
   @keyframes blink { 50% { opacity: 0; } }
 
+  /* — Rendered Markdown — applies after streaming completes (.rendered)
+     and to the pinned previous reply in continuous-chat mode. Keep the
+     vertical rhythm tight so multi-paragraph replies still fit. */
+  .speak.rendered, .last-reply-region.rendered {
+    white-space: normal;
+  }
+  .speak.rendered p,
+  .last-reply-region.rendered p { margin: 0 0 0.55em; }
+  .speak.rendered p:last-child,
+  .last-reply-region.rendered p:last-child { margin-bottom: 0; }
+  .speak.rendered h1, .last-reply-region.rendered h1 { font-size: 1.18em; font-weight: 700; margin: 0.45em 0 0.28em; line-height: 1.35; }
+  .speak.rendered h2, .last-reply-region.rendered h2 { font-size: 1.10em; font-weight: 700; margin: 0.40em 0 0.25em; line-height: 1.35; }
+  .speak.rendered h3, .last-reply-region.rendered h3 { font-size: 1.04em; font-weight: 700; margin: 0.40em 0 0.20em; line-height: 1.35; }
+  .speak.rendered h1:first-child, .speak.rendered h2:first-child, .speak.rendered h3:first-child,
+  .last-reply-region.rendered h1:first-child, .last-reply-region.rendered h2:first-child, .last-reply-region.rendered h3:first-child {
+    margin-top: 0;
+  }
+  .speak.rendered strong, .last-reply-region.rendered strong { font-weight: 600; }
+  .speak.rendered em, .last-reply-region.rendered em { font-style: italic; }
+  .speak.rendered ul, .speak.rendered ol,
+  .last-reply-region.rendered ul, .last-reply-region.rendered ol {
+    margin: 0 0 0.55em; padding-left: 1.4em;
+  }
+  .speak.rendered li, .last-reply-region.rendered li { margin: 0.12em 0; }
+  .speak.rendered hr, .last-reply-region.rendered hr {
+    border: none; border-top: 1px solid var(--border);
+    margin: 0.55em 0;
+  }
+  .speak.rendered code, .last-reply-region.rendered code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: rgba(127, 127, 127, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .speak.rendered pre, .last-reply-region.rendered pre {
+    background: rgba(127, 127, 127, 0.10);
+    padding: 8px 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0 0 0.55em;
+    white-space: pre;
+  }
+  .speak.rendered pre code, .last-reply-region.rendered pre code {
+    background: transparent;
+    padding: 0;
+    font-size: 0.86em;
+  }
+
   /* Whispered thought stream — soft gray text with a left border that
      stands in for "this is a quoted side-channel". No italic (Chinese
      fonts get visually skewed) and no emoji. */
@@ -274,7 +323,7 @@
 </div>
 
 <script>
-const SIDECAR_URL = "http://127.0.0.1:8765";
+const SIDECAR_URL = "http://127.0.0.1:18765";
 
 // ── element refs ──
 const bubble = document.getElementById("bubble");
@@ -289,12 +338,15 @@ let abortCtrl = null;
 let fadeTimer = null;
 let inputEl = null;          // <textarea> while in ask state
 
-// thinking defaults to false because:
-//   1) the persona LoRA isn't fine-tuned with <think>...</think> structure,
-//      so it traps all output inside the think block and never emits </think>
-//   2) for casual chat the answer should arrive fast, not after deliberation
-// User can still flip it on with ⌘⇧T (works fine on base model).
-let settings = { thinking: false };
+// Persisted default lives in minicpm-prefs.json (Settings → 默认思考模式).
+// thinkingOverride is a per-session override from ⌘⇧T; null means follow
+// the persisted default on each submit.
+let thinkingOverride = null;
+
+function resolveThinking(chatParams) {
+  if (typeof thinkingOverride === "boolean") return thinkingOverride;
+  return !!(chatParams && chatParams.thinking);
+}
 
 // ── window helpers ──
 function clearFade() {
@@ -397,7 +449,7 @@ async function showAsk(lastReply) {
     // Outer height tracks content.offsetHeight via measureAndShow.
     content.innerHTML = `
       <div class="chat-pane">
-        <div class="last-reply-region" id="last-reply-region">${escapeHtml(lastReply)}</div>
+        <div class="last-reply-region rendered" id="last-reply-region">${renderMarkdown(lastReply)}</div>
         <div class="ask-input-wrap">
           <textarea id="ask-input" placeholder="问问看…" rows="1"></textarea>
         </div>
@@ -520,6 +572,88 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[c]);
+}
+
+// ── tiny Markdown → HTML renderer ─────────────────────────────────────
+// Handles **bold**, *italic*, headings (h1–h3), unordered / ordered
+// lists, horizontal rules, inline / fenced code, and paragraphs. Always
+// HTML-escapes the input first so model output cannot inject markup.
+// Used for the post-streaming reply and the pinned last-reply pane —
+// during streaming the typewriter still feeds plain text via textContent
+// so the user sees a smooth char-by-char reveal.
+function renderMarkdown(text) {
+  if (text == null) return "";
+  let s = escapeHtml(String(text));
+
+  // Reserve code spans first so later inline / block rules can't
+  // mangle code contents. The \x00 sentinel never appears in normal
+  // text and survives the HTML-escape step above.
+  const blocks = [];
+  s = s.replace(/```[^\n]*\n?([\s\S]*?)```/g, (_m, code) => {
+    const i = blocks.length;
+    blocks.push(`<pre><code>${code.replace(/^\n|\n+$/g, "")}</code></pre>`);
+    return `\x00B${i}\x00`;
+  });
+  const inlines = [];
+  s = s.replace(/`([^`\n]+)`/g, (_m, code) => {
+    const i = inlines.length;
+    inlines.push(`<code>${code}</code>`);
+    return `\x00I${i}\x00`;
+  });
+
+  // Inline emphasis. Bold first so paired `**` never gets eaten by the
+  // single-`*` italic rule. The italic lookbehind/lookahead avoid
+  // matching mid-word `*` (e.g. function names with stars).
+  s = s.replace(/\*\*([^*\n][^\n]*?)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/__([^_\n][^\n]*?)__/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[\s>(])\*([^*\n]+?)\*(?=[\s<.,;:!?)\]]|$)/g, "$1<em>$2</em>");
+  s = s.replace(/(^|[\s>(])_([^_\n]+?)_(?=[\s<.,;:!?)\]]|$)/g, "$1<em>$2</em>");
+
+  // Block rules, line-anchored. Anything that doesn't match a block
+  // becomes a paragraph (consecutive non-block lines joined with <br>).
+  const lines = s.split("\n");
+  const out = [];
+  const isPlaceholder = (l) => /^\x00B\d+\x00$/.test(l.trim());
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isPlaceholder(line)) { out.push(line.trim()); i++; continue; }
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (h) { out.push(`<h${h[1].length}>${h[2]}</h${h[1].length}>`); i++; continue; }
+    if (/^\s*---+\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+    if (/^[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+        items.push(`<li>${lines[i].replace(/^[-*]\s+/, "")}</li>`);
+        i++;
+      }
+      out.push(`<ul>${items.join("")}</ul>`);
+      continue;
+    }
+    if (/^\d+\.\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        items.push(`<li>${lines[i].replace(/^\d+\.\s+/, "")}</li>`);
+        i++;
+      }
+      out.push(`<ol>${items.join("")}</ol>`);
+      continue;
+    }
+    if (line.trim() === "") { i++; continue; }
+    const para = [];
+    while (i < lines.length) {
+      const l = lines[i];
+      if (l.trim() === "" || /^(?:#{1,3}\s|[-*]\s|\d+\.\s|\s*---+\s*$)/.test(l) || isPlaceholder(l)) break;
+      para.push(l);
+      i++;
+    }
+    if (para.length) out.push(`<p>${para.join("<br>")}</p>`);
+  }
+
+  let result = out.join("");
+  result = result.replace(/\x00B(\d+)\x00/g, (_m, idx) => blocks[+idx]);
+  result = result.replace(/\x00I(\d+)\x00/g, (_m, idx) => inlines[+idx]);
+  return result;
 }
 
 // Hidden measurement span — used to compute the natural width of the
@@ -805,13 +939,18 @@ async function runAdapterList() {
 
 async function runAdapterOff(progress) {
   await (progress || (() => {}))("正在卸下 LoRA，回到原版需要几秒…");
-  const r = await fetch(sidecarUrl + "/api/load-adapter", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: null }),
-  });
-  const d = await r.json();
-  if (!r.ok || !d.ok) return { ok: false, text: "卸载失败：" + (d.error || r.status) };
+  // Route through the main-proc IPC so we get the same 90s timeout
+  // and the same `active_adapter_id` persistence the Settings tab
+  // enjoys. Direct fetch from the renderer used to hit a shorter
+  // implicit timeout on cold restart of llama-server and skipped
+  // the prefs write, leaving the user's choice unsaved across
+  // sidecar restarts.
+  const d = (window.minicpm && window.minicpm.loadAdapter)
+    ? await window.minicpm.loadAdapter(null)
+    : null;
+  if (!d || !d.ok) {
+    return { ok: false, text: "卸载失败：" + ((d && d.error) || "unknown") };
+  }
   return {
     ok: true,
     text: "好啦，LoRA 卸下来了，现在是裸 base 模型（清空了对话）",
@@ -819,81 +958,112 @@ async function runAdapterOff(progress) {
   };
 }
 
+// Keywords that mean "stop using any LoRA" rather than "switch to a
+// specific persona". These stay hardcoded because they're product
+// vocabulary, not adapter metadata; the rest of the routing is fully
+// data-driven from the manifest exposed via /api/adapters.
+const DISABLE_ADAPTER_KEYWORDS = new Set([
+  "原版", "默认", "base", "原始", "裸", "纯净", "普通",
+]);
+
+// Find the manifest item that best matches `kw` (already lowercased).
+// Strategies in descending confidence:
+//   1) exact alias hit
+//   2) alias substring (tolerates classifier truncation like "猫娘"→"娘")
+//   3) displayName substring
+//   4) filename substring (legacy fallback for adapters without a
+//      manifest entry — preserves the pre-manifest UX)
+function pickAdapterByKeyword(items, kw) {
+  const probe = (kw || "").toLowerCase().trim();
+  if (!probe) return null;
+  const visible = items.filter((it) => !it.missing);
+  // 1) exact alias
+  for (const it of visible) {
+    const aliases = Array.isArray(it.aliases) ? it.aliases : [];
+    if (aliases.some((a) => String(a).toLowerCase() === probe)) return it;
+  }
+  // 2) alias substring
+  for (const it of visible) {
+    const aliases = Array.isArray(it.aliases) ? it.aliases : [];
+    if (aliases.some((a) => {
+      const al = String(a).toLowerCase();
+      return al && (al.includes(probe) || probe.includes(al));
+    })) return it;
+  }
+  // 3) displayName substring
+  for (const it of visible) {
+    const dn = String(it.displayName || "").toLowerCase();
+    if (dn && (dn.includes(probe) || probe.includes(dn))) return it;
+  }
+  // 4) filename substring fallback
+  for (const it of visible) {
+    if (String(it.name || "").toLowerCase().includes(probe)) return it;
+  }
+  return null;
+}
+
 async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
   const onProgress = progress || (async () => {});
-  // Synonym table: human keywords → adapter-name probe. `null` = "user
-  // wants to disable any adapter" (synonym for runAdapterOff).
-  const SYNONYMS = {
-    "猫娘": "neko",
-    "宝宝": "neko",
-    "neko": "neko",
-    "原版": null, "默认": null, "base": null, "原始": null, "裸": null, "纯净": null, "普通": null,
-  };
+  const kw = (keyword || "").toLowerCase().trim();
+
+  // Disable keywords short-circuit before we even touch /api/adapters,
+  // so "切回原版" still works when the user has no LoRAs registered.
+  if (DISABLE_ADAPTER_KEYWORDS.has(kw)) {
+    return runAdapterOff(onProgress);
+  }
 
   const r = await fetch(sidecarUrl + "/api/adapters");
   const d = await r.json();
-  if (!d.items || !d.items.length) {
+  const items = (d && Array.isArray(d.items)) ? d.items : [];
+  if (!items.length) {
     return { ok: true, text: "找不到 adapter 仓库，先把 LoRA 放进 adapters/" };
   }
 
-  // ── Tolerant keyword resolution ──────────────────────────────────────
-  // The classifier sometimes truncates a multi-char Chinese keyword
-  // (e.g. "猫娘" → "娘"). To survive that, try several strategies in
-  // order of confidence and short-circuit on the first hit.
-  const kw = keyword.toLowerCase().trim();
+  const pick = pickAdapterByKeyword(items, kw);
+  if (!pick) {
+    const names = items
+      .map((a) => a.displayName || a.name)
+      .filter(Boolean)
+      .join("、");
+    return { ok: true, text: `没找到「${keyword}」对应的 LoRA。我有的：${names}` };
+  }
+  if (pick.path === d.current) {
+    return { ok: true, text: `${pick.displayName || pick.name} 已经在用啦，不用切` };
+  }
+  return await doSwap(pick);
 
-  // 1) Direct synonym hit.
-  if (kw in SYNONYMS) {
-    const target = SYNONYMS[kw];
-    if (target === null) return runAdapterOff(onProgress);
-    return await applySwitch(target);
-  }
-  // 2) The keyword is a *substring* of some known synonym key (handles
-  //    classifier truncations like "娘" → matches "猫娘").
-  for (const key of Object.keys(SYNONYMS)) {
-    if (key.includes(kw) || kw.includes(key)) {
-      const target = SYNONYMS[key];
-      if (target === null) return runAdapterOff(onProgress);
-      return await applySwitch(target);
-    }
-  }
-  // 3) Direct match against adapter names (substring, case-insensitive).
-  return await applySwitch(kw);
-
-  // ── helpers ──
-  async function applySwitch(probe) {
-    const pick = d.items.find((a) => a.name.toLowerCase().includes(probe.toLowerCase()));
-    if (!pick) {
-      const names = d.items.map((a) => a.name).join("、");
-      return { ok: true, text: `没找到「${keyword}」对应的 LoRA。我有的：${names}` };
-    }
-    if (pick.path === d.current) {
-      return { ok: true, text: `${pick.name} 已经在用啦，不用切` };
-    }
-    return await doSwap(pick);
-  }
-  async function doSwap(pick) {
-    await onProgress(`正在切到 ${pick.name}…加载 LoRA 大概要几秒`);
-    const swap = await fetch(sidecarUrl + "/api/load-adapter", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: pick.path }),
-    });
-    const sd = await swap.json();
-    if (!swap.ok || !sd.ok) return { ok: false, text: "切换失败：" + (sd.error || swap.status) };
+  async function doSwap(picked) {
+    const label = picked.displayName || picked.name;
+    await onProgress(`正在切到 ${label}…加载 LoRA 大概要几秒`);
+    // Route through the main-proc IPC (same handler the Settings tab
+    // uses) so we share its 90s timeout + the `active_adapter_id`
+    // persistence. The direct-fetch flow used to skip both: chat-side
+    // switches worked in the current session but didn't survive a
+    // sidecar restart, and a cold reload (Base → LoRA) sometimes
+    // hit shorter renderer timeouts.
+    const sd = (window.minicpm && window.minicpm.loadAdapter)
+      ? await window.minicpm.loadAdapter(picked.path)
+      : null;
+    if (!sd || !sd.ok) return { ok: false, text: "切换失败：" + ((sd && sd.error) || "unknown") };
 
     // Persona-LoRAs don't follow the <think> chat template, so flip
     // thinking off when switching INTO one. Going back to base leaves
     // the user's preference alone.
     let extra = "";
     const newPersona = sd.persona || "default";
-    if (newPersona !== "default" && settings.thinking) {
-      settings.thinking = false;
+    let chatParams = {};
+    try {
+      chatParams = (window.minicpm && typeof window.minicpm.getChatParams === "function")
+        ? (await window.minicpm.getChatParams()) || {}
+        : {};
+    } catch {}
+    if (newPersona !== "default" && resolveThinking(chatParams)) {
+      thinkingOverride = false;
       extra = "（关掉了思考模式）";
     }
     return {
       ok: true,
-      text: `好啦，已经切到 ${pick.name}${extra}（清掉了之前的对话）`,
+      text: `好啦，已经切到 ${label}${extra}（清掉了之前的对话）`,
       resetHistory: true,
     };
   }
@@ -962,11 +1132,12 @@ async function submit(text) {
       ? (await window.minicpm.getChatParams()) || {}
       : {};
   } catch {}
-  // settings.thinking (in-bubble toggle, ⌘⇧T) takes precedence over the
-  // persisted default when the user has toggled it during this session.
-  const effectiveThinking = (typeof settings.thinking === "boolean")
-    ? settings.thinking
-    : !!chatParams.thinking;
+  // thinkingOverride (⌘⇧T) takes precedence over the persisted default
+  // when the user has overridden this session.
+  const effectiveThinking = resolveThinking(chatParams);
+  // Sidecar bumps max_new_tokens to ≥1280 when thinking=true so the
+  // <think> block doesn't consume the whole generation budget.
+  const maxNewTokens = chatParams.max_new_tokens || 768;
 
   try {
     const resp = await fetch(sidecarUrl + "/api/chat", {
@@ -975,7 +1146,7 @@ async function submit(text) {
       body: JSON.stringify({
         messages: history,
         stream: true,
-        max_new_tokens: chatParams.max_new_tokens || 768,
+        max_new_tokens: maxNewTokens,
         temperature: (typeof chatParams.temperature === "number") ? chatParams.temperature : 0.6,
         top_p: (typeof chatParams.top_p === "number") ? chatParams.top_p : 0.95,
         top_k: (typeof chatParams.top_k === "number") ? chatParams.top_k : 0,
@@ -1004,7 +1175,7 @@ async function submit(text) {
         let obj;
         try { obj = JSON.parse(payload); } catch { continue; }
 
-        if (obj.event === "think" && settings.thinking) {
+        if (obj.event === "think" && effectiveThinking) {
           if (!sawThink) {
             sawThink = true;
             await showThink();
@@ -1037,7 +1208,15 @@ async function submit(text) {
 
     if (typer) await typer.drain();
     history.push({ role: "assistant", content: replyAcc });
-    if (speakEl) speakEl.classList.remove("streaming");
+    if (speakEl) {
+      speakEl.classList.remove("streaming");
+      // Swap the plain typewriter text for a markdown-rendered version
+      // once the stream completes — keeps the streaming reveal smooth
+      // (no HTML thrash per chunk) while still presenting bold/italics/
+      // headings/lists/code in their final form.
+      speakEl.classList.add("rendered");
+      speakEl.innerHTML = renderMarkdown(replyAcc);
+    }
 
     // ── New: keep the bubble alive for follow-up turns. After a tiny
     // dwell so the streaming animation settles, swap the speak content
@@ -1149,12 +1328,14 @@ async function cmdDismiss() {
 
 async function cmdReset() {
   history = [];
+  thinkingOverride = null;
   if (phase === "ask" && inputEl) inputEl.value = "";
 }
 
 function cmdToggleThinking() {
-  settings.thinking = !settings.thinking;
-  return settings.thinking;
+  // Legacy sync helper — the live path is onToggleThinking below.
+  thinkingOverride = !resolveThinking({});
+  return thinkingOverride;
 }
 
 async function dismiss() { await cmdDismiss(); }
@@ -1193,13 +1374,19 @@ if (window.minicpm) {
       const d = await r.json();
       persona = d.persona || "default";
     } catch {}
-    const willEnable = !settings.thinking;
+    let chatParams = {};
+    try {
+      chatParams = (window.minicpm && typeof window.minicpm.getChatParams === "function")
+        ? (await window.minicpm.getChatParams()) || {}
+        : {};
+    } catch {}
+    const willEnable = !resolveThinking(chatParams);
     if (willEnable && persona !== "default") {
       showToast(`当前 ${persona} 人格不支持思考模式，先切到原版再开`);
       return;
     }
-    settings.thinking = !settings.thinking;
-    showToast(`思考已${settings.thinking ? "开启" : "关闭"}`);
+    thinkingOverride = willEnable;
+    showToast(`思考已${willEnable ? "开启" : "关闭"}`);
   });
   if (window.minicpm.onUpdateStatus) window.minicpm.onUpdateStatus(updateBadge);
   if (window.minicpm.onUpdateApplying) window.minicpm.onUpdateApplying(showUpdateProgress);

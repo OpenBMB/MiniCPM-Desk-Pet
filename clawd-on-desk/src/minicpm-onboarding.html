@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>MiniCPM 桌宠 — 首次启动</title>
+<link rel="stylesheet" href="minicpm-onboarding.css">
+</head>
+<body>
+<main class="wizard">
+  <header class="steps" id="steps">
+    <div class="step active" data-step="env-check"><span class="dot"><span class="num">1</span></span><span class="label">环境检查</span></div>
+    <div class="step" data-step="model"><span class="dot"><span class="num">2</span></span><span class="label">准备模型</span></div>
+    <div class="step" data-step="ready"><span class="dot"><span class="num">3</span></span><span class="label">就绪</span></div>
+  </header>
+
+  <section class="content">
+    <!-- Step 1: env-check -->
+    <div class="panel" data-panel="env-check">
+      <h1>欢迎使用 MiniCPM 桌宠</h1>
+      <ul class="checks">
+        <li id="check-disk">
+          <span class="check-label">磁盘空间</span>
+          <span class="check-detail" id="check-disk-detail">检测中…</span>
+        </li>
+        <li id="check-platform">
+          <span class="check-label">芯片</span>
+          <span class="check-detail" id="check-platform-detail">检测中…</span>
+        </li>
+      </ul>
+      <div class="bottom">
+        <button class="btn primary" id="env-next">下一步</button>
+      </div>
+    </div>
+
+    <!-- Step 2: model -->
+    <div class="panel hidden" data-panel="model">
+      <h1>准备模型</h1>
+      <p class="lede">安装 MiniCPM5 0.9B</p>
+
+      <div class="model-cards">
+        <!-- Card A: online download -->
+        <div class="model-card" id="model-card-download">
+          <div class="model-card-head">
+            <span class="model-card-title">在线下载</span>
+            <span class="badge-check" aria-hidden="true">✓</span>
+          </div>
+          <div class="model-card-body">
+            <p class="model-card-desc">默认 GGUF Q8_0，会根据你的网络情况自动选择下载源。</p>
+            <div class="progress-card hidden" id="model-progress-card">
+              <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+              <div class="progress-text">
+                <span id="progress-percent">0%</span>
+                <span class="dim" id="progress-detail">准备中...</span>
+              </div>
+            </div>
+            <div class="model-card-status hidden" id="model-download-status">
+              <span class="model-status-text" id="model-download-status-text"></span>
+            </div>
+          </div>
+          <div class="model-card-foot">
+            <button class="btn primary" id="model-download-btn">开始下载</button>
+          </div>
+        </div>
+
+        <!-- Card B: local file -->
+        <div class="model-card" id="model-card-local">
+          <div class="model-card-head">
+            <span class="model-card-title">加载本地模型</span>
+            <span class="badge-check" aria-hidden="true">✓</span>
+          </div>
+          <div class="model-card-body">
+            <p class="model-card-desc">已经下好 GGUF 权重？直接导入模型文件。</p>
+            <div class="model-card-status hidden" id="model-local-status">
+              <span class="model-status-text" id="model-local-status-text"></span>
+            </div>
+          </div>
+          <div class="model-card-foot">
+            <button class="btn ghost" id="model-pick-local">选择文件…</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Warmup status row (shows once model is ready) -->
+      <div class="warmup-row hidden" id="warmup-row">
+        <div class="spinner" id="warmup-spinner"></div>
+        <span class="badge-check warmup-check" aria-hidden="true">✓</span>
+        <span id="warmup-status">正在加载模型...</span>
+        <button class="btn ghost warmup-retry hidden" id="warmup-retry">重试</button>
+      </div>
+
+      <div class="error hidden" id="model-error"></div>
+
+      <div class="bottom">
+        <button class="btn ghost" data-back="env-check">上一步</button>
+        <button class="btn primary" id="model-next" disabled>下一步</button>
+      </div>
+    </div>
+
+    <!-- Step 3: ready -->
+    <div class="panel hidden" data-panel="ready">
+      <h1>一切就绪</h1>
+      <p class="lede">桌宠马上登场。日常使用：</p>
+      <ul class="hotkeys">
+        <li><kbd>⌘</kbd><kbd>⇧</kbd><kbd>M</kbd>开关聊天气泡</li>
+        <li><kbd>⌘</kbd><kbd>⇧</kbd><kbd>T</kbd>切换思考模式</li>
+        <li><kbd>Esc</kbd>在气泡内焦点时关闭气泡</li>
+      </ul>
+      <p class="dim">想换模型、查看资源占用、重启 sidecar？打开右键菜单的 <em>Settings → MiniCPM</em>。</p>
+      <div class="bottom">
+        <button class="btn primary" id="ready-finish">让桌宠登场</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="minicpm-onboarding-renderer.js"></script>
+</body>
+</html>

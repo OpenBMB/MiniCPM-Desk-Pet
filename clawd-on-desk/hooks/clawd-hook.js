@@ -354,6 +354,20 @@ function main() {
   if (event === "SessionStart" && !process.env.CLAWD_REMOTE) resolve();
 
   readStdinJson().then((payload) => {
+    // Cursor IDE invokes ~/.claude/settings.json hooks for its own Agent
+    // events (compatibility shim), passing a Cursor-shaped payload with
+    // fields like `cursor_version` / `conversation_id` / `composer_mode`.
+    // Those events are already covered by hooks/cursor-hook.js via
+    // ~/.cursor/hooks.json — if we also post them here they will overwrite
+    // the session's agentId to "claude-code" and the HUD logo will flip
+    // between Cursor and Claude Code.
+    if (payload && (
+      typeof payload.cursor_version !== "undefined"
+      || typeof payload.conversation_id !== "undefined"
+      || typeof payload.composer_mode !== "undefined"
+    )) {
+      process.exit(0);
+    }
     const body = buildStateBody(event, payload || {}, resolve);
     if (!body) process.exit(0);
     postStateToRunningServer(

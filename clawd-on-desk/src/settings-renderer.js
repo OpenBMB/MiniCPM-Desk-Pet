@@ -2,17 +2,28 @@
 
 const core = globalThis.ClawdSettingsCore;
 
+// Order matters — this is the visible sidebar order. MiniCPM is the
+// front-and-centre product feature of this fork, so it sits right under
+// 通用 / General. Icons resolve via settings-icons.js at render time,
+// not as emoji or unicode glyphs (those rendered inconsistently across
+// system fonts and didn't dark-mode well).
 const SIDEBAR_TABS = [
-  { id: "general", icon: "\u2699", labelKey: "sidebarGeneral", available: true },
-  { id: "agents", icon: "\u26A1", labelKey: "sidebarAgents", available: true },
-  { id: "theme", icon: "\u{1F3A8}", labelKey: "sidebarTheme", available: true },
-  { id: "animMap", icon: "\u{1F3AC}", labelKey: "sidebarAnimMap", available: true },
-  { id: "animOverrides", icon: "\u{1F39E}", labelKey: "sidebarAnimOverrides", available: true },
-  { id: "shortcuts", icon: "\u2328", labelKey: "sidebarShortcuts", available: true },
-  { id: "minicpm", icon: "\u{1F43E}", labelKey: "sidebarMinicpm", available: true, label: "MiniCPM" },
-  { id: "remote-ssh", icon: "\u{1F50C}", labelKey: "sidebarRemoteSsh", available: true },
-  { id: "about", icon: "\u2139", labelKey: "sidebarAbout", available: true },
+  { id: "general", labelKey: "sidebarGeneral", available: true },
+  { id: "minicpm", labelKey: "sidebarMinicpm", available: true },
+  { id: "agents", labelKey: "sidebarAgents", available: true },
+  { id: "theme", labelKey: "sidebarTheme", available: true },
+  { id: "animMap", labelKey: "sidebarAnimMap", available: true },
+  { id: "animOverrides", labelKey: "sidebarAnimOverrides", available: true },
+  { id: "shortcuts", labelKey: "sidebarShortcuts", available: true },
+  { id: "remote-ssh", labelKey: "sidebarRemoteSsh", available: true },
+  { id: "about", labelKey: "sidebarAbout", available: true },
 ];
+
+function getTabIcon(tabId) {
+  const icons = globalThis.ClawdSettingsIcons;
+  if (icons && typeof icons.getIcon === "function") return icons.getIcon(tabId);
+  return "";
+}
 
 function renderSidebar() {
   const sidebar = document.getElementById("sidebar");
@@ -33,8 +44,10 @@ function renderSidebar() {
     // the i18n key. New tabs that don't yet have translations can pass a
     // hard-coded label to avoid showing the raw key in non-en locales.
     const labelText = tab.label ? tab.label : core.helpers.t(tab.labelKey);
+    // Icon HTML is trusted (it comes from our own settings-icons.js
+    // module, not user input), so we drop it in as-is.
     item.innerHTML =
-      `<span class="sidebar-item-icon">${tab.icon}</span>` +
+      `<span class="sidebar-item-icon">${getTabIcon(tab.id)}</span>` +
       `<span class="sidebar-item-label">${core.helpers.escapeHtml(labelText)}</span>` +
       (tab.available ? "" : `<span class="sidebar-item-soon">${core.helpers.escapeHtml(core.helpers.t("sidebarSoon"))}</span>`);
     if (tab.available) {
@@ -50,7 +63,7 @@ function renderPlaceholder(parent) {
   const div = document.createElement("div");
   div.className = "placeholder";
   div.innerHTML =
-    `<div class="placeholder-icon">\u{1F6E0}</div>` +
+    `<div class="placeholder-icon">${getTabIcon("placeholder")}</div>` +
     `<div class="placeholder-title">${core.helpers.escapeHtml(core.helpers.t("placeholderTitle"))}</div>` +
     `<div class="placeholder-desc">${core.helpers.escapeHtml(core.helpers.t("placeholderDesc"))}</div>`;
   parent.appendChild(div);

@@ -1,5 +1,22 @@
 # Notices
 
+## MiniCPM Desk Pet
+
+Copyright © 2026 OpenBMB.
+
+This application is a fork of
+[clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)
+(commit `5b1f003`, © rullerzhou-afk), modified to add local
+MiniCPM5-0.9B inference, a 5-step onboarding wizard, LoRA persona
+switching, and desktop-pet narration for coding agents.
+
+Both the upstream project and this fork are licensed under the
+GNU Affero General Public License v3.0 (AGPL-3.0-only); see
+[LICENSE](./LICENSE) for the full text. Source code for this fork is
+available at https://github.com/OpenBMB/MiniCPM-Desk-Pet.
+
+---
+
 This project includes third-party materials.
 
 ## OpenClaw Pixel Lobster Icon

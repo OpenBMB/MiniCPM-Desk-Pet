@@ -1,7 +1,7 @@
 {
-  "name": "clawd-on-desk",
+  "name": "minicpm-desk-pet",
   "version": "0.7.1",
-  "description": "A desktop pet that reacts to your Claude Code sessions in real-time.",
+  "description": "MiniCPM Desk Pet — local-first desktop pet powered by MiniCPM5-0.9B. Forked from clawd-on-desk.",
   "main": "src/main.js",
   "scripts": {
     "start": "node launch.js",
@@ -10,6 +10,10 @@
     "build:win:arm64": "electron-builder --win nsis:arm64",
     "build:win:all": "electron-builder --win nsis:x64 nsis:arm64",
     "build:mac": "electron-builder --mac",
+    "build:mac:mvp": "bash ../minicpm-sidecar/scripts/build-all.sh && electron-builder --mac --arm64 -c.mac.target=dmg",
+    "build:mac:repack": "electron-builder --mac --arm64 -c.mac.target=dmg",
+    "build:mac:notarize": "bash scripts/build-dmg-notarize.sh",
+    "build:mac:mvp:notarize": "bash ../minicpm-sidecar/scripts/build-all.sh && bash scripts/build-dmg-notarize.sh",
     "build:linux": "electron-builder --linux",
     "build:all": "electron-builder --win --mac --linux",
     "test": "node --test test/*.test.js",
@@ -38,12 +42,19 @@
     "electron",
     "claude-code"
   ],
-  "author": "rullerzhou-afk",
+  "author": "OpenBMB",
   "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenBMB/MiniCPM-Desk-Pet.git"
+  },
+  "homepage": "https://github.com/OpenBMB/MiniCPM-Desk-Pet",
+  "upstreamRepository": "https://github.com/rullerzhou-afk/clawd-on-desk",
   "type": "commonjs",
   "build": {
-    "appId": "com.clawd.on-desk",
-    "productName": "Clawd on Desk",
+    "appId": "com.openbmb.minicpm-desk-pet",
+    "productName": "MiniCPM Desk Pet",
+    "copyright": "Copyright © 2026 OpenBMB. Based on clawd-on-desk by rullerzhou-afk (AGPL-3.0-only).",
     "protocols": [
       {
         "name": "Clawd Import Protocol",
@@ -53,7 +64,7 @@
       }
     ],
     "mac": {
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -64,6 +75,10 @@
         }
       ],
       "category": "public.app-category.entertainment",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "extendInfo": {
         "LSUIElement": true
       }
@@ -109,6 +124,7 @@
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico"
     },
+    "afterSign": "scripts/notarize.js",
     "files": [
       "NOTICE.md",
       "src/**/*",
@@ -133,17 +149,42 @@
       {
         "from": "assets/icon.ico",
         "to": "icon.ico"
+      },
+      {
+        "from": "../minicpm-sidecar/bin/${os}-${arch}",
+        "to": "sidecar-bin"
+      },
+      {
+        "from": "../minicpm-sidecar",
+        "to": "minicpm-sidecar",
+        "filter": [
+          "gateway/**/*.py",
+          "pyproject.toml",
+          ".python-version",
+          "README.md"
+        ]
+      },
+      {
+        "from": "../adapters",
+        "to": "adapters",
+        "filter": [
+          "**/*.gguf",
+          "**/README.md",
+          "**/USAGE.md",
+          "**/adapter_config.json"
+        ]
       }
     ],
     "publish": [
       {
         "provider": "github",
-        "owner": "rullerzhou-afk",
-        "repo": "clawd-on-desk"
+        "owner": "OpenBMB",
+        "repo": "MiniCPM-Desk-Pet"
       }
     ]
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "electron": "^41.0.2",
     "electron-builder": "^26.8.1"
   },

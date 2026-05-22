@@ -3,6 +3,8 @@
 const defaultFs = require("fs");
 const defaultPath = require("path");
 const settingsThemeImporter = require("./settings-theme-importer");
+const productMetadata = require("./product-metadata");
+const { DEFAULT_THEME_ID } = require("./default-theme");
 
 const SOUND_OVERRIDE_ASSET_EXTS = new Set([".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"]);
 const SOUND_OVERRIDE_DIALOG_STRINGS = {
@@ -270,7 +272,7 @@ function registerSettingsIpc(options = {}) {
   handle("settings:list-themes", () => {
     try {
       const activeTheme = getActiveTheme();
-      const activeId = activeTheme ? activeTheme._id : "clawd";
+      const activeId = activeTheme ? activeTheme._id : DEFAULT_THEME_ID;
       return themeLoader.listThemesWithMetadata().map((theme) =>
         codexPetMain.decorateThemeMetadata({
           ...theme,
@@ -367,11 +369,12 @@ function registerSettingsIpc(options = {}) {
     }
     return {
       version: app.getVersion(),
-      repoUrl: "https://github.com/rullerzhou-afk/clawd-on-desk",
-      license: "AGPL-3.0",
-      copyright: "\u00a9 2026 Ruller_Lulu",
-      authorName: "Ruller_Lulu / \u9e7f\u9e7f",
-      authorUrl: "https://github.com/rullerzhou-afk",
+      appName: productMetadata.appDisplayName,
+      repoUrl: productMetadata.repoUrl,
+      license: productMetadata.licenseId,
+      copyright: productMetadata.copyrightLine,
+      upstreamRepoUrl: productMetadata.upstreamRepoUrl,
+      upstreamLabel: productMetadata.upstreamLabel,
       heroSvgContent,
     };
   });

@@ -1,28 +1,41 @@
 #!/usr/bin/env bash
-# go.sh — 一键安装 + 启动 MiniCPM 桌宠 (uv 版本)
+# go.sh — [开发者快捷脚本] 一键起开发模式的 MiniCPM 桌宠
 #
-# 第一次跑：检查依赖、装 uv (如缺)、uv sync、npm install、启动桌宠
-# 之后再跑：所有 sync/install 都是 idempotent 的,瞬间跳过,直接启动
+# ┌────────────────────────────────────────────────────────────────┐
+# │  这是给「开发者」用的，不是给最终用户的。                       │
+# │  普通用户请直接下载 dmg/exe 安装包，安装后跟着 Onboarding 走。 │
+# │                                                                │
+# │  ./go.sh 做的事：                                              │
+# │  1) 装 Node / uv / cmake 依赖                                  │
+# │  2) clone + 编译 llama-server（vendored llama.cpp 分支）       │
+# │  3) uv sync 给 gateway 装 fastapi/uvicorn 等轻量 deps           │
+# │  4) npm install + npm start 起 Electron（dev 模式）            │
+# │                                                                │
+# │  打包好的 .app / .dmg / .exe 已经内置 minicpm-sidecar 二进制，│
+# │  不依赖本脚本。                                                │
+# └────────────────────────────────────────────────────────────────┘
 #
 # Usage:
-#   ./go.sh           # 安装 + 启动 (前台)
-#   ./go.sh setup     # 只装依赖,不启动
-#   ./go.sh start     # 跳过依赖检查直接启动
-#   ./go.sh doctor    # 检查环境但什么都不做
+#   ./go.sh                # 安装 + 启动 (前台)
+#   ./go.sh setup          # 只装依赖,不启动
+#   ./go.sh start          # 跳过依赖检查直接启动
+#   ./go.sh doctor         # 检查环境但什么都不做
+#   ./go.sh build-llama    # 重新编译 llama-server
+#   ./go.sh build          # 出整套安装包 (mac arm64 dmg)
 
 set -e
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BRIDGE_DIR="$HERE/minicpm-pet-bridge-uv"
+SIDECAR_DIR="$HERE/minicpm-sidecar"
 APP_DIR="$HERE/clawd-on-desk"
-MODEL_DIR="$HERE/models/minicpm5-0.9b"
+MODELS_DIR="$HERE/models"
 
-cyan() { printf "\033[36m%s\033[0m\n" "$*"; }
-red()  { printf "\033[31m%s\033[0m\n" "$*" >&2; }
-green(){ printf "\033[32m%s\033[0m\n" "$*"; }
-yellow(){ printf "\033[33m%s\033[0m\n" "$*"; }
+cyan()   { printf "\033[36m%s\033[0m\n" "$*"; }
+red()    { printf "\033[31m%s\033[0m\n" "$*" >&2; }
+green()  { printf "\033[32m%s\033[0m\n" "$*"; }
+yellow() { printf "\033[33m%s\033[0m\n" "$*"; }
 
-# fnm-installed node lives outside /usr/local on most setups, so make
-# sure we can see it on every script run (idempotent no-op if missing).
+# ── fnm-installed node lives outside /usr/local on most setups, so make
+#    sure we can see it on every script run (idempotent no-op if missing).
 load_fnm_env() {
   local fnm_dir="${FNM_DIR:-$HOME/.local/share/fnm}"
   if [[ -x "$fnm_dir/fnm" ]]; then
@@ -31,13 +44,8 @@ load_fnm_env() {
   fi
 }
 
-# Auto-install Node 18+ when missing or too old.
-# Strategy:
-#   1. Try Homebrew (fastest, standard on macOS dev machines)
-#   2. Fall back to fnm — single static binary, no sudo, no shell rc edits
 ensure_node() {
   load_fnm_env
-
   if command -v node >/dev/null 2>&1; then
     local ver
     ver=$(node -v | sed 's/^v\([0-9]*\).*/\1/')
@@ -50,7 +58,6 @@ ensure_node() {
     yellow "    Node 未安装,自动装一个..."
   fi
 
-  # Path A: Homebrew if present (clean, system-wide)
   if command -v brew >/dev/null 2>&1; then
     cyan "    使用 Homebrew 安装 Node 22 (LTS)..."
     if brew install node@22; then
@@ -63,7 +70,6 @@ ensure_node() {
     yellow "    Homebrew 安装失败,改用 fnm..."
   fi
 
-  # Path B: fnm (no sudo, no brew needed, no shell rc pollution)
   if ! command -v fnm >/dev/null 2>&1; then
     cyan "    安装 fnm (Node 版本管理器,无 sudo)..."
     curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
@@ -74,11 +80,11 @@ ensure_node() {
     exit 1
   fi
 
-  cyan "    fnm install 22 (这会下载 ~30MB 的 Node 22)..."
+  cyan "    fnm install 22..."
   fnm install 22
   fnm use 22
   fnm default 22 || true
-  load_fnm_env  # re-eval so PATH includes the new node version
+  load_fnm_env
 
   if ! command -v node >/dev/null 2>&1; then
     red "Node 安装后仍找不到。检查 ~/.local/share/fnm/ 或重启终端再试。"
@@ -87,78 +93,95 @@ ensure_node() {
   green "    ✓ Node $(node -v) (fnm)"
 }
 
+ensure_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    green "    ✓ uv $(uv --version)"
+    return 0
+  fi
+  if [[ -x "$HOME/.local/bin/uv" ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+    green "    ✓ uv $(uv --version) (~/.local/bin)"
+    return 0
+  fi
+  yellow "    uv 未安装,自动安装..."
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  export PATH="$HOME/.local/bin:$PATH"
+  if ! command -v uv >/dev/null 2>&1; then
+    red "uv 自动安装失败。请手动安装: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    exit 1
+  fi
+  green "    ✓ uv $(uv --version) (新装)"
+}
+
+ensure_cmake() {
+  if command -v cmake >/dev/null 2>&1; then
+    green "    ✓ cmake $(cmake --version | head -1 | sed 's/cmake version //')"
+    return 0
+  fi
+  yellow "    cmake 未安装,自动安装..."
+  if command -v brew >/dev/null 2>&1; then
+    brew install cmake
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update -y && sudo apt-get install -y cmake
+  else
+    red "无法自动装 cmake。请手动安装：https://cmake.org/download/"
+    exit 1
+  fi
+  green "    ✓ cmake $(cmake --version | head -1 | sed 's/cmake version //')"
+}
+
 check_environment() {
   cyan "==> 检查环境..."
 
-  # 1. macOS check
-  if [[ "$(uname)" != "Darwin" ]]; then
-    yellow "    目前只在 macOS (Apple Silicon) 上验证过,其它平台请自行确认。"
-  else
-    green "    ✓ macOS"
+  if [[ "$(uname)" != "Darwin" && "$(uname)" != "Linux" ]]; then
+    yellow "    Windows 用户请用 PowerShell：scripts\\go.ps1 (后续提供)"
   fi
 
-  # 2. Node.js (auto-install if missing)
   ensure_node
+  ensure_uv
+  ensure_cmake
 
-  # 3. uv (auto-install if missing)
-  if ! command -v uv >/dev/null 2>&1; then
-    # 检查 ~/.local/bin (uv 默认安装位置,可能没在 PATH)
-    if [[ -x "$HOME/.local/bin/uv" ]]; then
-      export PATH="$HOME/.local/bin:$PATH"
-      green "    ✓ uv $(uv --version) (~/.local/bin)"
-    else
-      yellow "    uv 未安装,正在自动安装..."
-      curl -LsSf https://astral.sh/uv/install.sh | sh
-      export PATH="$HOME/.local/bin:$PATH"
-      if ! command -v uv >/dev/null 2>&1; then
-        red "uv 自动安装失败。请手动安装: curl -LsSf https://astral.sh/uv/install.sh | sh"
-        exit 1
-      fi
-      green "    ✓ uv $(uv --version) (新装)"
-    fi
-  else
-    green "    ✓ uv $(uv --version)"
-  fi
-
-  # 4. Bridge dir (uv version)
-  if [[ ! -f "$BRIDGE_DIR/pyproject.toml" ]]; then
-    red "找不到 $BRIDGE_DIR/pyproject.toml,你是不是没解压完整?"
+  if [[ ! -f "$SIDECAR_DIR/pyproject.toml" ]]; then
+    red "找不到 $SIDECAR_DIR/pyproject.toml,你是不是没解压完整?"
     exit 1
   fi
-  green "    ✓ minicpm-pet-bridge-uv/"
+  green "    ✓ minicpm-sidecar/"
 
-  # 5. App dir
   if [[ ! -f "$APP_DIR/package.json" ]]; then
     red "找不到 $APP_DIR/package.json"
     exit 1
   fi
   green "    ✓ clawd-on-desk/"
+}
 
-  # 6. Model
-  if [[ ! -f "$MODEL_DIR/config.json" ]]; then
-    red ""
-    red "找不到 base 模型: $MODEL_DIR/config.json"
-    red ""
-    red "解决方法 (任选其一):"
-    red "  1. 从老 v0.1 安装目录拷贝整个 models/minicpm5-0.9b/ 过来"
-    red "  2. 从 Hugging Face 下载:"
-    red "       cd $HERE && \\"
-    red "       hf download openbmb/MiniCPM5-0.9B --local-dir models/minicpm5-0.9b"
-    red ""
-    exit 1
+ensure_llama_server() {
+  cyan "==> 检查 llama-server..."
+  local triple
+  case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)  triple="mac-arm64" ;;
+    Darwin-x86_64) triple="mac-x64" ;;
+    Linux-x86_64)  triple="linux-x64" ;;
+    Linux-aarch64) triple="linux-arm64" ;;
+    *)             triple="unknown" ;;
+  esac
+  local bin="$SIDECAR_DIR/bin/$triple/llama-server"
+  if [[ -x "$bin" ]]; then
+    green "    ✓ llama-server 已存在 ($bin)"
+    return 0
   fi
-  green "    ✓ models/minicpm5-0.9b/"
+  cyan "    首次构建 llama-server（这要 ~5-10 分钟，下载 + 编译 llama.cpp）..."
+  ( cd "$SIDECAR_DIR" && ./scripts/clone-llama.sh && ./scripts/build-llama.sh )
+  green "    ✓ llama-server 已就绪"
 }
 
 install_python_deps() {
-  cyan "==> Python 依赖 (uv sync)..."
-  if [[ -d "$BRIDGE_DIR/.venv" && -f "$BRIDGE_DIR/.venv/bin/python" ]]; then
-    # uv sync 是 idempotent 的,但跳过这一步能省 ~1s 启动开销
+  cyan "==> Gateway 依赖 (uv sync)..."
+  if [[ -d "$SIDECAR_DIR/.venv" && -f "$SIDECAR_DIR/.venv/bin/python" ]]; then
     green "    ✓ .venv 已存在,跳过 sync (跑 ./go.sh setup --force-sync 强制重装)"
   else
-    cyan "    首次安装,这要 ~1-3 分钟 (下载 torch + transformers)..."
-    ( cd "$BRIDGE_DIR" && uv sync )
-    green "    ✓ Python deps installed"
+    cyan "    首次安装,只需几十 MB（fastapi + uvicorn + httpx + huggingface_hub）..."
+    ( cd "$SIDECAR_DIR" && uv sync )
+    green "    ✓ Gateway deps installed"
   fi
 }
 
@@ -174,17 +197,23 @@ install_npm_deps() {
 
 start_pet() {
   cyan "==> 启动桌宠..."
-  # Make sure node + npm are on PATH (fnm-installed node needs explicit
-  # env injection per shell). No-op if node was installed via brew.
   load_fnm_env
   if ! command -v node >/dev/null 2>&1; then
     red "Node 不在 PATH 中。先跑一次 ./go.sh setup,或重启终端。"
     exit 1
   fi
-  export MINICPM_BRIDGE_DIR="$BRIDGE_DIR"
-  export MINICPM_PYTHON="$BRIDGE_DIR/.venv/bin/python"
-  green "    MINICPM_BRIDGE_DIR=$MINICPM_BRIDGE_DIR"
+  # Hint the Electron host where to find the sidecar source and Python.
+  export MINICPM_SIDECAR_DIR="$SIDECAR_DIR"
+  export MINICPM_PYTHON="$SIDECAR_DIR/.venv/bin/python"
+  # If the dev hasn't dropped a .gguf into <repo>/models/ yet, the sidecar
+  # boots in "waiting for model" mode and Onboarding will offer to
+  # download one.
+  if [[ -d "$MODELS_DIR" ]]; then
+    export MINICPM_MODEL_DIR="$MODELS_DIR"
+  fi
+  green "    MINICPM_SIDECAR_DIR=$MINICPM_SIDECAR_DIR"
   green "    MINICPM_PYTHON=$MINICPM_PYTHON"
+  [[ -n "${MINICPM_MODEL_DIR:-}" ]] && green "    MINICPM_MODEL_DIR=$MINICPM_MODEL_DIR"
   echo
   green "桌宠启动中... 关闭终端 (Ctrl+C) 即停止。"
   cd "$APP_DIR" && exec npm start
@@ -199,6 +228,7 @@ case "$cmd" in
     ;;
   setup)
     check_environment
+    ensure_llama_server
     install_python_deps
     install_npm_deps
     green ""
@@ -207,15 +237,33 @@ case "$cmd" in
   start)
     start_pet
     ;;
+  build-llama)
+    check_environment
+    ( cd "$SIDECAR_DIR" && ./scripts/clone-llama.sh && ./scripts/build-llama.sh )
+    ;;
   run|"")
     check_environment
+    ensure_llama_server
     install_python_deps
     install_npm_deps
     start_pet
     ;;
+  build)
+    # 一站式：vendor 编 llama-server + PyInstaller 编 gateway →
+    # electron-builder 出 dmg。输出位于 clawd-on-desk/dist/*.dmg。
+    check_environment
+    ensure_llama_server
+    install_python_deps
+    install_npm_deps
+    cyan "==> 编 gateway + 准备 sidecar-bin..."
+    ( cd "$SIDECAR_DIR" && ./scripts/build-all.sh )
+    cyan "==> 打包 Electron 应用 (electron-builder)..."
+    cd "$APP_DIR" && npx electron-builder --mac --arm64 -c.mac.target=dmg
+    green "==> 完成。dmg 位于 $APP_DIR/dist/"
+    ;;
   *)
     red "未知命令: $cmd"
-    red "用法: ./go.sh [doctor|setup|start|run]"
+    red "用法: ./go.sh [doctor|setup|start|run|build|build-llama]"
     exit 1
     ;;
 esac

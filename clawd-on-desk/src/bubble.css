@@ -321,7 +321,7 @@ body { padding: 6px; }
 
 .option-item input {
   margin-top: 2px;
-  accent-color: #d97757;
+  accent-color: #373ED8;
 }
 
 .option-item-copy {
@@ -365,7 +365,7 @@ body { padding: 6px; }
 }
 .option-item-textarea.visible { display: block; }
 .option-item-textarea:focus {
-  border-color: #d97757;
+  border-color: #373ED8;
 }
 
 /* ── Action buttons ── */
@@ -389,12 +389,12 @@ body { padding: 6px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-allow {
-  background: #d97757;
+  background: #373ED8;
   color: #fff;
   border: 1px solid transparent;
 }
 .btn-allow:hover:not(:disabled) {
-  background: #c4684a;
+  background: #2D34C4;
 }
 
 .btn-deny {

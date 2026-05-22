@@ -1,6 +1,12 @@
 "use strict";
 
 (function initSettingsTabAnimMap(root) {
+  // Renderer context (nodeIntegration: false) — read the shared constant
+  // from the global exposed by default-theme.js, which is loaded earlier
+  // in settings.html. Keep a literal fallback so unit tests that eval
+  // this file in isolation still work.
+  const { DEFAULT_THEME_ID } = (typeof globalThis !== "undefined" && globalThis.ClawdDefaultTheme)
+    || { DEFAULT_THEME_ID: "calico" };
   const ANIM_MAP_ROWS = [
     { stateKey: "error", labelKey: "animMapErrorLabel", descKey: "animMapErrorDesc" },
     { stateKey: "notification", labelKey: "animMapNotificationLabel", descKey: "animMapNotificationDesc" },
@@ -89,7 +95,7 @@
     note.textContent = t("animMapSemanticsNote");
     parent.appendChild(note);
 
-    const themeId = (state.snapshot && state.snapshot.theme) || "clawd";
+    const themeId = (state.snapshot && state.snapshot.theme) || DEFAULT_THEME_ID;
     const rows = ANIM_MAP_ROWS.map((spec) => buildAnimMapRow(spec, themeId));
     parent.appendChild(helpers.buildSection("", rows));
 

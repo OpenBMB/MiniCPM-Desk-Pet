@@ -10,16 +10,25 @@
 // the renderer keeps the in-memory conversation history across opens.
 //
 // Layout assumption:
-//   <repo-root>/clawd-on-desk      ← this Electron app
-//   <repo-root>/minicpm-pet-bridge ← Python server.py
-//   <repo-root>/models/<name>/     ← HuggingFace model dirs
+//   <repo-root>/clawd-on-desk        ← this Electron app
+//   <repo-root>/minicpm-sidecar      ← llama.cpp-backed sidecar
+//                                       (gateway/ FastAPI + llama-server)
+//   <userData>/models/*.gguf         ← GGUF weights downloaded by Onboarding
 //
 // Override locations via env:
-//   MINICPM_BRIDGE_DIR / MINICPM_PYTHON / MINICPM_CONDA_ENV
+//   MINICPM_SIDECAR_BIN  — point at a prebuilt gateway binary
+//   MINICPM_SIDECAR_DIR  — point at the minicpm-sidecar source tree (dev)
+//   MINICPM_PYTHON       — explicit Python interpreter (dev fallback)
 //
+// Historical note: this used to spawn a PyTorch sidecar via conda / uv.
+// That stack was retired in v0.8 in favour of llama.cpp; the new sidecar
+// has no torch / transformers / peft dependency and ships as a single
+// binary per platform alongside llama-server.
 
 const { BrowserWindow, ipcMain, screen, shell, Menu, app } = require("electron");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
+const { promisify } = require("util");
+const execFileAsync = promisify(execFile);
 const fs = require("fs");
 const http = require("http");
 const os = require("os");
@@ -31,7 +40,11 @@ const isLinux = process.platform === "linux";
 const WIN_TOPMOST_LEVEL = "pop-up-menu";
 const LINUX_WINDOW_TYPE = "splash";
 
-const DEFAULT_PORT = 8765;
+// Port chosen to dodge common collisions on dev machines: 8765 is used
+// by Apache CouchDB tests, Bitcoin Cash testnet, and a few other tools.
+// 18765 ("1" prefix on the old default) is unassigned by IANA and easy
+// to remember. Override via MINICPM_PORT env if you need something else.
+const DEFAULT_PORT = 18765;
 const DEFAULT_HOST = "127.0.0.1";
 const BUBBLE_GAP = 8;   // pixels between visible pet sprite and bubble
 const EDGE_MARGIN = 8;
@@ -43,40 +56,194 @@ const SPEAK_MAX_HEIGHT = 360;
 const MIN_WIDTH = 100;
 const MIN_HEIGHT = 40;
 
-// ── locate the Python bridge dir / Python interpreter ───────────────────────
+// ── locate sidecar binary / dev sources / Python interpreter ───────────────
+//
+// Two runtime modes, in priority order:
+//   A. Packaged app   → bundled binary at <resourcesPath>/sidecar-bin/
+//                         minicpm-sidecar(.exe)   ← PyInstaller gateway
+//                         llama-server(.exe)      ← llama.cpp build product
+//                       (the only path real users ever hit)
+//   B. Dev with venv  → minicpm-sidecar/.venv/bin/python -m gateway
+//                       (created by `uv sync` inside minicpm-sidecar/)
+//
+// MINICPM_SIDECAR_BIN / MINICPM_SIDECAR_DIR / MINICPM_PYTHON env vars
+// override every mode for local debugging.
 
-function locateBridgeDir(appRoot) {
-  const candidates = [
-    process.env.MINICPM_BRIDGE_DIR,
-    path.join(appRoot, "..", "minicpm-pet-bridge"),
-    path.join(os.homedir(), "Downloads", "Minicpm", "minicpm-pet-bridge"),
-  ].filter(Boolean);
+function locateSidecarBinary(appRoot) {
+  const override = process.env.MINICPM_SIDECAR_BIN;
+  if (override && fs.existsSync(override)) return path.resolve(override);
+  const ext = process.platform === "win32" ? ".exe" : "";
+  if (app && app.isPackaged) {
+    // electron-builder puts the binary under
+    //   <Contents>/Resources/sidecar-bin/         (macOS .app bundle)
+    //   <install>/resources/sidecar-bin/          (Windows / Linux)
+    const candidates = [
+      path.join(process.resourcesPath, "sidecar-bin", "minicpm-sidecar" + ext),
+      path.join(process.resourcesPath, "sidecar-bin", "minicpm-sidecar", "minicpm-sidecar" + ext),
+    ];
+    for (const c of candidates) {
+      try { if (fs.statSync(c).isFile()) return c; } catch {}
+    }
+  }
+  // Dev convenience: scripts/build-gateway.sh emits binaries under
+  //   <repo>/minicpm-sidecar/bin/<os>-<arch>/minicpm-sidecar
+  // so devs can dogfood the production codepath without rebuilding
+  // electron-builder every time.
+  const triple = triplet();
+  const devBin = path.join(appRoot, "..", "minicpm-sidecar", "bin", triple, "minicpm-sidecar" + ext);
+  try { if (fs.statSync(devBin).isFile()) return devBin; } catch {}
+  return null;
+}
+
+function locateSidecarSourceDir(appRoot) {
+  const override = process.env.MINICPM_SIDECAR_DIR;
+  if (override) {
+    try {
+      if (fs.statSync(path.join(override, "gateway", "__main__.py")).isFile()) {
+        return path.resolve(override);
+      }
+    } catch {}
+  }
+  const candidates = [];
+  if (app && app.isPackaged) {
+    // Packaged builds ship the source next to the binary so a dev
+    // override at MINICPM_PYTHON still has somewhere to point at.
+    candidates.push(path.join(process.resourcesPath, "minicpm-sidecar"));
+  }
+  candidates.push(path.join(appRoot, "..", "minicpm-sidecar"));
   for (const c of candidates) {
     try {
-      if (fs.statSync(path.join(c, "server.py")).isFile()) return path.resolve(c);
+      if (fs.statSync(path.join(c, "gateway", "__main__.py")).isFile()) {
+        return path.resolve(c);
+      }
     } catch {}
   }
   return null;
 }
 
-function locatePython() {
+function locatePython(sidecarDir) {
+  // 1. Explicit override always wins.
   const explicit = process.env.MINICPM_PYTHON;
-  if (explicit && fs.existsSync(explicit)) return { python: explicit, viaShell: false };
+  if (explicit && fs.existsSync(explicit)) return explicit;
 
-  const envName = process.env.MINICPM_CONDA_ENV || "minicpm-pet";
-  const condaCandidates = [
-    path.join(os.homedir(), "miniconda3", "envs", envName, "bin", "python"),
-    path.join(os.homedir(), "anaconda3", "envs", envName, "bin", "python"),
-    path.join("/opt", "miniconda3", "envs", envName, "bin", "python"),
-    path.join("/opt", "anaconda3", "envs", envName, "bin", "python"),
-    path.join("/opt", "homebrew", "Caskroom", "miniconda", "base", "envs", envName, "bin", "python"),
+  if (!sidecarDir) return null;
+  const venvCandidates = [
+    path.join(sidecarDir, ".venv", "bin", "python"),
+    path.join(sidecarDir, ".venv", "bin", "python3"),
+    path.join(sidecarDir, ".venv", "Scripts", "python.exe"),
   ];
-  for (const p of condaCandidates) {
-    try {
-      if (fs.statSync(p).isFile()) return { python: p, viaShell: false };
-    } catch {}
+  for (const p of venvCandidates) {
+    try { if (fs.statSync(p).isFile()) return p; } catch {}
   }
-  return { python: null, viaShell: true, condaEnv: envName };
+  return null;
+}
+
+function triplet() {
+  // Matches electron-builder's `${os}-${arch}` expansion so extraResources
+  // paths and our dev bin/<triple>/ layout line up.
+  const arch = process.arch === "arm64" ? "arm64" : process.arch === "x64" ? "x64" : process.arch;
+  if (process.platform === "darwin") return "mac-"   + arch;
+  if (process.platform === "win32")  return "win-"   + arch;
+  if (process.platform === "linux")  return "linux-" + arch;
+  return process.platform + "-" + arch;
+}
+
+// ── Adapter manifest pure helpers ──────────────────────────────────────
+//
+// These work on plain JS objects with no IO so they're easy to unit-test
+// without mocking Electron's `app`. The closure-level wrappers inside
+// `initMinicpmChat` do the actual fs reads / writes and call into here.
+
+function parseManifestJson(text) {
+  try {
+    const raw = JSON.parse(text);
+    if (!raw || typeof raw !== "object" || !Array.isArray(raw.items)) {
+      return { version: 1, items: [] };
+    }
+    return {
+      version: Number(raw.version) || 1,
+      items: raw.items.filter((it) => it && typeof it === "object"),
+    };
+  } catch {
+    return { version: 1, items: [] };
+  }
+}
+
+function manifestUpsertItem(items, entry) {
+  if (!entry || !entry.id) return Array.isArray(items) ? items.slice() : [];
+  const out = Array.isArray(items) ? items.slice() : [];
+  const idx = out.findIndex((it) => it && it.id === entry.id);
+  if (idx >= 0) {
+    out[idx] = { ...out[idx], ...entry };
+  } else {
+    out.push({ createdAt: new Date().toISOString(), ...entry });
+  }
+  return out;
+}
+
+function manifestRemoveItem(items, id) {
+  const out = Array.isArray(items) ? items.filter((it) => it && it.id !== id) : [];
+  return out;
+}
+
+// Recursive copy of bundled LoRA adapters from `srcDir` (where
+// electron-builder dropped them via extraResources) into `dstDir`
+// (the user-writable `<userData>/adapters/` we point the gateway at).
+//
+// Idempotent: skips any file that already exists at the destination so
+// user deletions stick across app restarts. Only copies the file kinds
+// the gateway and Settings UI care about (`.gguf` weights + README /
+// adapter_config metadata), to keep the user dir tidy.
+//
+// Returns `{ copied, skipped, errors }` for log + test introspection.
+// Failures on individual files don't abort the walk — we want best
+// effort, the worst case is the user just doesn't see the default
+// nekoqa preset and has to drop the .gguf in by hand.
+function seedAdaptersFromBundle(srcDir, dstDir, fsImpl = fs, log = () => {}) {
+  const result = { copied: [], skipped: [], errors: [] };
+  if (!srcDir) return result;
+  try { fsImpl.mkdirSync(dstDir, { recursive: true }); } catch {}
+
+  function walk(curSrc, curDst) {
+    let entries;
+    try { entries = fsImpl.readdirSync(curSrc, { withFileTypes: true }); }
+    catch { return; }
+    for (const entry of entries) {
+      const s = path.join(curSrc, entry.name);
+      const d = path.join(curDst, entry.name);
+      if (entry.isDirectory()) {
+        try { fsImpl.mkdirSync(d, { recursive: true }); } catch {}
+        walk(s, d);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const lower = entry.name.toLowerCase();
+      const isAllowed =
+        lower.endsWith(".gguf") ||
+        lower.endsWith(".md") ||
+        lower === "adapter_config.json";
+      if (!isAllowed) continue;
+      try {
+        if (fsImpl.existsSync(d)) {
+          result.skipped.push(d);
+          continue;
+        }
+        fsImpl.copyFileSync(s, d);
+        result.copied.push(d);
+      } catch (err) {
+        const msg = err && err.message ? err.message : String(err);
+        log(`[minicpm] adapter seed copy failed: ${entry.name} -> ${msg}`);
+        result.errors.push({ path: d, error: msg });
+      }
+    }
+  }
+  try { walk(srcDir, dstDir); }
+  catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    log(`[minicpm] seedAdaptersFromBundle walk failed: ${msg}`);
+    result.errors.push({ path: dstDir, error: msg });
+  }
+  return result;
 }
 
 // ── HTTP probe helpers ──────────────────────────────────────────────────────
@@ -114,14 +281,86 @@ function httpJson(method, urlStr, body, timeoutMs = 4000) {
 // ── Sidecar manager ─────────────────────────────────────────────────────────
 
 class Sidecar {
-  constructor({ bridgeDir, port, host, log }) {
-    this.bridgeDir = bridgeDir;
+  constructor({ sidecarDir, sidecarBin, appRoot, port, host, log, logFile, adapterDir }) {
+    // Source tree of minicpm-sidecar; used only in dev when no prebuilt
+    // binary is present. Packaged builds ignore it entirely.
+    this.sidecarDir = sidecarDir || null;
+    // Optional prebuilt gateway binary. When set we skip Python lookup.
+    // Populated in packaged builds via electron-builder extraResources →
+    // resources/sidecar-bin/minicpm-sidecar[.exe].
+    this.sidecarBin = sidecarBin || null;
+    this.appRoot = appRoot || null;
     this.port = port;
     this.host = host;
     this.log = log || (() => {});
     this.proc = null;
     this.starting = null;
     this.stderrTail = [];
+    // Where the gateway should scan for *.gguf LoRA adapters. We pass
+    // it via MINICPM_ADAPTER_DIR env at spawn time so /api/adapters and
+    // /api/load-adapter see the same directory Settings → "open adapter
+    // folder" exposes to the user.
+    this.adapterDir = adapterDir || null;
+    // Mutable: which LoRA (if any) the user wants loaded at this
+    // sidecar's startup. We re-read prefs each respawn so a swap done
+    // via Settings persists across an explicit "Restart Sidecar".
+    this.activeAdapterPath = null;
+    // Append-mode file stream where every stdout / stderr line from the
+    // sidecar gets persisted to <userData>/logs/sidecar.log. Critical
+    // for packaged builds where console.log goes nowhere.
+    this.logFile = logFile || null;
+    this._fileStream = null;
+    this._fileSizeBudget = 2 * 1024 * 1024; // 2 MB before rotate
+    this._fileBytesWritten = 0;
+  }
+
+  _openLogStream() {
+    if (!this.logFile) return null;
+    if (this._fileStream) return this._fileStream;
+    try {
+      fs.mkdirSync(path.dirname(this.logFile), { recursive: true });
+      // Pre-rotate if the existing file is already over budget so we
+      // start clean each app launch (or restart of the sidecar).
+      try {
+        const st = fs.statSync(this.logFile);
+        if (st.size > this._fileSizeBudget) {
+          fs.renameSync(this.logFile, this.logFile + ".1");
+        }
+      } catch {}
+      this._fileStream = fs.createWriteStream(this.logFile, { flags: "a" });
+      this._fileBytesWritten = 0;
+      const ts = new Date().toISOString();
+      this._fileStream.write(`\n===== sidecar session ${ts} (host=${this.host} port=${this.port}) =====\n`);
+    } catch (err) {
+      this.log(`[minicpm-chat] open log file failed: ${err && err.message}`);
+    }
+    return this._fileStream;
+  }
+
+  _appendLog(line) {
+    const stream = this._openLogStream();
+    if (!stream) return;
+    try {
+      const chunk = line.endsWith("\n") ? line : line + "\n";
+      stream.write(chunk);
+      this._fileBytesWritten += Buffer.byteLength(chunk);
+      // Soft rotate: when the stream grows past budget, roll over once.
+      // We do this lazily so we don't fsync on every line.
+      if (this._fileBytesWritten > this._fileSizeBudget) {
+        try {
+          stream.end();
+          fs.renameSync(this.logFile, this.logFile + ".1");
+        } catch {}
+        this._fileStream = null;
+        this._fileBytesWritten = 0;
+      }
+    } catch {}
+  }
+
+  // Pull last N stderr chunks (raw) for inclusion in error toasts /
+  // crash dumps.
+  _stderrTailString(maxChars = 1500) {
+    return (this.stderrTail.join("").trim().slice(-maxChars)) || "(no stderr)";
   }
 
   baseUrl() { return `http://${this.host}:${this.port}`; }
@@ -166,82 +405,127 @@ class Sidecar {
   }
 
   async _spawnAndWait(initialModelDir) {
-    if (!this.bridgeDir) {
-      throw new Error("找不到 minicpm-pet-bridge 目录。请设置 MINICPM_BRIDGE_DIR 环境变量。");
+    // We need either the prebuilt gateway binary or the source tree
+    // (with a Python venv) to spawn.
+    if (!this.sidecarBin && !this.sidecarDir) {
+      throw new Error(
+        "找不到 sidecar。打包模式下应内置 sidecar-bin/，开发模式请 cd minicpm-sidecar && uv sync。"
+      );
     }
 
-    const { python, viaShell, condaEnv } = locatePython();
-    // NOTE: no --no-pet — we *want* the Python server to push states to the
-    // local clawd-on-desk HTTP endpoint (port 23333) so the pet animates
-    // along with the conversation.
-    const args = [
-      "server.py",
+    // Both the binary and `python -m gateway` accept the same flags;
+    // we treat them uniformly here.
+    const argsCommon = [
       "--host", this.host,
       "--port", String(this.port),
     ];
-    if (initialModelDir) args.push("--model", initialModelDir);
+    if (initialModelDir) argsCommon.push("--model", initialModelDir);
 
     const env = {
       ...process.env,
       PYTHONUNBUFFERED: "1",
+      // Mirror our sidecar.log directory into the gateway so its
+      // RotatingFileHandler drops sidecar-internal.log next to what
+      // Electron captures — easy to grab via Settings → "打开日志目录".
+      MINICPM_LOG_DIR: this.logFile ? path.dirname(this.logFile) : (process.env.MINICPM_LOG_DIR || ""),
+      // Point gateway at the writable user adapter dir so /api/adapters
+      // and /api/load-adapter see exactly what Settings UI shows.
+      MINICPM_ADAPTER_DIR: this.adapterDir || process.env.MINICPM_ADAPTER_DIR || "",
+      // Boot directly into the user's persisted LoRA choice. Empty
+      // string (or unset) means "boot Base, no LoRA loaded" — the
+      // gateway then refrains from passing any --lora flag, keeping
+      // memory minimal for users who never opt in to a persona.
+      MINICPM_ACTIVE_ADAPTER: this.activeAdapterPath || process.env.MINICPM_ACTIVE_ADAPTER || "",
     };
-    // Auto-discover a LoRA adapter if the user hasn't explicitly set one.
-    // We look at <repo-root>/adapters/ for any directory containing an
-    // adapter_config.json. Convention: that dir's name is exposed via
-    // MINICPM_ADAPTER and used by the sidecar.
-    if (!env.MINICPM_ADAPTER) {
-      try {
-        const adaptersRoot = path.resolve(this.bridgeDir, "..", "adapters");
-        const stat = fs.statSync(adaptersRoot);
-        if (stat.isDirectory()) {
-          for (const name of fs.readdirSync(adaptersRoot)) {
-            const cand = path.join(adaptersRoot, name);
-            if (fs.existsSync(path.join(cand, "adapter_config.json"))) {
-              env.MINICPM_ADAPTER = cand;
-              this.log(`[minicpm-chat] auto-detected LoRA adapter: ${cand}`);
-              break;
-            }
-          }
-        }
-      } catch {}
-    }
 
     let proc;
-    if (python) {
-      this.log(`[minicpm-chat] spawn ${python} server.py --port ${this.port}`);
-      proc = spawn(python, args, { cwd: this.bridgeDir, env });
-    } else if (viaShell) {
-      const cmd = [
-        `eval "$(conda shell.bash hook)"`,
-        `conda activate ${condaEnv}`,
-        `exec python ${args.map((a) => `'${a.replace(/'/g, "'\\''")}'`).join(" ")}`,
-      ].join(" && ");
-      this.log(`[minicpm-chat] spawn via shell (conda env: ${condaEnv})`);
-      proc = spawn("/bin/bash", ["-lc", cmd], { cwd: this.bridgeDir, env });
+    if (this.sidecarBin) {
+      // Production path: a self-contained gateway binary. No Python
+      // interpreter required on the host. The gateway itself locates
+      // and spawns the llama-server binary sitting next to it.
+      this.log(`[minicpm-chat] spawn binary ${this.sidecarBin} --port ${this.port}`);
+      proc = spawn(this.sidecarBin, argsCommon, {
+        cwd: path.dirname(this.sidecarBin),
+        env,
+      });
     } else {
-      throw new Error("找不到 Python 解释器。请先 `conda create -n minicpm-pet python=3.11` 并 pip install requirements.txt。");
+      const python = locatePython(this.sidecarDir);
+      if (!python) {
+        throw new Error(
+          "找不到 Python 解释器。请安装应用打包版（推荐），或 cd minicpm-sidecar && uv sync。"
+        );
+      }
+      this.log(`[minicpm-chat] spawn ${python} -m gateway --port ${this.port}`);
+      proc = spawn(python, ["-m", "gateway", ...argsCommon], {
+        cwd: this.sidecarDir,
+        env,
+      });
     }
 
     this.proc = proc;
     this.stderrTail.length = 0;
 
-    proc.stdout.on("data", (b) => this.log(`[sidecar] ${b.toString().trimEnd()}`));
+    // Make sure the log file is open for the new session.
+    this._openLogStream();
+    this._appendLog(`[spawn] ${this.sidecarBin || "python"} (pid=${proc.pid})`);
+
+    proc.stdout.on("data", (b) => {
+      const s = b.toString();
+      this.log(`[sidecar] ${s.trimEnd()}`);
+      this._appendLog(`[stdout] ${s.trimEnd()}`);
+    });
     proc.stderr.on("data", (b) => {
       const s = b.toString();
       this.log(`[sidecar! ] ${s.trimEnd()}`);
+      this._appendLog(`[stderr] ${s.trimEnd()}`);
       this.stderrTail.push(s);
       if (this.stderrTail.length > 40) this.stderrTail.shift();
     });
     proc.on("exit", (code, signal) => {
       this.log(`[minicpm-chat] sidecar exited code=${code} signal=${signal}`);
+      this._appendLog(`[exit] code=${code} signal=${signal}`);
+      // If the process died with a non-zero exit (and wasn't a clean
+      // SIGTERM from our own stop()), archive the recent stderr tail as
+      // a standalone crash dump so we can investigate after restart.
+      const crashed = (typeof code === "number" && code !== 0) ||
+                       (signal && signal !== "SIGTERM");
+      if (crashed && this.logFile) {
+        try {
+          const dir = path.dirname(this.logFile);
+          const ts = new Date().toISOString().replace(/[:.]/g, "-");
+          const dump = path.join(dir, `sidecar-crash-${ts}.log`);
+          const header =
+            `# sidecar crash dump\n` +
+            `# at:    ${new Date().toISOString()}\n` +
+            `# code:  ${code}\n` +
+            `# sig:   ${signal}\n` +
+            `# pid:   ${proc.pid}\n` +
+            `# bin:   ${this.sidecarBin || "python"}\n` +
+            `# port:  ${this.port}\n` +
+            `\n----- stderr tail -----\n`;
+          fs.writeFileSync(dump, header + this._stderrTailString(8000), "utf-8");
+          // Prune to the 5 most recent crash dumps.
+          try {
+            const files = fs.readdirSync(dir)
+              .filter((f) => f.startsWith("sidecar-crash-"))
+              .sort()
+              .reverse();
+            for (const old of files.slice(5)) {
+              try { fs.unlinkSync(path.join(dir, old)); } catch {}
+            }
+          } catch {}
+          this.log(`[minicpm-chat] crash dump → ${dump}`);
+        } catch (err) {
+          this.log(`[minicpm-chat] failed to write crash dump: ${err && err.message}`);
+        }
+      }
       if (this.proc === proc) this.proc = null;
     });
 
     const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       if (!this.proc) {
-        const tail = this.stderrTail.join("").trim().slice(-1500) || "(no stderr)";
-        throw new Error(`Python 进程提前退出。stderr 末尾：\n${tail}`);
+        throw new Error(`Python 进程提前退出。stderr 末尾：\n${this._stderrTailString(1500)}`);
       }
       if (await this.isHealthy()) return { status: "started" };
       await new Promise((r) => setTimeout(r, 500));
@@ -326,12 +610,373 @@ function computeBubbleBoundsForSide(side, petBounds, workArea, width, height, op
 
 module.exports = function initMinicpmChat(ctx) {
   const appRoot = path.resolve(__dirname, "..");
-  const bridgeDir = locateBridgeDir(appRoot);
+  const sidecarDir = locateSidecarSourceDir(appRoot);
+  const sidecarBin = locateSidecarBinary(appRoot);
   const port = Number(process.env.MINICPM_PORT || DEFAULT_PORT);
   const host = process.env.MINICPM_HOST || DEFAULT_HOST;
   const log = (msg) => { try { console.log(msg); } catch {} };
 
-  const sidecar = new Sidecar({ bridgeDir, port, host, log });
+  if (sidecarBin) log(`[minicpm-chat] using packaged sidecar binary: ${sidecarBin}`);
+
+  // Resolve <userData>/logs/ once so every consumer can point at the
+  // same directory (sidecar stream + crash dumps + Settings "open log
+  // folder" button).
+  function getLogsDir() {
+    try { return path.join(app.getPath("userData"), "logs"); }
+    catch { return path.join(os.tmpdir(), "minicpm-logs"); }
+  }
+  const logsDir = getLogsDir();
+  try { fs.mkdirSync(logsDir, { recursive: true }); } catch {}
+  const sidecarLogPath = path.join(logsDir, "sidecar.log");
+
+  // ── Adapter (LoRA) path resolution ────────────────────────────────────
+  // Same shape as the model paths: <userData>/adapters/ in packaged
+  // mode, <repo>/adapters/ in dev. The sidecar gateway scans this dir
+  // for *.gguf files at boot and exposes them via /api/adapters; the
+  // Settings tab lets the user pick which one is active.
+  //
+  // Bundled defaults live in <resources>/adapters/ (filled by
+  // electron-builder extraResources). On first launch we copy any
+  // *.gguf in there into the user dir so the file is editable by the
+  // user (delete, rename) and visible in Finder via the same "open
+  // adapter folder" shortcut.
+  //
+  // These helpers live here (before `new Sidecar(...)`) because the
+  // seed + dir resolution must happen synchronously at boot, before
+  // anything reads them. `const` has TDZ semantics so moving the
+  // declarations earlier than their callers is mandatory; the model
+  // helpers further down don't have this problem because nothing reads
+  // them until IPC handlers fire.
+  const ADAPTERS_SUBDIR = "adapters";
+  function getDefaultAdapterDir() {
+    if (app && app.isPackaged) {
+      return path.join(getUserDataDir(), ADAPTERS_SUBDIR);
+    }
+    return path.resolve(appRoot, "..", ADAPTERS_SUBDIR);
+  }
+  function getBundledAdapterDir() {
+    // process.resourcesPath only exists in packaged builds; dev builds
+    // already point getDefaultAdapterDir at the repo so no seeding is
+    // needed.
+    try {
+      if (app && app.isPackaged && process.resourcesPath) {
+        return path.join(process.resourcesPath, ADAPTERS_SUBDIR);
+      }
+    } catch {}
+    return null;
+  }
+  // Wrapper around the module-level pure function so we can unit-test
+  // the copy walker without needing to mock Electron's `app` / `process`.
+  function seedBundledAdapters() {
+    const src = getBundledAdapterDir();
+    if (!src) return;
+    const dst = getDefaultAdapterDir();
+    seedAdaptersFromBundle(src, dst, fs, log);
+  }
+  function getEffectiveAdapterDir() {
+    if (process.env.MINICPM_ADAPTER_DIR) return process.env.MINICPM_ADAPTER_DIR;
+    // We're called from two places: the synchronous boot block above
+    // (before PARAMS_PATH has been initialised, so readMinicpmPrefsRaw
+    // would log a noisy TDZ warning) and the Settings IPC handler
+    // (where prefs are fully available). The try/catch lets the boot
+    // case fall through silently without changing the IPC-time
+    // behaviour.
+    let raw = {};
+    try { raw = readMinicpmPrefsRaw(); } catch {}
+    if (typeof raw.adapter_dir === "string" && raw.adapter_dir.trim()) {
+      return raw.adapter_dir.trim();
+    }
+    return getDefaultAdapterDir();
+  }
+
+  // ── Active adapter persistence ────────────────────────────────────────
+  // We persist the user's choice of "currently active LoRA" so the next
+  // sidecar spawn loads it directly via --lora (instead of preloading
+  // every .gguf we find on disk just in case). Storage key is the
+  // manifest entry's stable `id` (e.g. "preset:nekoqa" / "upload:...");
+  // a path lookup at spawn time resolves it against the latest manifest,
+  // so renames / moves don't break the link. `null` (or missing key)
+  // means "start in pure Base mode — no LoRA loaded".
+  function getActiveAdapterId() {
+    let raw = {};
+    try { raw = readMinicpmPrefsRaw(); } catch {}
+    if (typeof raw.active_adapter_id === "string" && raw.active_adapter_id.trim()) {
+      return raw.active_adapter_id.trim();
+    }
+    return null;
+  }
+  function setActiveAdapterId(id) {
+    // null / "" clears the persisted choice → next launch boots Base.
+    const next = (typeof id === "string" && id.trim()) ? id.trim() : null;
+    mergeMinicpmPrefs({ active_adapter_id: next });
+    return next;
+  }
+  function resolveActiveAdapterPath() {
+    const id = getActiveAdapterId();
+    if (!id) return null;
+    const manifest = readAdapterManifest();
+    const entry = (manifest.items || []).find((it) => it && it.id === id);
+    if (!entry || !entry.path) return null;
+    try {
+      if (!fs.existsSync(entry.path)) return null;
+    } catch { return null; }
+    return entry.path;
+  }
+
+  // ── Adapter manifest (display names + aliases) ────────────────────────
+  //
+  // The gateway only knows about physical *.gguf files and a coarse
+  // persona slug derived from filename hints. Everything user-facing —
+  // friendly names like "猫娘 宝宝" and the alias list that powers chat
+  // commands ("切到猫娘") — lives in this manifest, owned by the Electron
+  // main process. Two consumers read it:
+  //
+  //   1. The Settings UI (via IPC) — for rendering chip labels and
+  //      letting users rename / delete / upload entries.
+  //   2. The sidecar (gateway) — we drop a copy as `.manifest.json` in
+  //      the adapter dir so gateway can merge displayName/aliases into
+  //      its `/api/adapters` response, which the chat bubble HTML
+  //      reads directly (the chat web view has no preload bridge).
+  //
+  // Schema is documented in adapters/README.md.
+  const ADAPTER_MANIFEST_FILE = "minicpm-adapters.json";
+  // Mirror file the gateway reads on every /api/adapters call. Lives in
+  // the adapter dir so a single watch / FS lookup is enough; the dot
+  // prefix keeps it out of the *.gguf scan.
+  const ADAPTER_MANIFEST_MIRROR = ".manifest.json";
+
+  // Built-in presets that ship with the app. After the bundled .gguf
+  // files have been copied into <userData>/adapters/ on first launch we
+  // resolve `filenameHint` against the actual on-disk file and write a
+  // manifest entry — so the user sees "猫娘 宝宝" the first time they
+  // open Settings without any extra UI interaction.
+  const DEFAULT_PRESET_ENTRIES = [
+    {
+      id: "preset:nekoqa",
+      displayName: "猫娘",
+      aliases: ["猫娘", "宝宝", "neko"],
+      persona: "neko",
+      filenameHint: "lora_nekoqa",
+    },
+  ];
+
+  function adapterManifestPath() {
+    return path.join(getUserDataDir(), ADAPTER_MANIFEST_FILE);
+  }
+  function emptyManifest() {
+    return { version: 1, items: [] };
+  }
+  function readAdapterManifest() {
+    const p = adapterManifestPath();
+    try {
+      if (!fs.existsSync(p)) return emptyManifest();
+      return parseManifestJson(fs.readFileSync(p, "utf-8"));
+    } catch (err) {
+      log(`[minicpm] adapter manifest read failed: ${err && err.message}`);
+      return emptyManifest();
+    }
+  }
+  function writeAdapterManifest(obj) {
+    const p = adapterManifestPath();
+    try {
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      fs.writeFileSync(p, JSON.stringify(obj || emptyManifest(), null, 2), "utf-8");
+      // Mirror to the adapter dir for the gateway to read. Strip the
+      // `id` field (gateway doesn't need internal identifiers) and
+      // re-key by path so the gateway can resolve in O(1).
+      try {
+        const dir = getEffectiveAdapterDir();
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+          path.join(dir, ADAPTER_MANIFEST_MIRROR),
+          JSON.stringify(obj || emptyManifest(), null, 2),
+          "utf-8",
+        );
+      } catch (mirrorErr) {
+        log(`[minicpm] adapter manifest mirror failed: ${mirrorErr && mirrorErr.message}`);
+      }
+      return true;
+    } catch (err) {
+      log(`[minicpm] adapter manifest write failed: ${err && err.message}`);
+      return false;
+    }
+  }
+  function upsertAdapterEntry(entry) {
+    if (!entry || !entry.id) return null;
+    const manifest = readAdapterManifest();
+    manifest.items = manifestUpsertItem(manifest.items, entry);
+    writeAdapterManifest(manifest);
+    return manifest.items.find((it) => it.id === entry.id) || null;
+  }
+  function removeAdapterEntry(id) {
+    const manifest = readAdapterManifest();
+    const before = manifest.items.length;
+    manifest.items = manifestRemoveItem(manifest.items, id);
+    if (manifest.items.length === before) return false;
+    writeAdapterManifest(manifest);
+    return true;
+  }
+  // Walk the adapter dir for a .gguf whose filename includes `hint`
+  // (case-insensitive). Returns the absolute path, or null. Used by
+  // seedDefaultManifest to bind built-in presets to whichever file
+  // electron-builder actually shipped (filenames carry timestamps so
+  // we can't hardcode them).
+  function findAdapterByHint(dir, hint) {
+    if (!hint) return null;
+    const needle = String(hint).toLowerCase();
+    function walk(cur) {
+      let entries;
+      try { entries = fs.readdirSync(cur, { withFileTypes: true }); }
+      catch { return null; }
+      for (const e of entries) {
+        const p = path.join(cur, e.name);
+        if (e.isDirectory()) {
+          const hit = walk(p);
+          if (hit) return hit;
+          continue;
+        }
+        if (!e.isFile()) continue;
+        const lower = e.name.toLowerCase();
+        if (!lower.endsWith(".gguf")) continue;
+        // Match against both filename and the immediate parent dir name
+        // so a hint like "lora_nekoqa" hits the file even when the
+        // .gguf itself is named generically (adapter_model.f16.gguf).
+        const parent = path.basename(path.dirname(p)).toLowerCase();
+        if (lower.includes(needle) || parent.includes(needle)) return p;
+      }
+      return null;
+    }
+    return walk(dir);
+  }
+  // First-run helper: if the user has no manifest yet, build one from
+  // DEFAULT_PRESET_ENTRIES by resolving each preset's filenameHint
+  // against the adapter dir. Skips presets whose backing .gguf isn't
+  // there (e.g. the user deleted it before first launch).
+  //
+  // Idempotent: only writes when the manifest is missing or empty;
+  // subsequent launches see the user's choices and don't touch them.
+  function seedDefaultManifest() {
+    const existing = readAdapterManifest();
+    if (existing.items && existing.items.length > 0) return;
+    const dir = getEffectiveAdapterDir();
+    const items = [];
+    for (const preset of DEFAULT_PRESET_ENTRIES) {
+      const matched = findAdapterByHint(dir, preset.filenameHint);
+      if (!matched) {
+        log(`[minicpm] preset ${preset.id} has no matching .gguf in ${dir}, skipping seed`);
+        continue;
+      }
+      items.push({
+        id: preset.id,
+        path: matched,
+        displayName: preset.displayName,
+        aliases: Array.isArray(preset.aliases) ? [...preset.aliases] : [],
+        persona: preset.persona || "default",
+        source: "bundled",
+        createdAt: new Date().toISOString(),
+      });
+    }
+    writeAdapterManifest({ version: 1, items });
+  }
+
+  // Repair pass: bundled-preset entries whose `path` no longer exists
+  // (because the user moved their dev checkout, reinstalled the app
+  // under a different userData, etc.) get re-bound to whatever .gguf
+  // their `filenameHint` resolves to in the current adapter dir. User-
+  // upload entries are NEVER auto-repaired — they're surfaced as
+  // `missing: true` in the UI so the user can decide what to do.
+  function repairBundledManifestPaths() {
+    const manifest = readAdapterManifest();
+    if (!manifest.items || manifest.items.length === 0) return;
+    const dir = path.resolve(getEffectiveAdapterDir());
+    let dirty = false;
+    for (const entry of manifest.items) {
+      if (!entry || entry.source !== "bundled") continue;
+      let needsRepair = true;
+      try {
+        if (entry.path && fs.existsSync(entry.path)) {
+          // Existence alone isn't enough: when the user switches between
+          // dev (`<repo>/adapters/`) and packaged (`<userData>/adapters/`),
+          // the previous run's path may still resolve on disk while the
+          // gateway scans a different dir. Only treat the entry as
+          // healthy when its path lives under the *current* effective
+          // adapter dir — otherwise the IPC merge layer can't match it
+          // up with what gateway returns and the chip falls into the
+          // missing-file branch.
+          const resolvedEntry = path.resolve(entry.path);
+          if (resolvedEntry === dir || resolvedEntry.startsWith(dir + path.sep)) {
+            needsRepair = false;
+          }
+        }
+      } catch {}
+      if (!needsRepair) continue;
+      const preset = DEFAULT_PRESET_ENTRIES.find((p) => p.id === entry.id);
+      if (!preset || !preset.filenameHint) continue;
+      const found = findAdapterByHint(dir, preset.filenameHint);
+      if (!found) {
+        log(`[minicpm] bundled preset ${entry.id} path '${entry.path}' missing in ${dir}`);
+        continue;
+      }
+      log(`[minicpm] repaired ${entry.id} path: ${entry.path} -> ${found}`);
+      entry.path = found;
+      dirty = true;
+    }
+    if (dirty) writeAdapterManifest(manifest);
+  }
+
+  // Copy bundled adapters (from <resources>/adapters/) into the
+  // writable user dir on first run. Cheap idempotent walk; skips
+  // anything the user already has. Runs once before the sidecar
+  // spawns so /api/adapters returns the seeded files immediately.
+  try { seedBundledAdapters(); } catch (err) {
+    log(`[minicpm] seedBundledAdapters threw: ${err && err.message}`);
+  }
+  const adapterDir = getEffectiveAdapterDir();
+  try { fs.mkdirSync(adapterDir, { recursive: true }); } catch {}
+  // Manifest seed runs AFTER the .gguf copy so filenameHint lookups
+  // can resolve against actual disk files. Also writes the mirror for
+  // the gateway to read on its first /api/adapters call.
+  try { seedDefaultManifest(); } catch (err) {
+    log(`[minicpm] seedDefaultManifest threw: ${err && err.message}`);
+  }
+  // After seeding, repair any bundled preset whose recorded path went
+  // stale (typical when a dev manifest got carried into a packaged
+  // install, or vice versa).
+  try { repairBundledManifestPaths(); } catch (err) {
+    log(`[minicpm] repairBundledManifestPaths threw: ${err && err.message}`);
+  }
+  // Always ensure the mirror exists, even when the manifest is non-empty
+  // (user already has a manifest from a previous launch, but the mirror
+  // file may be missing if they upgraded across the change).
+  try {
+    const dir = getEffectiveAdapterDir();
+    const mirror = path.join(dir, ADAPTER_MANIFEST_MIRROR);
+    if (!fs.existsSync(mirror)) {
+      writeAdapterManifest(readAdapterManifest());
+    }
+  } catch {}
+
+  const sidecar = new Sidecar({
+    sidecarDir, sidecarBin, appRoot, port, host, log,
+    logFile: sidecarLogPath,
+    adapterDir,
+  });
+  // Refresh `sidecar.activeAdapterPath` from prefs every time we're about
+  // to spawn. Lets the user pick a persona, restart the sidecar from
+  // Settings, and have the new choice take effect — without needing to
+  // wire Sidecar.start() into closure-only helpers.
+  function refreshActiveAdapterPath() {
+    try {
+      sidecar.activeAdapterPath = resolveActiveAdapterPath();
+    } catch (err) {
+      sidecar.activeAdapterPath = null;
+      log(`[minicpm] resolveActiveAdapterPath failed: ${err && err.message}`);
+    }
+    return sidecar.activeAdapterPath;
+  }
+  // First evaluation: pick up whatever the user had selected last
+  // session. `null` means "boot Base, no --lora".
+  refreshActiveAdapterPath();
 
   let bubble = null;
   let activeSide = "right";
@@ -354,6 +999,11 @@ module.exports = function initMinicpmChat(ctx) {
   // Persisted to <userData>/minicpm-prefs.json so they survive restart.
   // Values are validated/clamped on every set; the chat bubble fetches
   // them on each submit, the Settings tab reads/writes via IPC.
+  //
+  // Several unrelated settings share this file (chat params, `model_dir`,
+  // `narration_enabled`, ...). Every writer MUST go through
+  // `mergeMinicpmPrefs()` — a naive `JSON.stringify(chatParams)` would erase
+  // `model_dir` the next time the user toggled "thinking", etc.
   const PARAMS_PATH = (() => {
     try { return path.join(app.getPath("userData"), "minicpm-prefs.json"); }
     catch { return path.join(os.tmpdir(), "minicpm-prefs.json"); }
@@ -366,13 +1016,52 @@ module.exports = function initMinicpmChat(ctx) {
     repetition_penalty: 1.05,
     thinking: false,           // default off (LoRA usually wasn't trained on <think>)
   };
-  let chatParams = { ...DEFAULT_CHAT_PARAMS };
-  try {
-    if (fs.existsSync(PARAMS_PATH)) {
-      const raw = JSON.parse(fs.readFileSync(PARAMS_PATH, "utf-8"));
-      chatParams = { ...DEFAULT_CHAT_PARAMS, ...(raw && typeof raw === "object" ? raw : {}) };
+  const CHAT_PARAM_KEYS = Object.keys(DEFAULT_CHAT_PARAMS);
+
+  function readMinicpmPrefsRaw() {
+    try {
+      if (!fs.existsSync(PARAMS_PATH)) return {};
+      const parsed = JSON.parse(fs.readFileSync(PARAMS_PATH, "utf-8"));
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    } catch (err) {
+      log(`[minicpm] prefs read failed: ${err && err.message}`);
+      return {};
     }
-  } catch (err) { log(`[minicpm] params load failed: ${err && err.message}`); }
+  }
+
+  function writeMinicpmPrefsRaw(raw) {
+    try {
+      fs.writeFileSync(PARAMS_PATH, JSON.stringify(raw, null, 2), "utf-8");
+      return true;
+    } catch (err) {
+      log(`[minicpm] prefs save failed: ${err && err.message}`);
+      return false;
+    }
+  }
+
+  // Read-modify-write merge so each setting only touches its own keys.
+  // Passing `undefined` for a key removes it from the persisted file.
+  function mergeMinicpmPrefs(partial) {
+    if (!partial || typeof partial !== "object") return false;
+    const current = readMinicpmPrefsRaw();
+    for (const key of Object.keys(partial)) {
+      const next = partial[key];
+      if (next === undefined) delete current[key];
+      else current[key] = next;
+    }
+    return writeMinicpmPrefsRaw(current);
+  }
+
+  // Bootstrap chatParams restricted to known keys so unrelated sibling
+  // fields (model_dir / narration_enabled / ...) can't leak into the in-
+  // memory chatParams and accidentally get echoed back on the next save.
+  let chatParams = { ...DEFAULT_CHAT_PARAMS };
+  {
+    const raw = readMinicpmPrefsRaw();
+    for (const key of CHAT_PARAM_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(raw, key)) chatParams[key] = raw[key];
+    }
+  }
   function clampChatParams(input) {
     const out = { ...chatParams };
     if (!input || typeof input !== "object") return out;
@@ -389,13 +1078,156 @@ module.exports = function initMinicpmChat(ctx) {
     if (typeof input.thinking === "boolean") out.thinking = input.thinking;
     return out;
   }
+  // Re-clamp bootstrap so a corrupt persisted value (e.g. max_new_tokens
+  // outside range) doesn't ride along into runtime.
+  chatParams = clampChatParams(chatParams);
   function setChatParams(input) {
     chatParams = clampChatParams(input);
-    try { fs.writeFileSync(PARAMS_PATH, JSON.stringify(chatParams, null, 2), "utf-8"); }
-    catch (err) { log(`[minicpm] params save failed: ${err && err.message}`); }
+    mergeMinicpmPrefs(chatParams);
     return chatParams;
   }
   function getChatParams() { return { ...chatParams }; }
+
+  // ── Model path resolution ─────────────────────────────────────────────
+  // Production: <userData>/models/<model>.gguf (downloaded by Onboarding).
+  // Dev: <repo>/models/<model>.gguf (developer convenience).
+  // Users can override via Settings → MiniCPM → 本地模型路径 (writes
+  // minicpm-prefs.json model_dir field), or MINICPM_MODEL_DIR env at launch.
+  //
+  // Legacy v0.7.x onboarding wrote a HuggingFace directory path here. We
+  // accept either form: if the configured path is a directory, we scan
+  // it for a *.gguf inside; if it's a file, we use it as-is.
+  const MODELS_SUBDIR = "models";
+  function getUserDataDir() {
+    try { return app.getPath("userData"); } catch { return os.tmpdir(); }
+  }
+  function getDefaultModelDir() {
+    if (app && app.isPackaged) {
+      return path.join(getUserDataDir(), MODELS_SUBDIR);
+    }
+    return path.resolve(appRoot, "..", MODELS_SUBDIR);
+  }
+  function _firstGgufIn(dir) {
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      // Direct hit first
+      const here = entries
+        .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".gguf"))
+        .map((e) => path.join(dir, e.name));
+      if (here.length) return here[0];
+      // One level deep (Onboarding may have nested by repo name)
+      for (const e of entries) {
+        if (!e.isDirectory()) continue;
+        const sub = path.join(dir, e.name);
+        try {
+          const inner = fs.readdirSync(sub)
+            .filter((n) => n.toLowerCase().endsWith(".gguf"));
+          if (inner.length) return path.join(sub, inner[0]);
+        } catch {}
+      }
+    } catch {}
+    return null;
+  }
+  function getEffectiveModelDir() {
+    if (process.env.MINICPM_MODEL_DIR) return process.env.MINICPM_MODEL_DIR;
+    const raw = readMinicpmPrefsRaw();
+    if (typeof raw.model_dir === "string" && raw.model_dir.trim()) {
+      return raw.model_dir.trim();
+    }
+    return getDefaultModelDir();
+  }
+  function setEffectiveModelDir(dir) {
+    const next = (typeof dir === "string" && dir.trim()) ? dir.trim() : undefined;
+    mergeMinicpmPrefs({ model_dir: next });
+    return getEffectiveModelDir();
+  }
+  function isModelPresent(dir) {
+    const target = dir || getEffectiveModelDir();
+    try {
+      const st = fs.statSync(target);
+      if (st.isFile()) return target.toLowerCase().endsWith(".gguf");
+      if (st.isDirectory()) return _firstGgufIn(target) !== null;
+    } catch {}
+    return false;
+  }
+  function resolveCurrentGgufPath(healthJson) {
+    const candidates = [];
+    if (healthJson && healthJson.model_dir) candidates.push(healthJson.model_dir);
+    candidates.push(getEffectiveModelDir());
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      try {
+        const st = fs.statSync(candidate);
+        if (st.isFile() && candidate.toLowerCase().endsWith(".gguf")) return candidate;
+        if (st.isDirectory()) {
+          const gguf = _firstGgufIn(candidate);
+          if (gguf) return gguf;
+        }
+      } catch {}
+    }
+    return null;
+  }
+
+  // ── Process tree RSS (Settings → 资源占用) ───────────────────────────
+  async function listAllProcesses() {
+    if (isWin) {
+      const ps =
+        "$OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::UTF8; " +
+        "Get-CimInstance Win32_Process | " +
+        "Select-Object ProcessId,ParentProcessId,WorkingSetSize,Name,CommandLine | " +
+        "ConvertTo-Json -Compress";
+      const { stdout } = await execFileAsync(
+        "powershell.exe",
+        ["-NoProfile", "-Command", ps],
+        { maxBuffer: 12 * 1024 * 1024, windowsHide: true },
+      );
+      const parsed = JSON.parse(stdout || "[]");
+      const arr = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
+      return arr.map((p) => ({
+        pid: Number(p.ProcessId),
+        ppid: Number(p.ParentProcessId),
+        rss: Math.round(Number(p.WorkingSetSize || 0) / 1024),
+        cpu: 0,
+        cmd: String(p.CommandLine || p.Name || ""),
+      })).filter((p) => Number.isFinite(p.pid) && p.pid > 0);
+    }
+    const { stdout } = await execFileAsync(
+      "ps",
+      ["-axo", "pid=,ppid=,rss=,pcpu=,command="],
+      { maxBuffer: 12 * 1024 * 1024 },
+    );
+    return stdout.trim().split("\n").map((line) => {
+      const trimmed = line.trim();
+      const m = trimmed.match(/^(\d+)\s+(\d+)\s+(\d+)\s+([\d.]+)\s+(.*)$/);
+      if (!m) return null;
+      return {
+        pid: Number(m[1]),
+        ppid: Number(m[2]),
+        rss: Number(m[3]),
+        cpu: parseFloat(m[4]) || 0,
+        cmd: m[5] || "",
+      };
+    }).filter(Boolean);
+  }
+  function collectProcessTree(rootPid, allProcs) {
+    const byPpid = new Map();
+    for (const proc of allProcs) {
+      if (!byPpid.has(proc.ppid)) byPpid.set(proc.ppid, []);
+      byPpid.get(proc.ppid).push(proc);
+    }
+    const tree = [];
+    const queue = [rootPid];
+    const seen = new Set();
+    while (queue.length) {
+      const pid = queue.shift();
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      const proc = allProcs.find((p) => p.pid === pid);
+      if (proc) tree.push(proc);
+      for (const child of byPpid.get(pid) || []) queue.push(child.pid);
+    }
+    return tree;
+  }
 
   // ── Bubble position (side preference + drag offset) ───────────────────
   // Persisted alongside chat params in the same JSON file. The Settings
@@ -444,9 +1276,13 @@ module.exports = function initMinicpmChat(ctx) {
   let bubbleEditing = false;
 
   // ── Narration (model reacts to coding-agent events) ──────────────────────
-  // Default ON during dev so we can iterate; flip to false (or persist via
-  // settings) before shipping.
-  let narrationEnabled = true;
+  // Persisted under `narration_enabled` in minicpm-prefs.json so the user's
+  // choice survives restart. Default true keeps the previous dev behaviour
+  // when the key is missing (first launch after upgrade, fresh install).
+  let narrationEnabled = (() => {
+    const raw = readMinicpmPrefsRaw();
+    return typeof raw.narration_enabled === "boolean" ? raw.narration_enabled : true;
+  })();
   const NARRATE_THROTTLE_MS = 10_000;     // gap between any two narrations
   const SESSION_DEDUP_MS = 5_000;         // ignore repeats for the same session
   const QUEUED_EVENT_MAX_AGE_MS = 60_000; // drop stale queued events after chat ends
@@ -907,7 +1743,14 @@ module.exports = function initMinicpmChat(ctx) {
     }
   }
 
-  function setNarrationEnabled(value) { narrationEnabled = !!value; }
+  function setNarrationEnabled(value) {
+    const next = !!value;
+    if (narrationEnabled !== next) {
+      narrationEnabled = next;
+      mergeMinicpmPrefs({ narration_enabled: narrationEnabled });
+    }
+    return narrationEnabled;
+  }
   function isNarrationEnabled() { return narrationEnabled; }
 
   function pruneStaleQueue() {
@@ -930,7 +1773,9 @@ module.exports = function initMinicpmChat(ctx) {
   async function warmup() {
     try {
       log("[minicpm-chat] warming up sidecar in background…");
-      const r = await sidecar.ensureRunning(null);
+      // Pass the user-effective model dir so the sidecar's `--model` flag
+      // tracks Settings changes / Onboarding downloads without restart.
+      const r = await sidecar.ensureRunning(getEffectiveModelDir());
       log(`[minicpm-chat] sidecar warmup ${r.status}`);
       void refreshUpdateStatus();
       void refreshPersona();
@@ -1058,7 +1903,7 @@ module.exports = function initMinicpmChat(ctx) {
       label: `桌宠旁白 (Stop / 错误时吐槽)`,
       type: "checkbox",
       checked: narrationEnabled,
-      click: (it) => { narrationEnabled = !!it.checked; },
+      click: (it) => { setNarrationEnabled(!!it.checked); },
     });
     items.push({ type: "separator" });
     items.push({
@@ -1084,7 +1929,9 @@ module.exports = function initMinicpmChat(ctx) {
     }),
     "minicpm:start": async (_evt, opts = {}) => {
       try {
-        const r = await sidecar.ensureRunning(opts.modelDir || null);
+        // Default to the user-effective dir; opts.modelDir still wins
+        // when callers want a one-off override.
+        const r = await sidecar.ensureRunning(opts.modelDir || getEffectiveModelDir());
         return { ok: true, status: r.status, url: sidecar.baseUrl() };
       } catch (err) {
         return { ok: false, error: String(err && err.message || err) };
@@ -1178,18 +2025,73 @@ module.exports = function initMinicpmChat(ctx) {
   // Surface the MiniCPM panel state to the main Settings window.
   const settingsHandlers = {
     "minicpm-settings:get-status": async () => {
-      const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+      // /api/health internally chains a call into llama-server's /health, so
+      // a too-tight timeout falsely paints a live sidecar as "offline" the
+      // moment llama is briefly busy (KV flush after a chat, model swap,
+      // adapter load, etc). 5s keeps the probe still cheap but resilient to
+      // that micro-jitter.
+      const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 5000).catch(() => null);
       return {
         sidecarUrl: sidecar.baseUrl(),
-        bridgeDir,
         healthy: !!(health && health.json && health.json.ok),
         health: health ? health.json : null,
         narration: narrationEnabled,
       };
     },
     "minicpm-settings:list-adapters": async () => {
+      // Gateway is the source of truth for the *physical* adapter set
+      // (which files exist, persona slug, current active). The manifest
+      // adds product-layer metadata (displayName, aliases, source,
+      // entry id). We join by absolute path so renames + uploads in
+      // the same dir resolve correctly.
       const r = await httpJson("GET", `${sidecar.baseUrl()}/api/adapters`, null, 2000).catch(() => null);
-      return r ? r.json : null;
+      const remote = r && r.json ? r.json : { items: [], current: null, current_name: null };
+      const manifest = readAdapterManifest();
+      const byPath = new Map();
+      for (const item of manifest.items || []) {
+        if (!item || !item.path) continue;
+        try { byPath.set(path.resolve(item.path), item); }
+        catch { byPath.set(item.path, item); }
+      }
+      const remoteItems = Array.isArray(remote.items) ? remote.items : [];
+      const merged = remoteItems.map((g) => {
+        let entry = null;
+        try { entry = byPath.get(path.resolve(g.path)) || null; }
+        catch { entry = null; }
+        return {
+          ...g,
+          id: entry && entry.id ? entry.id : `external:${g.path}`,
+          displayName: entry && entry.displayName ? entry.displayName : g.name,
+          aliases: entry && Array.isArray(entry.aliases) ? entry.aliases : [],
+          source: entry && entry.source ? entry.source : "external",
+        };
+      });
+      // Surface manifest entries whose .gguf went missing too, so the
+      // user can clean them up from the UI rather than wondering why
+      // their preset vanished.
+      const remoteSet = new Set();
+      for (const g of remoteItems) {
+        try { remoteSet.add(path.resolve(g.path)); } catch { remoteSet.add(g.path); }
+      }
+      for (const entry of manifest.items || []) {
+        if (!entry || !entry.path) continue;
+        const key = (() => { try { return path.resolve(entry.path); } catch { return entry.path; } })();
+        if (remoteSet.has(key)) continue;
+        merged.push({
+          name: path.basename(entry.path),
+          path: entry.path,
+          persona: entry.persona || "default",
+          id: entry.id,
+          displayName: entry.displayName || path.basename(entry.path),
+          aliases: Array.isArray(entry.aliases) ? entry.aliases : [],
+          source: entry.source || "external",
+          missing: true,
+        });
+      }
+      return {
+        ...remote,
+        items: merged,
+      };
     },
     "minicpm-settings:load-adapter": async (_evt, payload) => {
       const requested = (payload && payload.path) || null;
@@ -1223,7 +2125,26 @@ module.exports = function initMinicpmChat(ctx) {
 
       const r = await httpJson("POST", `${sidecar.baseUrl()}/api/load-adapter`, payload || {}, 90000).catch(() => null);
       const data = r ? r.json : null;
+      // Persist the user's choice so the next sidecar spawn loads
+      // exactly this LoRA via --lora (or no --lora at all when
+      // path is null). We resolve the manifest entry by path so the
+      // stored id stays in sync even after rename / re-import.
       if (data && data.ok) {
+        try {
+          if (!requested) {
+            setActiveAdapterId(null);
+          } else {
+            const manifest = readAdapterManifest();
+            const entry = (manifest.items || []).find((it) => {
+              try { return it && it.path && path.resolve(it.path) === path.resolve(requested); }
+              catch { return false; }
+            });
+            setActiveAdapterId(entry ? entry.id : null);
+          }
+          refreshActiveAdapterPath();
+        } catch (err) {
+          log(`[minicpm] persist active adapter failed: ${err && err.message}`);
+        }
         // Mirror the in-chat command UX: pop a fade-out reply bubble next
         // to the pet announcing the swap, and tell the renderer to wipe
         // its conversation history so the new persona starts clean.
@@ -1261,9 +2182,340 @@ module.exports = function initMinicpmChat(ctx) {
       }
     },
     "minicpm-settings:set-narration": async (_evt, payload) => {
-      narrationEnabled = !!(payload && payload.enabled);
+      setNarrationEnabled(!!(payload && payload.enabled));
       return { ok: true, enabled: narrationEnabled };
     },
+
+    // ── Accelerator / device manual override ────────────────────────────
+    "minicpm-settings:list-devices": async () => {
+      const r = await httpJson("GET", `${sidecar.baseUrl()}/api/devices`, null, 2000).catch(() => null);
+      return r ? r.json : null;
+    },
+    "minicpm-settings:set-device": async (_evt, payload) => {
+      const device = (payload && payload.device) || "";
+      // Persist for the next sidecar spawn even if /api/set-device is
+      // unreachable (sidecar may have crashed). MINICPM_DEVICE is the
+      // single source of truth our server.py reads at start.
+      process.env.MINICPM_DEVICE = device;
+      try {
+        await httpJson("POST", `${sidecar.baseUrl()}/api/set-device`, { device }, 1500);
+      } catch {}
+      return { ok: true, device, note: "下次 sidecar 重启时生效" };
+    },
+    "minicpm-settings:restart-sidecar": async () => {
+      try {
+        sidecar.stop();
+        await new Promise((r) => setTimeout(r, 600));
+        const r = await sidecar.ensureRunning(getEffectiveModelDir());
+        return { ok: true, status: r && r.status };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+
+    // ── Local model directory override ──────────────────────────────────
+    "minicpm-settings:get-model-dir": async () => ({
+      current: getEffectiveModelDir(),
+      default: getDefaultModelDir(),
+      present: isModelPresent(),
+    }),
+    "minicpm-settings:pick-model-dir": async () => {
+      const { dialog } = require("electron");
+      const ret = await dialog.showOpenDialog({
+        title: "选择本地 MiniCPM 模型 (.gguf 文件或包含 .gguf 的目录)",
+        properties: ["openFile", "openDirectory"],
+        filters: [{ name: "GGUF model", extensions: ["gguf"] }],
+        message: "可以是单个 .gguf 文件，或包含 .gguf 的目录",
+      });
+      if (ret.canceled || !ret.filePaths.length) return { ok: false, canceled: true };
+      const picked = ret.filePaths[0];
+      let target = picked;
+      try {
+        const st = fs.statSync(picked);
+        if (st.isDirectory()) {
+          const entries = fs.readdirSync(picked)
+            .filter((n) => n.toLowerCase().endsWith(".gguf"));
+          if (!entries.length) {
+            return { ok: false, error: `所选目录不包含 .gguf：\n${picked}` };
+          }
+          target = path.join(picked, entries[0]);
+        } else if (!picked.toLowerCase().endsWith(".gguf")) {
+          return { ok: false, error: `请选择 .gguf 文件：\n${picked}` };
+        }
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+      setEffectiveModelDir(target);
+      // Persisting the prefs only takes effect on the next sidecar spawn —
+      // hot-swap via /api/load-model so the running llama-server actually
+      // picks up the new .gguf without a manual restart. swap_model on the
+      // gateway stops + respawns llama-server with the new --model and
+      // blocks until the /health probe returns 200, so a successful
+      // resolution here means the new model is already serving requests.
+      let reloadError = null;
+      try {
+        const r = await sidecar.loadModel(target);
+        if (r && r.error) reloadError = String(r.error);
+      } catch (err) {
+        reloadError = String(err && err.message || err);
+      }
+      return { ok: true, modelDir: target, reloaded: !reloadError, reloadError };
+    },
+    "minicpm-settings:open-model-dir": async () => {
+      const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+      const gguf = resolveCurrentGgufPath(health ? health.json : null);
+      if (gguf) {
+        try {
+          shell.showItemInFolder(gguf);
+          return { ok: true, path: gguf, highlighted: true };
+        } catch (err) {
+          return { ok: false, error: String(err && err.message || err) };
+        }
+      }
+      const dir = getEffectiveModelDir();
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        const err = await shell.openPath(dir);
+        if (err) return { ok: false, error: err };
+        return { ok: true, dir, highlighted: false };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+
+    // ── Adapter (LoRA) directory ────────────────────────────────────────
+    // Same shape as the model dir handlers: read the effective path,
+    // open it in Finder/Explorer (creating it if missing), and let the
+    // Settings tab refresh after the user drops new .gguf files in.
+    "minicpm-settings:get-adapter-dir": async () => ({
+      current: getEffectiveAdapterDir(),
+      default: getDefaultAdapterDir(),
+    }),
+    "minicpm-settings:open-adapter-dir": async () => {
+      const dir = getEffectiveAdapterDir();
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+        const err = await shell.openPath(dir);
+        if (err) return { ok: false, error: err };
+        return { ok: true, dir };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+
+    // ── Adapter manifest CRUD ───────────────────────────────────────────
+    // The Settings UI reads the merged list via `list-adapters` (which
+    // joins gateway items with manifest metadata) and mutates the
+    // manifest through these handlers. After every mutation we also
+    // refresh the gateway's mirror (handled inside writeAdapterManifest)
+    // so chat-bubble keyword routing — which goes straight to the
+    // sidecar HTTP API — sees the updated displayName / aliases on the
+    // next /api/adapters call.
+
+    "minicpm-settings:get-adapter-manifest": async () => readAdapterManifest(),
+
+    "minicpm-settings:upload-adapter": async (_evt, payload) => {
+      const { dialog } = require("electron");
+      const ret = await dialog.showOpenDialog({
+        title: "选择 LoRA 适配器 (.gguf)",
+        properties: ["openFile"],
+        filters: [{ name: "GGUF adapter", extensions: ["gguf"] }],
+        message: "选一个 GGUF 格式的 LoRA 适配器文件；会被复制到本应用的 adapters 目录。",
+      });
+      if (ret.canceled || !ret.filePaths.length) {
+        return { ok: false, canceled: true };
+      }
+      const src = ret.filePaths[0];
+      const lower = src.toLowerCase();
+      if (!lower.endsWith(".gguf")) {
+        return { ok: false, error: `必须是 .gguf 文件：${src}` };
+      }
+      let srcStat;
+      try { srcStat = fs.statSync(src); }
+      catch (err) { return { ok: false, error: `读不到所选文件：${err && err.message}` }; }
+      if (!srcStat.isFile()) {
+        return { ok: false, error: `不是普通文件：${src}` };
+      }
+      const ts = Date.now();
+      const safeBasename = path.basename(src).replace(/[^A-Za-z0-9._-]+/g, "_");
+      const uploadsDir = path.join(getEffectiveAdapterDir(), "uploads");
+      const destName = `${ts}_${safeBasename}`;
+      const dest = path.join(uploadsDir, destName);
+      try { fs.mkdirSync(uploadsDir, { recursive: true }); }
+      catch (err) { return { ok: false, error: `无法创建 uploads 目录：${err && err.message}` }; }
+      try {
+        fs.copyFileSync(src, dest);
+      } catch (err) {
+        return { ok: false, error: `复制文件失败：${err && err.message}` };
+      }
+      const displayName = (payload && typeof payload.displayName === "string" && payload.displayName.trim())
+        ? payload.displayName.trim()
+        : path.basename(src, ".gguf");
+      const aliases = Array.isArray(payload && payload.aliases)
+        ? payload.aliases.map((s) => String(s || "").trim()).filter(Boolean)
+        : [];
+      const entry = upsertAdapterEntry({
+        id: `upload:${ts}`,
+        path: dest,
+        displayName,
+        aliases,
+        persona: "custom",
+        source: "user-upload",
+      });
+      return { ok: true, item: entry };
+    },
+
+    "minicpm-settings:rename-adapter": async (_evt, payload) => {
+      if (!payload || typeof payload.id !== "string") {
+        return { ok: false, error: "id is required" };
+      }
+      const manifest = readAdapterManifest();
+      const idx = manifest.items.findIndex((it) => it && it.id === payload.id);
+      if (idx < 0) return { ok: false, error: `adapter not found: ${payload.id}` };
+      const patch = {};
+      if (typeof payload.displayName === "string") patch.displayName = payload.displayName.trim() || manifest.items[idx].displayName;
+      if (Array.isArray(payload.aliases)) {
+        patch.aliases = payload.aliases.map((s) => String(s || "").trim()).filter(Boolean);
+      }
+      const merged = upsertAdapterEntry({ ...manifest.items[idx], ...patch });
+      return { ok: true, item: merged };
+    },
+
+    "minicpm-settings:remove-adapter": async (_evt, payload) => {
+      if (!payload || typeof payload.id !== "string") {
+        return { ok: false, error: "id is required" };
+      }
+      const manifest = readAdapterManifest();
+      const target = manifest.items.find((it) => it && it.id === payload.id);
+      if (!target) return { ok: false, error: `adapter not found: ${payload.id}` };
+      if (target.source !== "user-upload") {
+        return { ok: false, error: "只能删除自行上传的 LoRA，预置项请保留。" };
+      }
+      // If the user just removed the currently active adapter, unload
+      // it on the sidecar side first so llama-server's per-request
+      // `lora` array doesn't reference a path we're about to unlink.
+      try {
+        const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+        const currentPath = health && health.json && health.json.adapter ? String(health.json.adapter) : null;
+        if (currentPath && target.path && path.resolve(currentPath) === path.resolve(target.path)) {
+          await httpJson("POST", `${sidecar.baseUrl()}/api/load-adapter`, { path: null }, 30000).catch(() => null);
+        }
+      } catch {}
+      if (payload.deleteFile && target.path) {
+        try { fs.unlinkSync(target.path); }
+        catch (err) { log(`[minicpm] adapter file unlink failed: ${err && err.message}`); }
+      }
+      removeAdapterEntry(payload.id);
+      return { ok: true, id: payload.id };
+    },
+    "minicpm-settings:get-resources": async () => {
+      const root = sidecar.proc && sidecar.proc.pid;
+      if (!root) return { ok: false, reason: "no-sidecar" };
+      try {
+        const all = await listAllProcesses();
+        const tree = collectProcessTree(root, all);
+        const total_rss_kb = tree.reduce((sum, p) => sum + (p.rss || 0), 0);
+        const total_cpu = tree.reduce((sum, p) => sum + (p.cpu || 0), 0);
+        const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 1500).catch(() => null);
+        const h = health && health.json ? health.json : {};
+        const gguf_path = resolveCurrentGgufPath(h);
+        let gguf_size = null;
+        if (gguf_path) {
+          try { gguf_size = fs.statSync(gguf_path).size; } catch {}
+        }
+        const llama = tree.find((p) => /llama-server/i.test(p.cmd));
+        const ctx_size = Number(process.env.MINICPM_CTX) || 4096;
+        const mmap_kb = gguf_size ? Math.round(gguf_size / 1024) : null;
+        const private_kb = mmap_kb != null
+          ? Math.max(0, total_rss_kb - mmap_kb)
+          : total_rss_kb;
+        return {
+          ok: true,
+          total_rss_kb,
+          total_cpu,
+          private_kb,
+          mmap_kb,
+          gguf_size,
+          gguf_path,
+          ctx_size,
+          accel: h.accel || h.device || null,
+          backend: h.backend || null,
+          llama_alive: !!(h.alive || (h.llama_server && h.llama_server.status === "ok")),
+          processes: tree.map((p) => ({
+            pid: p.pid,
+            rss: p.rss,
+            cpu: p.cpu,
+            cmd: p.cmd.slice(0, 160),
+          })),
+          llama_pid: llama ? llama.pid : null,
+        };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+    "minicpm-settings:reset-model-dir": async () => {
+      setEffectiveModelDir(null);
+      return { ok: true, modelDir: getDefaultModelDir() };
+    },
+
+    // ── Onboarding rerun (dev / recovery) ───────────────────────────────
+    "minicpm-settings:rerun-onboarding": async () => {
+      // Delete the sentinel and tell main.js to relaunch. main.js will
+      // see shouldShow()===true on next boot and open the wizard.
+      try {
+        const sentinelPath = path.join(app.getPath("userData"), "minicpm-onboarding.json");
+        if (fs.existsSync(sentinelPath)) fs.unlinkSync(sentinelPath);
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+      // Don't call app.relaunch() here directly — the renderer expects an
+      // explicit "yes I want to restart" confirmation. The handler just
+      // marks the file; the Settings UI shows a "重启应用" button afterwards.
+      return { ok: true };
+    },
+    "minicpm-settings:relaunch-app": async () => {
+      // Hard-restart so the new sentinel state takes effect cleanly.
+      setTimeout(() => {
+        app.relaunch();
+        app.quit();
+      }, 100);
+      return { ok: true };
+    },
+
+    // ── Logs (sidecar.log + crash dumps) ────────────────────────────────
+    "minicpm-settings:get-logs-info": async () => {
+      const entries = [];
+      try {
+        for (const name of fs.readdirSync(logsDir)) {
+          try {
+            const st = fs.statSync(path.join(logsDir, name));
+            entries.push({
+              name,
+              size: st.size,
+              mtime: st.mtime.toISOString(),
+            });
+          } catch {}
+        }
+      } catch {}
+      entries.sort((a, b) => (a.mtime < b.mtime ? 1 : -1));
+      return {
+        dir: logsDir,
+        sidecarLog: sidecarLogPath,
+        entries,
+      };
+    },
+    "minicpm-settings:open-logs-dir": async () => {
+      const { shell } = require("electron");
+      try { fs.mkdirSync(logsDir, { recursive: true }); } catch {}
+      try {
+        const err = await shell.openPath(logsDir);
+        if (err) return { ok: false, error: err };
+        return { ok: true, dir: logsDir };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message || err) };
+      }
+    },
+
     "minicpm-settings:get-chat-params": async () => ({
       params: getChatParams(),
       defaults: { ...DEFAULT_CHAT_PARAMS },
@@ -1364,6 +2616,24 @@ module.exports = function initMinicpmChat(ctx) {
     ipcMain.handle(ch, fn);
   }
 
+  // Stop the running sidecar (if any) and immediately restart it. Used
+  // after settings changes that the engine reads at construction time
+  // only — accelerator (MINICPM_DEVICE) and the active model directory.
+  async function restartSidecar() {
+    try { sidecar.stop(); } catch {}
+    // Give the OS a beat to release the port before re-binding.
+    await new Promise((r) => setTimeout(r, 600));
+    return sidecar.ensureRunning(getEffectiveModelDir());
+  }
+
+  // Boot or attach to the sidecar and wait until /api/health returns
+  // ok. Unlike `warmup()`, this surface bubbles failures upwards — the
+  // Onboarding wizard needs to *know* if spawn failed so it can show a
+  // proper error message instead of hitting ECONNREFUSED later on.
+  async function ensureSidecarReady() {
+    return sidecar.ensureRunning(getEffectiveModelDir());
+  }
+
   return {
     open,
     toggle,
@@ -1377,7 +2647,17 @@ module.exports = function initMinicpmChat(ctx) {
     isOpen: () => bubbleShown && !!(bubble && !bubble.isDestroyed()),
     reposition,
     shutdown,
+    restartSidecar,
+    ensureSidecarReady,
     getSidecarUrl: () => sidecar.baseUrl(),
     getBridgeDir: () => bridgeDir,
+    getSidecarBinary: () => sidecarBin,
+    getLogsDir: () => logsDir,
+    getSidecarLogPath: () => sidecarLogPath,
+    // Model directory introspection — consumed by Onboarding + Settings.
+    getModelDir: () => getEffectiveModelDir(),
+    getDefaultModelDir,
+    setModelDir: (dir) => setEffectiveModelDir(dir),
+    isModelPresent: () => isModelPresent(),
   };
 };

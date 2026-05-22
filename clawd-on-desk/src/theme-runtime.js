@@ -1,5 +1,7 @@
 "use strict";
 
+const { DEFAULT_THEME_ID } = require("./default-theme");
+
 const defaultFs = require("fs");
 const defaultPath = require("path");
 
@@ -79,7 +81,7 @@ function createThemeRuntime(options = {}) {
     return activeThemeContext;
   }
 
-  function getActiveThemeId(fallback = "clawd") {
+  function getActiveThemeId(fallback = DEFAULT_THEME_ID) {
     return activeTheme ? activeTheme._id : fallback;
   }
 

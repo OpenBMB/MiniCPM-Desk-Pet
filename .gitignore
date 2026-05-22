@@ -9,7 +9,13 @@ __pycache__/
 
 # Build / dist outputs
 dist/
-build/
+
+# Sidecar build artifacts. Spec / scripts under minicpm-sidecar/ stay
+# committed via that directory's own .gitignore.
+minicpm-sidecar/bin/
+minicpm-sidecar/build/build/
+minicpm-sidecar/build/dist/
+minicpm-sidecar/third_party/llama.cpp/
 
 # Model weights — too big to ship, friends/colleagues download separately
 models/
@@ -20,6 +26,9 @@ models/
 *.swp
 *~
 
+# Local scratch dir for one-off assets/exports
+temp/
+
 # Local env / secrets
 .env
 .env.local
@@ -27,6 +36,9 @@ models/
 # Bridge runtime files
 *.pid
 runtime-port.json
+
+# Adapter manifest is rebuilt at runtime with machine-local absolute paths
+adapters/.manifest.json
 
 # uv lock — keep
 # (don't ignore uv.lock; it's needed for reproducible installs)
