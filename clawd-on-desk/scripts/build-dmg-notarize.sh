@@ -56,7 +56,13 @@ cd "${PROJECT_DIR}"
 npm install --no-audit --no-fund
 
 echo "🔨 Building DMG with electron-builder (arm64) ..."
-CSC_NAME="${APPLE_SIGNING_IDENTITY}" \
+# electron-builder 26+ rejects the full "Developer ID Application:" prefix
+# in CSC_NAME — it wants only the friendly name (the part after the colon)
+# and resolves the certificate kind itself. Strip the prefix here so users
+# can keep the full identity string in .env (which is what `codesign` and
+# notarytool both prefer to read).
+CSC_NAME_FRIENDLY="${APPLE_SIGNING_IDENTITY#Developer ID Application: }"
+CSC_NAME="${CSC_NAME_FRIENDLY}" \
 APPLE_ID="${APPLE_ID}" \
 APPLE_APP_SPECIFIC_PASSWORD="${APPLE_APP_SPECIFIC_PASSWORD}" \
 APPLE_TEAM_ID="${APPLE_TEAM_ID}" \
