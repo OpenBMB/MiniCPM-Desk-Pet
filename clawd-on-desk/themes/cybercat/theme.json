@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "name": "Cyber Cat",
+  "author": "",
+  "version": "1.0.0",
+  "description": "Cyber Cat theme",
+
+  "viewBox": {
+    "x": 0,
+    "y": 0,
+    "width": 500,
+    "height": 500
+  },
+
+  "eyeTracking": {
+    "enabled": false,
+    "states": []
+  },
+
+  "sleepSequence": {
+    "mode": "direct"
+  },
+
+  "states": {
+    "idle":         ["cybercat-idle.gif"],
+    "thinking":     ["cybercat-thinking.gif"],
+    "working":      ["cybercat-working.gif"],
+    "juggling":     ["cybercat-juggling.gif"],
+    "error":        ["cybercat-error.gif"],
+    "attention":    ["cybercat-happy.gif"],
+    "notification": ["cybercat-notification.gif"],
+    "sleeping":     ["cybercat-sleeping.gif"],
+    "carrying":     ["cybercat-carrying.gif"],
+    "sweeping":     ["cybercat-sweeping.gif"]
+  },
+
+  "workingTiers": [
+    { "minSessions": 3, "file": "cybercat-building.gif" },
+    { "minSessions": 2, "file": "cybercat-juggling.gif" },
+    { "minSessions": 1, "file": "cybercat-working.gif" }
+  ],
+
+  "jugglingTiers": [
+    { "minSessions": 2, "file": "cybercat-conducting.gif" },
+    { "minSessions": 1, "file": "cybercat-juggling.gif" }
+  ],
+
+  "reactions": {
+    "drag":      { "file": "cybercat-dragging.gif" },
+    "annoyed":   { "file": "cybercat-annoying.gif", "duration": 3500 }
+  },
+
+  "hitBoxes": {
+    "default":  { "x": 40, "y": 20, "w": 240, "h": 280 },
+    "sleeping": { "x": 40, "y": 80, "w": 240, "h": 220 }
+  },
+  "sleepingHitboxFiles": ["cybercat-sleeping.gif"],
+
+  "timings": {
+    "mouseIdleTimeout": 20000,
+    "mouseSleepTimeout": 60000
+  },
+
+  "miniMode": {
+    "supported": true,
+    "offsetRatio": 0.42,
+    "states": {
+      "mini-idle":       ["cybercat-mini-idle.gif"],
+      "mini-working":    ["cybercat-mini-working.gif"],
+      "mini-enter":      ["cybercat-mini-idle.gif"],
+      "mini-enter-sleep": ["cybercat-mini-sleeping.gif"],
+      "mini-crabwalk":   ["cybercat-mini-idle.gif"],
+      "mini-peek":       ["cybercat-mini-idle.gif"],
+      "mini-alert":      ["cybercat-mini-alert.gif"],
+      "mini-happy":      ["cybercat-mini-happy.gif"],
+      "mini-sleep":      ["cybercat-mini-sleeping.gif"]
+    }
+  },
+
+  "objectScale": {
+    "widthRatio": 0.55,
+    "heightRatio": 0.55,
+    "imgWidthRatio": 0.6,
+    "objBottom": 0.05,
+    "imgBottom": 0.05,
+    "offsetX": 0.2,
+    "offsetY": 0.25
+  }
+}
