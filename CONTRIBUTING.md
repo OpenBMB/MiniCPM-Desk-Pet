@@ -5,6 +5,13 @@ entry point for developers; deeper background lives in
 [docs/development.md](docs/development.md) and
 [clawd-on-desk/AGENTS.md](clawd-on-desk/AGENTS.md).
 
+> The Electron desktop pet layer (`clawd-on-desk/`) is a vendored fork of
+> [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)
+> and is governed by the same AGPL-3.0-only license. When touching code
+> under `clawd-on-desk/`, please keep the upstream coding conventions and
+> avoid unnecessary divergence — see [`NOTICE.md`](./NOTICE.md) for the
+> exact upstream commit we forked from.
+
 > Looking to just use the app? Grab a prebuilt installer from
 > [Releases](https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases). This
 > document is only relevant if you plan to modify the code.
@@ -95,3 +102,7 @@ forms. For now, please include:
 
 By contributing, you agree that your contributions will be licensed
 under the [AGPL-3.0-only](LICENSE) license that covers the project.
+This matches the license of our upstream
+[rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk),
+so contributions touching `clawd-on-desk/` remain compatible with
+upstream contribution flows.
