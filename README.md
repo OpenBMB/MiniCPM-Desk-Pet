@@ -100,14 +100,30 @@ v0.7 时代的 PyTorch sidecar（`minicpm-pet-bridge*`）与旧 PyInstaller `bui
 - [clawd-on-desk/AGENTS.md](clawd-on-desk/AGENTS.md) — 底座 Electron 桌宠的开发约束（fork 自 [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)）
 - [docs/archive/](docs/archive/) — v0.7 历史调研文档（PRD、架构报告）
 
-## License & Acknowledgments
+## Acknowledgments
 
-本项目以 [GNU AGPL-3.0-only](./LICENSE) 协议开源。
+- **桌宠 UI 层** fork 自 [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)
+  （upstream commit `5b1f003`），向原作者
+  [@鹿鹿 (rullerzhou-afk)](https://github.com/rullerzhou-afk)
+  及其全体贡献者致谢。
+- **本地推理后端** 使用 [llama.cpp](https://github.com/ggml-org/llama.cpp)
+  （© Georgi Gerganov 及 llama.cpp contributors，MIT）；MiniCPM5 tokenizer
+  支持目前 vendor 自 [zhangtao2-1/llama.cpp@c5ede29](https://github.com/zhangtao2-1/llama.cpp)。
+- **模型权重** 由 [OpenBMB/MiniCPM](https://github.com/OpenBMB/MiniCPM) 提供。
+- 详细 fork 起点、修改清单与第三方组件归属请见 [`NOTICE.md`](./NOTICE.md) 与
+  [`clawd-on-desk/NOTICE.md`](clawd-on-desk/NOTICE.md)。
 
-桌宠 UI 层 fork 自 [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)（同为 AGPL-3.0），向原作者
-[@鹿鹿 (rullerzhou-afk)](https://github.com/rullerzhou-afk) 及其全体贡献者致谢。详细 fork 起点
-（upstream commit）、修改清单与第三方组件归属请见 [`NOTICE.md`](./NOTICE.md) 与
-[`clawd-on-desk/NOTICE.md`](clawd-on-desk/NOTICE.md)。
+## License
 
-> 依据 AGPL-3.0 §13，如以网络服务形式运行本项目修改版，须向使用者提供完整对应源码。
-> 本仓库源码即 https://github.com/OpenBMB/MiniCPM-Desk-Pet 。
+本项目以 [GNU AGPL-3.0-only](./LICENSE) 协议开源，与 upstream `clawd-on-desk` 一致。
+
+- **代码**（包含 `clawd-on-desk/`、`minicpm-sidecar/`、`adapters/` 等所有
+  源代码目录）按 AGPL-3.0-only 分发；任何衍生作品须同样以 AGPL-3.0 公开。
+- **MiniCPM 模型权重**（不在本仓库内，首次启动由 Onboarding 从 Hugging Face
+  拉取）按 [OpenBMB MiniCPM Model License](https://github.com/OpenBMB/MiniCPM/blob/main/MiniCPM%20Model%20License.md)
+  分发，不受 AGPL 约束。
+- **美术资源** 按 upstream `clawd-on-desk/NOTICE.md` 中列明的各资源原始版权
+  处理（如 Clawd 角色版权归 Anthropic、Calico/Cloudling 归原作者等）。
+
+> 依据 AGPL-3.0 § 13，如以网络服务形式运行本项目修改版，须向使用者提供完整
+> 对应源码。本仓库源码即 https://github.com/OpenBMB/MiniCPM-Desk-Pet 。
