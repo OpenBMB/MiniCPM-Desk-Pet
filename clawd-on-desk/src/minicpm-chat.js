@@ -658,6 +658,13 @@ module.exports = function initMinicpmChat(ctx) {
   try { fs.mkdirSync(logsDir, { recursive: true }); } catch {}
   const sidecarLogPath = path.join(logsDir, "sidecar.log");
 
+  // Shared MiniCPM prefs path. This must be initialized before any boot-time
+  // adapter/model helpers call readMinicpmPrefsRaw().
+  const PARAMS_PATH = (() => {
+    try { return path.join(app.getPath("userData"), "minicpm-prefs.json"); }
+    catch { return path.join(os.tmpdir(), "minicpm-prefs.json"); }
+  })();
+
   // ── Adapter (LoRA) path resolution ────────────────────────────────────
   // Same shape as the model paths: <userData>/adapters/ in packaged
   // mode, <repo>/adapters/ in dev. The sidecar gateway scans this dir
@@ -704,12 +711,6 @@ module.exports = function initMinicpmChat(ctx) {
   }
   function getEffectiveAdapterDir() {
     if (process.env.MINICPM_ADAPTER_DIR) return process.env.MINICPM_ADAPTER_DIR;
-    // We're called from two places: the synchronous boot block above
-    // (before PARAMS_PATH has been initialised, so readMinicpmPrefsRaw
-    // would log a noisy TDZ warning) and the Settings IPC handler
-    // (where prefs are fully available). The try/catch lets the boot
-    // case fall through silently without changing the IPC-time
-    // behaviour.
     let raw = {};
     try { raw = readMinicpmPrefsRaw(); } catch {}
     if (typeof raw.adapter_dir === "string" && raw.adapter_dir.trim()) {
@@ -1033,10 +1034,6 @@ module.exports = function initMinicpmChat(ctx) {
   // `narration_enabled`, ...). Every writer MUST go through
   // `mergeMinicpmPrefs()` — a naive `JSON.stringify(chatParams)` would erase
   // `model_dir` the next time the user toggled "thinking", etc.
-  const PARAMS_PATH = (() => {
-    try { return path.join(app.getPath("userData"), "minicpm-prefs.json"); }
-    catch { return path.join(os.tmpdir(), "minicpm-prefs.json"); }
-  })();
   const DEFAULT_CHAT_PARAMS = {
     max_new_tokens: 768,
     temperature: 0.6,

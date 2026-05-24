@@ -146,7 +146,7 @@ const updateRegistry = {
   savedPixelHeight: requireNonNegativeFiniteNumber("savedPixelHeight"),
 
   // ── Pure data prefs (function-form: validator only) ──
-  lang: requireEnum("lang", ["en", "zh", "zh-TW", "ko", "ja"]),
+  lang: requireEnum("lang", ["system", "en", "zh", "zh-TW", "ko", "ja"]),
   soundMuted: requireBoolean("soundMuted"),
   soundVolume: requireNumberInRange("soundVolume", 0, 1),
   lowPowerIdleMode: requireBoolean("lowPowerIdleMode"),

@@ -42,6 +42,7 @@ describe("updateRegistry pure-data validators", () => {
   const baseSnapshot = prefs.getDefaults();
 
   it("lang validates against the enum", () => {
+    assert.strictEqual(updateRegistry.lang("system", { snapshot: baseSnapshot }).status, "ok");
     assert.strictEqual(updateRegistry.lang("en", { snapshot: baseSnapshot }).status, "ok");
     assert.strictEqual(updateRegistry.lang("zh", { snapshot: baseSnapshot }).status, "ok");
     assert.strictEqual(updateRegistry.lang("ko", { snapshot: baseSnapshot }).status, "ok");

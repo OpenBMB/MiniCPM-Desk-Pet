@@ -300,7 +300,7 @@ function registerSettingsIpc(options = {}) {
     try {
       result = await dialog.showOpenDialog(getDialogParent(event), {
         properties: ["openFile"],
-        filters: [{ name: "Clawd theme zip", extensions: ["zip"] }],
+        filters: [{ name: "Pet theme zip", extensions: ["zip"] }],
       });
     } catch (err) {
       return { status: "error", message: `theme zip picker failed: ${err && err.message}` };
@@ -371,6 +371,7 @@ function registerSettingsIpc(options = {}) {
       version: app.getVersion(),
       appName: productMetadata.appDisplayName,
       repoUrl: productMetadata.repoUrl,
+      modelRepoUrl: productMetadata.modelRepoUrl,
       license: productMetadata.licenseId,
       copyright: productMetadata.copyrightLine,
       upstreamRepoUrl: productMetadata.upstreamRepoUrl,

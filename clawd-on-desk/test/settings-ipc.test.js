@@ -408,7 +408,7 @@ test("settings IPC imports Clawd user theme zip packages", async () => {
     });
     assert.deepStrictEqual(dialogParent, { id: "parent", sender: "sender-web-contents" });
     assert.deepStrictEqual(dialogOptions.properties, ["openFile"]);
-    assert.deepStrictEqual(dialogOptions.filters, [{ name: "Clawd theme zip", extensions: ["zip"] }]);
+    assert.deepStrictEqual(dialogOptions.filters, [{ name: "Pet theme zip", extensions: ["zip"] }]);
     assert.strictEqual(
       fs.readFileSync(path.join(userThemesDir, "pixel-cat", "theme.json"), "utf8"),
       JSON.stringify(themeJson)

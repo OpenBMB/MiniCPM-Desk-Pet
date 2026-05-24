@@ -28,6 +28,7 @@ const http = require("http");
 const path = require("path");
 const os = require("os");
 const minicpmI18n = require("./minicpm-i18n");
+const { downloadMiniCpmModel } = require("./minicpm-model-download");
 
 const isMac = process.platform === "darwin";
 const SENTINEL_FILE = "minicpm-onboarding.json";
@@ -64,41 +65,6 @@ function httpJson(method, urlStr, body, timeoutMs = 4000) {
     req.on("error", reject);
     req.on("timeout", () => req.destroy(new Error("timeout")));
     if (body) req.write(JSON.stringify(body));
-    req.end();
-  });
-}
-
-// Stream SSE from a POST endpoint and call `onEvent(parsedJSON)` for each
-// "data: {...}" block. Resolves when the stream ends.
-function postSSE(urlStr, onEvent) {
-  return new Promise((resolve) => {
-    const u = new URL(urlStr);
-    const req = http.request({
-      hostname: u.hostname,
-      port: u.port || 80,
-      path: u.pathname,
-      method: "POST",
-      headers: { "content-type": "application/json", "content-length": 0 },
-      timeout: 0,
-    }, (res) => {
-      let buf = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk) => {
-        buf += chunk;
-        let idx;
-        while ((idx = buf.indexOf("\n\n")) >= 0) {
-          const block = buf.slice(0, idx);
-          buf = buf.slice(idx + 2);
-          if (!block.startsWith("data:")) continue;
-          try {
-            const ev = JSON.parse(block.slice(5).trim());
-            try { onEvent && onEvent(ev); } catch {}
-          } catch {}
-        }
-      });
-      res.on("end", () => resolve({ ok: true }));
-    });
-    req.on("error", (err) => resolve({ ok: false, error: err.message }));
     req.end();
   });
 }
@@ -429,19 +395,24 @@ module.exports = function initOnboarding(ctx) {
     },
 
     "onboarding:start-model-download": async () => {
-      // Make sure the sidecar is running before kicking off the SSE.
-      // We need /api/update-apply to be reachable.
-      const r = await ctx.ensureSidecarRunning();
-      if (!r || r.ok === false) {
-        const msg = (r && r.error) || t("onboardingSidecarStartFailed");
-        progress("error", { phase: "sidecar-start", message: msg });
+      const chat = ctx.getChat();
+      const destinationDir = chat && chat.getDefaultModelDir ? chat.getDefaultModelDir() : userDataPath("models");
+      progress("start", { phase: "download" });
+      try {
+        const result = await downloadMiniCpmModel({
+          destinationDir,
+          onProgress: (ev) => progress("download", ev),
+        });
+        if (chat && chat.setModelDir && result && result.path) {
+          chat.setModelDir(result.path);
+        }
+        progress("done", { phase: "download", ok: true, provider: result.provider, path: result.path });
+        return { ok: true, ...result };
+      } catch (err) {
+        const msg = String(err && err.message || err);
+        progress("error", { phase: "download", message: msg });
         return { ok: false, error: msg };
       }
-      const url = `${ctx.getSidecarUrl()}/api/update-apply`;
-      progress("start", { phase: "download" });
-      const result = await postSSE(url, (ev) => progress("download", ev));
-      progress("done", { phase: "download", ok: result.ok });
-      return result;
     },
 
     "onboarding:warmup": async () => {

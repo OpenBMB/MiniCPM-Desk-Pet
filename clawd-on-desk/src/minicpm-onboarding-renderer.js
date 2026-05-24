@@ -30,6 +30,7 @@ let modelInfo = null;        // { path, sizeBytes } once ready
 let warmupStatus = "idle";   // "idle" | "running" | "ready" | "error"
 let warmupKicked = false;    // guard against double-firing warmup
 let envCheckRan = false;     // re-paint env-check details on lang change
+let downloadFailed = false;  // show an explicit retry affordance after failure
 
 // Apply translations to all `data-i18n` elements. Called once on boot
 // and again on every language change.
@@ -184,7 +185,9 @@ function paintModelCards() {
 
   // idle
   dlBtn.disabled = false;
-  dlBtn.textContent = t("onboardingDownloadStart");
+  dlBtn.textContent = downloadFailed
+    ? t("onboardingDownloadRetry")
+    : t("onboardingDownloadStart");
   localBtn.disabled = false;
   localBtn.textContent = t("onboardingLocalPickFile");
 }
@@ -247,6 +250,7 @@ async function detectExistingModel() {
     modelInfo = null;
     warmupStatus = "idle";
     warmupKicked = false;
+    downloadFailed = false;
     paintModelPanel();
   }
 }
@@ -263,6 +267,7 @@ async function startModelDownload() {
 
   modelStatus = "downloading";
   modelSource = "download";
+  downloadFailed = false;
   paintModelPanel();
   setProgress(0, t("onboardingDownloadProgressInit"));
 
@@ -301,8 +306,11 @@ async function startModelDownload() {
   } else {
     modelStatus = "idle";
     modelSource = null;
+    downloadFailed = true;
     paintModelPanel();
-    errBox.textContent = (r && r.error) || t("onboardingWarmupErrorTitle", { msg: "" });
+    errBox.textContent = t("onboardingDownloadErrorHint", {
+      msg: (r && r.error) || "",
+    });
     errBox.classList.remove("hidden");
   }
 }
@@ -315,6 +323,7 @@ async function pickLocalModel() {
 
   const r = await window.onboarding.pickLocalModel();
   if (r && r.ok) {
+    downloadFailed = false;
     if (switching) {
       resetWarmup();
       try { await window.onboarding.restartSidecar(); } catch {}

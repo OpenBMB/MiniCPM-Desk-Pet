@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "name": "Clawd",
+  "name": "Classic Crab",
   "author": "rullerzhou",
   "version": "1.0.0",
-  "description": "The original pixel crab — Clawd the Claude Code mascot",
+  "description": "The original pixel crab theme",
   "repo": "https://github.com/nicepkg/clawd",
   "viewBox": {
     "x": -15,
