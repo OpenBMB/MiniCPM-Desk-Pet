@@ -122,7 +122,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install build deps
-        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential libvulkan-dev
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y cmake build-essential \
+            libvulkan-dev glslang-tools glslc spirv-headers spirv-tools
 
       - name: Install uv
         run: |
@@ -169,14 +172,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install Vulkan SDK
-        run: |
-          $VK_VERSION = "1.4.313.0"
-          $installer = "$env:RUNNER_TEMP\VulkanSDK.exe"
-          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$VK_VERSION/windows/VulkanSDK-$VK_VERSION-Installer.exe" -OutFile $installer
-          Start-Process -FilePath $installer -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
-          $sdkPath = "C:\VulkanSDK\$VK_VERSION"
-          Add-Content $env:GITHUB_ENV "VULKAN_SDK=$sdkPath"
-          Add-Content $env:GITHUB_PATH "$sdkPath\Bin"
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.4.309.0
+          cache: true
 
       - name: Install uv
         run: |
