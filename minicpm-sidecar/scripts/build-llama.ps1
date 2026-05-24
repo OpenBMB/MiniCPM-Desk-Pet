@@ -5,7 +5,7 @@
 #   bin\win-x64\*.dll
 #
 # Honors:
-#   $env:LLAMA_ACCEL = "cuda" | "cpu"  (default: cpu)
+#   $env:LLAMA_ACCEL = "vulkan" | "cuda" | "cpu"  (default: vulkan)
 
 $ErrorActionPreference = "Stop"
 
@@ -19,7 +19,7 @@ if (-not (Test-Path $src)) {
   Write-Error "$src not found. Run: git submodule update --init llama.cpp"
 }
 
-$accel = if ($env:LLAMA_ACCEL) { $env:LLAMA_ACCEL } else { "cpu" }
+$accel = if ($env:LLAMA_ACCEL) { $env:LLAMA_ACCEL } else { "vulkan" }
 $target = "win-x64"
 
 $flags = @(
@@ -30,9 +30,10 @@ $flags = @(
   "-DLLAMA_CURL=OFF"
 )
 switch ($accel) {
-  "cuda" { $flags += "-DGGML_CUDA=ON" }
-  "cpu"  { $flags += "-DGGML_CUDA=OFF" }
-  default { Write-Error "Unknown LLAMA_ACCEL=$accel (expected cuda|cpu)" }
+  "vulkan" { $flags += "-DGGML_VULKAN=ON" }
+  "cuda"   { $flags += "-DGGML_CUDA=ON" }
+  "cpu"    { $flags += "-DGGML_VULKAN=OFF"; $flags += "-DGGML_CUDA=OFF" }
+  default  { Write-Error "Unknown LLAMA_ACCEL=$accel (expected vulkan|cuda|cpu)" }
 }
 
 Write-Host "==> Target: $target   Accel: $accel" -ForegroundColor Cyan
@@ -42,9 +43,15 @@ if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
   Write-Error "cmake not found in PATH. Install via winget/choco or Visual Studio Build Tools."
 }
 
+$jobs = if ($env:LLAMA_JOBS) { $env:LLAMA_JOBS } else {
+  $ncpu = (Get-CimInstance Win32_Processor).NumberOfLogicalProcessors
+  if ($env:CI -and $ncpu -gt 4) { 4 } else { $ncpu }
+}
+Write-Host "==> cmake build (-j$jobs)" -ForegroundColor Cyan
+
 New-Item -ItemType Directory -Force -Path $build | Out-Null
 & cmake -S $src -B $build @flags
-& cmake --build $build --target llama-server --config Release -j
+& cmake --build $build --target llama-server --config Release -j $jobs
 
 $server = $null
 foreach ($cand in @(

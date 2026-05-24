@@ -20,20 +20,8 @@ defaults:
 
 jobs:
   build-mac:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-14    # Apple Silicon
-            triple: mac-arm64
-            accel: metal
-            arch_flag: --arm64
-          - runner: macos-13    # Intel
-            triple: mac-x64
-            accel: cpu
-            arch_flag: --x64
-    runs-on: ${{ matrix.runner }}
-    name: mac-${{ matrix.triple }}
+    runs-on: macos-14
+    name: mac-arm64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +40,7 @@ jobs:
 
       - name: Build sidecar
         env:
-          LLAMA_ACCEL: ${{ matrix.accel }}
+          LLAMA_ACCEL: metal
         working-directory: minicpm-sidecar
         run: ./scripts/build-all.sh
 
@@ -91,7 +79,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npx electron-builder --mac ${{ matrix.arch_flag }} --publish never
+        run: npx electron-builder --mac --arm64 --publish never
 
       - name: Verify code signature
         if: ${{ secrets.CSC_LINK != '' }}
@@ -114,7 +102,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: mac-installer-${{ matrix.triple }}
+          name: mac-installer-mac-arm64
           path: |
             clawd-on-desk/dist/*.dmg
             clawd-on-desk/dist/latest-mac.yml
@@ -134,7 +122,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install build deps
-        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential
+        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential libvulkan-dev
 
       - name: Install uv
         run: |
@@ -142,6 +130,8 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Build sidecar
+        env:
+          LLAMA_ACCEL: vulkan
         working-directory: minicpm-sidecar
         run: ./scripts/build-all.sh
 
@@ -178,6 +168,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install Vulkan SDK
+        run: |
+          $VK_VERSION = "1.4.313.0"
+          $installer = "$env:RUNNER_TEMP\VulkanSDK.exe"
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$VK_VERSION/windows/VulkanSDK-$VK_VERSION-Installer.exe" -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
+          $sdkPath = "C:\VulkanSDK\$VK_VERSION"
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=$sdkPath"
+          Add-Content $env:GITHUB_PATH "$sdkPath\Bin"
+
       - name: Install uv
         run: |
           irm https://astral.sh/uv/install.ps1 | iex
@@ -185,6 +185,8 @@ jobs:
 
       - name: Build llama-server
         working-directory: minicpm-sidecar
+        env:
+          LLAMA_ACCEL: vulkan
         run: ./scripts/build-llama.ps1
 
       - name: Build gateway (PyInstaller)

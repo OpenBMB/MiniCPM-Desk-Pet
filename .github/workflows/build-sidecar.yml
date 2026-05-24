@@ -29,15 +29,12 @@ jobs:
           - os: macos-14            # Apple Silicon
             triple: mac-arm64
             accel: metal
-          - os: macos-13            # Intel
-            triple: mac-x64
-            accel: cpu
           - os: ubuntu-22.04
             triple: linux-x64
-            accel: cpu
+            accel: vulkan
           - os: windows-2022
             triple: win-x64
-            accel: cpu
+            accel: vulkan
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.triple }}
     defaults:
@@ -48,9 +45,21 @@ jobs:
         with:
           submodules: true
 
-      - name: Install cmake (Linux)
+      - name: Install build deps (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential
+        run: sudo apt-get update -y && sudo apt-get install -y cmake build-essential libvulkan-dev
+
+      - name: Install Vulkan SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $VK_VERSION = "1.4.313.0"
+          $installer = "$env:RUNNER_TEMP\VulkanSDK.exe"
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$VK_VERSION/windows/VulkanSDK-$VK_VERSION-Installer.exe" -OutFile $installer
+          Start-Process -FilePath $installer -ArgumentList "--accept-licenses --default-answer --confirm-command install" -Wait
+          $sdkPath = "C:\VulkanSDK\$VK_VERSION"
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=$sdkPath"
+          Add-Content $env:GITHUB_PATH "$sdkPath\Bin"
 
       # cmake ships with macOS / windows runners already.
 

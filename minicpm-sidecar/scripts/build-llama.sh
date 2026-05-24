@@ -39,7 +39,7 @@ case "$(uname -s)-$(uname -m)" in
     ;;
   Linux-x86_64)
     TARGET="linux-x64"
-    ACCEL="${LLAMA_ACCEL:-cpu}"
+    ACCEL="${LLAMA_ACCEL:-vulkan}"
     ;;
   Linux-aarch64)
     TARGET="linux-arm64"
@@ -63,14 +63,17 @@ case "$ACCEL" in
   metal)
     CMAKE_FLAGS+=( -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON )
     ;;
+  vulkan)
+    CMAKE_FLAGS+=( -DGGML_VULKAN=ON )
+    ;;
   cuda)
     CMAKE_FLAGS+=( -DGGML_CUDA=ON )
     ;;
   cpu)
-    CMAKE_FLAGS+=( -DGGML_METAL=OFF -DGGML_CUDA=OFF )
+    CMAKE_FLAGS+=( -DGGML_METAL=OFF -DGGML_CUDA=OFF -DGGML_VULKAN=OFF )
     ;;
   *)
-    red "未知 LLAMA_ACCEL=$ACCEL（应为 metal/cuda/cpu）"
+    red "未知 LLAMA_ACCEL=$ACCEL（应为 metal/vulkan/cuda/cpu）"
     exit 1
     ;;
 esac
@@ -87,8 +90,12 @@ mkdir -p "$BUILD"
 cyan "==> cmake configure"
 cmake -S "$SRC" -B "$BUILD" "${CMAKE_FLAGS[@]}"
 
-cyan "==> cmake build llama-server"
-cmake --build "$BUILD" --target llama-server --config Release -j
+JOBS="${LLAMA_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
+if [[ -n "${CI:-}" && "$JOBS" -gt 4 ]]; then
+  JOBS=4
+fi
+cyan "==> cmake build llama-server (-j$JOBS)"
+cmake --build "$BUILD" --target llama-server --config Release -j"$JOBS"
 
 # llama.cpp puts the binary somewhere predictable; try both layouts.
 SERVER=""
