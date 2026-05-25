@@ -124,8 +124,13 @@ jobs:
       - name: Install build deps
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y cmake build-essential \
-            libvulkan-dev glslang-tools spirv-headers spirv-tools
+          sudo apt-get install -y cmake build-essential libvulkan-dev
+
+      - name: Install Vulkan SDK
+        uses: humbletim/install-vulkan-sdk@v1.2
+        with:
+          version: 1.4.309.0
+          cache: true
 
       - name: Install uv
         run: |

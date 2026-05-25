@@ -78,6 +78,13 @@ case "$ACCEL" in
     ;;
 esac
 
+# Vulkan 后端需要 SPIRV-Headers 的 CMake config。LunarG SDK 把它放在
+# $VULKAN_SDK/share/cmake/ 或子目录下；显式加进 CMAKE_PREFIX_PATH 兜底。
+if [[ "$ACCEL" == "vulkan" && -n "${VULKAN_SDK:-}" ]]; then
+  cyan "==> Using VULKAN_SDK: $VULKAN_SDK"
+  CMAKE_FLAGS+=( "-DCMAKE_PREFIX_PATH=$VULKAN_SDK" )
+fi
+
 cyan "==> Target: $TARGET   Accel: $ACCEL"
 cyan "==> Source: $SRC"
 
