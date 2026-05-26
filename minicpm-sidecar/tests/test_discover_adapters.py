@@ -62,7 +62,7 @@ def test_discover_handles_missing_root(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "filename,expected",
     [
-        ("lora_nekoqa_adapter_20260515.gguf", "neko"),
+        ("lora_nekoqa_v2_fixedbase_adapter_20260524.gguf", "neko"),
         ("lora_neko.gguf", "neko"),
         ("muice_v1.gguf", "muice"),
         ("lora_chuuni_20260519.gguf", "chuuni"),

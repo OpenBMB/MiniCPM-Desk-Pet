@@ -30,6 +30,13 @@ from typing import AsyncIterator, Optional
 
 import httpx
 
+from .lifecycle import (
+    cleanup_stale_llama_server,
+    clear_pid_file,
+    default_pid_file_path,
+    pdeathsig_preexec,
+    write_pid_file,
+)
 from .log_setup import get_logger
 
 
@@ -169,6 +176,10 @@ class LlamaServer:
         # with a concurrent restart.
         self._swap_lock = threading.Lock()
         self.last_stderr: list[str] = []
+        # Persisted pid of the llama-server child. Lets the *next* sidecar
+        # boot reap an orphan that this process forgot to stop (e.g.
+        # because we were `kill -9`'d before our FastAPI lifespan ran).
+        self._pid_file: Path = default_pid_file_path()
 
     # ── lifecycle ───────────────────────────────────────────────────────
 
@@ -219,6 +230,11 @@ class LlamaServer:
             if self._proc and self._proc.poll() is None:
                 log.debug("llama-server already running on :%d", self.port)
                 return
+            # Before claiming a port, sweep any orphan llama-server from a
+            # previous sidecar crash. Without this, an orphan keeps
+            # holding :18766 and we'd silently land on :18767 every restart
+            # while the dead-but-alive process bleeds memory.
+            cleanup_stale_llama_server(self._pid_file)
             self._binary = self._resolve_binary()
             self.port = _find_free_port()
             argv = self._build_argv()
@@ -228,18 +244,29 @@ class LlamaServer:
             # we surface progress to Electron via our own /api/update-apply
             # stream and llama-server's own JSON logs.
             env.setdefault("LLAMA_ARG_NO_DISPLAY_PROMPT", "1")
+            popen_kwargs: dict = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+                "bufsize": 1,
+                "env": env,
+            }
+            # Linux: ask the kernel to SIGTERM llama-server the moment we
+            # die, even if we die via SIGKILL and never run any cleanup
+            # ourselves. macOS / Windows have no preexec_fn — they rely
+            # on the PID-file-on-next-boot path (cleanup_stale_llama_server
+            # above) for the same scenario.
+            preexec = pdeathsig_preexec()
+            if preexec is not None:
+                popen_kwargs["preexec_fn"] = preexec
             try:
-                self._proc = subprocess.Popen(
-                    argv,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                    bufsize=1,
-                    env=env,
-                )
+                self._proc = subprocess.Popen(argv, **popen_kwargs)
             except Exception as exc:
                 log.exception("llama-server spawn failed: %s", exc)
                 raise
+            # Record pid AFTER spawn succeeds so a failed exec doesn't
+            # leave a bogus pid file pointing at our own process.
+            write_pid_file(self._pid_file, self._proc.pid)
             self._spawn_tailer(self._proc)
             self._client = httpx.AsyncClient(
                 base_url=f"http://{self.host}:{self.port}",
@@ -333,6 +360,10 @@ class LlamaServer:
                     proc.kill()
                 except Exception:
                     pass
+        # llama-server is gone (or we tried our best); drop the pid
+        # file so the *next* sidecar boot doesn't waste cycles probing
+        # a now-dead pid.
+        clear_pid_file(self._pid_file)
 
     async def swap_model(self, model_path: Path) -> None:
         """Restart llama-server with a different `--model`."""

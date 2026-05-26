@@ -1,0 +1,16 @@
+{
+  "base_model": "/user/yanhui/share_user_long/zhaohengyu/MiniCPM5-models-fixed/official",
+  "data": "finetune_datasets/processed/by_source/nekoqa_30k.jsonl",
+  "filter_tag": null,
+  "filter_lang": null,
+  "n_train": 30525,
+  "n_eval": 309,
+  "epochs": 2.0,
+  "lr": 0.0002,
+  "bs": 8,
+  "grad_acc": 1,
+  "lora_r": 16,
+  "lora_alpha": 32,
+  "max_length": 1536,
+  "assistant_only_loss": true
+}

@@ -9,4 +9,3 @@ adapters/**/*.gguf filter=lfs diff=lfs merge=lfs -text
 # so we don't have to rewrite already-pushed history. Add new exceptions
 # here as needed; they MUST come AFTER the catch-all rule above.
 adapters/lora_chuuni_20260519_1449/adapter_model.safetensors -filter -diff -merge -text
-adapters/lora_nekoqa_adapter_20260515_0738/adapter_model.safetensors -filter -diff -merge -text

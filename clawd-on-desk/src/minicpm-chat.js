@@ -436,6 +436,13 @@ class Sidecar {
       // gateway then refrains from passing any --lora flag, keeping
       // memory minimal for users who never opt in to a persona.
       MINICPM_ACTIVE_ADAPTER: this.activeAdapterPath || process.env.MINICPM_ACTIVE_ADAPTER || "",
+      // Pin the parent-watchdog inside the gateway to OUR pid (Electron
+      // main), not to whatever ppid the PyInstaller bootloader's Python
+      // re-exec hop ends up with. If Electron crashes or is `kill -9`'d,
+      // the watchdog notices our pid is gone and tears down the
+      // sidecar + llama-server within ~2s, so :18765 / :18766 don't
+      // stay held by an orphan.
+      MINICPM_PARENT_PID: String(process.pid),
     };
 
     let proc;

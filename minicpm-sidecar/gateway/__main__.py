@@ -20,6 +20,7 @@ import uvicorn
 # Absolute imports so this module works both as `python -m gateway`
 # (where __package__ is set) AND as the PyInstaller entry script
 # (where __package__ is empty and relative imports raise).
+from gateway.lifecycle import ParentWatchdog
 from gateway.log_setup import init_logging, install_broken_pipe_guard
 from gateway.server import build_app
 from gateway.updater import DEFAULT_SOURCE
@@ -66,10 +67,37 @@ def _resolve_model_arg(raw: str) -> Path | None:
     return None
 
 
+def _resolve_parent_pid() -> int:
+    """Pick the pid the watchdog should treat as "our launcher".
+
+    Prefer the explicit env var (`MINICPM_PARENT_PID`) the Electron host
+    sets to its own pid when spawning us — that survives the PyInstaller
+    bootloader → python re-exec hop, where `os.getppid()` would point at
+    the bootloader instead of Electron.
+
+    Falls back to `os.getppid()` for dev runs (`python -m gateway ...`)
+    where there's no Electron host setting the env.
+    """
+    raw = (os.environ.get("MINICPM_PARENT_PID") or "").strip()
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+    return os.getppid()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(list(sys.argv[1:] if argv is None else argv))
     init_logging()
     install_broken_pipe_guard()
+
+    # Start the parent watchdog before binding any ports. If our launcher
+    # (Electron) is already gone by the time we get here, the watchdog
+    # fires inline and we exit before claiming :18765 — avoids polluting
+    # the next sidecar boot with a half-initialised gateway.
+    parent_pid = _resolve_parent_pid()
+    ParentWatchdog(parent_pid).start()
 
     model_path = _resolve_model_arg(args.model)
 

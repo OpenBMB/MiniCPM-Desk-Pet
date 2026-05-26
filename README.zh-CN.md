@@ -119,7 +119,7 @@ MiniCPM 设置页支持：
 
 - 桌宠 UI 基于 [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)。完整归属信息见 [`NOTICE.md`](./NOTICE.md)。
 - 模型权重来自 OpenBMB MiniCPM 模型家族，并在使用时单独下载。
-- 内置 neko 人格使用 [liumindmind/NekoQA-30K](https://huggingface.co/datasets/liumindmind/NekoQA-30K) 作为微调数据。
+- 内置 neko 人格使用 **neko30k** 数据集（[liumindmind/NekoQA-30K](https://huggingface.co/datasets/liumindmind/NekoQA-30K)）作为微调数据。
 
 ## 许可证
 

@@ -78,8 +78,6 @@ Scope optional, e.g. `feat(sidecar): add /api/load-adapter endpoint`.
 
 - [ ] Branch is rebased on the latest `minicpm-pet` (or target branch)
 - [ ] `npm test` and `uv run pytest -q` pass locally
-- [ ] User-facing changes have a one-line entry in
-      [CHANGELOG.md](CHANGELOG.md) under an upcoming version section
 - [ ] If you touch onboarding, sidecar lifecycle, or packaging, please
       include a short test plan (commands run, platform verified) in
       the PR description

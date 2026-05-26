@@ -119,7 +119,7 @@ For development setup, packaging, and repository layout, see [`docs/development.
 
 - Desktop pet UI is based on [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk). Full attribution is listed in [`NOTICE.md`](./NOTICE.md).
 - Model weights come from the OpenBMB MiniCPM model family and are downloaded separately.
-- The bundled neko persona uses [liumindmind/NekoQA-30K](https://huggingface.co/datasets/liumindmind/NekoQA-30K) for fine-tuning data.
+- The bundled neko persona uses the **neko30k** dataset ([liumindmind/NekoQA-30K](https://huggingface.co/datasets/liumindmind/NekoQA-30K)) for fine-tuning data.
 
 ## License
 
