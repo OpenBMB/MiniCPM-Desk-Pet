@@ -6,7 +6,7 @@
   // in settings.html. Keep a literal fallback so unit tests that eval
   // this file in isolation still work.
   const { DEFAULT_THEME_ID } = (typeof globalThis !== "undefined" && globalThis.ClawdDefaultTheme)
-    || { DEFAULT_THEME_ID: "calico" };
+    || { DEFAULT_THEME_ID: "cybercat" };
   const animMergeApi = root.ClawdSettingsAnimOverridesMerge || {};
   const getAssetPreviewUrl = animMergeApi.getAssetPreviewUrl || ((asset) => {
     if (!asset) return null;

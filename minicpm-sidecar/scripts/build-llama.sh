@@ -59,10 +59,17 @@ CMAKE_FLAGS=(
   -DLLAMA_CURL=OFF
   # cpp-httplib (vendored in llama.cpp) auto-links OpenSSL when
   # find_package(OpenSSL) succeeds, producing a binary that depends on
-  # libcrypto/libssl. We don't need HTTPS for the 127.0.0.1-only sidecar,
-  # and on Windows that pulled in vcpkg's libcrypto-3-x64.dll without it
-  # being bundled into bin/win-x64/, so the user got STATUS_DLL_NOT_FOUND
-  # at first launch. Hard-disable discovery for parity across platforms.
+  # libcrypto/libssl. We don't need HTTPS for the 127.0.0.1-only sidecar.
+  #
+  # Failure modes if this flag is missing:
+  #   - Windows: vcpkg's libcrypto-3-x64.dll isn't bundled into bin/win-x64/,
+  #     so the user gets STATUS_DLL_NOT_FOUND at first launch.
+  #   - macOS: Homebrew's openssl@3 dylib gets embedded by absolute path
+  #     (`/opt/homebrew/opt/openssl@3/lib/lib{ssl,crypto}.3.dylib`). End
+  #     users without Homebrew (or on Intel Mac, or with openssl at a
+  #     different prefix) hit dyld "Library not loaded" and the sidecar
+  #     reports "Llama Server is not running".
+  # Hard-disable discovery for parity across platforms.
   -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON
 )
 
@@ -101,6 +108,15 @@ if ! command -v cmake >/dev/null 2>&1; then
 fi
 
 mkdir -p "$BUILD"
+# Drop any stale CMake cache so flag toggles (e.g. -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL)
+# definitely take effect. Without this, a previously-configured tree that
+# found OpenSSL keeps the libssl/libcrypto link edges forever and the
+# resulting binary still hardcodes /opt/homebrew/opt/openssl@3/... .
+if [[ -f "$BUILD/CMakeCache.txt" ]]; then
+  cyan "==> 清理 CMake 缓存（确保 OpenSSL 等可选包关闭生效）"
+  rm -f "$BUILD/CMakeCache.txt"
+  rm -rf "$BUILD/CMakeFiles"
+fi
 cyan "==> cmake configure"
 cmake -S "$SRC" -B "$BUILD" "${CMAKE_FLAGS[@]}"
 
@@ -134,6 +150,46 @@ cp -f "$SERVER" "$OUT/"
 for ext in dylib so metallib; do
   find "$BUILD" -maxdepth 3 -name "*.$ext" -exec cp -f {} "$OUT/" \; 2>/dev/null || true
 done
+
+# ── Anti-regression: verify the binary has no absolute-path Homebrew /
+#    vcpkg deps that won't exist on the user's machine. The recurring
+#    failure mode is cpp-httplib sneaking OpenSSL back in, producing a
+#    binary that depends on /opt/homebrew/opt/openssl@3/lib/lib{ssl,crypto}.3.dylib
+#    and crashing at first launch on any user without that exact prefix.
+cyan "==> 校验 llama-server 动态链接（防 OpenSSL / Homebrew 绝对路径回归）"
+case "$(uname -s)" in
+  Darwin)
+    if ! command -v otool >/dev/null 2>&1; then
+      red "缺少 otool，无法校验链接。请安装 Xcode Command Line Tools。"
+      exit 1
+    fi
+    DEPS="$(otool -L "$OUT/llama-server" | tail -n +2 || true)"
+    BAD="$(printf '%s\n' "$DEPS" | grep -Ei '/(opt/homebrew|usr/local/opt|usr/local/Cellar|opt/local)/' || true)"
+    if [[ -n "$BAD" ]]; then
+      red "==> 构建产物仍然依赖宿主机 Homebrew/MacPorts 路径，用户机器上会启动失败："
+      printf '%s\n' "$BAD" >&2
+      red "请确认 -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON 等关闭可选包的 flag 已生效，"
+      red "并删除 $BUILD 重新干净构建。"
+      exit 1
+    fi
+    SSL_BAD="$(printf '%s\n' "$DEPS" | grep -Ei 'libssl|libcrypto|openssl' || true)"
+    if [[ -n "$SSL_BAD" ]]; then
+      red "==> 构建产物仍然链接了 OpenSSL，用户机器上大概率缺库："
+      printf '%s\n' "$SSL_BAD" >&2
+      exit 1
+    fi
+    ;;
+  Linux)
+    if command -v ldd >/dev/null 2>&1; then
+      SSL_BAD="$(ldd "$OUT/llama-server" 2>/dev/null | grep -Ei 'libssl|libcrypto' || true)"
+      if [[ -n "$SSL_BAD" ]]; then
+        red "==> 构建产物仍然链接了 OpenSSL："
+        printf '%s\n' "$SSL_BAD" >&2
+        exit 1
+      fi
+    fi
+    ;;
+esac
 
 green "==> OK -> $OUT/$(basename "$SERVER")"
 green "    试跑: $OUT/llama-server --version"

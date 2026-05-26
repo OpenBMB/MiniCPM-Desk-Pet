@@ -5,11 +5,17 @@ const path = require("path");
 // Load default theme for test ctx
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("clawd");
+const _defaultTheme = themeLoader.loadTheme("cybercat");
 
 function makeCtx() {
+  const theme = structuredClone(_defaultTheme);
+  theme.displayHintMap = {
+    "cybercat-building.gif": "cybercat-building.gif",
+    "cybercat-juggling.gif": "cybercat-juggling.gif",
+    "cybercat-thinking.gif": "cybercat-thinking.gif",
+  };
   return {
-    theme: _defaultTheme,
+    theme,
     doNotDisturb: false,
     miniTransitioning: false,
     miniMode: false,
@@ -51,36 +57,36 @@ describe("display_svg session hints (updateSession path)", () => {
   }
 
   it("uses allowlisted display_svg for working state", () => {
-    api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "clawd-working-building.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-building.svg");
+    api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "cybercat-building.gif" }));
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-building.gif");
   });
 
   it("falls back to getWorkingSvg when no hint", () => {
     api.updateSession("c1", "working", "PreToolUse", baseOpts());
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-working.gif");
   });
 
   it("ignores non-allowlisted svg and falls back", () => {
     api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "evil.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-working.gif");
   });
 
   it("picks the most recently updated session among working sessions", async () => {
-    api.updateSession("a", "working", "PreToolUse", baseOpts({ cwd: "/a", displayHint: "clawd-working-building.svg" }));
+    api.updateSession("a", "working", "PreToolUse", baseOpts({ cwd: "/a", displayHint: "cybercat-building.gif" }));
     await new Promise((r) => setTimeout(r, 5));
-    api.updateSession("b", "working", "PostToolUse", baseOpts({ cwd: "/b", displayHint: "clawd-idle-reading.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-idle-reading.svg");
+    api.updateSession("b", "working", "PostToolUse", baseOpts({ cwd: "/b", displayHint: "cybercat-juggling.gif" }));
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-juggling.gif");
   });
 
   it("clears hint when display_svg is null", () => {
-    api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "clawd-working-building.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-building.svg");
+    api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "cybercat-building.gif" }));
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-building.gif");
     api.updateSession("c1", "working", "PostToolUse", baseOpts({ displayHint: null }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-working.gif");
   });
 
   it("applies thinking hint for thinking state", () => {
-    api.updateSession("c1", "thinking", "AfterAgentThought", baseOpts({ displayHint: "clawd-working-thinking.svg" }));
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-thinking.svg");
+    api.updateSession("c1", "thinking", "AfterAgentThought", baseOpts({ displayHint: "cybercat-thinking.gif" }));
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
   });
 });

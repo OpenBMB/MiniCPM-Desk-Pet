@@ -1,6 +1,6 @@
 {
   "name": "minicpm-desk-pet",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "MiniCPM Desk Pet — local-first desktop pet powered by MiniCPM5-0.9B. Forked from clawd-on-desk.",
   "main": "src/main.js",
   "scripts": {

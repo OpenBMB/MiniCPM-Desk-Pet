@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("clawd");
+const _defaultTheme = themeLoader.loadTheme("cybercat");
 
 function cloneTheme(theme) {
   return JSON.parse(JSON.stringify(theme));
@@ -71,7 +71,7 @@ function makeCtx(theme, stateLog, initialX = 160) {
     getCurrentPixelSize() { return { width: 120, height: 120 }; },
     getPetWindowBounds() { return { ...bounds }; },
     getAnimationAssetCycleMs(file) {
-      if (file && file.includes("mini-enter")) return 1000;
+      if (file && (file.includes("mini-enter") || file === "cybercat-mini-idle.gif")) return 1000;
       return null;
     },
     getBoundsSnapshot() { return { ...bounds }; },

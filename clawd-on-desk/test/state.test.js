@@ -8,8 +8,38 @@ const path = require("node:path");
 // Load default theme for test ctx
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("clawd");
-const _calicoTheme = themeLoader.loadTheme("calico");
+
+function cloneTheme(theme) {
+  return JSON.parse(JSON.stringify(theme));
+}
+
+const _defaultTheme = themeLoader.loadTheme("cybercat");
+const _calicoTheme = cloneTheme(_defaultTheme);
+_calicoTheme._id = "alt-theme";
+_calicoTheme.states = { ..._calicoTheme.states, idle: ["cybercat-working.gif"] };
+_calicoTheme.sleepSequence = { mode: "full" };
+_calicoTheme.states.waking = ["cybercat-idle.gif"];
+_calicoTheme._stateBindings = {
+  ..._calicoTheme._stateBindings,
+  waking: { files: ["cybercat-idle.gif"], fallbackTo: null },
+};
+_calicoTheme.timings = {
+  ..._calicoTheme.timings,
+  wakeDuration: 5800,
+  collapseDuration: 5200,
+};
+
+const _fullSleepTheme = cloneTheme(_defaultTheme);
+_fullSleepTheme.sleepSequence = { mode: "full" };
+_fullSleepTheme.states.waking = ["cybercat-idle.gif"];
+_fullSleepTheme._stateBindings = {
+  ..._fullSleepTheme._stateBindings,
+  waking: { files: ["cybercat-idle.gif"], fallbackTo: null },
+};
+_fullSleepTheme.timings = {
+  ..._fullSleepTheme.timings,
+  collapseDuration: 5200,
+};
 const { createTranslator } = require("../src/i18n");
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,10 +87,6 @@ function makePidKill(alivePids) {
     if (alivePids.has(pid)) return true;
     const e = new Error("ESRCH"); e.code = "ESRCH"; throw e;
   };
-}
-
-function cloneTheme(theme) {
-  return JSON.parse(JSON.stringify(theme));
 }
 
 /** Shorthand for updateSession with named params */
@@ -172,7 +198,7 @@ describe("resolveDisplayState()", () => {
 
     api.setUpdateVisualState("checking");
     assert.strictEqual(api.resolveDisplayState(), "thinking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
 
     api.setUpdateVisualState("available");
     assert.strictEqual(api.resolveDisplayState(), "notification");
@@ -188,7 +214,7 @@ describe("resolveDisplayState()", () => {
 
     api.setUpdateVisualState("checking");
     assert.strictEqual(api.resolveDisplayState(), "thinking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "calico-thinking.apng");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
 
     api.setUpdateVisualState("available");
     assert.strictEqual(api.resolveDisplayState(), "notification");
@@ -204,15 +230,15 @@ describe("resolveDisplayState()", () => {
     api = require("../src/state")(ctx);
 
     api.setUpdateVisualState("checking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
 
     ctx.theme = _calicoTheme;
     api.refreshTheme();
-    assert.strictEqual(api.getSvgOverride("thinking"), "calico-thinking.apng");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
 
     ctx.theme = _defaultTheme;
     api.refreshTheme();
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
   });
 
   it("update overlay does not override higher-priority agent states", () => {
@@ -260,7 +286,7 @@ describe("resolveDisplayState()", () => {
   it("update overlay wins when no sessions exist", () => {
     api.setUpdateVisualState("checking");
     assert.strictEqual(api.resolveDisplayState(), "thinking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cybercat-thinking.gif");
     api.setUpdateVisualState("available");
     assert.strictEqual(api.resolveDisplayState(), "notification");
     api.setUpdateVisualState(null);
@@ -354,35 +380,35 @@ describe("working sub-animations", () => {
 
   it("1 working session → typing SVG", () => {
     api.sessions.set("s1", rawSession("working"));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-working.gif");
   });
 
   it("2 working sessions → juggling SVG", () => {
     api.sessions.set("s1", rawSession("working"));
     api.sessions.set("s2", rawSession("working"));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-juggling.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-juggling.gif");
   });
 
   it("3+ working sessions → building SVG", () => {
     api.sessions.set("s1", rawSession("working"));
     api.sessions.set("s2", rawSession("thinking"));
     api.sessions.set("s3", rawSession("working"));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-building.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cybercat-building.gif");
   });
 
   it("1 juggling session → headphones groove SVG", () => {
     api.sessions.set("s1", rawSession("juggling"));
-    assert.strictEqual(api.getSvgOverride("juggling"), "clawd-headphones-groove.svg");
+    assert.strictEqual(api.getSvgOverride("juggling"), "cybercat-juggling.gif");
   });
 
-  it("2+ juggling sessions → three-ball juggling SVG", () => {
+  it("2+ juggling sessions → conducting SVG", () => {
     api.sessions.set("s1", rawSession("juggling"));
     api.sessions.set("s2", rawSession("juggling"));
-    assert.strictEqual(api.getSvgOverride("juggling"), "clawd-working-juggling.svg");
+    assert.strictEqual(api.getSvgOverride("juggling"), "cybercat-conducting.gif");
   });
 
   it("idle → follow SVG", () => {
-    assert.strictEqual(api.getSvgOverride("idle"), "clawd-idle-follow.svg");
+    assert.strictEqual(api.getSvgOverride("idle"), "cybercat-idle.gif");
   });
 });
 
@@ -394,10 +420,10 @@ describe("hitbox selection", () => {
   it("uses a file-specific hitbox for the displayed SVG", () => {
     const theme = cloneTheme(_defaultTheme);
     const fileBox = { x: 10, y: 11, w: 12, h: 13 };
-    theme.fileHitBoxes = { "clawd-working-typing.svg": fileBox };
+    theme.fileHitBoxes = { "cybercat-working.gif": fileBox };
     api = require("../src/state")(makeCtx({ theme }));
 
-    api.applyState("working", "clawd-working-typing.svg");
+    api.applyState("working", "cybercat-working.gif");
 
     assert.deepStrictEqual(api.getCurrentHitBox(), fileBox);
   });
@@ -407,10 +433,10 @@ describe("hitbox selection", () => {
     theme.fileHitBoxes = {};
     api = require("../src/state")(makeCtx({ theme }));
 
-    api.applyState("error", "clawd-error.svg");
-    assert.deepStrictEqual(api.getCurrentHitBox(), theme.hitBoxes.wide);
+    api.applyState("error", "cybercat-error.gif");
+    assert.deepStrictEqual(api.getCurrentHitBox(), theme.hitBoxes.default);
 
-    api.applyState("working", "clawd-working-typing.svg");
+    api.applyState("working", "cybercat-working.gif");
     assert.deepStrictEqual(api.getCurrentHitBox(), theme.hitBoxes.default);
   });
 });
@@ -434,7 +460,7 @@ describe("visual fallback resolution", () => {
   it("keeps the logical state while resolving visuals through fallbackTo", () => {
     api.applyState("error");
     assert.strictEqual(api.getCurrentState(), "error");
-    assert.strictEqual(api.getCurrentSvg(), "clawd-happy.svg");
+    assert.strictEqual(api.getCurrentSvg(), "cybercat-happy.gif");
 
     mock.timers.tick(5000);
     assert.strictEqual(api.getCurrentState(), "idle");
@@ -533,7 +559,7 @@ describe("wake poll behavior", () => {
   beforeEach(() => {
     mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
     fakeCursor = { x: 100, y: 100 };
-    ctx = makeCtx({ getCursorScreenPoint: () => ({ ...fakeCursor }) });
+    ctx = makeCtx({ theme: _fullSleepTheme, getCursorScreenPoint: () => ({ ...fakeCursor }) });
     api = require("../src/state")(ctx);
   });
   afterEach(() => {
@@ -586,7 +612,7 @@ describe("wake poll behavior", () => {
     fakeCursor.x = 200;
     mock.timers.tick(200);
     assert.strictEqual(api.getCurrentState(), "idle");
-    assert.strictEqual(api.getCurrentSvg(), "clawd-idle-follow.svg");
+    assert.strictEqual(api.getCurrentSvg(), "cybercat-idle.gif");
   });
 
   it("dozing + still > DEEP_SLEEP_TIMEOUT → collapsing", () => {
@@ -1858,7 +1884,7 @@ describe("DND mode", () => {
 
   beforeEach(() => {
     mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
-    ctx = makeCtx();
+    ctx = makeCtx({ theme: _fullSleepTheme });
     api = require("../src/state")(ctx);
   });
   afterEach(() => {
@@ -1875,7 +1901,7 @@ describe("DND mode", () => {
   });
 
   it("enableDoNotDisturb uses theme-specific direct sleep transition art when provided", () => {
-    const theme = cloneTheme(_defaultTheme);
+    const theme = cloneTheme(_fullSleepTheme);
     theme.timings.dndSleepTransitionSvg = "custom-idle-to-sleeping.svg";
     theme.timings.dndSleepTransitionDuration = 4800;
     api.cleanup();
@@ -1981,7 +2007,7 @@ describe("refreshTheme()", () => {
 
   beforeEach(() => {
     mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
-    ctx = makeCtx();
+    ctx = makeCtx({ theme: _fullSleepTheme });
     api = require("../src/state")(ctx);
   });
   afterEach(() => {
@@ -1990,13 +2016,15 @@ describe("refreshTheme()", () => {
   });
 
   it("updates idle svg and DND sleep path after hot theme switch", () => {
-    assert.strictEqual(api.getSvgOverride("idle"), "clawd-idle-follow.svg");
+    assert.strictEqual(api.getSvgOverride("idle"), "cybercat-idle.gif");
 
     ctx.theme = _calicoTheme;
     api.refreshTheme();
 
-    assert.strictEqual(api.getSvgOverride("idle"), "calico-idle-follow.svg");
+    assert.strictEqual(api.getSvgOverride("idle"), "cybercat-working.gif");
     api.enableDoNotDisturb();
+    assert.strictEqual(api.getCurrentState(), "yawning");
+    mock.timers.tick(3000);
     assert.strictEqual(api.getCurrentState(), "collapsing");
     mock.timers.tick(5200);
     assert.strictEqual(api.getCurrentState(), "sleeping");
