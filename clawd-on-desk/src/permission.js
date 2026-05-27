@@ -459,6 +459,7 @@ function estimateBubbleHeight(sugCount) {
 
 function getAnchorWorkArea(petBounds) {
   const bounds = petBounds || ctx.getPetWindowBounds();
+  if (!bounds) return { x: 0, y: 0, width: 1920, height: 1080 };
   const cx = bounds.x + bounds.width / 2;
   const cy = bounds.y + bounds.height / 2;
   return ctx.getNearestWorkArea(cx, cy);
