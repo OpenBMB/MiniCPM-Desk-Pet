@@ -39,7 +39,7 @@ jobs:
         working-directory: minicpm-sidecar
         env:
           TARGET_TRIPLE: mac-arm64
-        run: ./scripts/fetch-llama-release.sh
+        run: bash ./scripts/fetch-llama-release.sh
 
       - name: Build gateway
         working-directory: minicpm-sidecar
@@ -53,8 +53,19 @@ jobs:
           ./llama-server --version
           ./minicpm-sidecar --help >/dev/null
 
+      - name: Check signing credentials
+        id: signing
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+        run: |
+          if [ -n "${CSC_LINK:-}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Import Apple Developer ID certificate
-        if: ${{ secrets.CSC_LINK != '' }}
+        if: ${{ steps.signing.outputs.available == 'true' }}
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -91,7 +102,7 @@ jobs:
         run: npx electron-builder --mac --arm64 --publish never
 
       - name: Verify code signature
-        if: ${{ secrets.CSC_LINK != '' }}
+        if: ${{ steps.signing.outputs.available == 'true' }}
         run: |
           DMG_FILE=$(find clawd-on-desk/dist -name '*.dmg' | head -1)
           if [ -n "$DMG_FILE" ]; then
@@ -138,7 +149,7 @@ jobs:
         env:
           TARGET_TRIPLE: linux-x64
           LLAMA_BACKEND: cpu
-        run: ./scripts/fetch-llama-release.sh
+        run: bash ./scripts/fetch-llama-release.sh
 
       - name: Build gateway
         working-directory: minicpm-sidecar
