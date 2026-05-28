@@ -18,6 +18,7 @@ from pathlib import Path
 
 import pytest
 
+import gateway.lifecycle as lifecycle
 from gateway.lifecycle import (
     ParentWatchdog,
     _pid_alive,
@@ -49,6 +50,26 @@ def test_pid_alive_after_child_exits() -> None:
     # Give the OS a beat to reap the zombie.
     time.sleep(0.05)
     assert _pid_alive(proc.pid) is False
+
+
+def test_pid_alive_windows_does_not_call_os_kill(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: on Windows, os.kill(pid, 0) can terminate the target."""
+
+    seen: dict[str, int] = {}
+
+    def fake_windows_probe(pid: int) -> bool:
+        seen["pid"] = pid
+        return True
+
+    def fail_os_kill(_pid: int, _sig: int) -> None:
+        raise AssertionError("Windows process probes must not use os.kill")
+
+    monkeypatch.setattr(lifecycle.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(lifecycle, "_pid_alive_windows", fake_windows_probe)
+    monkeypatch.setattr(lifecycle.os, "kill", fail_os_kill)
+
+    assert lifecycle._pid_alive(12345) is True
+    assert seen == {"pid": 12345}
 
 
 # ── ParentWatchdog ───────────────────────────────────────────────────────

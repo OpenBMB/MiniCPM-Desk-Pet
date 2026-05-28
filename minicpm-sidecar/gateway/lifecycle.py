@@ -151,11 +151,14 @@ def _pid_alive(pid: int) -> bool:
     the pid (no signal delivered). EPERM means the pid exists but we
     don't own it — still alive for our purposes.
 
-    On Windows, `os.kill(pid, 0)` works in CPython for live pids and
-    raises OSError for dead ones, so the same check applies.
+    On Windows, `os.kill(pid, 0)` is not a safe existence probe: CPython's
+    Windows implementation routes non-console-control signals through
+    TerminateProcess. Use WinAPI query calls there instead.
     """
     if pid <= 0:
         return False
+    if platform.system() == "Windows":
+        return _pid_alive_windows(pid)
     try:
         os.kill(pid, 0)
         return True
@@ -165,6 +168,42 @@ def _pid_alive(pid: int) -> bool:
         return True
     except OSError:
         return False
+
+
+def _pid_alive_windows(pid: int) -> bool:
+    """Windows-only process existence probe that never signals the target."""
+
+    try:
+        import ctypes
+        from ctypes import wintypes
+    except Exception:
+        return False
+
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    ERROR_ACCESS_DENIED = 5
+    STILL_ACTIVE = 259
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))
+    if not handle:
+        # Access denied still proves the process exists; invalid parameter /
+        # not found means it does not.
+        return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return False
+        return code.value == STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 # ── llama-server pdeathsig (Linux) ─────────────────────────────────────────
