@@ -72,6 +72,7 @@ if ($LASTEXITCODE -ne 0) { Write-Error "cmake build failed (exit $LASTEXITCODE)"
 
 $server = $null
 foreach ($cand in @(
+  (Join-Path $build "bin\llama-server.exe"),
   (Join-Path $build "bin\Release\llama-server.exe"),
   (Join-Path $build "Release\llama-server.exe"),
   (Join-Path $build "tools\server\Release\llama-server.exe"),
@@ -91,6 +92,23 @@ New-Item -ItemType Directory -Force -Path $out | Out-Null
 Copy-Item -Force $server $out
 Get-ChildItem -Path $build -Recurse -Filter *.dll | ForEach-Object {
   Copy-Item -Force $_.FullName $out
+}
+
+$cxx = Get-Command g++ -ErrorAction SilentlyContinue
+if ($cxx) {
+  $toolchainBin = Split-Path -Parent $cxx.Source
+  foreach ($dll in @(
+    "libgcc_s_seh-1.dll",
+    "libstdc++-6.dll",
+    "libwinpthread-1.dll",
+    "libgomp-1.dll",
+    "libdl.dll"
+  )) {
+    $runtime = Join-Path $toolchainBin $dll
+    if (Test-Path $runtime) {
+      Copy-Item -Force $runtime $out
+    }
+  }
 }
 
 Write-Host "==> OK -> $out\llama-server.exe" -ForegroundColor Green

@@ -151,11 +151,14 @@ def _pid_alive(pid: int) -> bool:
     the pid (no signal delivered). EPERM means the pid exists but we
     don't own it — still alive for our purposes.
 
-    On Windows, `os.kill(pid, 0)` works in CPython for live pids and
-    raises OSError for dead ones, so the same check applies.
+    On Windows, `os.kill(pid, 0)` only works reliably for child processes;
+    probing an unrelated live process can raise WinError 87. Use the Win32
+    process APIs there so an Electron parent is not mistaken for a dead pid.
     """
     if pid <= 0:
         return False
+    if platform.system() == "Windows":
+        return _windows_pid_alive(pid)
     try:
         os.kill(pid, 0)
         return True
@@ -165,6 +168,36 @@ def _pid_alive(pid: int) -> bool:
         return True
     except OSError:
         return False
+
+
+def _windows_pid_alive(pid: int) -> bool:
+    try:
+        import ctypes
+    except Exception:
+        return False
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    process_query_limited_information = 0x1000
+    still_active = 259
+    error_access_denied = 5
+    error_invalid_parameter = 87
+
+    handle = kernel32.OpenProcess(process_query_limited_information, False, int(pid))
+    if not handle:
+        err = ctypes.get_last_error()
+        if err == error_access_denied:
+            return True
+        if err == error_invalid_parameter:
+            return False
+        return False
+
+    try:
+        exit_code = ctypes.c_ulong()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return exit_code.value == still_active
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 # ── llama-server pdeathsig (Linux) ─────────────────────────────────────────

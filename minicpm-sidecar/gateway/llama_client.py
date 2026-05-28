@@ -327,6 +327,7 @@ class LlamaServer:
             self._client = httpx.AsyncClient(
                 base_url=f"http://{self.host}:{self.port}",
                 timeout=httpx.Timeout(connect=5.0, read=None, write=30.0, pool=5.0),
+                trust_env=False,
             )
         # Health poll outside the swap lock so /api/chat issued by Electron
         # before this returns doesn't deadlock.
@@ -366,7 +367,7 @@ class LlamaServer:
         log = get_logger()
         deadline = time.monotonic() + timeout
         last_err: Optional[Exception] = None
-        async with httpx.AsyncClient(timeout=2.0) as probe:
+        async with httpx.AsyncClient(timeout=2.0, trust_env=False) as probe:
             while time.monotonic() < deadline:
                 if self._proc and self._proc.poll() is not None:
                     tail = "\n".join(self.last_stderr[-30:]) or "(no stderr)"

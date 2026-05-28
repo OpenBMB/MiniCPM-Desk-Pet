@@ -55,7 +55,7 @@ class ClawdBridge:
         self._session_id = f"minicpm-{uuid.uuid4().hex[:8]}"
         self._port: Optional[int] = None
         self._cwd = os.getcwd()
-        self._client = httpx.Client(timeout=0.4)
+        self._client = httpx.Client(timeout=0.4, trust_env=False)
 
     def new_session(self) -> None:
         with self._lock:
