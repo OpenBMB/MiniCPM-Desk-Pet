@@ -15,6 +15,7 @@ const SETTINGS_ANIM_OVERRIDES_MERGE = path.join(SRC_DIR, "settings-anim-override
 const SETTINGS_I18N = path.join(SRC_DIR, "settings-i18n.js");
 const SETTINGS_DOCTOR_MODAL = path.join(SRC_DIR, "settings-doctor-modal.js");
 const SETTINGS_ANIMATION_PREVIEW = path.join(SRC_DIR, "settings-animation-preview.html");
+const SETTINGS_TAB_MINICPM = path.join(SRC_DIR, "settings-tab-minicpm.js");
 const PRELOAD_SETTINGS = path.join(SRC_DIR, "preload-settings.js");
 const MAIN_PROCESS = path.join(SRC_DIR, "main.js");
 const SETTINGS_IPC = path.join(SRC_DIR, "settings-ipc.js");
@@ -896,6 +897,114 @@ function loadAnimMapTabForTest({
   };
 }
 
+async function loadMinicpmBehaviorForTest({
+  platform = "Win32",
+  devices = { available: ["cpu", "vulkan"], current: "cpu" },
+  status = {
+    healthy: true,
+    health: {
+      ok: true,
+      alive: true,
+      llama_server: { status: "ok" },
+      model_dir: "/models/minicpm.gguf",
+      model_name: "minicpm.gguf",
+    },
+    narration: false,
+  },
+  chatParams = { params: { thinking: false } },
+} = {}) {
+  const body = new FakeElement("body");
+  const box = new FakeElement("div");
+  body.appendChild(box);
+  const toastMessages = [];
+  const documentListeners = new Map();
+  const document = {
+    hidden: false,
+    body,
+    createElement: (tagName) => new FakeElement(tagName),
+    createTextNode: (text) => {
+      const node = new FakeElement("#text");
+      node.textContent = String(text);
+      return node;
+    },
+    addEventListener(type, cb) {
+      if (!documentListeners.has(type)) documentListeners.set(type, []);
+      documentListeners.get(type).push(cb);
+    },
+    removeEventListener(type, cb) {
+      const listeners = documentListeners.get(type);
+      if (!listeners) return;
+      const index = listeners.indexOf(cb);
+      if (index !== -1) listeners.splice(index, 1);
+    },
+  };
+  const minicpmSettings = {
+    getStatus: () => Promise.resolve(status),
+    getChatParams: () => Promise.resolve(chatParams),
+    setChatParams: () => Promise.resolve({ ok: true }),
+    setNarration: () => Promise.resolve({ ok: true }),
+    listDevices: () => Promise.resolve(devices),
+    setDeviceAndRestart: () => Promise.resolve({ ok: true }),
+  };
+  const context = {
+    console,
+    navigator: { platform },
+    document,
+    setTimeout: () => 1,
+    clearTimeout: () => {},
+    window: null,
+    globalThis: null,
+    minicpmSettings,
+  };
+  context.window = context;
+  context.globalThis = context;
+  vm.createContext(context);
+  const source = fs.readFileSync(SETTINGS_TAB_MINICPM, "utf8").replace(
+    "root.ClawdSettingsTabMinicpm = { init };",
+    "root.ClawdSettingsTabMinicpm = { init, __test: { renderBehaviorSection } };"
+  );
+  vm.runInContext(source, context);
+  const core = {
+    state: { activeTab: "minicpm" },
+    tabs: {},
+    helpers: {
+      t: (key) => ({
+        minicpmSectionBehavior: "Behavior",
+        minicpmRowNarration: "Narration",
+        minicpmRowNarrationDesc: "Narration desc",
+        minicpmRowDefaultThinking: "Default thinking",
+        minicpmRowDefaultThinkingDesc: "Default thinking desc",
+        minicpmRowBackend: "Inference Backend",
+        minicpmRowBackendDesc: "Backend desc",
+        minicpmBackendCpu: "CPU",
+        minicpmBackendVulkan: "Vulkan",
+        minicpmBackendMetal: "Metal",
+        minicpmBackendVulkanExperimental: "Experimental GPU backend",
+        minicpmBackendVulkanFallback: "Vulkan failed to start. Fell back to CPU.",
+        toastSaveFailed: "Failed: ",
+      }[key] || key),
+      buildSection: (_title, rows) => {
+        const section = document.createElement("section");
+        section.className = "section";
+        const wrap = document.createElement("div");
+        wrap.className = "section-rows";
+        for (const row of rows) wrap.appendChild(row);
+        section.appendChild(wrap);
+        return section;
+      },
+    },
+    ops: {
+      showToast: (message, opts) => toastMessages.push({ message, opts }),
+    },
+  };
+  context.ClawdSettingsTabMinicpm.init(core);
+  await context.ClawdSettingsTabMinicpm.__test.renderBehaviorSection(box, {
+    healthSnapshot: { st: status },
+    refreshAll: () => Promise.resolve(),
+  });
+  return { box, context, toastMessages };
+}
+
 function loadAnimOverridesTabForTest({
   runtime,
   modalRoot,
@@ -1386,6 +1495,23 @@ describe("settings renderer browser environment", () => {
     assert.ok(/@media \(prefers-color-scheme:\s*dark\)\s*\{[\s\S]*\.language-picker-menu/.test(css));
     assert.ok(/@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*\.language-picker-trigger,[\s\S]*\.language-picker-chevron,[\s\S]*\.language-picker-menu[\s\S]*transition:\s*none;/.test(css));
     assert.ok(!css.includes(".language-segmented"));
+  });
+
+  it("shows MiniCPM backend selection only on Windows", async () => {
+    const macHarness = await loadMinicpmBehaviorForTest({ platform: "MacIntel" });
+    assert.strictEqual(
+      macHarness.box.querySelector(".minicpm-backend-segmented"),
+      null,
+      "macOS Settings must not render the Windows Vulkan experimental switch"
+    );
+
+    const winHarness = await loadMinicpmBehaviorForTest({ platform: "Win32" });
+    const segmented = winHarness.box.querySelector(".minicpm-backend-segmented");
+    assert.ok(segmented, "Windows Settings should render the backend selector");
+    assert.deepStrictEqual(
+      segmented.querySelectorAll("button").map((button) => button.children[0].textContent),
+      ["CPU", "Vulkan"]
+    );
   });
 
   it("populates the language picker with current selection and propagates click changes", () => {

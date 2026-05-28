@@ -77,6 +77,14 @@ fi
 
 echo "📦 Built: ${DMG_FILE}"
 
+# ── Sign the DMG wrapper ────────────────────────────────────────
+# The .app bundle is signed by electron-builder before afterSign
+# notarizes it. Sign the outer DMG too so `spctl --type open` can verify
+# the downloaded installer without reporting "no usable signature".
+echo "✍️  Signing DMG ..."
+codesign --force --sign "${APPLE_SIGNING_IDENTITY}" --timestamp "${DMG_FILE}"
+codesign --verify --verbose=2 "${DMG_FILE}"
+
 # ── Submit the DMG itself for notarization ─────────────────────
 # The afterSign hook only notarizes the .app bundle; the DMG wrapper
 # needs its own ticket so Gatekeeper accepts the downloaded .dmg on

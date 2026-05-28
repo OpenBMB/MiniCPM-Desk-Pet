@@ -56,7 +56,24 @@ def _find_free_port(start: int = 18766, end: int = 18800) -> int:
         return s.getsockname()[1]
 
 
-def _candidate_binary_paths() -> list[Path]:
+def _normalise_device(raw: Optional[str] = None) -> str:
+    sys_name = platform.system()
+    machine = platform.machine().lower()
+    device = (raw if raw is not None else os.environ.get("MINICPM_DEVICE", "auto")).strip().lower()
+    if device == "mps":
+        device = "metal"
+    if sys_name == "Darwin" and device == "vulkan":
+        return "metal" if machine in ("arm64", "aarch64") else "cpu"
+    if device in ("", "auto"):
+        if sys_name == "Windows":
+            return "cpu"
+        if sys_name == "Darwin" and machine in ("arm64", "aarch64"):
+            return "metal"
+        return "auto"
+    return device
+
+
+def _candidate_binary_paths(device: Optional[str] = None) -> list[Path]:
     """Where to look for llama-server, in priority order.
 
     1. $MINICPM_LLAMA_SERVER  (explicit override, dev convenience)
@@ -65,30 +82,48 @@ def _candidate_binary_paths() -> list[Path]:
     3. minicpm-sidecar/bin/<os>-<arch>/  — `scripts/build-llama.sh` output
     4. <repo-root>/llama.cpp/build/bin/  — submodule cmake build location
     """
-    exe = "llama-server.exe" if platform.system() == "Windows" else "llama-server"
+    sys_name = platform.system()
+    exe = "llama-server.exe" if sys_name == "Windows" else "llama-server"
+    selected = _normalise_device(device)
+    windows_backend_dir = (
+        "vulkan" if sys_name == "Windows" and selected == "vulkan"
+        else "cuda" if sys_name == "Windows" and selected == "cuda"
+        else None
+    )
     override = os.environ.get("MINICPM_LLAMA_SERVER")
     out: list[Path] = []
-    if override:
+    if override and not windows_backend_dir:
         out.append(Path(override).expanduser())
 
     if getattr(sys, "frozen", False):
         # PyInstaller: sys.executable is the gateway binary; its parent is
         # the install dir where llama-server sits too.
-        out.append(Path(sys.executable).resolve().parent / exe)
+        base = Path(sys.executable).resolve().parent
+        if windows_backend_dir:
+            out.append(base / "backends" / windows_backend_dir / exe)
+        else:
+            out.append(base / exe)
     else:
         # Dev: file → gateway/ → minicpm-sidecar/ → repo-root/
         pkg_root = Path(__file__).resolve().parent.parent
         repo_root = pkg_root.parent
         triple = _platform_triple()
-        out.append(pkg_root / "bin" / triple / exe)
-        out.append(repo_root / "llama.cpp" / "build" / "bin" / exe)
-        out.append(repo_root / "llama.cpp" / "build" / exe)
+        if windows_backend_dir:
+            out.append(pkg_root / "bin" / triple / "backends" / windows_backend_dir / exe)
+            out.append(repo_root / "llama.cpp" / f"build-{triple}-{windows_backend_dir}" / "bin" / exe)
+            out.append(repo_root / "llama.cpp" / f"build-{triple}-{windows_backend_dir}" / exe)
+        else:
+            out.append(pkg_root / "bin" / triple / exe)
+            out.append(repo_root / "llama.cpp" / "build" / "bin" / exe)
+            out.append(repo_root / "llama.cpp" / "build" / exe)
 
     # As a last resort, look it up on PATH so a `brew install llama.cpp`
-    # checkout works in dev.
-    which = shutil.which(exe)
-    if which:
-        out.append(Path(which))
+    # checkout works in dev. Do not PATH-fallback explicit Windows backend
+    # choices, or "Vulkan" can silently launch the default CPU binary.
+    if not windows_backend_dir:
+        which = shutil.which(exe)
+        if which:
+            out.append(Path(which))
 
     seen: set[Path] = set()
     unique: list[Path] = []
@@ -122,8 +157,25 @@ def detect_backend() -> dict:
     confirmed by parsing llama-server's --version output once it starts."""
     sys_name = platform.system()
     machine = platform.machine().lower()
+    current = _normalise_device()
     backends: list[str] = []
+    experimental: list[str] = []
     reasons: dict[str, str] = {}
+    if sys_name == "Windows":
+        backends.append("cpu")
+        reasons["cpu"] = "Stable CPU inference for Windows"
+        vulkan_available = any(p.is_file() for p in _candidate_binary_paths("vulkan"))
+        if vulkan_available:
+            backends.append("vulkan")
+            experimental.append("vulkan")
+            reasons["vulkan"] = "Experimental Vulkan GPU backend"
+        return {
+            "available": backends,
+            "recommended": "cpu",
+            "current": current if current in backends else "cpu",
+            "experimental": experimental,
+            "reasons": reasons,
+        }
     if sys_name == "Darwin" and machine in ("arm64", "aarch64"):
         backends.append("metal")
         reasons["metal"] = "Apple Silicon GPU (Metal)"
@@ -137,6 +189,8 @@ def detect_backend() -> dict:
     return {
         "available": backends,
         "recommended": backends[0],
+        "current": current if current in backends else backends[0],
+        "experimental": experimental,
         "reasons": reasons,
     }
 
@@ -157,6 +211,7 @@ class LlamaServer:
         self.model_path: Optional[Path] = Path(model_path).expanduser().resolve() if model_path else None
         self.ctx_size = int(ctx_size)
         self.n_gpu_layers = int(n_gpu_layers)
+        self.device = _normalise_device()
         self.threads = threads
         self.extra_args: list[str] = list(extra_args or [])
         # Ordered list of GGUF LoRA paths pre-loaded into llama-server via
@@ -184,13 +239,13 @@ class LlamaServer:
     # ── lifecycle ───────────────────────────────────────────────────────
 
     def _resolve_binary(self) -> Path:
-        for cand in _candidate_binary_paths():
+        for cand in _candidate_binary_paths(self.device):
             try:
                 if cand.is_file():
                     return cand
             except Exception:
                 continue
-        searched = "\n  ".join(str(p) for p in _candidate_binary_paths())
+        searched = "\n  ".join(str(p) for p in _candidate_binary_paths(self.device))
         raise FileNotFoundError(
             "找不到 llama-server。请先初始化 submodule 并编译：git submodule update --init llama.cpp && cd minicpm-sidecar && ./scripts/build-llama.sh。\n"
             f"  已检查的路径:\n  {searched}"
@@ -208,7 +263,7 @@ class LlamaServer:
             "--jinja",        # use the GGUF-embedded chat template
             "--no-webui",     # we drive everything via API
         ]
-        if self.n_gpu_layers != 0:
+        if self.device != "cpu" and self.n_gpu_layers != 0:
             argv += ["--gpu-layers", str(self.n_gpu_layers)]
         if self.threads:
             argv += ["--threads", str(self.threads)]
@@ -235,6 +290,7 @@ class LlamaServer:
             # holding :18766 and we'd silently land on :18767 every restart
             # while the dead-but-alive process bleeds memory.
             cleanup_stale_llama_server(self._pid_file)
+            self.device = _normalise_device()
             self._binary = self._resolve_binary()
             self.port = _find_free_port()
             argv = self._build_argv()

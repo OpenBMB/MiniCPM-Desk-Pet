@@ -7,6 +7,7 @@
 
 const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
+const { EventEmitter } = require("node:events");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -23,7 +24,7 @@ function loadInternals() {
   // Append exposes so we can hit the otherwise-module-private helpers.
   const augmented =
     src +
-    "\nmodule.exports.__internals = { locateSidecarBinary, locateSidecarSourceDir, locatePython, triplet };\n";
+    "\nmodule.exports.__internals = { locateSidecarBinary, locateSidecarSourceDir, locatePython, triplet, Sidecar };\n";
   const m = new Module(targetPath, module);
   m.filename = targetPath;
   m.paths = Module._nodeModulePaths(path.dirname(targetPath));
@@ -122,5 +123,25 @@ describe("minicpm-chat locator helpers", () => {
     fs.writeFileSync(py, "#!/bin/sh\n");
     process.env.MINICPM_PYTHON = py;
     assert.equal(internals.locatePython(undefined), py);
+  });
+
+  it("stopAndWait requires the tracked sidecar process to exit", async () => {
+    const sidecar = new internals.Sidecar({ host: "127.0.0.1", port: 9, log: () => {} });
+    const proc = new EventEmitter();
+    proc.exitCode = null;
+    proc.signalCode = null;
+    proc.kill = () => {};
+    sidecar.proc = proc;
+    sidecar.stop = () => {};
+
+    const keepAlive = setInterval(() => {}, 10);
+    try {
+      await assert.rejects(
+        () => sidecar.stopAndWait(25),
+        /Timed out waiting for sidecar process to exit/
+      );
+    } finally {
+      clearInterval(keepAlive);
+    }
   });
 });

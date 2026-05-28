@@ -146,6 +146,7 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   // Accelerator (device) manual override
   listDevices: () => ipcRenderer.invoke("minicpm-settings:list-devices"),
   setDevice: (device) => ipcRenderer.invoke("minicpm-settings:set-device", { device }),
+  setDeviceAndRestart: (device) => ipcRenderer.invoke("minicpm-settings:set-device-and-restart", { device }),
   restartSidecar: () => ipcRenderer.invoke("minicpm-settings:restart-sidecar"),
 
   // Local model directory override

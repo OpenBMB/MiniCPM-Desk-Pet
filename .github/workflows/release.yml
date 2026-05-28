@@ -193,7 +193,13 @@ jobs:
           irm https://astral.sh/uv/install.ps1 | iex
           Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.local\bin"
 
-      - name: Build llama-server
+      - name: Build llama-server (CPU default)
+        working-directory: minicpm-sidecar
+        env:
+          LLAMA_ACCEL: cpu
+        run: ./scripts/build-llama.ps1
+
+      - name: Build experimental Vulkan backend
         working-directory: minicpm-sidecar
         env:
           LLAMA_ACCEL: vulkan

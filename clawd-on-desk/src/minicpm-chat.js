@@ -281,7 +281,7 @@ function httpJson(method, urlStr, body, timeoutMs = 4000) {
 // ── Sidecar manager ─────────────────────────────────────────────────────────
 
 class Sidecar {
-  constructor({ sidecarDir, sidecarBin, appRoot, port, host, log, logFile, adapterDir }) {
+  constructor({ sidecarDir, sidecarBin, appRoot, port, host, log, logFile, adapterDir, modelPresent }) {
     // Source tree of minicpm-sidecar; used only in dev when no prebuilt
     // binary is present. Packaged builds ignore it entirely.
     this.sidecarDir = sidecarDir || null;
@@ -312,6 +312,7 @@ class Sidecar {
     this._fileStream = null;
     this._fileSizeBudget = 2 * 1024 * 1024; // 2 MB before rotate
     this._fileBytesWritten = 0;
+    this.modelPresent = typeof modelPresent === "function" ? modelPresent : (() => false);
   }
 
   _openLogStream() {
@@ -366,7 +367,7 @@ class Sidecar {
   baseUrl() { return `http://${this.host}:${this.port}`; }
 
   async ensureRunning(initialModelDir) {
-    if (await this.isHealthy()) return { status: "already-running" };
+    if (await this.isHealthy(initialModelDir)) return { status: "already-running" };
     if (this.starting) return this.starting;
     this.starting = this._spawnAndWait(initialModelDir).finally(() => {
       this.starting = null;
@@ -374,10 +375,15 @@ class Sidecar {
     return this.starting;
   }
 
-  async isHealthy() {
+  async isHealthy(initialModelDir) {
     try {
       const r = await httpJson("GET", `${this.baseUrl()}/api/health`, null, 1500);
-      return r.status === 200 && r.json && r.json.ok === true;
+      if (!(r.status === 200 && r.json && r.json.ok === true)) return false;
+      if (this.modelPresent(initialModelDir)) {
+        return r.json.alive === true
+          || !!(r.json.llama_server && r.json.llama_server.status === "ok");
+      }
+      return true;
     } catch {
       return false;
     }
@@ -537,7 +543,23 @@ class Sidecar {
         err.minicpmI18nParams = { tail: this._stderrTailString(1500) };
         throw err;
       }
-      if (await this.isHealthy()) return { status: "started" };
+      const health = await httpJson("GET", `${this.baseUrl()}/api/health`, null, 1500).catch(() => null);
+      if (health && health.status === 200 && health.json && health.json.ok === true) {
+        if (this.modelPresent(initialModelDir)) {
+          if (health.json.startup_error) {
+            this.stop();
+            throw new Error(`llama-server failed to start: ${health.json.startup_error}`);
+          }
+          if (
+            health.json.alive === true ||
+            (health.json.llama_server && health.json.llama_server.status === "ok")
+          ) {
+            return { status: "started" };
+          }
+        } else {
+          return { status: "started" };
+        }
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
     this.stop();
@@ -573,6 +595,52 @@ class Sidecar {
     setTimeout(() => {
       if (this.proc === proc) { try { proc.kill("SIGKILL"); } catch {} }
     }, 2000).unref();
+  }
+
+  async stopAndWait(timeoutMs = 5000) {
+    const proc = this.proc;
+    this.stop();
+
+    const waitForProcExit = async () => {
+      if (!proc || proc.exitCode != null || proc.signalCode != null) return true;
+      return new Promise((resolve) => {
+        let done = false;
+        let timer = null;
+        const finish = (exited) => {
+          if (done) return;
+          done = true;
+          try { proc.removeListener("exit", onExit); } catch {}
+          if (timer) clearTimeout(timer);
+          resolve(exited);
+        };
+        const onExit = () => finish(true);
+        proc.once("exit", onExit);
+        timer = setTimeout(() => finish(false), timeoutMs);
+        if (timer && typeof timer.unref === "function") timer.unref();
+      });
+    };
+
+    const waitForHealthDown = async (deadline) => {
+      let misses = 0;
+      while (Date.now() < deadline) {
+        const r = await httpJson("GET", `${this.baseUrl()}/api/health`, null, 300).catch(() => null);
+        if (r && r.status === 200 && r.json && r.json.ok === true) {
+          misses = 0;
+        } else {
+          misses += 1;
+          if (misses >= 2) return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      return false;
+    };
+
+    if (!(await waitForProcExit())) {
+      throw new Error("Timed out waiting for sidecar process to exit");
+    }
+    if (!(await waitForHealthDown(Date.now() + timeoutMs))) {
+      throw new Error("Timed out waiting for sidecar port to close");
+    }
   }
 }
 
@@ -1018,6 +1086,7 @@ module.exports = function initMinicpmChat(ctx) {
     sidecarDir, sidecarBin, appRoot, port, host, log,
     logFile: sidecarLogPath,
     adapterDir,
+    modelPresent: (dir) => isModelPresent(dir),
   });
   // Refresh `sidecar.activeAdapterPath` from prefs every time we're about
   // to spawn. Lets the user pick a persona, restart the sidecar from
@@ -1956,7 +2025,7 @@ module.exports = function initMinicpmChat(ctx) {
     "minicpm:status": async () => ({
       bridgeDir,
       url: sidecar.baseUrl(),
-      healthy: await sidecar.isHealthy(),
+      healthy: await sidecar.isHealthy(getEffectiveModelDir()),
     }),
     "minicpm:start": async (_evt, opts = {}) => {
       try {
@@ -2066,9 +2135,17 @@ module.exports = function initMinicpmChat(ctx) {
       // adapter load, etc). 5s keeps the probe still cheap but resilient to
       // that micro-jitter.
       const health = await httpJson("GET", `${sidecar.baseUrl()}/api/health`, null, 5000).catch(() => null);
+      const llamaReady = !!(health && health.json && (
+        health.json.alive === true ||
+        (health.json.llama_server && health.json.llama_server.status === "ok")
+      ));
+      const requireLlama = isModelPresent();
+      const sidecarReady = !!(health && health.json && health.json.ok);
       return {
         sidecarUrl: sidecar.baseUrl(),
-        healthy: !!(health && health.json && health.json.ok),
+        healthy: !!(sidecarReady && (!requireLlama || llamaReady)),
+        sidecarReady,
+        llamaReady,
         health: health ? health.json : null,
         narration: narrationEnabled,
       };
@@ -2228,6 +2305,9 @@ module.exports = function initMinicpmChat(ctx) {
     },
     "minicpm-settings:set-device": async (_evt, payload) => {
       const device = (payload && payload.device) || "";
+      if (device === "vulkan" && process.platform !== "win32") {
+        return { ok: false, device, error: "Vulkan backend is only configurable on Windows" };
+      }
       // Persist for the next sidecar spawn even if /api/set-device is
       // unreachable (sidecar may have crashed). MINICPM_DEVICE is the
       // single source of truth our server.py reads at start.
@@ -2237,10 +2317,50 @@ module.exports = function initMinicpmChat(ctx) {
       } catch {}
       return { ok: true, device, note: "下次 sidecar 重启时生效" };
     },
+    "minicpm-settings:set-device-and-restart": async (_evt, payload) => {
+      const device = (payload && payload.device) || "";
+      if (device === "vulkan" && process.platform !== "win32") {
+        return { ok: false, device, error: "Vulkan backend is only configurable on Windows" };
+      }
+      const previousDevice = process.env.MINICPM_DEVICE || "";
+      process.env.MINICPM_DEVICE = device;
+      try {
+        await sidecar.stopAndWait();
+      } catch (stopErr) {
+        process.env.MINICPM_DEVICE = previousDevice;
+        return { ok: false, device, phase: "stop", error: localizeError(stopErr) };
+      }
+      try {
+        const r = await sidecar.ensureRunning(getEffectiveModelDir());
+        return { ok: true, device, status: r && r.status };
+      } catch (err) {
+        if (process.platform === "win32" && device === "vulkan") {
+          const originalError = localizeError(err);
+          process.env.MINICPM_DEVICE = "cpu";
+          try {
+            await sidecar.stopAndWait();
+          } catch (fallbackStopErr) {
+            return {
+              ok: false,
+              device,
+              phase: "fallback-stop",
+              error: `${originalError}; CPU fallback cleanup failed: ${localizeError(fallbackStopErr)}`,
+            };
+          }
+          try {
+            const r = await sidecar.ensureRunning(getEffectiveModelDir());
+            log(`[minicpm-chat] Vulkan backend failed; fell back to CPU: ${originalError}`);
+            return { ok: false, fallback: "cpu", device: "cpu", status: r && r.status, error: originalError };
+          } catch (fallbackErr) {
+            return { ok: false, fallback: "cpu", device: "cpu", error: localizeError(fallbackErr) };
+          }
+        }
+        return { ok: false, device, error: localizeError(err) };
+      }
+    },
     "minicpm-settings:restart-sidecar": async () => {
       try {
-        sidecar.stop();
-        await new Promise((r) => setTimeout(r, 600));
+        await sidecar.stopAndWait();
         const r = await sidecar.ensureRunning(getEffectiveModelDir());
         return { ok: true, status: r && r.status };
       } catch (err) {
@@ -2655,9 +2775,7 @@ module.exports = function initMinicpmChat(ctx) {
   // after settings changes that the engine reads at construction time
   // only — accelerator (MINICPM_DEVICE) and the active model directory.
   async function restartSidecar() {
-    try { sidecar.stop(); } catch {}
-    // Give the OS a beat to release the port before re-binding.
-    await new Promise((r) => setTimeout(r, 600));
+    await sidecar.stopAndWait();
     return sidecar.ensureRunning(getEffectiveModelDir());
   }
 
