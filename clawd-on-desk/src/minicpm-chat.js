@@ -451,6 +451,18 @@ class Sidecar {
       MINICPM_PARENT_PID: String(process.pid),
     };
 
+    // Strip proxy environment variables to avoid socksio dependency issues.
+    // The sidecar only makes local HTTP calls (localhost:18766) and downloads
+    // from HuggingFace (which has its own proxy handling via huggingface_hub).
+    const proxyVars = [
+      "http_proxy", "https_proxy", "ftp_proxy", "socks_proxy",
+      "HTTP_PROXY", "HTTPS_PROXY", "FTP_PROXY", "SOCKS_PROXY",
+      "all_proxy", "ALL_PROXY",
+    ];
+    for (const v of proxyVars) {
+      delete env[v];
+    }
+
     let proc;
     if (this.sidecarBin) {
       // Production path: a self-contained gateway binary. No Python
