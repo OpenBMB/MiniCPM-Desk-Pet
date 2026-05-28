@@ -41,7 +41,7 @@ $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("minicpm-llama-" + [System.G
 $archive = Join-Path $tmp $asset
 $extract = Join-Path $tmp "extract"
 
-Write-Host "==> Fetch official llama.cpp $Tag: $asset" -ForegroundColor Cyan
+Write-Host "==> Fetch official llama.cpp ${Tag}: $asset" -ForegroundColor Cyan
 New-Item -ItemType Directory -Force -Path $tmp, $extract, $OutDir | Out-Null
 
 try {

@@ -47,7 +47,7 @@ jobs:
         env:
           TARGET_TRIPLE: linux-x64
           LLAMA_BACKEND: cpu
-        run: ./scripts/fetch-llama-release.sh
+        run: bash ./scripts/fetch-llama-release.sh
 
       - name: Build gateway
         working-directory: minicpm-sidecar
