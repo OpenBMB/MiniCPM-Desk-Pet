@@ -34,6 +34,7 @@
   const HEALTH_INTERVAL_MS_SLOW = 60_000;
   const HEALTH_INTERVAL_MS_FAST = 5_000;
   const HEALTH_FAST_ATTEMPTS = 6;
+  const IS_WINDOWS = typeof navigator !== "undefined" && /Win/i.test(navigator.platform || "");
 
   function t(key) {
     return helpers.t(key);
@@ -238,6 +239,12 @@
     return el("h2", { className: "section-title minicpm-section-title" }, text);
   }
 
+  function deviceLabel(device) {
+    if (device === "vulkan") return t("minicpmBackendVulkan");
+    if (device === "metal") return t("minicpmBackendMetal");
+    return t("minicpmBackendCpu");
+  }
+
   // ── Header (title + subtitle on left, status pill on right) ───────────
   function renderHeader(ctx) {
     ctx.headerBox.innerHTML = "";
@@ -265,7 +272,7 @@
     let st = null;
     try { st = await window.minicpmSettings.getStatus(); } catch {}
     const h = (st && st.health) || {};
-    const sidecarReady = !!(st && st.healthy);
+    const sidecarReady = !!(st && (st.sidecarReady || (st.health && st.health.ok) || st.healthy));
     const llamaReady = sidecarReady
       && (h.alive === true || !!(h.llama_server && h.llama_server.status === "ok"));
     if (sidecarReady) ctx.everHealthy = true;
@@ -321,6 +328,57 @@
         return window.minicpmSettings.setChatParams({ ...cur, thinking: on });
       },
     ));
+
+    if (IS_WINDOWS) {
+      let devices = null;
+      try { devices = await window.minicpmSettings.listDevices(); } catch {}
+      const available = Array.isArray(devices && devices.available) ? devices.available : ["cpu"];
+      if (available.includes("cpu") || available.includes("vulkan")) {
+        const current = (devices && devices.current) || "cpu";
+        const row = el("div", { className: "row" });
+        const text = el("div", { className: "row-text" });
+        text.appendChild(el("span", { className: "row-label" }, t("minicpmRowBackend")));
+        text.appendChild(el("span", { className: "row-desc" }, t("minicpmRowBackendDesc")));
+        row.appendChild(text);
+        const segmented = el("div", { className: "segmented minicpm-backend-segmented" });
+        for (const device of ["cpu", "vulkan"]) {
+          if (!available.includes(device)) continue;
+          const btn = el("button", {
+            type: "button",
+            className: current === device ? "active" : "",
+            onClick: async () => {
+              if (btn.disabled || current === device) return;
+              Array.from(segmented.querySelectorAll("button")).forEach((b) => { b.disabled = true; });
+              try {
+                const fn = window.minicpmSettings.setDeviceAndRestart || window.minicpmSettings.setDevice;
+                const ret = await fn(device);
+                if (ret && ret.ok === false) {
+                  if (ret.fallback === "cpu") {
+                    if (ops && typeof ops.showToast === "function") {
+                      ops.showToast(t("minicpmBackendVulkanFallback"), { error: true, ttl: 6000 });
+                    }
+                  } else if (ops && typeof ops.showToast === "function") {
+                    ops.showToast(t("toastSaveFailed") + (ret.error || "unknown error"), { error: true });
+                  }
+                }
+              } catch (err) {
+                if (ops && typeof ops.showToast === "function") {
+                  ops.showToast(t("toastSaveFailed") + (err && err.message || ""), { error: true });
+                }
+              } finally {
+                void ctx.refreshAll();
+              }
+            },
+          }, deviceLabel(device));
+          if (device === "vulkan") btn.setAttribute("title", t("minicpmBackendVulkanExperimental"));
+          segmented.appendChild(btn);
+        }
+        const ctl = el("div", { className: "row-control" });
+        ctl.appendChild(segmented);
+        row.appendChild(ctl);
+        rows.appendChild(row);
+      }
+    }
     box.appendChild(section);
   }
 

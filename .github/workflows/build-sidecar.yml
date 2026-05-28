@@ -34,7 +34,7 @@ jobs:
             accel: vulkan
           - os: windows-2022
             triple: win-x64
-            accel: vulkan
+            accel: cpu
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.triple }}
     defaults:
@@ -52,7 +52,7 @@ jobs:
           sudo apt-get install -y cmake build-essential libvulkan-dev
 
       - name: Install Vulkan SDK (Linux + Windows)
-        if: matrix.accel == 'vulkan'
+        if: matrix.accel == 'vulkan' || runner.os == 'Windows'
         uses: humbletim/install-vulkan-sdk@v1.2
         with:
           version: 1.4.309.0
@@ -98,6 +98,13 @@ jobs:
         shell: pwsh
         env:
           LLAMA_ACCEL: ${{ matrix.accel }}
+        run: ./scripts/build-llama.ps1
+
+      - name: Build experimental Vulkan backend (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LLAMA_ACCEL: vulkan
         run: ./scripts/build-llama.ps1
 
       - name: Build gateway (PyInstaller)

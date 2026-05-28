@@ -7,6 +7,7 @@
 #
 # Honors:
 #   LLAMA_ACCEL = metal | cuda | cpu   (default: auto by platform)
+#   MINICPM_MACOSX_DEPLOYMENT_TARGET = 14.0 by default on macOS
 
 set -euo pipefail
 
@@ -19,6 +20,30 @@ BUILD="$SRC/build"
 cyan()  { printf "\033[36m%s\033[0m\n" "$*"; }
 red()   { printf "\033[31m%s\033[0m\n" "$*" >&2; }
 green() { printf "\033[32m%s\033[0m\n" "$*"; }
+
+version_le() {
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    split(a, A, "."); split(b, B, ".");
+    for (i = 1; i <= 3; i++) {
+      ai = A[i] + 0; bi = B[i] + 0;
+      if (ai < bi) exit 0;
+      if (ai > bi) exit 1;
+    }
+    exit 0;
+  }'
+}
+
+version_lt() {
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    split(a, A, "."); split(b, B, ".");
+    for (i = 1; i <= 3; i++) {
+      ai = A[i] + 0; bi = B[i] + 0;
+      if (ai < bi) exit 0;
+      if (ai > bi) exit 1;
+    }
+    exit 1;
+  }'
+}
 
 if [[ ! -e "$SRC/.git" ]]; then
   red "$SRC 不存在。请先初始化 submodule：git submodule update --init llama.cpp"
@@ -73,6 +98,20 @@ CMAKE_FLAGS=(
   -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=ON
 )
 
+MACOS_DEPLOYMENT_TARGET=""
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  # The app README promises macOS 14.0+. Newer Xcode/macOS hosts otherwise
+  # default to their own SDK as the minimum runtime (for example 26.0), which
+  # strongly links newer Metal symbols such as MTLResidencySetDescriptor and
+  # makes llama-server fail to load on macOS 14 before @available checks run.
+  MACOS_DEPLOYMENT_TARGET="${MINICPM_MACOSX_DEPLOYMENT_TARGET:-14.0}"
+  export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
+  CMAKE_FLAGS+=(
+    "-DCMAKE_OSX_DEPLOYMENT_TARGET=$MACOS_DEPLOYMENT_TARGET"
+    "-DGGML_METAL_MACOSX_VERSION_MIN=$MACOS_DEPLOYMENT_TARGET"
+  )
+fi
+
 case "$ACCEL" in
   metal)
     CMAKE_FLAGS+=( -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON )
@@ -101,6 +140,9 @@ fi
 
 cyan "==> Target: $TARGET   Accel: $ACCEL"
 cyan "==> Source: $SRC"
+if [[ -n "$MACOS_DEPLOYMENT_TARGET" ]]; then
+  cyan "==> macOS deployment target: $MACOS_DEPLOYMENT_TARGET"
+fi
 
 if ! command -v cmake >/dev/null 2>&1; then
   red "找不到 cmake。请先安装：brew install cmake / apt install cmake"
@@ -177,6 +219,36 @@ case "$(uname -s)" in
       red "==> 构建产物仍然链接了 OpenSSL，用户机器上大概率缺库："
       printf '%s\n' "$SSL_BAD" >&2
       exit 1
+    fi
+    if [[ -n "$MACOS_DEPLOYMENT_TARGET" ]]; then
+      MINOS="$(
+        otool -l "$OUT/llama-server" |
+          awk '/LC_BUILD_VERSION/{in_build=1; next} in_build && /minos/{print $2; exit}'
+      )"
+      if [[ -z "$MINOS" ]]; then
+        MINOS="$(
+          otool -l "$OUT/llama-server" |
+            awk '/LC_VERSION_MIN_MACOSX/{in_min=1; next} in_min && /version/{print $2; exit}'
+        )"
+      fi
+      if [[ -z "$MINOS" ]]; then
+        red "==> 无法读取 llama-server 的 macOS minimum runtime（LC_BUILD_VERSION/LC_VERSION_MIN_MACOSX）。"
+        exit 1
+      fi
+      if ! version_le "$MINOS" "$MACOS_DEPLOYMENT_TARGET"; then
+        red "==> llama-server minimum macOS runtime is $MINOS, expected <= $MACOS_DEPLOYMENT_TARGET."
+        red "    在旧版 macOS 上会出现 dyld Symbol not found / built for newer OS。"
+        exit 1
+      fi
+      if command -v nm >/dev/null 2>&1 && version_lt "$MACOS_DEPLOYMENT_TARGET" "15.0"; then
+        RESIDENCY_SYMBOL="$(nm -m "$OUT/llama-server" 2>/dev/null | grep '_OBJC_CLASS_\$_MTLResidencySetDescriptor' || true)"
+        if [[ -n "$RESIDENCY_SYMBOL" && "$RESIDENCY_SYMBOL" != *"weak external"* ]]; then
+          red "==> MTLResidencySetDescriptor is strongly linked; macOS 14 will fail before runtime availability checks:"
+          printf '%s\n' "$RESIDENCY_SYMBOL" >&2
+          exit 1
+        fi
+      fi
+      cyan "==> macOS minimum runtime OK: $MINOS"
     fi
     ;;
   Linux)

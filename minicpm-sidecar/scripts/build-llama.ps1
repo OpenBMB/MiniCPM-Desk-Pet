@@ -3,9 +3,11 @@
 # Output:
 #   bin\win-x64\llama-server.exe
 #   bin\win-x64\*.dll
+#   bin\win-x64\backends\vulkan\llama-server.exe  (when LLAMA_ACCEL=vulkan)
+#   bin\win-x64\backends\vulkan\*.dll
 #
 # Honors:
-#   $env:LLAMA_ACCEL = "vulkan" | "cuda" | "cpu"  (default: vulkan)
+#   $env:LLAMA_ACCEL = "vulkan" | "cuda" | "cpu"  (default: cpu)
 
 $ErrorActionPreference = "Stop"
 
@@ -13,14 +15,13 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Resolve-Path (Join-Path $here "..")
 $repoRoot = Resolve-Path (Join-Path $root "..")
 $src  = Join-Path $repoRoot "llama.cpp"
-$build = Join-Path $src "build"
-
 if (-not (Test-Path $src)) {
   Write-Error "$src not found. Run: git submodule update --init llama.cpp"
 }
 
-$accel = if ($env:LLAMA_ACCEL) { $env:LLAMA_ACCEL } else { "vulkan" }
+$accel = if ($env:LLAMA_ACCEL) { $env:LLAMA_ACCEL.ToLowerInvariant() } else { "cpu" }
 $target = "win-x64"
+$build = Join-Path $src "build-$target-$accel"
 
 $flags = @(
   "-DBUILD_SHARED_LIBS=OFF",
@@ -81,6 +82,11 @@ foreach ($cand in @(
 if (-not $server) { Write-Error "llama-server.exe not found in $build" }
 
 $out = Join-Path $root "bin\$target"
+if ($accel -eq "vulkan") {
+  $out = Join-Path $out "backends\vulkan"
+} elseif ($accel -eq "cuda") {
+  $out = Join-Path $out "backends\cuda"
+}
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 Copy-Item -Force $server $out
 Get-ChildItem -Path $build -Recurse -Filter *.dll | ForEach-Object {

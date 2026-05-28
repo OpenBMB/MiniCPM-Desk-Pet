@@ -352,6 +352,9 @@ module.exports = function initOnboarding(ctx) {
     },
 
     "onboarding:select-device": async (_evt, { device } = {}) => {
+      if (device === "vulkan" && process.platform !== "win32") {
+        return { ok: false, device, error: "Vulkan backend is only configurable on Windows" };
+      }
       // Persist for next sidecar start; if sidecar is already up, ask it
       // to record the env var too (no-op when not running).
       process.env.MINICPM_DEVICE = device || "";

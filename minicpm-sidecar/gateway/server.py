@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import platform
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -309,9 +310,11 @@ def build_app(
     # is responsible for writing the latest choice back to its prefs
     # file so the next sidecar spawn boots into the same state.
     state: dict[str, Optional[Path]] = {"current_adapter": initial_active}
+    startup_error: Optional[str] = None
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        nonlocal startup_error
         # Don't fail boot when the model isn't on disk yet — onboarding
         # downloads it via /api/update-apply and only then calls
         # /api/load-model. The pet still wants /api/health to answer 200
@@ -319,7 +322,9 @@ def build_app(
         if initial_model and Path(initial_model).exists():
             try:
                 await server.start()
+                startup_error = None
             except Exception as exc:
+                startup_error = str(exc)
                 log.exception("initial llama-server start failed: %s", exc)
         else:
             log.info("model not present at startup; waiting for /api/load-model")
@@ -374,12 +379,13 @@ def build_app(
         sub_health = await server.health()
         backend = detect_backend()
         adapter = state["current_adapter"]
+        current = backend.get("current") or backend["recommended"]
         return {
             "ok": True,
             "alive": server.alive,
             "backend": "llama.cpp",
-            "accel": backend["recommended"],
-            "device": backend["recommended"],  # alias used by older Electron code paths
+            "accel": current,
+            "device": current,  # alias used by older Electron code paths
             "dtype": "gguf",
             "model_dir": str(server.model_path) if server.model_path else None,
             "model_name": server.model_path.name if server.model_path else None,
@@ -387,24 +393,28 @@ def build_app(
             "persona": _persona_for(adapter) if adapter else "default",
             "llama_server": sub_health,
             "port": server.port,
+            "startup_error": startup_error,
         }
 
     @app.get("/api/devices")
     def list_devices():
         info = detect_backend()
-        # Echo `current` so the renderer can highlight what's loaded.
-        info["current"] = os.environ.get("MINICPM_DEVICE") or info["recommended"]
         return info
 
     @app.post("/api/set-device")
     async def set_device(payload: dict):
         device = str(payload.get("device") or "").strip().lower()
-        if device not in ("metal", "cuda", "cpu", "mps", "auto", ""):
+        if device not in ("metal", "cuda", "cpu", "vulkan", "mps", "auto", ""):
             return JSONResponse({"error": f"unknown device: {device!r}"}, status_code=400)
         # "mps" is the legacy name for Apple Silicon; transparently map
         # to metal for consistency with llama.cpp terminology.
         if device == "mps":
             device = "metal"
+        if device == "vulkan" and platform.system() != "Windows":
+            return JSONResponse(
+                {"error": "vulkan backend is only configurable on Windows"},
+                status_code=400,
+            )
         if device:
             os.environ["MINICPM_DEVICE"] = device
         else:
@@ -416,10 +426,11 @@ def build_app(
         path = server.model_path or _get_active_model_path()
         present = path.exists() if path else False
         adapter = state["current_adapter"]
+        backend = detect_backend()
         return {
             "model_present": present,
             "model_dir": str(path) if path else None,
-            "device": detect_backend()["recommended"],
+            "device": backend.get("current") or backend["recommended"],
             "dtype": "gguf",
             "adapter": str(adapter) if adapter else None,
             "persona": _persona_for(adapter) if adapter else "default",
@@ -440,6 +451,7 @@ def build_app(
 
     @app.post("/api/load-model")
     async def load_model(payload: dict):
+        nonlocal startup_error
         path = str(payload.get("path") or "").strip()
         if not path:
             return JSONResponse({"error": "path is required"}, status_code=400)
@@ -450,7 +462,9 @@ def build_app(
         try:
             await server.swap_model(target)
             updater.local_model_path = target
+            startup_error = None
         except Exception as exc:
+            startup_error = str(exc)
             bridge.post("error")
             return JSONResponse({"error": str(exc)}, status_code=500)
         bridge.post("idle")
@@ -587,9 +601,11 @@ def build_app(
 
     @app.post("/api/update-apply")
     async def update_apply():
+        nonlocal startup_error
         updater.local_model_path = server.model_path or _get_active_model_path()
 
         async def stream():
+            nonlocal startup_error
             queue: asyncio.Queue = asyncio.Queue()
             sentinel = object()
             loop = asyncio.get_running_loop()
@@ -621,8 +637,10 @@ def build_app(
                                 target = Path(items[0]["path"])
                                 await server.swap_model(target)
                                 updater.local_model_path = target
+                                startup_error = None
                                 yield _sse({"phase": "reloaded", "model": str(target)})
                         except Exception as exc:
+                            startup_error = str(exc)
                             yield _sse({"phase": "reload-error", "message": str(exc)})
             finally:
                 bridge.post("idle")
