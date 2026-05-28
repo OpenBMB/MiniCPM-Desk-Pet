@@ -34,7 +34,9 @@
   const HEALTH_INTERVAL_MS_SLOW = 60_000;
   const HEALTH_INTERVAL_MS_FAST = 5_000;
   const HEALTH_FAST_ATTEMPTS = 6;
-  const IS_WINDOWS = typeof navigator !== "undefined" && /Win/i.test(navigator.platform || "");
+  const NAVIGATOR_PLATFORM = typeof navigator !== "undefined" ? (navigator.platform || "") : "";
+  const IS_WINDOWS = /Win/i.test(NAVIGATOR_PLATFORM);
+  const IS_MAC = NAVIGATOR_PLATFORM.startsWith("Mac");
 
   function t(key) {
     return helpers.t(key);
@@ -245,6 +247,18 @@
     return t("minicpmBackendCpu");
   }
 
+  function modelPathOpenLabel() {
+    const key = IS_WINDOWS
+      ? "minicpmOpenModelPathWindows"
+      : IS_MAC
+        ? "minicpmOpenModelPathMac"
+        : "minicpmOpenModelPathGeneric";
+    const label = t(key);
+    if (label && label !== key) return label;
+    const generic = t("minicpmOpenModelPathGeneric");
+    return generic && generic !== "minicpmOpenModelPathGeneric" ? generic : t("minicpmOpenModelPath");
+  }
+
   // ── Header (title + subtitle on left, status pill on right) ───────────
   function renderHeader(ctx) {
     ctx.headerBox.innerHTML = "";
@@ -414,7 +428,7 @@
     pathRow.appendChild(pathText);
 
     const ctl = el("div", { className: "row-control minicpm-path-actions" });
-    const showBtn = softBtn(t("minicpmOpenModelPath"), async () => {
+    const showBtn = softBtn(modelPathOpenLabel(), async () => {
       const ret = await window.minicpmSettings.openModelDir();
       if (ret && !ret.ok) alert(ret.error || t("minicpmOpenModelDirFailed"));
     });

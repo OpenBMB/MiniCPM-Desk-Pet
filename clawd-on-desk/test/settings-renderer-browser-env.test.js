@@ -945,6 +945,8 @@ async function loadMinicpmBehaviorForTest({
     setNarration: () => Promise.resolve({ ok: true }),
     listDevices: () => Promise.resolve(devices),
     setDeviceAndRestart: () => Promise.resolve({ ok: true }),
+    openModelDir: () => Promise.resolve({ ok: true }),
+    pickModelDir: () => Promise.resolve({ ok: true }),
   };
   const context = {
     console,
@@ -961,7 +963,7 @@ async function loadMinicpmBehaviorForTest({
   vm.createContext(context);
   const source = fs.readFileSync(SETTINGS_TAB_MINICPM, "utf8").replace(
     "root.ClawdSettingsTabMinicpm = { init };",
-    "root.ClawdSettingsTabMinicpm = { init, __test: { renderBehaviorSection } };"
+    "root.ClawdSettingsTabMinicpm = { init, __test: { renderBehaviorSection, renderModelSection } };"
   );
   vm.runInContext(source, context);
   const core = {
@@ -981,6 +983,18 @@ async function loadMinicpmBehaviorForTest({
         minicpmBackendMetal: "Metal",
         minicpmBackendVulkanExperimental: "Experimental GPU backend",
         minicpmBackendVulkanFallback: "Vulkan failed to start. Fell back to CPU.",
+        minicpmSectionModel: "Model",
+        minicpmRowModelInfo: "Model",
+        minicpmRowModelPath: "Path",
+        minicpmModelPathUnset: "No model selected",
+        minicpmOpenModelPath: "Show in Finder",
+        minicpmOpenModelPathMac: "Show in Finder",
+        minicpmOpenModelPathWindows: "Show in File Explorer",
+        minicpmOpenModelPathGeneric: "Show in folder",
+        minicpmOpenModelDirFailed: "Couldn't open the model folder.",
+        minicpmChangeModel: "Change…",
+        minicpmChangeModelBusy: "Loading…",
+        minicpmReloadError: "Couldn't load model: ",
         toastSaveFailed: "Failed: ",
       }[key] || key),
       buildSection: (_title, rows) => {
@@ -1512,6 +1526,27 @@ describe("settings renderer browser environment", () => {
       segmented.querySelectorAll("button").map((button) => button.children[0].textContent),
       ["CPU", "Vulkan"]
     );
+  });
+
+  it("uses platform-specific MiniCPM model path open labels", async () => {
+    const cases = [
+      { platform: "Win32", expected: "Show in File Explorer" },
+      { platform: "MacIntel", expected: "Show in Finder" },
+      { platform: "Linux x86_64", expected: "Show in folder" },
+    ];
+
+    for (const { platform, expected } of cases) {
+      const harness = await loadMinicpmBehaviorForTest({ platform });
+      harness.context.ClawdSettingsTabMinicpm.__test.renderModelSection(harness.box, {
+        healthSnapshot: { modelDir: "/models/minicpm.gguf" },
+        refreshAll: () => Promise.resolve(),
+      });
+      const labels = harness.box.querySelectorAll("button").map((button) => button.textContent);
+      assert.ok(labels.includes(expected), `${platform} should render "${expected}"`);
+    }
+
+    const strings = loadSettingsI18nForTest();
+    assert.strictEqual(strings.zh.minicpmOpenModelPathWindows, "在文件资源管理器中显示");
   });
 
   it("populates the language picker with current selection and propagates click changes", () => {

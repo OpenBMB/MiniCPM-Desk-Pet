@@ -186,6 +186,96 @@ function manifestRemoveItem(items, id) {
   return out;
 }
 
+// ── Bundled-preset reconcile pure helpers ──────────────────────────────
+//
+// When a shipped bundle replaces a preset adapter with a newer build (a
+// fresh timestamped dir for the same persona), the old copy can linger in
+// <userData>/adapters/ after the new one is seeded in. Both .gguf get the
+// same persona slug from filename hints, so Settings shows the persona
+// twice — and because only one is in the manifest, the other falls back
+// to its raw `adapter_model.f16.gguf` filename. These pure helpers decide
+// what to re-point / delete; the closure wrapper does the fs walk + writes.
+
+// Mirror of findAdapterByHint's match rule: the hint hits when it's a
+// substring of the filename OR its immediate parent dir name (case-
+// insensitive). The parent-dir check matters because the .gguf is usually
+// generically named while the persona lives in the dir name.
+function adapterMatchesHint(filePath, hint) {
+  if (!filePath || !hint) return false;
+  const needle = String(hint).toLowerCase();
+  const lower = path.basename(filePath).toLowerCase();
+  const parent = path.basename(path.dirname(filePath)).toLowerCase();
+  return lower.includes(needle) || parent.includes(needle);
+}
+
+// Per bundled preset, pick the canonical on-disk .gguf and flag older
+// copies as superseded. Pure: caller supplies the scanned file list (with
+// mtime), the presets, and the current manifest items.
+//
+//   scanned       : [{ path, name, mtimeMs }]
+//   presets       : DEFAULT_PRESET_ENTRIES ({ id, filenameHint, ... })
+//   manifestItems : current manifest items
+//
+// Returns { repoint: [{ id, path }], superseded: [filePath] }. A hint-
+// matching file claimed by a *different* manifest entry (e.g. a user
+// `upload:*`) is protected: never a candidate, so never re-pointed away
+// or deleted.
+function planBundledReconcile({ scanned, presets, manifestItems } = {}) {
+  const repoint = [];
+  const superseded = [];
+  const files = Array.isArray(scanned) ? scanned : [];
+  const presetList = Array.isArray(presets) ? presets : [];
+  const items = Array.isArray(manifestItems) ? manifestItems : [];
+  const resolve = (p) => { try { return path.resolve(p); } catch { return p; } };
+
+  for (const preset of presetList) {
+    if (!preset || !preset.id || !preset.filenameHint) continue;
+    const protectedPaths = new Set();
+    for (const it of items) {
+      if (!it || !it.path || it.id === preset.id) continue;
+      protectedPaths.add(resolve(it.path));
+    }
+    const candidates = files.filter(
+      (f) => f && f.path &&
+        adapterMatchesHint(f.path, preset.filenameHint) &&
+        !protectedPaths.has(resolve(f.path)),
+    );
+    if (candidates.length === 0) continue;
+    // Canonical = newest by mtime; tie-broken by greatest path so the
+    // timestamped dir name (…20260524…) wins deterministically.
+    const canonical = candidates.slice().sort((a, b) => {
+      const am = Number(a.mtimeMs) || 0;
+      const bm = Number(b.mtimeMs) || 0;
+      if (am !== bm) return bm - am;
+      return a.path < b.path ? 1 : a.path > b.path ? -1 : 0;
+    })[0];
+    const current = items.find((it) => it && it.id === preset.id);
+    if (current && current.path && resolve(current.path) !== resolve(canonical.path)) {
+      repoint.push({ id: preset.id, path: canonical.path });
+    }
+    for (const c of candidates) {
+      if (resolve(c.path) !== resolve(canonical.path)) superseded.push(c.path);
+    }
+  }
+  return { repoint, superseded };
+}
+
+// Guard for the destructive step: map a superseded .gguf to what may be
+// safely removed. Never returns a target at or above the adapter root.
+//   - file in a proper subdir of adapterDir → delete that subdir
+//   - file directly in adapterDir           → delete just the file
+//   - file == adapterDir / outside it        → skip
+function safeDeleteTargetFor(filePath, adapterDir) {
+  if (!filePath || !adapterDir) return { kind: "skip", target: null };
+  let file, root;
+  try { file = path.resolve(filePath); root = path.resolve(adapterDir); }
+  catch { return { kind: "skip", target: null }; }
+  const parent = path.dirname(file);
+  if (parent === root) return { kind: "file", target: file };
+  if (parent.startsWith(root + path.sep)) return { kind: "dir", target: parent };
+  return { kind: "skip", target: null };
+}
+
 // Recursive copy of bundled LoRA adapters from `srcDir` (where
 // electron-builder dropped them via extraResources) into `dstDir`
 // (the user-writable `<userData>/adapters/` we point the gateway at).
@@ -1062,6 +1152,65 @@ module.exports = function initMinicpmChat(ctx) {
     if (dirty) writeAdapterManifest(manifest);
   }
 
+  // Recursively list *.gguf under `rootDir` with mtime, skipping the
+  // staging / backup dirs the gateway also ignores (server.py). Feeds
+  // the pure planBundledReconcile().
+  function listAdapterGgufs(rootDir) {
+    const out = [];
+    function walk(cur) {
+      let entries;
+      try { entries = fs.readdirSync(cur, { withFileTypes: true }); }
+      catch { return; }
+      for (const e of entries) {
+        const p = path.join(cur, e.name);
+        if (e.isDirectory()) {
+          if (e.name.endsWith(".bak") || e.name.endsWith(".update-staging")) continue;
+          walk(p);
+          continue;
+        }
+        if (!e.isFile() || !e.name.toLowerCase().endsWith(".gguf")) continue;
+        let mtimeMs = 0;
+        try { mtimeMs = fs.statSync(p).mtimeMs; } catch {}
+        out.push({ path: p, name: e.name, mtimeMs });
+      }
+    }
+    walk(rootDir);
+    return out;
+  }
+
+  // Reconcile bundled presets after seed + repair: when a newer copy of a
+  // preset's adapter has been seeded alongside an older one, re-point the
+  // manifest at the newest and delete the stale copies, so Settings stops
+  // showing a duplicate persona chip (one stuck on the raw .gguf name).
+  // Only touches files matching a preset hint that no user-upload entry
+  // claims; the kept copy and the adapter root are never delete targets.
+  function reconcileBundledDuplicates() {
+    const dir = path.resolve(getEffectiveAdapterDir());
+    const scanned = listAdapterGgufs(dir);
+    const plan = planBundledReconcile({
+      scanned,
+      presets: DEFAULT_PRESET_ENTRIES,
+      manifestItems: readAdapterManifest().items,
+    });
+    for (const r of plan.repoint) {
+      upsertAdapterEntry({ id: r.id, path: r.path });
+      log(`[minicpm] reconcile re-pointed ${r.id} -> ${r.path}`);
+    }
+    for (const filePath of plan.superseded) {
+      const { kind, target } = safeDeleteTargetFor(filePath, dir);
+      if (kind === "skip" || !target) {
+        log(`[minicpm] reconcile skipped unsafe delete target: ${filePath}`);
+        continue;
+      }
+      try {
+        fs.rmSync(target, { recursive: true, force: true });
+        log(`[minicpm] reconcile removed superseded ${kind}: ${target}`);
+      } catch (err) {
+        log(`[minicpm] reconcile delete failed for ${target}: ${err && err.message}`);
+      }
+    }
+  }
+
   // Copy bundled adapters (from <resources>/adapters/) into the
   // writable user dir on first run. Cheap idempotent walk; skips
   // anything the user already has. Runs once before the sidecar
@@ -1082,6 +1231,12 @@ module.exports = function initMinicpmChat(ctx) {
   // install, or vice versa).
   try { repairBundledManifestPaths(); } catch (err) {
     log(`[minicpm] repairBundledManifestPaths threw: ${err && err.message}`);
+  }
+  // Drop duplicate persona chips: re-point each bundled preset to its
+  // newest on-disk copy and delete superseded ones (e.g. an old nekoqa
+  // adapter left behind after a newer build was seeded in).
+  try { reconcileBundledDuplicates(); } catch (err) {
+    log(`[minicpm] reconcileBundledDuplicates threw: ${err && err.message}`);
   }
   // Always ensure the mirror exists, even when the manifest is non-empty
   // (user already has a manifest from a previous launch, but the mirror
