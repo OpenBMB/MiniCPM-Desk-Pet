@@ -179,9 +179,8 @@ def test_load_adapter_null_restarts_llama_when_lora_was_loaded(
 ):
     """When llama-server was booted with `--lora <X>` and the user
     switches back to Base, the gateway MUST restart llama-server with
-    no `--lora` flag — the pinned llama.cpp build can't honour a
-    per-request `lora: []` to disable an already-loaded adapter, so
-    failing to restart leaks the persona bias into base chat."""
+    no `--lora` flag so adapter weights are released instead of staying
+    resident behind per-request `lora: []` disables."""
     app, _, instance = app_with_stub_llama
     target = adapter_dir / "lora_neko.gguf"
     # Simulate the post-load state: llama-server was rebooted with
@@ -191,8 +190,7 @@ def test_load_adapter_null_restarts_llama_when_lora_was_loaded(
         r = client.post("/api/load-adapter", json={"path": None})
         assert r.status_code == 200, r.text
     # reload_adapters called with empty list → llama-server respawns
-    # without any --lora, which is the only reliable way to fully
-    # unload on the pinned vendor build.
+    # without any --lora, which also releases the adapter weights.
     instance.reload_adapters.assert_awaited_with([])
 
 

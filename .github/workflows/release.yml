@@ -1,12 +1,11 @@
 name: Release MiniCPM Desk Pet
 
-# Cross-platform release pipeline. Each job:
-#   1) builds the llama.cpp-backed sidecar (llama-server + gateway) for
-#      its target triple under minicpm-sidecar/bin/<triple>/
-#   2) runs electron-builder in clawd-on-desk/ — extraResources picks up
-#      the sidecar binaries automatically
-#   3) uploads the resulting installers as workflow artifacts; the
-#      release job stitches everything into a GitHub Release.
+# Cross-platform release pipeline. Each build job:
+#   1) downloads the official ggml-org/llama.cpp llama-server release
+#      into minicpm-sidecar/bin/<triple>/
+#   2) builds our thin FastAPI gateway for the same target
+#   3) runs electron-builder in clawd-on-desk/; extraResources picks up
+#      both binaries automatically.
 
 on:
   push:
@@ -24,8 +23,6 @@ jobs:
     name: mac-arm64
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -38,11 +35,23 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Build sidecar
-        env:
-          LLAMA_ACCEL: metal
+      - name: Fetch official llama.cpp release
         working-directory: minicpm-sidecar
-        run: ./scripts/build-all.sh
+        env:
+          TARGET_TRIPLE: mac-arm64
+        run: ./scripts/fetch-llama-release.sh
+
+      - name: Build gateway
+        working-directory: minicpm-sidecar
+        run: ./scripts/build-gateway.sh
+
+      - name: Verify sidecar binaries
+        working-directory: minicpm-sidecar/bin/mac-arm64
+        run: |
+          ls -la
+          chmod +x llama-server minicpm-sidecar
+          ./llama-server --version
+          ./minicpm-sidecar --help >/dev/null
 
       - name: Import Apple Developer ID certificate
         if: ${{ secrets.CSC_LINK != '' }}
@@ -112,8 +121,6 @@ jobs:
     name: linux-x64
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -121,27 +128,29 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install build deps
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y cmake build-essential libvulkan-dev
-
-      - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: 1.4.309.0
-          cache: true
-
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Build sidecar
-        env:
-          LLAMA_ACCEL: vulkan
+      - name: Fetch official llama.cpp release
         working-directory: minicpm-sidecar
-        run: ./scripts/build-all.sh
+        env:
+          TARGET_TRIPLE: linux-x64
+          LLAMA_BACKEND: cpu
+        run: ./scripts/fetch-llama-release.sh
+
+      - name: Build gateway
+        working-directory: minicpm-sidecar
+        run: ./scripts/build-gateway.sh
+
+      - name: Verify sidecar binaries
+        working-directory: minicpm-sidecar/bin/linux-x64
+        run: |
+          ls -la
+          chmod +x llama-server minicpm-sidecar
+          ./llama-server --version
+          ./minicpm-sidecar --help >/dev/null
 
       - name: npm install
         working-directory: clawd-on-desk
@@ -167,8 +176,6 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -176,46 +183,28 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Vulkan SDK
-        uses: humbletim/install-vulkan-sdk@v1.2
-        with:
-          version: 1.4.309.0
-          cache: true
-
-      - name: Install SPIRV-Headers via vcpkg
-        shell: pwsh
-        run: |
-          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install spirv-headers:x64-windows
-          Add-Content $env:GITHUB_ENV "VCPKG_INSTALLED_DIR=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows"
-
       - name: Install uv
         run: |
           irm https://astral.sh/uv/install.ps1 | iex
           Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.local\bin"
 
-      - name: Build llama-server (CPU default)
-        working-directory: minicpm-sidecar
-        env:
-          LLAMA_ACCEL: cpu
-        run: ./scripts/build-llama.ps1
-
-      - name: Build experimental Vulkan backend
-        working-directory: minicpm-sidecar
-        env:
-          LLAMA_ACCEL: vulkan
-        run: ./scripts/build-llama.ps1
-
-      - name: Build gateway (PyInstaller)
+      - name: Fetch official llama.cpp release
         working-directory: minicpm-sidecar
         run: |
-          uv sync
-          uv pip install "pyinstaller>=6.0"
-          Push-Location build
-          ../.venv/Scripts/pyinstaller.exe gateway.spec `
-            --distpath ../build/dist --workpath ../build/build --clean --noconfirm
-          Pop-Location
-          New-Item -ItemType Directory -Force -Path "bin/win-x64" | Out-Null
-          Copy-Item -Force build/dist/minicpm-sidecar.exe bin/win-x64/
+          .\scripts\fetch-llama-release.ps1 -Backend cpu -Target win-x64
+          .\scripts\fetch-llama-release.ps1 -Backend vulkan -Target win-x64
+
+      - name: Build gateway
+        working-directory: minicpm-sidecar
+        run: .\scripts\build-gateway.ps1 -Target win-x64
+
+      - name: Verify sidecar binaries
+        working-directory: minicpm-sidecar
+        run: |
+          Get-ChildItem -Recurse bin\win-x64 | Select-Object FullName,Length
+          .\bin\win-x64\llama-server.exe --version
+          .\bin\win-x64\backends\vulkan\llama-server.exe --version
+          .\bin\win-x64\minicpm-sidecar.exe --help | Out-Null
 
       - name: npm install
         working-directory: clawd-on-desk
@@ -231,6 +220,7 @@ jobs:
           name: windows-installer
           path: |
             clawd-on-desk/dist/*.exe
+            clawd-on-desk/dist/*.exe.blockmap
             clawd-on-desk/dist/latest.yml
 
   release:

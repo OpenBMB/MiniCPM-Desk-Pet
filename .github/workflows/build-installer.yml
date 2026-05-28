@@ -1,29 +1,18 @@
 name: Build installer (Linux + Windows)
 
-# 自动化打包 Linux / Windows 安装包，不依赖 git tag、不需要签名证书。
-# 直接复用 build-sidecar.yml 已编译好的 llama-server + gateway artifact，
-# 跳过 ~30 分钟的 llama.cpp 编译，只跑 electron-builder。
-#
-# 触发：
-#   - 手动：Actions → Build installer → Run workflow（可指定 sidecar run id）
-#   - push 到 main 且改了 clawd-on-desk/ 或本 workflow 文件
-#
-# 产物：
-#   - linux-installer  (AppImage + deb)
-#   - windows-installer (nsis exe)
-#   保留 7 天，可在 Actions 页面或 `gh run download` 拉取。
+# Build Linux / Windows installers without compiling llama.cpp in CI.
+# Each job downloads the official ggml-org/llama.cpp release binary,
+# builds only our thin Python gateway, then runs electron-builder.
 
 on:
   workflow_dispatch:
-    inputs:
-      sidecar_run_id:
-        description: "build-sidecar.yml 的 run id（留空 = 最近一次成功）"
-        required: false
-        default: ""
   push:
     branches: [main]
     paths:
       - "clawd-on-desk/**"
+      - "minicpm-sidecar/**"
+      - "adapters/**"
+      - "NOTICE.md"
       - ".github/workflows/build-installer.yml"
 
 defaults:
@@ -32,7 +21,6 @@ defaults:
 
 permissions:
   contents: read
-  actions: read   # 必需：跨 workflow 读取 build-sidecar 的 artifact
 
 jobs:
   build-linux:
@@ -45,16 +33,25 @@ jobs:
         with:
           node-version: 20
 
-      - name: Download sidecar artifact (linux-x64)
-        uses: dawidd6/action-download-artifact@v6
+      - uses: actions/setup-python@v5
         with:
-          workflow: build-sidecar.yml
-          workflow_conclusion: success
-          name: sidecar-linux-x64
-          path: minicpm-sidecar/bin/linux-x64
-          branch: main
-          run_id: ${{ github.event.inputs.sidecar_run_id }}
-          if_no_artifact_found: fail
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Fetch official llama.cpp release
+        working-directory: minicpm-sidecar
+        env:
+          TARGET_TRIPLE: linux-x64
+          LLAMA_BACKEND: cpu
+        run: ./scripts/fetch-llama-release.sh
+
+      - name: Build gateway
+        working-directory: minicpm-sidecar
+        run: ./scripts/build-gateway.sh
 
       - name: Verify sidecar binaries
         working-directory: minicpm-sidecar/bin/linux-x64
@@ -95,23 +92,32 @@ jobs:
         with:
           node-version: 20
 
-      - name: Download sidecar artifact (win-x64)
-        uses: dawidd6/action-download-artifact@v6
+      - uses: actions/setup-python@v5
         with:
-          workflow: build-sidecar.yml
-          workflow_conclusion: success
-          name: sidecar-win-x64
-          path: minicpm-sidecar/bin/win-x64
-          branch: main
-          run_id: ${{ github.event.inputs.sidecar_run_id }}
-          if_no_artifact_found: fail
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          irm https://astral.sh/uv/install.ps1 | iex
+          Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.local\bin"
+
+      - name: Fetch official llama.cpp release
+        working-directory: minicpm-sidecar
+        run: |
+          .\scripts\fetch-llama-release.ps1 -Backend cpu -Target win-x64
+          .\scripts\fetch-llama-release.ps1 -Backend vulkan -Target win-x64
+
+      - name: Build gateway
+        working-directory: minicpm-sidecar
+        run: .\scripts\build-gateway.ps1 -Target win-x64
 
       - name: Verify sidecar binaries
-        working-directory: minicpm-sidecar/bin/win-x64
+        working-directory: minicpm-sidecar
         run: |
-          Get-ChildItem
-          .\llama-server.exe --version
-          .\minicpm-sidecar.exe --help | Out-Null
+          Get-ChildItem -Recurse bin\win-x64 | Select-Object FullName,Length
+          .\bin\win-x64\llama-server.exe --version
+          .\bin\win-x64\backends\vulkan\llama-server.exe --version
+          .\bin\win-x64\minicpm-sidecar.exe --help | Out-Null
 
       - name: npm install
         working-directory: clawd-on-desk
