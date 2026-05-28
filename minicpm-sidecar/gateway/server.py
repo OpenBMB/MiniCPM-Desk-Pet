@@ -522,15 +522,10 @@ def build_app(
         raw = payload.get("path")
         # path = null  →  deactivate any LoRA (back to base model)
         if raw is None or (isinstance(raw, str) and not raw.strip()):
-            # If llama-server was booted with `--lora <something>`, just
-            # zeroing in-memory `current_adapter` isn't enough — the
-            # pinned llama.cpp build (zhangtao2-1@c5ede29) doesn't honour
-            # a per-request `lora: []` as "disable preloaded adapters"
-            # the way newer upstream does, so the bias from the active
-            # LoRA's weights bleeds into base chat. The only reliable
-            # fix is to restart llama-server with no `--lora` flag at
-            # all. Same ~3-10s cost as switching to a new LoRA, but the
-            # only way to truly "unload" on this vendor pin.
+            # If llama-server was booted with `--lora <something>`, a
+            # per-request `lora: []` is enough to force base output on
+            # modern llama.cpp. We still respawn with no `--lora` here
+            # so switching back to Base releases the adapter weights too.
             if server.adapter_paths:
                 bridge.post("working", event="UnloadAdapter", title="卸载 LoRA")
                 try:
@@ -665,18 +660,12 @@ def build_app(
 
         - disable_adapter=true  → []   (force base for this request)
         - active adapter set    → [{id, scale: 1.0}]
-        - no adapter active     → []   (force base; see note below)
+        - no adapter active     → []   (force base)
 
-        NOTE on the "no adapter active" case: we used to return None
-        here, expecting llama-server to fall back to base. That's
-        WRONG with our `--lora-init-without-apply` boot — the pinned
-        llama.cpp build (zhangtao2-1@c5ede29) doesn't actually zero
-        the global scale despite the flag name, so a missing `lora`
-        field leaves nekoqa applied at scale 1.0 and the user gets a
-        猫娘-flavoured response even after switching back to Base.
-        Sending an empty list explicitly disables every preloaded
-        adapter for THIS request, which is the bulletproof behaviour
-        we want.
+        Sending an empty list is intentionally explicit: llama.cpp
+        treats adapters omitted from a per-request `lora` list as scale
+        0.0, so base chat never depends on whatever global adapter scale
+        the server happened to inherit at startup.
         """
         if req.disable_adapter:
             return []

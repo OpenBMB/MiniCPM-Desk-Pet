@@ -6,8 +6,8 @@
 # │  普通用户请直接下载 dmg/exe 安装包，安装后跟着 Onboarding 走。 │
 # │                                                                │
 # │  ./go.sh 做的事：                                              │
-# │  1) 装 Node / uv / cmake 依赖                                  │
-# │  2) clone + 编译 llama-server（vendored llama.cpp 分支）       │
+# │  1) 装 Node / uv 依赖                                          │
+# │  2) 下载官方 llama.cpp release 里的 llama-server               │
 # │  3) uv sync 给 gateway 装 fastapi/uvicorn 等轻量 deps           │
 # │  4) npm install + npm start 起 Electron（dev 模式）            │
 # │                                                                │
@@ -20,7 +20,7 @@
 #   ./go.sh setup          # 只装依赖,不启动
 #   ./go.sh start          # 跳过依赖检查直接启动
 #   ./go.sh doctor         # 检查环境但什么都不做
-#   ./go.sh build-llama    # 重新编译 llama-server
+#   ./go.sh fetch-llama    # 重新下载官方 llama-server
 #   ./go.sh build          # 出整套安装包 (mac arm64 dmg)
 
 set -e
@@ -113,23 +113,6 @@ ensure_uv() {
   green "    ✓ uv $(uv --version) (新装)"
 }
 
-ensure_cmake() {
-  if command -v cmake >/dev/null 2>&1; then
-    green "    ✓ cmake $(cmake --version | head -1 | sed 's/cmake version //')"
-    return 0
-  fi
-  yellow "    cmake 未安装,自动安装..."
-  if command -v brew >/dev/null 2>&1; then
-    brew install cmake
-  elif command -v apt-get >/dev/null 2>&1; then
-    sudo apt-get update -y && sudo apt-get install -y cmake
-  else
-    red "无法自动装 cmake。请手动安装：https://cmake.org/download/"
-    exit 1
-  fi
-  green "    ✓ cmake $(cmake --version | head -1 | sed 's/cmake version //')"
-}
-
 check_environment() {
   cyan "==> 检查环境..."
 
@@ -139,7 +122,6 @@ check_environment() {
 
   ensure_node
   ensure_uv
-  ensure_cmake
 
   if [[ ! -f "$SIDECAR_DIR/pyproject.toml" ]]; then
     red "找不到 $SIDECAR_DIR/pyproject.toml,你是不是没解压完整?"
@@ -169,9 +151,8 @@ ensure_llama_server() {
     green "    ✓ llama-server 已存在 ($bin)"
     return 0
   fi
-  cyan "    首次构建 llama-server（这要 ~5-10 分钟，初始化 submodule + 编译）..."
-  git -C "$HERE" submodule update --init --depth 1 llama.cpp
-  ( cd "$SIDECAR_DIR" && ./scripts/build-llama.sh )
+  cyan "    首次下载官方 llama.cpp release 里的 llama-server..."
+  ( cd "$SIDECAR_DIR" && ./scripts/fetch-llama-release.sh )
   green "    ✓ llama-server 已就绪"
 }
 
@@ -238,10 +219,12 @@ case "$cmd" in
   start)
     start_pet
     ;;
-  build-llama)
+  fetch-llama|build-llama)
     check_environment
-    git -C "$HERE" submodule update --init --depth 1 llama.cpp
-    ( cd "$SIDECAR_DIR" && ./scripts/build-llama.sh )
+    if [[ "$cmd" == "build-llama" ]]; then
+      yellow "    build-llama 现在只是兼容别名；将下载官方 llama.cpp release。"
+    fi
+    ( cd "$SIDECAR_DIR" && ./scripts/fetch-llama-release.sh )
     ;;
   run|"")
     check_environment
@@ -251,7 +234,7 @@ case "$cmd" in
     start_pet
     ;;
   build)
-    # 一站式：vendor 编 llama-server + PyInstaller 编 gateway →
+    # 一站式：下载官方 llama-server + PyInstaller 编 gateway →
     # electron-builder 出 dmg。输出位于 clawd-on-desk/dist/*.dmg。
     check_environment
     ensure_llama_server
@@ -265,7 +248,7 @@ case "$cmd" in
     ;;
   *)
     red "未知命令: $cmd"
-    red "用法: ./go.sh [doctor|setup|start|run|build|build-llama]"
+    red "用法: ./go.sh [doctor|setup|start|run|build|fetch-llama]"
     exit 1
     ;;
 esac

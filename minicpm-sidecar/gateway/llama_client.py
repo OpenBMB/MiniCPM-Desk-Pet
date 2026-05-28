@@ -79,8 +79,8 @@ def _candidate_binary_paths(device: Optional[str] = None) -> list[Path]:
     1. $MINICPM_LLAMA_SERVER  (explicit override, dev convenience)
     2. Next to ourselves    — packaged sidecar lives in
        <resources>/sidecar-bin/  alongside llama-server[.exe]
-    3. minicpm-sidecar/bin/<os>-<arch>/  — `scripts/build-llama.sh` output
-    4. <repo-root>/llama.cpp/build/bin/  — submodule cmake build location
+    3. minicpm-sidecar/bin/<os>-<arch>/  — official llama.cpp release output
+    4. <repo-root>/llama.cpp/build/bin/  — optional local CMake build fallback
     """
     sys_name = platform.system()
     exe = "llama-server.exe" if sys_name == "Windows" else "llama-server"
@@ -247,7 +247,7 @@ class LlamaServer:
                 continue
         searched = "\n  ".join(str(p) for p in _candidate_binary_paths(self.device))
         raise FileNotFoundError(
-            "找不到 llama-server。请先初始化 submodule 并编译：git submodule update --init llama.cpp && cd minicpm-sidecar && ./scripts/build-llama.sh。\n"
+            "找不到 llama-server。请先下载官方 llama.cpp release：cd minicpm-sidecar && ./scripts/fetch-llama-release.sh。\n"
             f"  已检查的路径:\n  {searched}"
         )
 

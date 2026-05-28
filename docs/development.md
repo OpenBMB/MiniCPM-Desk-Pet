@@ -84,7 +84,7 @@ MiniCPM-Desk-Pet/
 等价于：
 
 ```bash
-# 1. 编 llama-server + uv sync gateway + PyInstaller 打 gateway（首次 ~10 分钟）
+# 1. 下载官方 llama.cpp 的 llama-server + PyInstaller 打 gateway
 cd minicpm-sidecar && ./scripts/build-all.sh && cd ..
 
 # 2. electron-builder 出 dmg

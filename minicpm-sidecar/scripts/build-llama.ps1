@@ -1,4 +1,5 @@
-# Build llama-server on Windows.
+# Legacy source-build fallback for llama-server on Windows.
+# Default builds use fetch-llama-release.ps1 instead.
 #
 # Output:
 #   bin\win-x64\llama-server.exe
@@ -45,7 +46,7 @@ switch ($accel) {
 }
 
 # Vulkan 后端需要 SPIRV-Headers 的 CMake config。LunarG 精简 SDK 不带，
-# CI 通过 vcpkg 装并在 VCPKG_INSTALLED_DIR 下提供 cmake config。
+# 如果本地环境通过 vcpkg 提供 SPIRV-Headers，可用 VCPKG_INSTALLED_DIR 指向它。
 if ($accel -eq "vulkan" -and $env:VCPKG_INSTALLED_DIR) {
   Write-Host "==> Using vcpkg prefix: $env:VCPKG_INSTALLED_DIR" -ForegroundColor Cyan
   $flags += "-DCMAKE_PREFIX_PATH=$env:VCPKG_INSTALLED_DIR"

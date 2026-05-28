@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build llama-server for the current host platform.
+# Legacy source-build fallback for llama-server on the current host platform.
+# Default builds use fetch-llama-release.sh instead.
 #
 # Output:
 #   bin/<os>-<arch>/llama-server[.exe]
