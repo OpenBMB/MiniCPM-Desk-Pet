@@ -1,0 +1,428 @@
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft  { stroke-opacity: .06; }
+.edge-contact   { stroke-opacity: .08; }
+.statusbar, .preset {
+  font-size: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #9fb2ff;
+  background: #151824;
+  border-radius: 8px;
+  padding: 6px 14px;
+  min-width: min(820px, calc(100vw - 40px));
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+.preset {
+  color: rgba(224,224,230,.70);
+  text-align: left;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft  { stroke-opacity: .10; }
+.edge-contact   { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.statusbar, .preset { background: #fff; color: #3941FF; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+    <defs>
+      <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      <clipPath id="cloud-clip"><use href="#cloud-shape"/></clipPath>
+
+      <linearGradient id="body-grad" x1="12" y1="1.5" x2="12" y2="22.8" gradientUnits="userSpaceOnUse">
+        <stop id="body-top" offset="0" stop-color="#6A708E"/>
+        <stop id="body-mid" offset=".44" stop-color="#333A53"/>
+        <stop id="body-bottom" offset="1" stop-color="#151A30"/>
+      </linearGradient>
+      <radialGradient id="body-hi" cx="9.2" cy="5.2" r="18" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#8B92B2" stop-opacity=".16"/>
+        <stop offset=".62" stop-color="#6C7394" stop-opacity=".08"/>
+        <stop offset="1" stop-color="#6C7394" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="body-core" cx="12.2" cy="17.5" r="11.8" gradientUnits="userSpaceOnUse">
+        <stop id="core-stop-a" offset="0" stop-color="#0C1023" stop-opacity=".22"/>
+        <stop id="core-stop-b" offset=".68" stop-color="#0C1023" stop-opacity=".09"/>
+        <stop offset="1" stop-color="#0C1023" stop-opacity="0"/>
+      </radialGradient>
+
+      <radialGradient id="flow-cool" cx="0.5" cy="0.5" r="0.65">
+        <stop offset="0" stop-color="#858DAE" stop-opacity=".26"/>
+        <stop offset=".52" stop-color="#697290" stop-opacity=".13"/>
+        <stop offset="1" stop-color="#697290" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="flow-deep" cx="0.5" cy="0.5" r="0.60">
+        <stop offset="0" stop-color="#020514" stop-opacity=".56"/>
+        <stop offset=".58" stop-color="#020514" stop-opacity=".18"/>
+        <stop offset="1" stop-color="#020514" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="flow-band-grad" x1="1" y1="0" x2="23" y2="0" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#747D9E" stop-opacity="0"/>
+        <stop offset=".45" stop-color="#747D9E" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#747D9E" stop-opacity="0"/>
+      </linearGradient>
+
+      <linearGradient id="eye-grad" x1="12" y1="8.5" x2="12" y2="15.8" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#A9BCFF"/>
+        <stop offset=".54" stop-color="#6B89FF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+
+      <filter id="cloud-shadow" x="-75%" y="-75%" width="250%" height="250%">
+        <feDropShadow id="hard-shadow" dx="0" dy=".8" stdDeviation="1.15" flood-color="#040611" flood-opacity=".70"/>
+        <feDropShadow id="blue-glow" dx="0" dy="0" stdDeviation="2.1" flood-color="#3941FF" flood-opacity=".18"/>
+      </filter>
+      <filter id="mist-blur" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur id="mist-blur-node" stdDeviation=".34"/>
+      </filter>
+      <filter id="ground-blur" x="-50%" y="-80%" width="200%" height="260%">
+        <feGaussianBlur stdDeviation="1"/>
+      </filter>
+    </defs>
+
+    <g id="rain" display="none" stroke="#7180C2" stroke-width=".45" stroke-linecap="round"></g>
+    <ellipse id="ground" cx="12" cy="22.9" rx="8.7" ry="1.25" fill="#030513" opacity=".48" filter="url(#ground-blur)"/>
+
+    <g id="cloud-root">
+      <g filter="url(#cloud-shadow)">
+        <use href="#cloud-shape" fill="url(#body-grad)" stroke="#9CA8D8" stroke-opacity=".22" stroke-width=".34"/>
+        <rect x="-3" y="-3" width="30" height="30" fill="url(#body-hi)" clip-path="url(#cloud-clip)"/>
+        <rect x="-3" y="-3" width="30" height="30" fill="url(#body-core)" clip-path="url(#cloud-clip)"/>
+        <g id="flow-layer" clip-path="url(#cloud-clip)" filter="url(#mist-blur)">
+          <ellipse id="flow-light" cx="8.5" cy="7.0" rx="14.8" ry="8.4" fill="url(#flow-cool)" opacity=".34"/>
+          <ellipse id="flow-dark" cx="15.6" cy="17.4" rx="13.6" ry="7.8" fill="url(#flow-deep)" opacity=".30"/>
+          <rect id="flow-band" x="-10" y="2.0" width="44" height="9.4" fill="url(#flow-band-grad)" opacity=".26" transform="rotate(-12 12 12)"/>
+        </g>
+      </g>
+
+      <g id="eyes" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <g id="eye-l" transform="translate(8.95 12.2) rotate(-5)">
+          <path d="M-1.15 -1.35 L1.15 1.35 M1.15 -1.35 L-1.15 1.35" stroke="#FFFFFF" stroke-width="1.42" stroke-opacity=".18"/>
+          <path d="M-1.15 -1.35 L1.15 1.35 M1.15 -1.35 L-1.15 1.35" stroke="url(#eye-grad)" stroke-width="1.08"/>
+        </g>
+        <g id="eye-r" transform="translate(15.05 12.25) rotate(6)">
+          <path d="M-1.15 -1.35 L1.15 1.35 M1.15 -1.35 L-1.15 1.35" stroke="#FFFFFF" stroke-width="1.42" stroke-opacity=".18"/>
+          <path d="M-1.15 -1.35 L1.15 1.35 M1.15 -1.35 L-1.15 1.35" stroke="url(#eye-grad)" stroke-width="1.08"/>
+        </g>
+      </g>
+    </g>
+  <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="params"></g>
+<g id="preset"></g>
+<g id="statusbar"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const TAU = Math.PI * 2;
+const DEFAULTS = {
+  period: 4.0,
+  breathAmp: 0.070,
+  breathSpeed: 1.00,
+  squeezeStart: 0.53,
+  squeezeDuration: 0.66,
+  squeezeRamp: 0.60,
+  squeezePower: 0.95,
+  reboundOvershoot: 0.018,
+  reboundDamping: 0.78,
+  squashAmp: 0.088,
+  squashXBoost: 0.058,
+  squeezeDropY: 0.30,
+  rainDelay: 0.05,
+  rainDuration: 0.66,
+  rainBurstPower: 1.00,
+  flowAlpha: 0.56,
+  flowTravel: 4.1,
+  flowSpeed: 1.25,
+  flowBlur: 0.50,
+  darkFlowAlpha: 0.48,
+  bandAlpha: 0.28,
+  twistFlowBoost: 0.55,
+  rainBaseOpacity: 0.58,
+  rainBurstOpacity: 0.34,
+  rainBaseSpeed: 0.62,
+  rainBurstSpeed: 0.82,
+  rainBaseLength: 1.30,
+  rainBurstLength: 1.60,
+  rainCount: 8,
+  rainDrift: 0.40,
+  eyeDim: 0.08,
+};
+let P = { ...DEFAULTS };
+let paused = false;
+let pauseStart = 0;
+let pausedTotal = 0;
+const startedAt = performance.now();
+const RAIN_LINES = [
+  { x: 1.8,  y: 22.9, len: 1.15, delay: 0.04, alpha: 0.78 },
+  { x: 4.3,  y: 24.1, len: 1.00, delay: 0.31, alpha: 0.52 },
+  { x: 6.5,  y: 22.9, len: 0.92, delay: 0.62, alpha: 0.42 },
+  { x: 9.1,  y: 24.5, len: 0.88, delay: 0.83, alpha: 0.36 },
+  { x: 14.9, y: 23.4, len: 0.92, delay: 0.18, alpha: 0.40 },
+  { x: 17.4, y: 24.4, len: 1.05, delay: 0.49, alpha: 0.54 },
+  { x: 20.0, y: 23.0, len: 1.22, delay: 0.70, alpha: 0.82 },
+  { x: 22.6, y: 24.0, len: 1.00, delay: 0.92, alpha: 0.50 },
+];
+
+const PARAM_DEFS = [
+  { group: '循环 / CYCLE' },
+  { key: 'period', label: '总周期 s', min: 3.6, max: 7.0, step: 0.1 },
+  { key: 'squeezeStart', label: '开始拧的位置', min: 0.08, max: 0.70, step: 0.01 },
+  { key: 'squeezeDuration', label: '拧+回弹时长', min: 0.22, max: 0.86, step: 0.01 },
+  { key: 'squeezeRamp', label: '压扁用时占比', min: 0.20, max: 0.70, step: 0.01 },
+  { key: 'squeezePower', label: '压扁曲线硬度', min: 0.6, max: 3.0, step: 0.05 },
+  { group: '云体呼吸 / BODY' },
+  { key: 'breathAmp', label: '呼吸大小幅度', min: 0.00, max: 0.10, step: 0.005 },
+  { key: 'breathSpeed', label: '呼吸速度倍数', min: 0.3, max: 2.0, step: 0.05 },
+  { key: 'squashAmp', label: '拧毛巾压扁幅度', min: 0.00, max: 0.16, step: 0.005 },
+  { key: 'squashXBoost', label: '压扁横向膨胀', min: 0.00, max: 0.12, step: 0.005 },
+  { key: 'squeezeDropY', label: '压扁下沉', min: 0.00, max: 0.90, step: 0.02 },
+  { key: 'reboundOvershoot', label: '回弹过冲', min: 0.00, max: 0.08, step: 0.002 },
+  { key: 'reboundDamping', label: '回弹衰减', min: 0.20, max: 1.20, step: 0.05 },
+  { group: '挤出的雨 / BURST' },
+  { key: 'rainDelay', label: '雨跟拧的错位', min: 0.00, max: 0.14, step: 0.01 },
+  { key: 'rainDuration', label: '雨随拧持续', min: 0.20, max: 0.86, step: 0.01 },
+  { key: 'rainBurstPower', label: '雨峰曲线硬度', min: 0.5, max: 3.0, step: 0.05 },
+  { group: '乌云流动 / FLOW' },
+  { key: 'flowAlpha', label: '浅色漫反射流动', min: 0.00, max: 0.90, step: 0.01 },
+  { key: 'darkFlowAlpha', label: '暗部漫反射流动', min: 0.00, max: 0.90, step: 0.01 },
+  { key: 'bandAlpha', label: '漫反射流带强度', min: 0.00, max: 0.80, step: 0.01 },
+  { key: 'flowTravel', label: '流动位移', min: 0.0, max: 7.0, step: 0.1 },
+  { key: 'flowSpeed', label: '流动速度', min: 0.2, max: 3.0, step: 0.05 },
+  { key: 'flowBlur', label: '流动柔化', min: 0.0, max: 1.0, step: 0.02 },
+  { key: 'twistFlowBoost', label: '拧时流动加速感', min: 0.00, max: 1.20, step: 0.05 },
+  { group: '雨 / RAIN' },
+  { key: 'rainCount', label: '雨线数量', min: 2, max: 8, step: 1 },
+  { key: 'rainBaseOpacity', label: '常态雨透明度', min: 0.05, max: 1.0, step: 0.01 },
+  { key: 'rainBurstOpacity', label: '挤出时增亮', min: 0.00, max: 0.70, step: 0.01 },
+  { key: 'rainBaseSpeed', label: '常态雨速度', min: 0.15, max: 1.5, step: 0.05 },
+  { key: 'rainBurstSpeed', label: '挤出时加速', min: 0.00, max: 1.8, step: 0.05 },
+  { key: 'rainBaseLength', label: '常态雨长度', min: 0.40, max: 2.4, step: 0.05 },
+  { key: 'rainBurstLength', label: '挤出时变长', min: 0.00, max: 2.8, step: 0.05 },
+  { key: 'rainDrift', label: '雨线斜移', min: 0.00, max: 1.2, step: 0.02 },
+  { group: '眼睛 / EYES' },
+  { key: 'eyeDim', label: '拧时眼睛变暗', min: 0.00, max: 0.30, step: 0.01 },
+];
+
+const el = {
+  cloudRoot: document.getElementById('cloud-root'),
+  rain: document.getElementById('rain'),
+  bodyGrad: document.getElementById('body-grad'),
+  bodyHi: document.getElementById('body-hi'),
+  bodyCore: document.getElementById('body-core'),
+  coreA: document.getElementById('core-stop-a'),
+  coreB: document.getElementById('core-stop-b'),
+  eyeGrad: document.getElementById('eye-grad'),
+  eyes: document.getElementById('eyes'),
+  eyeL: document.getElementById('eye-l'),
+  eyeR: document.getElementById('eye-r'),
+  flowLight: document.getElementById('flow-light'),
+  flowDark: document.getElementById('flow-dark'),
+  flowBand: document.getElementById('flow-band'),
+  blur: document.getElementById('mist-blur-node'),
+  ground: document.getElementById('ground'),
+  hardShadow: document.getElementById('hard-shadow'),
+  blueGlow: document.getElementById('blue-glow'),
+  status: document.getElementById('statusbar'),
+  preset: document.getElementById('preset'),
+};
+
+const RAIN_COPIES = 2;
+const rainPaths = RAIN_LINES.map(() => {
+  const copies = [];
+  for (let i = 0; i < RAIN_COPIES; i++) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('fill', 'none');
+    el.rain.appendChild(path);
+    copies.push(path);
+  }
+  return copies;
+});
+
+function buildParams() {
+  const params = document.getElementById('params');
+  params.innerHTML = '';
+  for (const def of PARAM_DEFS) {
+    if (def.group) {
+      const h = document.createElement('h3');
+      h.textContent = def.group;
+      params.appendChild(h);
+      continue;
+    }
+    const lab = document.createElement('label');
+    lab.innerHTML = `
+      <span>${def.label}</span>
+      <input type="range" data-key="${def.key}" min="${def.min}" max="${def.max}" step="${def.step}" value="${P[def.key]}"/>
+      <span class="val" data-val="${def.key}">${formatValue(P[def.key], def.step)}</span>
+    `;
+    const range = lab.querySelector('input');
+    const val = lab.querySelector('[data-val]');
+    range.oninput = e => {
+      P[def.key] = parseFloat(e.target.value);
+      if (def.key === 'rainCount') P[def.key] = Math.round(P[def.key]);
+      val.textContent = formatValue(P[def.key], def.step);
+      updatePreset();
+    };
+    params.appendChild(lab);
+  }
+  updatePreset();
+}
+
+function formatValue(v, step) {
+  if (Number.isInteger(step)) return String(v);
+  if (step >= 0.1) return Number(v).toFixed(1);
+  if (step >= 0.01) return Number(v).toFixed(2);
+  return Number(v).toFixed(3);
+}
+
+function updatePreset() {
+  const keys = PARAM_DEFS.filter(d => d.key).map(d => d.key);
+  const subset = {};
+  keys.forEach(k => subset[k] = P[k]);
+  el.preset.textContent = `当前参数: ${JSON.stringify(subset)}`;
+}
+
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+function mix(a, b, t) { return a + (b - a) * t; }
+function smoothstep(edge0, edge1, x) {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+function wrap01(v) {
+  return ((v % 1) + 1) % 1;
+}
+
+function cycleLocal(phase, start, duration) {
+  const u = wrap01(phase - start);
+  if (u > duration) return null;
+  return u / duration;
+}
+
+function squeezeAt(phase) {
+  const u = cycleLocal(phase, P.squeezeStart, P.squeezeDuration);
+  if (u === null) return 0;
+  const ramp = clamp01(P.squeezeRamp);
+  if (u <= ramp) {
+    return Math.pow(smoothstep(0, 1, u / ramp), P.squeezePower);
+  }
+  const release = (u - ramp) / Math.max(0.001, 1 - ramp);
+  return Math.pow(1 - smoothstep(0, 1, release), P.squeezePower);
+}
+
+function rainBurstAt(phase) {
+  const start = wrap01(P.squeezeStart + P.rainDelay);
+  const u = cycleLocal(phase, start, P.rainDuration);
+  if (u === null) return 0;
+  const rampInCycle = Math.max(0.04, P.squeezeDuration * P.squeezeRamp);
+  const ramp = clamp01(rampInCycle / Math.max(0.001, P.rainDuration));
+  if (u <= ramp) {
+    return Math.pow(smoothstep(0, 1, u / ramp), P.rainBurstPower);
+  }
+  const release = (u - ramp) / Math.max(0.001, 1 - ramp);
+  return Math.pow(1 - smoothstep(0, 1, release), P.rainBurstPower);
+}
+
+function reboundAt(phase) {
+  const start = wrap01(P.squeezeStart + P.squeezeDuration * P.squeezeRamp);
+  const duration = Math.max(0.08, P.squeezeDuration * (1 - P.squeezeRamp));
+  const u = cycleLocal(phase, start, duration);
+  if (u === null) return 0;
+  return Math.sin(Math.PI * u) * Math.pow(1 - u, P.reboundDamping);
+}
+
+function renderAt(timeMs) {
+  const t = timeMs / 1000;
+  const phase = (t / P.period) % 1;
+  const squeeze = squeezeAt(phase);
+  const rainBurst = rainBurstAt(phase);
+  const rebound = reboundAt(phase);
+  const breath = 0.5 + 0.5 * Math.sin(TAU * (phase * P.breathSpeed - 0.18));
+  const breathScale = 1 + (breath - 0.5) * 2 * P.breathAmp;
+  const sx = 1.02 * breathScale + squeeze * P.squashXBoost - rebound * P.reboundOvershoot * 0.35;
+  const sy = 0.995 * breathScale - squeeze * P.squashAmp + rebound * P.reboundOvershoot;
+  const ty = 0.08 + (breath - 0.5) * 0.18 + squeeze * P.squeezeDropY - rebound * 0.12;
+  const twist = Math.sin(TAU * phase * 2.0) * squeeze;
+  const rot = (breath - 0.5) * 1.1 - squeeze * 1.15 + rebound * 0.55 + twist * 0.55;
+  el.cloudRoot.setAttribute(
+    'transform',
+    `translate(12 ${(12.1 + ty).toFixed(3)}) rotate(${rot.toFixed(3)}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-12 -12)`
+  );
+
+  const flow = t / P.period * P.flowSpeed * (1 + squeeze * P.twistFlowBoost);
+  el.bodyGrad.setAttribute('y1', (1.0 + Math.sin(flow * TAU * 0.36) * 0.35).toFixed(3));
+  el.bodyGrad.setAttribute('y2', (22.9 + Math.cos(flow * TAU * 0.32) * 0.30).toFixed(3));
+  el.bodyHi.setAttribute('cx', (9.2 + Math.sin(flow * TAU * 0.28) * 0.65).toFixed(3));
+  el.bodyHi.setAttribute('cy', (5.2 + Math.cos(flow * TAU * 0.24) * 0.35).toFixed(3));
+  el.bodyHi.setAttribute('r', (18.0 + Math.sin(flow * TAU * 0.20) * 0.18).toFixed(3));
+  el.bodyCore.setAttribute('cx', (12.2 + Math.sin(flow * TAU * 0.26 + 1.5) * 0.55).toFixed(3));
+  el.bodyCore.setAttribute('cy', (17.5 + Math.cos(flow * TAU * 0.22) * 0.40).toFixed(3));
+  el.bodyCore.setAttribute('r', (11.2 + Math.sin(flow * TAU * 0.18) * 0.25).toFixed(3));
+  el.coreA.setAttribute('stop-opacity', '0.20');
+  el.coreB.setAttribute('stop-opacity', '0.08');
+
+  const travel = P.flowTravel;
+  el.blur.setAttribute('stdDeviation', P.flowBlur.toFixed(3));
+  el.flowLight.setAttribute('cx', (8.5 + Math.sin(flow * TAU * 0.45) * travel * 0.55).toFixed(3));
+  el.flowLight.setAttribute('cy', (7.0 + Math.cos(flow * TAU * 0.34) * travel * 0.18).toFixed(3));
+  el.flowLight.setAttribute('opacity', (P.flowAlpha * 0.50).toFixed(3));
+  el.flowDark.setAttribute('cx', (15.6 + Math.cos(flow * TAU * 0.40) * travel * 0.55).toFixed(3));
+  el.flowDark.setAttribute('cy', (17.4 + Math.sin(flow * TAU * 0.32) * travel * 0.20).toFixed(3));
+  el.flowDark.setAttribute('opacity', (P.darkFlowAlpha * 0.70).toFixed(3));
+  const bandX = -13 + ((flow * 18) % 24);
+  el.flowBand.setAttribute('transform', `translate(${bandX.toFixed(3)} 0) rotate(-12 12 12)`);
+  el.flowBand.setAttribute('opacity', (P.bandAlpha * 0.46).toFixed(3));
+
+  const eyeYOffset = squeeze * 0.14;
+  el.eyes.setAttribute('opacity', (0.90 - squeeze * P.eyeDim + Math.sin(flow * TAU * 1.0) * 0.012).toFixed(3));
+  el.eyeGrad.setAttribute('y1', (8.5 + Math.sin(flow * TAU * 0.74) * 0.8).toFixed(3));
+  el.eyeGrad.setAttribute('y2', (15.8 + Math.sin(flow * TAU * 0.74) * 0.8).toFixed(3));
+  el.eyeL.setAttribute('transform', `translate(8.95 ${(12.2 + eyeYOffset).toFixed(3)}) rotate(${(-5 - squeeze * 1.5).toFixed(3)}) scale(${(1 - squeeze * 0.030).toFixed(3)})`);
+  el.eyeR.setAttribute('transform', `translate(15.05 ${(12.25 + eyeYOffset).toFixed(3)}) rotate(${(6 + squeeze * 1.2).toFixed(3)}) scale(${(1 - squeeze * 0.030).toFixed(3)})`);
+
+  el.hardShadow.setAttribute('flood-opacity', '0.62');
+  el.blueGlow.setAttribute('flood-opacity', '0.14');
+  el.ground.setAttribute('rx', (8.5 + (breath - 0.5) * 0.4).toFixed(3));
+  el.ground.setAttribute('opacity', '0.42');
+
+  const rainPower = clamp01(P.rainBaseOpacity + rainBurst * P.rainBurstOpacity);
+  el.rain.setAttribute('opacity', rainPower.toFixed(3));
+  el.rain.setAttribute('stroke-width', (0.36 + rainBurst * 0.13).toFixed(3));
+  RAIN_LINES.forEach((line, i) => {
+    const visible = i < P.rainCount;
+    const speed = P.rainBaseSpeed + rainBurst * P.rainBurstSpeed;
+    const fall = mix(2.6, 6.2, rainBurst);
+    const len = (line.len * P.rainBaseLength) + rainBurst * P.rainBurstLength;
+    rainPaths[i].forEach((path, copyIndex) => {
+      const p = (t * speed + line.delay + copyIndex / RAIN_COPIES) % 1;
+      const fadeIn = smoothstep(0.00, 0.24, p);
+      const fadeOut = 1 - smoothstep(0.76, 1.00, p);
+      const fade = Math.max(0.12, fadeIn * fadeOut);
+      const y1 = line.y + p * fall - squeeze * 0.30 - copyIndex * 0.15;
+      const x1 = line.x - p * P.rainDrift - squeeze * 0.12;
+      const y2 = y1 + len;
+      const x2 = x1 - 0.42;
+      path.setAttribute('d', `M${x1.toFixed(3)} ${y1.toFixed(3)} L${x2.toFixed(3)} ${y2.toFixed(3)}`);
+      path.setAttribute('opacity', visible ? (line.alpha * fade * 0.72).toFixed(3) : '0');
+    });
+  });
+
+  el.status.textContent = `phase ${phase.toFixed(2)} · squeeze ${squeeze.toFixed(2)} · rainBurst ${rainBurst.toFixed(2)} · rebound ${rebound.toFixed(2)} · sx ${sx.toFixed(3)} · sy ${sy.toFixed(3)}`;
+}
+
+function loop(now) {
+  if (!paused) {
+    renderAt(now - startedAt - pausedTotal);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+]]></script>
+</svg>

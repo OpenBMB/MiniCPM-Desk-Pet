@@ -1,0 +1,83 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+.drag-wobble {
+  transform-origin: 12px 12px;
+  animation: drag-wobble var(--wobble-period, 0.9s) infinite alternate ease-in-out;
+}
+@keyframes drag-wobble {
+  0%   { transform: rotate(calc(-1 * var(--wobble-deg, 11deg))); }
+  100% { transform: rotate(var(--wobble-deg, 11deg)); }
+}
+.drag-breath {
+  transform-origin: 12px 12px;
+  animation: drag-breath var(--breath-period, 5s) infinite ease-in-out;
+}
+@keyframes drag-breath {
+  0%, 100% { transform: scale(var(--breath-low, 0.96)); }
+  50%      { transform: scale(1); }
+}
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+    <defs>
+      <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.5" stop-color="#f4f5f9"/>
+        <stop offset="1" stop-color="#dee2eb"/>
+      </linearGradient>
+      <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF"/>
+        <stop offset="0.5" stop-color="#7A9DFF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+      <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow class="cloud-drop-shadow" id="drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+      </filter>
+      <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="0.16"/>
+      </filter>
+      <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      <clipPath id="cloud-clip">
+        <use href="#cloud-shape"/>
+      </clipPath>
+    </defs>
+
+    <!-- 外层 wobble (自旋摇晃, pivot 中心) -->
+    <g id="wobble-layer" class="drag-wobble">
+      <!-- 内层 breath (呼吸, pivot 中心) -->
+      <g id="breath-layer" class="drag-breath">
+        <g id="edge-system">
+          <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+          <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+          <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+        </g>
+        <g filter="url(#drop)">
+          <use href="#cloud-shape" fill="url(#body-grad)"/>
+          <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+        </g>
+        <g id="eyes-gt-lt" fill="none" stroke="url(#eye-grad)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 8.20 10.30 L 9.80 12.00 L 8.20 13.70"/>
+          <path d="M 15.80 10.30 L 14.20 12.00 L 15.80 13.70"/>
+        </g>
+      </g>
+    </g>
+
+</svg>

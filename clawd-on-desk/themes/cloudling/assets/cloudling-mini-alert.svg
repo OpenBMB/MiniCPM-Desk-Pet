@@ -1,0 +1,390 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="-12 -12 48 48" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.v {
+  text-align: right;
+  font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #7A9DFF;
+}
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+.duration-probe {
+  opacity: 0;
+  animation: mini-alert-duration-probe 2.6s linear 1 both;
+}
+@keyframes mini-alert-duration-probe {
+  from { transform: translateX(0); }
+  to { transform: translateX(0); }
+}
+@media (prefers-color-scheme: light) {
+.v { color: #3941FF; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+      <defs>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.5" stop-color="#f4f5f9"/>
+          <stop offset="1" stop-color="#dee2eb"/>
+        </linearGradient>
+        <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.5" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <linearGradient id="signal-grad" x1="-2" y1="12" x2="26" y2="12" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF" stop-opacity="0.08"/>
+          <stop offset="0.22" stop-color="#8EA7FF" stop-opacity="0.92"/>
+          <stop offset="0.78" stop-color="#7A9DFF" stop-opacity="0.92"/>
+          <stop offset="1" stop-color="#3941FF" stop-opacity="0.08"/>
+        </linearGradient>
+        <linearGradient id="alert-grad" x1="19" y1="4" x2="5" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#FFD36E" stop-opacity="0.98"/>
+          <stop offset="0.36" stop-color="#FFA56B" stop-opacity="0.94"/>
+          <stop offset="0.72" stop-color="#8EA7FF" stop-opacity="0.74"/>
+          <stop offset="1" stop-color="#3941FF" stop-opacity="0.16"/>
+        </linearGradient>
+        <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.55" stdDeviation="0.72" flood-color="#3941FF" flood-opacity="0.17"/>
+        </filter>
+        <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="0.16"/>
+        </filter>
+        <filter id="pulse-glow" x="-70%" y="-70%" width="240%" height="240%">
+          <feGaussianBlur id="pulse-blur" stdDeviation="0.42" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="alert-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="0.44" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+        <clipPath id="cloud-clip">
+          <use href="#cloud-shape"/>
+        </clipPath>
+      </defs>
+
+      <rect x="-12" y="-12" width="48" height="48" fill="transparent"/>
+      <rect class="duration-probe" x="-12" y="-12" width="0.01" height="0.01" fill="transparent"/>
+
+      <g id="runtime-layer">
+        <g id="pulses-layer"></g>
+        <g id="g-translate">
+          <g id="g-rotate">
+            <g id="g-squash">
+              <g id="edge-system">
+                <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.00" stroke-linejoin="round" transform="translate(0 .18)" filter="url(#edge-blur)"/>
+                <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width=".84" stroke-linejoin="round" filter="url(#edge-blur)"/>
+                <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width=".38" stroke-linejoin="round"/>
+              </g>
+              <g filter="url(#drop)">
+                <use href="#cloud-shape" fill="url(#body-grad)"/>
+                <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+              </g>
+              <g id="rim-flash-layer"></g>
+              <g id="eyes-counter">
+                <g id="eyes-js">
+                  <rect id="eye-l" x="6.65" y="9.65" width="2.2" height="4.65" rx="1.1" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+                  <rect id="eye-r" x="11.05" y="9.65" width="2.2" height="4.65" rx="1.1" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+                </g>
+              </g>
+            </g>
+          </g>
+        </g>
+      </g>
+
+    <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="phase-readout"></g>
+<g id="time-readout"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const gTrans = document.getElementById("g-translate");
+const gRotate = document.getElementById("g-rotate");
+const gSquash = document.getElementById("g-squash");
+const eyesCounter = document.getElementById("eyes-counter");
+const eyeL = document.getElementById("eye-l");
+const eyeR = document.getElementById("eye-r");
+const pulsesLayer = document.getElementById("pulses-layer");
+const rimFlashLayer = document.getElementById("rim-flash-layer");
+const pulseBlur = document.getElementById("pulse-blur");
+const phaseReadout = document.getElementById("phase-readout");
+const timeReadout = document.getElementById("time-readout");
+
+const CLOUD_D = document.getElementById("cloud-shape").getAttribute("d");
+const EYE_BASE = {
+  l: { x: 6.65, y: 9.65, w: 2.20, h: 4.65, rx: 1.10 },
+  r: { x: 11.05, y: 9.65, w: 2.20, h: 4.65, rx: 1.10 },
+};
+
+const params = {
+  totalPeriod: 2600,
+  ratioA: .22,
+  ratioB: .50,
+  shakeAngle: 16,
+  shakeFreqHz: 7,
+  jumpY: .52,
+  squash: .046,
+  scaleMicro: .040,
+  scaleMacro: .070,
+  idleBreathAmp: .018,
+  idleBreathPeriod: 5000,
+  pulseLifetimeA: 720,
+  pulseLifetimeB: 520,
+  pulseScaleEnd: 1.62,
+  pulseStrokeWidth: .82,
+  pulseGlow: .42,
+  pulseStartRadius: 8.7,
+  pulseFadeIn: 35,
+  eyeWiden: .26,
+  rimPower: 1.12,
+};
+
+let startT = performance.now();
+let heldT = 0;
+let paused = false;
+let pulses = [];
+let pulseId = 0;
+let lastCycleT = -1;
+let emittedA = false;
+let emittedBPeaks = 0;
+let lastRender = null;
+
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+function easeInOutCubic(x) {
+  return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+function expPulse(x, center, width) {
+  const d = (x - center) / width;
+  return Math.exp(-d * d);
+}
+function polarPoint(cx, cy, r, deg) {
+  const a = deg * Math.PI / 180;
+  return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+}
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const [x0, y0] = polarPoint(cx, cy, r, startDeg);
+  const [x1, y1] = polarPoint(cx, cy, r, endDeg);
+  const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+  const sweep = endDeg >= startDeg ? 1 : 0;
+  return `M${x0.toFixed(3)} ${y0.toFixed(3)} A${r.toFixed(3)} ${r.toFixed(3)} 0 ${largeArc} ${sweep} ${x1.toFixed(3)} ${y1.toFixed(3)}`;
+}
+function emitPulse(type, nowMs) {
+  pulses.push({
+    id: ++pulseId,
+    bornT: nowMs,
+    lifetime: type === "A" ? params.pulseLifetimeA : params.pulseLifetimeB,
+    type,
+  });
+}
+function renderPulses(nowMs) {
+  pulses = pulses.filter(p => nowMs - p.bornT < p.lifetime);
+  pulseBlur.setAttribute("stdDeviation", params.pulseGlow.toFixed(3));
+  let html = "";
+  for (const p of pulses) {
+    const ageMs = nowMs - p.bornT;
+    const t = clamp(ageMs / p.lifetime, 0, 1);
+    const scale = 1 + (params.pulseScaleEnd - 1) * easeOutCubic(t);
+    const r = params.pulseStartRadius * scale;
+    const baseOp = p.type === "A" ? .36 : .86;
+    const fadeIn = params.pulseFadeIn > 0 ? Math.min(1, ageMs / params.pulseFadeIn) : 1;
+    const fadeOut = Math.pow(1 - t, p.type === "A" ? 1.20 : 1.48);
+    const opacity = baseOp * fadeIn * fadeOut;
+    const wobble = p.type === "B" ? ((p.id % 3) - 1) * 7 : 0;
+    const strokeW = params.pulseStrokeWidth * (p.type === "A" ? .62 : 1);
+    const segments = p.type === "A"
+      ? [[-72, -34], [-10, 20], [36, 58]]
+      : [[-136, -96], [-54, 16], [42, 82], [130, 170], [190, 218]];
+    for (let i = 0; i < segments.length; i++) {
+      const [a0, a1] = segments[i];
+      const d = arcPath(12, 12, r + (i % 2) * .26, a0 + wobble, a1 + wobble);
+      const segOp = opacity * (1 - i * .08);
+      const stroke = (p.type === "B" && i < 2) ? "url(#alert-grad)" : "url(#signal-grad)";
+      html += `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeW.toFixed(3)}" stroke-linecap="round" stroke-opacity="${segOp.toFixed(3)}" filter="url(#pulse-glow)"/>`;
+    }
+  }
+  pulsesLayer.innerHTML = html;
+}
+function setEye(rect, base, widenFactor, heightFactor, tilt) {
+  const w = base.w * widenFactor;
+  const h = base.h * heightFactor;
+  const x = base.x + (base.w - w) / 2;
+  const y = base.y + (base.h - h) / 2;
+  rect.setAttribute("x", x.toFixed(3));
+  rect.setAttribute("y", y.toFixed(3));
+  rect.setAttribute("width", w.toFixed(3));
+  rect.setAttribute("height", h.toFixed(3));
+  rect.setAttribute("rx", Math.min(w / 2, base.rx * widenFactor).toFixed(3));
+  rect.setAttribute("transform", `rotate(${tilt.toFixed(3)} ${(base.x + base.w / 2).toFixed(3)} ${(base.y + base.h / 2).toFixed(3)})`);
+}
+function renderAlertLayer(phase, phaseTms, tA, tB, tC, shakePeak, bEnvelope) {
+  let prep = 0;
+  let ping = 0;
+  if (phase === "A") {
+    prep = easeInOutCubic(clamp(phaseTms / tA, 0, 1));
+  } else if (phase === "B") {
+    const b = clamp(phaseTms / tB, 0, 1);
+    const ping1 = expPulse(b, .10, .055);
+    const ping2 = expPulse(b, .54, .070);
+    ping = Math.max(ping1, ping2, shakePeak * bEnvelope * .38);
+  } else {
+    const c = clamp(phaseTms / tC, 0, 1);
+    ping = (1 - easeOutCubic(c)) * .36;
+  }
+  const rimOp = clamp((ping * .64 + prep * .13) * params.rimPower, 0, .86);
+  const rimW = .30 + ping * .50;
+  rimFlashLayer.innerHTML = rimOp > .015
+    ? `<use href="#cloud-shape" fill="none" stroke="url(#alert-grad)" stroke-width="${rimW.toFixed(3)}" stroke-linejoin="round" stroke-opacity="${rimOp.toFixed(3)}" filter="url(#alert-glow)"/>`
+    : "";
+}
+function phaseAt(tMs) {
+  const total = params.totalPeriod;
+  const tA = total * params.ratioA;
+  const tB = total * params.ratioB;
+  const tC = total - tA - tB;
+  let phase = "A";
+  let phaseTms = tMs;
+  if (tMs >= tA && tMs < tA + tB) {
+    phase = "B";
+    phaseTms = tMs - tA;
+  } else if (tMs >= tA + tB) {
+    phase = "C";
+    phaseTms = tMs - tA - tB;
+  }
+  return { phase, phaseTms, tA, tB, tC };
+}
+function render(tMs, nowMs = performance.now(), allowEmit = false) {
+  const total = params.totalPeriod;
+  const tInCycle = ((tMs % total) + total) % total;
+  if (allowEmit && tInCycle < lastCycleT) {
+    emittedA = false;
+    emittedBPeaks = 0;
+  }
+  lastCycleT = tInCycle;
+
+  const { phase, phaseTms, tA, tB, tC } = phaseAt(tInCycle);
+
+  if (allowEmit && phase === "A" && !emittedA) {
+    emitPulse("A", nowMs);
+    emittedA = true;
+  }
+  if (allowEmit && phase === "B") {
+    const tBSec = phaseTms / 1000;
+    const peakInterval = 1 / (2 * params.shakeFreqHz);
+    const expectedPeaks = Math.floor((tBSec - peakInterval / 2) / peakInterval) + 1;
+    while (emittedBPeaks < expectedPeaks && emittedBPeaks * peakInterval + peakInterval / 2 < (tB / 1000)) {
+      if (emittedBPeaks % 2 === 0) emitPulse("B", nowMs);
+      emittedBPeaks++;
+    }
+  }
+
+  let rotate = 0;
+  let jumpY = 0;
+  let burstX = 1;
+  let burstY = 1;
+  let shakePeak = 0;
+  let bEnvelope = 0;
+
+  if (phase === "B") {
+    const tBSec = phaseTms / 1000;
+    const tBTotal = tB / 1000;
+    const envIn = Math.min(1, tBSec / .15);
+    const envOut = Math.min(1, (tBTotal - tBSec) / .20);
+    const env = Math.min(envIn, envOut);
+    const angularFreq = 2 * Math.PI * params.shakeFreqHz;
+    const sinV = Math.sin(angularFreq * tBSec);
+    const absSin = Math.abs(sinV);
+    shakePeak = absSin;
+    bEnvelope = env;
+    rotate = params.shakeAngle * sinV * env;
+    jumpY = -params.jumpY * Math.abs(Math.sin(angularFreq * tBSec / 2 + Math.PI / 4)) * env;
+    const micro = 1 + params.scaleMicro * absSin * env;
+    const macro = 1 + params.scaleMacro * Math.sin(Math.PI * clamp(tBSec / tBTotal, 0, 1));
+    const squash = 1 - params.squash * absSin * env;
+    burstX = micro * macro;
+    burstY = micro * macro * squash;
+  } else if (phase === "C") {
+    const tCSec = phaseTms / 1000;
+    const decay = Math.max(0, 1 - tCSec / (tC / 1000));
+    const angularFreq = 2 * Math.PI * params.shakeFreqHz * .70;
+    rotate = params.shakeAngle * decay * decay * .55 * Math.sin(angularFreq * (tB / 1000 + tCSec));
+  } else {
+    const p = clamp(phaseTms / tA, 0, 1);
+    rotate = 1.4 * Math.sin(Math.PI * p);
+  }
+
+  const breathPhase = (nowMs / params.idleBreathPeriod) * 2 * Math.PI;
+  const baseBreath = (1 - params.idleBreathAmp) + params.idleBreathAmp * Math.sin(breathPhase);
+  const sx = baseBreath * burstX;
+  const sy = baseBreath * burstY;
+
+  gTrans.setAttribute("transform", `translate(0 ${jumpY.toFixed(3)})`);
+  gRotate.setAttribute("transform", `rotate(${rotate.toFixed(3)} 12 12)`);
+  gSquash.setAttribute("transform", `translate(12 12) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-12 -12)`);
+  eyesCounter.setAttribute("transform", `rotate(${(-rotate).toFixed(3)} 12 12)`);
+
+  let widen = 1;
+  let height = 1;
+  let tiltL = 0;
+  let tiltR = 0;
+  if (phase === "A") {
+    const p = clamp(phaseTms / tA, 0, 1);
+    widen = 1 + params.eyeWiden * easeInOutCubic(p) * .55;
+  } else if (phase === "B") {
+    widen = 1 + params.eyeWiden * .95 + shakePeak * bEnvelope * .09;
+    height = 1.02 + shakePeak * bEnvelope * .045;
+    tiltL = -3.2 * bEnvelope;
+    tiltR = 3.2 * bEnvelope;
+  } else {
+    const p = clamp(phaseTms / 150, 0, 1);
+    widen = 1 + params.eyeWiden * (1 - p) * .45;
+  }
+  setEye(eyeL, EYE_BASE.l, widen, height, tiltL);
+  setEye(eyeR, EYE_BASE.r, widen, height, tiltR);
+
+  renderPulses(nowMs);
+  renderAlertLayer(phase, phaseTms, tA, tB, tC, shakePeak, bEnvelope);
+  phaseReadout.textContent = `phase: ${phase}`;
+  timeReadout.textContent = `time: ${Math.round(tInCycle)}ms / ${Math.round(total)}ms`;
+  lastRender = { t: tInCycle, phase, rotate, jumpY, sx, sy, pulses: pulses.length };
+  return lastRender;
+}
+function tick(now) {
+  if (!paused) {
+    heldT = now - startT;
+    render(heldT, now, true);
+  }
+  requestAnimationFrame(tick);
+}
+function syncControls() {
+  setControl("duration", params.totalPeriod / 1000, 1);
+  setControl("shake-angle", params.shakeAngle, 0);
+  setControl("jump-y", params.jumpY, 2);
+  setControl("squash", params.squash, 3);
+  setControl("pulse-scale", params.pulseScaleEnd, 2);
+  setControl("rim-power", params.rimPower, 2);
+}
+function setControl(id, value, digits) {
+  const input = document.getElementById(id);
+  const out = document.getElementById(`${id}-v`);
+  input.value = String(value);
+  out.textContent = Number(value).toFixed(digits);
+}
+requestAnimationFrame(tick);
+]]></script>
+</svg>

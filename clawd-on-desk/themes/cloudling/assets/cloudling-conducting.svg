@@ -1,0 +1,616 @@
+<svg id="stageSvg" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+#stageBg { fill: #0f0f14; }
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+.orbit-track { stroke: rgba(177,167,255,.13); stroke-width: 0.13; fill: none; stroke-dasharray: 0.45 0.65; }
+.trail-spark { pointer-events: none; }
+.spark-shell { stroke: rgba(255,255,255,.82); stroke-width: 0.075; stroke-linejoin: round; }
+.spark-core { fill: #FFFDF0; opacity: .20; }
+@media (prefers-color-scheme: light) {
+#stageBg { fill: #fff; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.orbit-track { stroke: rgba(57,65,255,.22); }
+.spark-shell { stroke: rgba(255,255,255,.82); stroke-width: 0.075; }
+.spark-core { opacity: .20; }
+#taskTrailLayer use, #taskABack, #taskBBack, #taskCBack, #taskDBack, #taskAFront, #taskBFront, #taskCFront, #taskDFront { filter: url(#task-glow); }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+      <defs>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.5" stop-color="#f4f5f9"/>
+          <stop offset="1" stop-color="#dee2eb"/>
+        </linearGradient>
+        <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.5" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="taskA-grad" cx="0.48" cy="0.38" r="0.82">
+          <stop offset="0" stop-color="#FFF7D1"/>
+          <stop offset="0.58" stop-color="#FFD978"/>
+          <stop offset="1" stop-color="#DFA93C"/>
+        </radialGradient>
+        <radialGradient id="taskB-grad" cx="0.48" cy="0.38" r="0.82">
+          <stop offset="0" stop-color="#F7F0FF"/>
+          <stop offset="0.58" stop-color="#CDBBFF"/>
+          <stop offset="1" stop-color="#8F78D7"/>
+        </radialGradient>
+        <radialGradient id="taskC-grad" cx="0.48" cy="0.38" r="0.82">
+          <stop offset="0" stop-color="#F1FFFC"/>
+          <stop offset="0.58" stop-color="#9FE5DD"/>
+          <stop offset="1" stop-color="#50AFA6"/>
+        </radialGradient>
+        <radialGradient id="taskD-grad" cx="0.48" cy="0.38" r="0.82">
+          <stop offset="0" stop-color="#FFF3FA"/>
+          <stop offset="0.58" stop-color="#F7AFD4"/>
+          <stop offset="1" stop-color="#CE6FA6"/>
+        </radialGradient>
+        <filter id="cloud-drop" x="-45%" y="-45%" width="190%" height="190%">
+          <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+        </filter>
+        <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="0.16"/>
+        </filter>
+        <filter id="task-glow" x="-85%" y="-85%" width="270%" height="270%">
+          <feGaussianBlur stdDeviation="0.16" result="b"/>
+          <feMerge>
+            <feMergeNode in="b"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <filter id="task-light-glow" x="-90%" y="-90%" width="280%" height="280%">
+          <feDropShadow dx="0" dy="0.06" stdDeviation="0.18" flood-color="#4A4E76" flood-opacity="0.30"/>
+          <feGaussianBlur stdDeviation="0.08" result="b"/>
+          <feMerge>
+            <feMergeNode in="b"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+        <clipPath id="cloud-clip">
+          <path id="cloud-clip-path"/>
+        </clipPath>
+        <symbol id="taskA-symbol" viewBox="-1.22 -1.22 2.44 2.44">
+          <path class="spark-shell" d="M 0 -1.06 C 0.15 -0.47 0.34 -0.20 0.98 -0.02 C 0.36 0.12 0.14 0.34 0 1.04 C -0.14 0.34 -0.36 0.12 -0.98 -0.02 C -0.34 -0.20 -0.15 -0.47 0 -1.06 Z"
+                fill="url(#taskA-grad)" opacity="0.98"/>
+          <path d="M 0 -0.48 C 0.07 -0.19 0.18 -0.08 0.42 -0.01 C 0.18 0.06 0.07 0.18 0 0.48 C -0.07 0.18 -0.18 0.06 -0.42 -0.01 C -0.18 -0.08 -0.07 -0.19 0 -0.48 Z"
+                class="spark-core"/>
+        </symbol>
+        <symbol id="taskB-symbol" viewBox="-1.22 -1.22 2.44 2.44">
+          <path class="spark-shell" d="M 0 -1.06 C 0.15 -0.47 0.34 -0.20 0.98 -0.02 C 0.36 0.12 0.14 0.34 0 1.04 C -0.14 0.34 -0.36 0.12 -0.98 -0.02 C -0.34 -0.20 -0.15 -0.47 0 -1.06 Z"
+                fill="url(#taskB-grad)" opacity="0.98"/>
+          <path d="M 0 -0.48 C 0.07 -0.19 0.18 -0.08 0.42 -0.01 C 0.18 0.06 0.07 0.18 0 0.48 C -0.07 0.18 -0.18 0.06 -0.42 -0.01 C -0.18 -0.08 -0.07 -0.19 0 -0.48 Z"
+                class="spark-core"/>
+        </symbol>
+        <symbol id="taskC-symbol" viewBox="-1.22 -1.22 2.44 2.44">
+          <path class="spark-shell" d="M 0 -1.06 C 0.15 -0.47 0.34 -0.20 0.98 -0.02 C 0.36 0.12 0.14 0.34 0 1.04 C -0.14 0.34 -0.36 0.12 -0.98 -0.02 C -0.34 -0.20 -0.15 -0.47 0 -1.06 Z"
+                fill="url(#taskC-grad)" opacity="0.98"/>
+          <path d="M 0 -0.48 C 0.07 -0.19 0.18 -0.08 0.42 -0.01 C 0.18 0.06 0.07 0.18 0 0.48 C -0.07 0.18 -0.18 0.06 -0.42 -0.01 C -0.18 -0.08 -0.07 -0.19 0 -0.48 Z"
+                class="spark-core"/>
+        </symbol>
+        <symbol id="taskD-symbol" viewBox="-1.22 -1.22 2.44 2.44">
+          <path class="spark-shell" d="M 0 -1.06 C 0.15 -0.47 0.34 -0.20 0.98 -0.02 C 0.36 0.12 0.14 0.34 0 1.04 C -0.14 0.34 -0.36 0.12 -0.98 -0.02 C -0.34 -0.20 -0.15 -0.47 0 -1.06 Z"
+                fill="url(#taskD-grad)" opacity="0.98"/>
+          <path d="M 0 -0.48 C 0.07 -0.19 0.18 -0.08 0.42 -0.01 C 0.18 0.06 0.07 0.18 0 0.48 C -0.07 0.18 -0.18 0.06 -0.42 -0.01 C -0.18 -0.08 -0.07 -0.19 0 -0.48 Z"
+                class="spark-core"/>
+        </symbol>
+      </defs>
+<g id="orbitTrackLayer">
+        <path id="orbitTrackA" class="orbit-track"/>
+        <path id="orbitTrackB" class="orbit-track"/>
+      </g>
+
+      <g id="taskTrailLayer">
+        <g id="trailA" class="trail-spark">
+          <use id="trailA0" href="#taskA-symbol" filter="url(#task-glow)"/>
+          <use id="trailA1" href="#taskA-symbol" filter="url(#task-glow)"/>
+          <use id="trailA2" href="#taskA-symbol" filter="url(#task-glow)"/>
+          <use id="trailA3" href="#taskA-symbol" filter="url(#task-glow)"/>
+        </g>
+        <g id="trailB" class="trail-spark">
+          <use id="trailB0" href="#taskB-symbol" filter="url(#task-glow)"/>
+          <use id="trailB1" href="#taskB-symbol" filter="url(#task-glow)"/>
+          <use id="trailB2" href="#taskB-symbol" filter="url(#task-glow)"/>
+          <use id="trailB3" href="#taskB-symbol" filter="url(#task-glow)"/>
+        </g>
+        <g id="trailC" class="trail-spark">
+          <use id="trailC0" href="#taskC-symbol" filter="url(#task-glow)"/>
+          <use id="trailC1" href="#taskC-symbol" filter="url(#task-glow)"/>
+          <use id="trailC2" href="#taskC-symbol" filter="url(#task-glow)"/>
+          <use id="trailC3" href="#taskC-symbol" filter="url(#task-glow)"/>
+        </g>
+        <g id="trailD" class="trail-spark">
+          <use id="trailD0" href="#taskD-symbol" filter="url(#task-glow)"/>
+          <use id="trailD1" href="#taskD-symbol" filter="url(#task-glow)"/>
+          <use id="trailD2" href="#taskD-symbol" filter="url(#task-glow)"/>
+          <use id="trailD3" href="#taskD-symbol" filter="url(#task-glow)"/>
+        </g>
+      </g>
+
+      <use id="taskABack" href="#taskA-symbol" filter="url(#task-glow)"/>
+      <use id="taskBBack" href="#taskB-symbol" filter="url(#task-glow)"/>
+      <use id="taskCBack" href="#taskC-symbol" filter="url(#task-glow)"/>
+      <use id="taskDBack" href="#taskD-symbol" filter="url(#task-glow)"/>
+
+      <g id="cloudRoot">
+        <g id="cloudEdge">
+          <path id="edgeContact" class="edge-contact" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+          <path id="edgeRimSoft" class="edge-rim-soft" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+          <path id="edgeRimTight" class="edge-rim-tight" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+        </g>
+        <g id="cloudGroup" filter="url(#cloud-drop)">
+          <path id="cloudPath" fill="url(#body-grad)"/>
+          <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+        </g>
+        <g id="eyeGroup">
+          <rect id="eyeL" x="7.7" y="9.5" width="2.6" height="5" rx="1.3" ry="1.3" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+          <rect id="eyeR" x="13.7" y="9.5" width="2.6" height="5" rx="1.3" ry="1.3" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        </g>
+      </g>
+
+      <use id="taskAFront" href="#taskA-symbol" filter="url(#task-glow)"/>
+      <use id="taskBFront" href="#taskB-symbol" filter="url(#task-glow)"/>
+      <use id="taskCFront" href="#taskC-symbol" filter="url(#task-glow)"/>
+      <use id="taskDFront" href="#taskD-symbol" filter="url(#task-glow)"/>
+    <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="readout"></g>
+<g id="scrub"></g>
+<g id="scrubV"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const CENTER = { x: 12, y: 12 };
+
+const els = {
+  cloudRoot: document.getElementById('cloudRoot'),
+  cloudPath: document.getElementById('cloudPath'),
+  cloudClipPath: document.getElementById('cloud-clip-path'),
+  edgeContact: document.getElementById('edgeContact'),
+  edgeRimSoft: document.getElementById('edgeRimSoft'),
+  edgeRimTight: document.getElementById('edgeRimTight'),
+  eyeGroup: document.getElementById('eyeGroup'),
+  eyeL: document.getElementById('eyeL'),
+  eyeR: document.getElementById('eyeR'),
+  eyeGrad: document.getElementById('eye-grad'),
+  taskAFront: document.getElementById('taskAFront'),
+  taskABack: document.getElementById('taskABack'),
+  taskBFront: document.getElementById('taskBFront'),
+  taskBBack: document.getElementById('taskBBack'),
+  taskCFront: document.getElementById('taskCFront'),
+  taskCBack: document.getElementById('taskCBack'),
+  taskDFront: document.getElementById('taskDFront'),
+  taskDBack: document.getElementById('taskDBack'),
+  trailA: document.getElementById('trailA'),
+  trailA0: document.getElementById('trailA0'),
+  trailA1: document.getElementById('trailA1'),
+  trailA2: document.getElementById('trailA2'),
+  trailA3: document.getElementById('trailA3'),
+  trailB: document.getElementById('trailB'),
+  trailB0: document.getElementById('trailB0'),
+  trailB1: document.getElementById('trailB1'),
+  trailB2: document.getElementById('trailB2'),
+  trailB3: document.getElementById('trailB3'),
+  trailC: document.getElementById('trailC'),
+  trailC0: document.getElementById('trailC0'),
+  trailC1: document.getElementById('trailC1'),
+  trailC2: document.getElementById('trailC2'),
+  trailC3: document.getElementById('trailC3'),
+  trailD: document.getElementById('trailD'),
+  trailD0: document.getElementById('trailD0'),
+  trailD1: document.getElementById('trailD1'),
+  trailD2: document.getElementById('trailD2'),
+  trailD3: document.getElementById('trailD3'),
+  orbitTrackA: document.getElementById('orbitTrackA'),
+  orbitTrackB: document.getElementById('orbitTrackB'),
+  orbitTrackLayer: document.getElementById('orbitTrackLayer'),
+  readout: document.getElementById('readout'),
+  scrub: document.getElementById('scrub'),
+  scrubV: document.getElementById('scrubV')
+};
+
+const P = {
+  durA: 4.0, rxA: 14, ryA: 4, tiltA: -10, theta0A: 0,
+  durB: 6.0, rxB: 4, ryB: 11, tiltB: 20, theta0B: 180,
+  starSize: 1.75,
+  backScale: 0.74,
+  backOpacity: 0.28,
+  depthSnap: 0.16,
+  starSpin: 65,
+  slotRadius: 14.0,
+  slotSquash: 0.96,
+  slotRot: 0,
+  slotAX: 0, slotAY: 0,
+  slotBX: 0, slotBY: 0,
+  slotCX: 0, slotCY: 0,
+  slotDX: 0, slotDY: 0,
+  bodyBreath: 0.022,
+  bodyFloat: 0.16,
+  bodyLean: 0.48,
+  bodyTilt: 1.15,
+  callMorph: 0.075,
+  syncMorph: 0.16,
+  morphAmt: 0.04,
+  morphPeriod: 5.0,
+  cloudR: 7.5,
+  eyeShift: 1.10,
+  eyeSwitchT: 1.15,
+  saccade: 0.13,
+  eyeFlowPeriod: 5.5,
+  eyeFlowAmp: 4,
+  blinkInterval: 6.0,
+  blinkDur: 0.16,
+  showTracks: false,
+  pause: false
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smoothstep = t => t * t * (3 - 2 * t);
+
+const EYE_BASE = {
+  l: { y: 9.5, h: 5, rx: 1.3 },
+  r: { y: 9.5, h: 5, rx: 1.3 }
+};
+
+const TASK_ORDER = ['A', 'B', 'C', 'D'];
+const TASKS = [
+  { key: 'A', orbit: 'A', phase: 8, slotAngle: 235, spin: 0.35, front: els.taskAFront, back: els.taskABack, trail: [els.trailA0, els.trailA1, els.trailA2, els.trailA3] },
+  { key: 'B', orbit: 'B', phase: 72, slotAngle: 324, spin: -0.28, front: els.taskBFront, back: els.taskBBack, trail: [els.trailB0, els.trailB1, els.trailB2, els.trailB3] },
+  { key: 'C', orbit: 'A', phase: 145, slotAngle: 53, spin: 0.30, front: els.taskCFront, back: els.taskCBack, trail: [els.trailC0, els.trailC1, els.trailC2, els.trailC3] },
+  { key: 'D', orbit: 'B', phase: 252, slotAngle: 142, spin: -0.32, front: els.taskDFront, back: els.taskDBack, trail: [els.trailD0, els.trailD1, els.trailD2, els.trailD3] }
+];
+
+function samplePath(d, N) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  const pts = [];
+  const len = path.getTotalLength();
+  for (let i = 0; i < N; i++) {
+    const p = path.getPointAtLength(i / N * len);
+    pts.push({ x: p.x, y: p.y });
+  }
+  return pts;
+}
+
+const basePoints = samplePath(CLOUD_D, 64);
+
+function morphPoints(pts, R, t) {
+  return pts.map(p => {
+    const dx = p.x - CENTER.x;
+    const dy = p.y - CENTER.y;
+    const a = Math.atan2(dy, dx);
+    return {
+      x: lerp(p.x, CENTER.x + R * Math.cos(a), t),
+      y: lerp(p.y, CENTER.y + R * Math.sin(a), t)
+    };
+  });
+}
+
+function pointsToSmoothPath(pts) {
+  const n = pts.length;
+  let d = `M ${pts[0].x.toFixed(3)} ${pts[0].y.toFixed(3)}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n];
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % n];
+    const p3 = pts[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${p2.x.toFixed(3)} ${p2.y.toFixed(3)}`;
+  }
+  return d + ' Z';
+}
+
+function orbitPoint(thetaDeg, rx, ry, tiltDeg) {
+  const t = thetaDeg * Math.PI / 180;
+  const r = tiltDeg * Math.PI / 180;
+  const ct = Math.cos(t), st = Math.sin(t);
+  const cr = Math.cos(r), sr = Math.sin(r);
+  return {
+    x: CENTER.x + rx * ct * cr - ry * st * sr,
+    y: CENTER.y + rx * ct * sr + ry * st * cr
+  };
+}
+
+function orbitTrackD(rx, ry, tiltDeg, samples) {
+  let d = '';
+  for (let i = 0; i <= samples; i++) {
+    const theta = i / samples * 360;
+    const p = orbitPoint(theta, rx, ry, tiltDeg);
+    d += i === 0 ? `M ${p.x.toFixed(3)} ${p.y.toFixed(3)}` : ` L ${p.x.toFixed(3)} ${p.y.toFixed(3)}`;
+  }
+  return d + ' Z';
+}
+
+function getBeat(now) {
+  const beatT = Math.max(P.eyeSwitchT, 0.1);
+  const cycleT = beatT * 5;
+  const cyclePos = (now % cycleT) / beatT;
+  const beatIndex = Math.floor(cyclePos);
+  const beatPhase = cyclePos - beatIndex;
+  return {
+    beatT,
+    cyclePos,
+    beatIndex,
+    beatPhase,
+    target: beatIndex < TASK_ORDER.length ? TASK_ORDER[beatIndex] : 'SYNC',
+    sync: beatIndex >= TASK_ORDER.length
+  };
+}
+
+function getOrbitParams(task) {
+  return task.orbit === 'A'
+    ? { dur: P.durA, theta0: P.theta0A, rx: P.rxA, ry: P.ryA, tilt: P.tiltA }
+    : { dur: P.durB, theta0: P.theta0B, rx: P.rxB, ry: P.ryB, tilt: P.tiltB };
+}
+
+function getTaskSlot(task) {
+  const a = (task.slotAngle + P.slotRot) * Math.PI / 180;
+  return {
+    x: CENTER.x + Math.cos(a) * P.slotRadius + P[`slot${task.key}X`],
+    y: CENTER.y + Math.sin(a) * P.slotRadius * P.slotSquash + P[`slot${task.key}Y`]
+  };
+}
+
+function slotMixForTask(task, beat) {
+  const idx = TASK_ORDER.indexOf(task.key);
+  const callLocal = beat.cyclePos - idx;
+  if (callLocal < 0 || callLocal > 4.88) return 0;
+  const arrive = smoothstep(clamp((callLocal - 0.04) / 0.22, 0, 1));
+  const release = beat.cyclePos > 4.55 ? 1 - smoothstep(clamp((beat.cyclePos - 4.55) / 0.33, 0, 1)) : 1;
+  return arrive * release;
+}
+
+function getTaskState(now, task, beat) {
+  const p = getOrbitParams(task);
+  const progress = (now / p.dur) % 1;
+  const theta = p.theta0 + task.phase + progress * 360;
+  const depth0 = Math.sin(theta * Math.PI / 180);
+  const orbitPos = orbitPoint(theta, p.rx, p.ry, p.tilt);
+  const slot = getTaskSlot(task);
+  const slotMix = slotMixForTask(task, beat);
+  const pos = {
+    x: lerp(orbitPos.x, slot.x, slotMix),
+    y: lerp(orbitPos.y, slot.y, slotMix)
+  };
+  const called = beat.target === task.key;
+  const callPulse = called ? Math.sin(Math.PI * clamp(beat.beatPhase, 0, 1)) : 0;
+  const syncPulse = beat.sync ? Math.sin(Math.PI * clamp(beat.beatPhase, 0, 1)) : 0;
+  const frontLift = Math.max(slotMix, callPulse, syncPulse * 0.48);
+  const depth = lerp(depth0, 0.68, frontLift);
+  const scaleBoost = 1 + callPulse * 0.14 + syncPulse * 0.10 + slotMix * 0.04;
+  const glowBoost = callPulse * 0.24 + syncPulse * 0.20 + slotMix * 0.10;
+  return { ...task, p: pos, orbitPos, slot, depth, theta, progress, slotMix, called, callPulse, syncPulse, scaleBoost, glowBoost };
+}
+
+function setTaskLayer(state, baseSize, spinDeg) {
+  const snap = P.depthSnap;
+  const depthFrontOp = smoothstep(clamp((state.depth - snap) / (0.58 - snap), 0, 1));
+  const frontOp = Math.max(depthFrontOp, state.callPulse * 0.72, state.syncPulse * 0.58);
+  const baseBack = state.depth < snap ? P.backOpacity : P.backOpacity * (1 - frontOp);
+  const frontBoost = 1 + state.glowBoost;
+  const backBoost = 1 + state.glowBoost * 0.45;
+  const sizeFront = baseSize * state.scaleBoost;
+  const sizeBack = baseSize * P.backScale * (0.96 + state.scaleBoost * 0.04);
+  const setUse = (el, sz, op) => {
+    el.setAttribute('x', (-sz).toFixed(3));
+    el.setAttribute('y', (-sz).toFixed(3));
+    el.setAttribute('width', (2 * sz).toFixed(3));
+    el.setAttribute('height', (2 * sz).toFixed(3));
+    el.setAttribute('transform', `translate(${state.p.x.toFixed(3)} ${state.p.y.toFixed(3)}) rotate(${spinDeg.toFixed(2)})`);
+    el.setAttribute('opacity', op.toFixed(3));
+  };
+  setUse(state.front, sizeFront, clamp(frontOp * frontBoost, 0, 1));
+  setUse(state.back, sizeBack, clamp(baseBack * backBoost, 0, 0.8));
+}
+
+function taskTrailPoint(state, index) {
+  const p = getOrbitParams(state);
+  return orbitPoint(state.theta - 8 - index * 6.5, p.rx, p.ry, p.tilt);
+}
+
+function setTaskTrail(state) {
+  const depthPresence = 0.52 + Math.max(state.depth, 0) * 0.35;
+  const baseOp = (1 - state.slotMix) * depthPresence;
+  const trailOps = [0.17, 0.09, 0.05, 0.025];
+  const trailSizes = [0.28, 0.20, 0.14, 0.09];
+  state.trail.forEach((el, i) => {
+    const pos = taskTrailPoint(state, i);
+    const sz = P.starSize * trailSizes[i];
+    el.setAttribute('x', (-sz).toFixed(3));
+    el.setAttribute('y', (-sz).toFixed(3));
+    el.setAttribute('width', (2 * sz).toFixed(3));
+    el.setAttribute('height', (2 * sz).toFixed(3));
+    el.setAttribute('transform', `translate(${pos.x.toFixed(3)} ${pos.y.toFixed(3)}) rotate(${(state.theta * 0.28 + i * 17).toFixed(2)})`);
+    el.setAttribute('opacity', clamp(baseOp * trailOps[i], 0, 0.3).toFixed(3));
+  });
+}
+
+let nextBlinkT = 2.4;
+let blinkActive = false;
+let blinkStartT = 0;
+function getBlinkScale(t) {
+  if (blinkActive && t < blinkStartT) {
+    blinkActive = false;
+    nextBlinkT = t + 2.4;
+    return 1;
+  }
+  if (!blinkActive && t > nextBlinkT) {
+    blinkActive = true;
+    blinkStartT = t;
+  }
+  if (blinkActive) {
+    const dt = t - blinkStartT;
+    const half = P.blinkDur / 2;
+    if (dt < half) return 1 - 0.94 * (dt / half);
+    if (dt < P.blinkDur) return 0.06 + 0.94 * ((dt - half) / half);
+    blinkActive = false;
+    nextBlinkT = t + P.blinkInterval * (0.82 + Math.random() * 0.36);
+  }
+  return 1;
+}
+
+function applyBlink(rect, base, scale) {
+  const h = Math.max(base.h * scale, 0.15);
+  const y = base.y + (base.h - h) / 2;
+  const rx = Math.min(base.rx, h / 2);
+  rect.setAttribute('height', h.toFixed(3));
+  rect.setAttribute('y', y.toFixed(3));
+  rect.setAttribute('rx', rx.toFixed(3));
+  rect.setAttribute('ry', rx.toFixed(3));
+}
+
+function getTargetPoint(key, states) {
+  if (key === 'SYNC') return { x: CENTER.x, y: CENTER.y - 2.2 };
+  return states.find(s => s.key === key)?.p || CENTER;
+}
+
+function getEyeTarget(beat, states) {
+  const target = beat.target;
+  const prevKey = beat.beatIndex === 0 ? 'SYNC' : TASK_ORDER[beat.beatIndex - 1];
+  const oldPos = getTargetPoint(prevKey, states);
+  const newPos = getTargetPoint(target, states);
+  const blendT = clamp((beat.beatPhase * beat.beatT) / P.saccade, 0, 1);
+  const eased = smoothstep(blendT);
+  return {
+    x: lerp(oldPos.x, newPos.x, eased),
+    y: lerp(oldPos.y, newPos.y, eased),
+    target,
+    saccading: blendT < 1
+  };
+}
+
+function getBodyResponse(now, beat, states) {
+  const called = states.find(s => s.key === beat.target);
+  const syncPulse = beat.sync ? Math.sin(Math.PI * clamp(beat.beatPhase, 0, 1)) : 0;
+  const callPulse = called ? called.callPulse : 0;
+  const focus = called ? called.p : { x: CENTER.x, y: CENTER.y - 2.4 };
+  const dx = focus.x - CENTER.x;
+  const dy = focus.y - CENTER.y;
+  const len = Math.max(Math.hypot(dx, dy), 0.001);
+  const nx = dx / len;
+  const ny = dy / len;
+  const breath = Math.sin(2 * Math.PI * now / 3.8);
+  const softFloat = Math.sin(2 * Math.PI * now / 4.6 - 0.4);
+  const idleTilt = Math.sin(2 * Math.PI * now / 5.2 + 0.7) * 0.42;
+  const lean = callPulse * P.bodyLean;
+  const tx = nx * lean;
+  const ty = ny * lean * 0.48 + softFloat * P.bodyFloat;
+  const rot = idleTilt + nx * callPulse * P.bodyTilt + syncPulse * 0.35 * Math.sin(2 * Math.PI * now / 0.9);
+  const sx = 1 + breath * P.bodyBreath * 0.62 + callPulse * 0.012 + syncPulse * 0.026;
+  const sy = 1 + breath * P.bodyBreath - callPulse * 0.006 + syncPulse * 0.020;
+  const morphAdd = callPulse * P.callMorph + syncPulse * P.syncMorph;
+  return { tx, ty, rot, sx, sy, callPulse, syncPulse, morphAdd };
+}
+
+function setCloudRootTransform(body) {
+  els.cloudRoot.setAttribute(
+    'transform',
+    `translate(${(CENTER.x + body.tx).toFixed(3)} ${(CENTER.y + body.ty).toFixed(3)}) rotate(${body.rot.toFixed(3)}) scale(${body.sx.toFixed(4)} ${body.sy.toFixed(4)}) translate(${-CENTER.x} ${-CENTER.y})`
+  );
+}
+
+function renderAt(now) {
+  const beat = getBeat(now);
+  const taskStates = TASKS.map(task => getTaskState(now, task, beat));
+  const body = getBodyResponse(now, beat, taskStates);
+  setCloudRootTransform(body);
+
+  const morphPhase = (now / P.morphPeriod) * 2 * Math.PI;
+  const morph = clamp(((Math.sin(morphPhase) * 0.5 + 0.5) * P.morphAmt) + body.morphAdd, 0, 0.32);
+  const cloudD = pointsToSmoothPath(morphPoints(basePoints, P.cloudR, morph));
+  els.cloudPath.setAttribute('d', cloudD);
+  els.cloudClipPath.setAttribute('d', cloudD);
+  els.edgeContact.setAttribute('d', cloudD);
+  els.edgeRimSoft.setAttribute('d', cloudD);
+  els.edgeRimTight.setAttribute('d', cloudD);
+
+  els.orbitTrackA.setAttribute('d', orbitTrackD(P.rxA, P.ryA, P.tiltA, 96));
+  els.orbitTrackB.setAttribute('d', orbitTrackD(P.rxB, P.ryB, P.tiltB, 96));
+  els.orbitTrackLayer.setAttribute('opacity', P.showTracks ? 1 : 0);
+
+  const spin = (now * P.starSpin) % 360;
+  taskStates.forEach(state => {
+    setTaskTrail(state);
+    setTaskLayer(state, P.starSize, spin * state.spin);
+  });
+
+  const target = getEyeTarget(beat, taskStates);
+  const lookDx = target.x - CENTER.x;
+  const lookDy = target.y - CENTER.y;
+  const lookLen = Math.max(Math.hypot(lookDx, lookDy), 0.001);
+  const eyeX = lookDx / lookLen * P.eyeShift;
+  const eyeY = lookDy / lookLen * P.eyeShift * 0.55;
+  els.eyeGroup.setAttribute('transform', `translate(${eyeX.toFixed(3)} ${eyeY.toFixed(3)})`);
+
+  const blinkScale = getBlinkScale(now);
+  applyBlink(els.eyeL, EYE_BASE.l, blinkScale);
+  applyBlink(els.eyeR, EYE_BASE.r, blinkScale);
+  const flowOffset = Math.sin(2 * Math.PI * now / P.eyeFlowPeriod) * P.eyeFlowAmp;
+  els.eyeGrad.setAttribute('y1', (3 + flowOffset).toFixed(2));
+  els.eyeGrad.setAttribute('y2', (21 + flowOffset).toFixed(2));
+
+  const calledState = taskStates.find(s => s.key === target.target);
+  const orderedCount = taskStates.filter(s => s.slotMix > 0.82).length;
+  const closestPair = taskStates.reduce((best, a, i) => {
+    for (let j = i + 1; j < taskStates.length; j++) {
+      const b = taskStates[j];
+      const dist = Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y);
+      if (dist < best.dist) best = { dist, pair: `${a.key}${b.key}` };
+    }
+    return best;
+  }, { dist: Infinity, pair: '--' });
+
+  els.scrub.value = Math.min(now % 12, 12).toFixed(2);
+  els.scrubV.textContent = `${(now % 12).toFixed(2)}s`;
+
+  els.readout.textContent =
+`t=${now.toFixed(2)}s
+beat=${beat.beatIndex + 1}/5 target=${target.target}${target.saccading ? ' (saccading)' : ''} sync=${beat.sync ? 'yes' : 'no'} ordered=${orderedCount}/4
+${taskStates.map(s => `${s.key}: theta=${s.theta.toFixed(0)}° depth=${s.depth.toFixed(2)} slot=${s.slotMix.toFixed(2)} pos=(${s.p.x.toFixed(2)}, ${s.p.y.toFixed(2)})`).join('\n')}
+A/C 周期=${P.durA}s  B/D 周期=${P.durB}s  比例=${(P.durB/P.durA).toFixed(3)}:1  点名循环=${(P.eyeSwitchT*5).toFixed(2)}s
+called=${calledState ? calledState.key : 'all'}  blink=${blinkScale.toFixed(2)}  closest=${closestPair.pair} ${closestPair.dist.toFixed(2)}u
+body: morph=${morph.toFixed(3)} call=${body.callPulse.toFixed(2)} sync=${body.syncPulse.toFixed(2)} tilt=${body.rot.toFixed(2)}°
+note: C 方向 = orbit 只做流动路径; conducting 读感靠眼神点名 + spark 响应 + 归位同步.`;
+}
+
+function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+
+let startTime = performance.now();
+let scrubTime = 0;
+
+function loop(nowMs) {
+  let now;
+  if (P.pause) {
+    now = scrubTime;
+  } else {
+    now = (nowMs - startTime) / 1000;
+    scrubTime = now;
+  }
+  renderAt(now);
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+]]></script>
+</svg>

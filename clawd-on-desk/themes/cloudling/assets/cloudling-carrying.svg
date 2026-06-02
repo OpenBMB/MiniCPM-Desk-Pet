@@ -1,0 +1,604 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="scrubber"></g>
+<g id="t-display"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+/* =========================================================================
+ * Cloudling 主体几何 (沿用 V2 视觉定稿)
+ * ========================================================================= */
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const SOFT_CLOUD_POINTS = [
+  {x:9.064,y:3.344},{x:9.825,y:3.106},{x:10.616,y:3.004},{x:11.413,y:3.040},
+  {x:12.192,y:3.210},{x:12.928,y:3.518},{x:13.599,y:3.948},{x:14.255,y:4.291},
+  {x:15.046,y:4.188},{x:15.843,y:4.224},{x:16.621,y:4.398},{x:17.357,y:4.706},
+  {x:18.029,y:5.134},{x:18.617,y:5.673},{x:19.103,y:6.306},{x:19.471,y:7.013},
+  {x:19.715,y:7.772},{x:19.812,y:8.564},{x:19.784,y:9.361},{x:19.797,y:10.105},
+  {x:20.287,y:10.735},{x:20.656,y:11.442},{x:20.897,y:12.202},{x:20.995,y:12.994},
+  {x:20.964,y:13.791},{x:20.791,y:14.569},{x:20.480,y:15.304},{x:20.052,y:15.977},
+  {x:19.516,y:16.567},{x:18.882,y:17.052},{x:18.174,y:17.418},{x:17.539,y:17.808},
+  {x:17.231,y:18.545},{x:16.805,y:19.218},{x:16.264,y:19.805},{x:15.633,y:20.292},
+  {x:14.925,y:20.660},{x:14.163,y:20.895},{x:13.372,y:20.996},{x:12.575,y:20.964},
+  {x:11.796,y:20.793},{x:11.061,y:20.483},{x:10.392,y:20.049},{x:9.736,y:19.714},
+  {x:8.946,y:19.811},{x:8.148,y:19.777},{x:7.370,y:19.606},{x:6.634,y:19.299},
+  {x:5.962,y:18.868},{x:5.377,y:18.326},{x:4.885,y:17.698},{x:4.522,y:16.989},
+  {x:4.283,y:16.228},{x:4.182,y:15.437},{x:4.220,y:14.640},{x:4.179,y:13.907},
+  {x:3.696,y:13.273},{x:3.332,y:12.563},{x:3.092,y:11.803},{x:3.003,y:11.010},
+  {x:3.038,y:10.213},{x:3.202,y:9.433},{x:3.514,y:8.699},{x:3.944,y:8.027},
+  {x:4.484,y:7.440},{x:5.114,y:6.951},{x:5.822,y:6.586},{x:6.445,y:6.191},
+  {x:6.752,y:5.455},{x:7.185,y:4.785},{x:7.723,y:4.197},{x:8.356,y:3.711},
+];
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp01(t) { return Math.max(0, Math.min(1, t)); }
+function easeIn(t) { return t * t; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 2); }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+function progress(t, begin, end) { return clamp01((t - begin) / (end - begin)); }
+
+function catmullRomClosedPath(points, tension = 1) {
+  const q = (n) => n.toFixed(3);
+  let d = `M ${q(points[0].x)} ${q(points[0].y)}`;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) * tension / 6;
+    const c1y = p1.y + (p2.y - p0.y) * tension / 6;
+    const c2x = p2.x - (p3.x - p1.x) * tension / 6;
+    const c2y = p2.y - (p3.y - p1.y) * tension / 6;
+    d += ` C ${q(c1x)} ${q(c1y)} ${q(c2x)} ${q(c2y)} ${q(p2.x)} ${q(p2.y)}`;
+  }
+  return `${d} Z`;
+}
+
+/* 包裹形变: contactPoint 是 cloudling 局部坐标的接触点.
+   v4 不再把边缘压凹, 而是让接触侧外鼓成一个临时 puff, 把食物云包进轮廓里. */
+function makeSoftCloudPath(pressure, contactPoint) {
+  const a = clamp01(pressure);
+  if (a <= 0.0001) return CLOUD_D;
+  const cx = 12, cy = 12;
+  const cpX = contactPoint?.x ?? 12;
+  const cpY = contactPoint?.y ?? 4.45;
+  // out 指向食物云所在的外侧, side 是沿边缘的切线方向.
+  const dx0 = cx - cpX, dy0 = cy - cpY;
+  const len0 = Math.hypot(dx0, dy0) || 1;
+  const outX = -dx0 / len0, outY = -dy0 / len0;
+  const sideX = dy0 / len0, sideY = -dx0 / len0;
+  const volume = Math.sin(a * Math.PI) * 0.12;
+
+  const points = SOFT_CLOUD_POINTS.map((pt) => {
+    const distToContact = Math.hypot(pt.x - cpX, pt.y - cpY);
+    const contactWeight = clamp01(1 - distToContact / 9.2);
+    const rx = pt.x - cx, ry = pt.y - cy;
+    const projOut = rx * outX + ry * outY; // >0 表示在接触侧
+    const projSide = rx * sideX + ry * sideY;
+    const contactSide = clamp01((projOut + 1.2) / 9.4);
+    const centerBand = Math.pow(contactWeight, 1.24) * (0.36 + contactSide * 0.64);
+    const shoulderBand = Math.pow(contactWeight, 0.86) * clamp01((Math.abs(projSide) - 0.7) / 5.0) * contactSide;
+    const sideShift = Math.sign(projSide || 1) * shoulderBand * 0.82 * a;
+    const wrapOut = (centerBand * 2.70 + shoulderBand * 1.05) * a;
+    const neckIn = Math.pow(clamp01(1 - Math.abs(distToContact - 6.4) / 2.7), 1.35) * contactSide * 0.20 * a;
+    const lowerSettle = clamp01((pt.y - 16.0) / 4.8) * volume;
+    return {
+      x: pt.x + outX * (wrapOut - neckIn) + sideX * sideShift,
+      y: pt.y + outY * (wrapOut - neckIn) + sideY * sideShift + lowerSettle,
+    };
+  });
+  return catmullRomClosedPath(points, lerp(0.96, 0.78, a));
+}
+
+/* =========================================================================
+ * 食物云几何: 不规则圆润 puff (跟 long-idle bush peek 暖云同语言 但更冷淡)
+ * 用 7-8 个圆 union 成蓬松云团, 比 cloudling 主体小约 60%
+ * ========================================================================= */
+function makeFoodCloudPath() {
+  // 局部坐标 viewBox 8x6, 中心 (0,0). 不规则但圆润.
+  // 用一组椭圆/圆通过 catmull rom 包出外轮廓
+  const pts = [
+    {x:-3.7, y:-0.4},
+    {x:-3.5, y:-1.6},
+    {x:-2.6, y:-2.3},
+    {x:-1.4, y:-2.5},
+    {x:-0.6, y:-2.0},
+    {x: 0.4, y:-2.4},
+    {x: 1.7, y:-2.2},
+    {x: 2.7, y:-1.4},
+    {x: 3.6, y:-0.7},
+    {x: 3.7, y: 0.5},
+    {x: 3.0, y: 1.5},
+    {x: 2.0, y: 2.0},
+    {x: 0.7, y: 2.1},
+    {x:-0.6, y: 2.3},
+    {x:-1.9, y: 2.0},
+    {x:-3.0, y: 1.5},
+    {x:-3.6, y: 0.7},
+  ];
+  return catmullRomClosedPath(pts, 1);
+}
+
+/* =========================================================================
+ * 默认参数
+ * ========================================================================= */
+const DEFAULTS = {
+  // 主周期
+  T_CYCLE: 4.5,
+
+  // 融入时机 (单口, phase A 用直接值, phase B 镜像)
+  T_FOOD_ENTER_START: 0.00,   // 食物云开始飘入
+  T_FOOD_REACHED: 0.90,        // 食物云飘到接触位置
+  T_INTERCEPT_START: 0.55,     // 云宝开始飘向食物云
+  T_CONTACT: 1.00,             // 接触瞬间 (云宝 + 食物云相遇)
+  T_SWALLOW_END: 1.24,         // 食物云完全融入, v5 缩短包裹停顿
+  T_RETURN_END: 1.95,          // 云宝飘回中心
+  // duang spring (从完全融入后起算)
+  springAmp: 0.16,             // 弹幅 (15-18% 之间挑)
+  springFreq: 4.0,             // 弹频 Hz
+  springDamping: 5.0,          // 阻尼 (越大衰减越快)
+  springDuration: 0.65,        // 总时长 (之后纯呼吸)
+
+  // 食物云轨迹 (右口 phase A; 左口对角镜像 — 右上进 / 左下进)
+  // X offset = "距 cloudling 中心 12 的距离" (右口取 +offset, 左口取 -offset)
+  foodEnterOffsetX: 24,        // 画外起点距中心偏移 (右 = 36, 左 = -12)
+  foodTargetOffsetX: 13.5,     // 接触时食物云贴在边缘外侧 (右 = 25.5, 左 = -1.5)
+  foodTargetY: 12,             // 接触位置 Y (跟眼睛同高)
+  foodEnterYDelta: -4.5,       // 入场 Y 相对 target 的偏移 (右口 -4.5 = 偏上, 左口 sign=-1 → +4.5 = 偏下)
+  foodSize: 1.0,               // 食物云缩放
+  foodSizeRight: 1.08,          // 右侧食物云稍大
+  foodSizeLeft: 0.82,           // 左侧食物云稍小
+  foodOpacity: 0.85,
+  foodDriftY: 0.22,            // 飘入时的微微上下浮动幅度
+  foodExitOvershoot: 0.15,     // 贴边时只轻轻贴住, 不穿进主体
+
+  // 云宝拦截
+  interceptDx: 5.0,            // translate x 偏移 (右拦截 +5, 左 -5)
+  interceptDy: 0,              // translate y 偏移 (右上接触可让 -2, 跟 enterY 联动)
+  interceptDyMatch: 1,         // 1 = interceptDy 跟食物云对角入场镜像 (右 -, 左 +); 0 = 用上面的固定值
+  interceptEyePeekX: 1.6,      // 眼睛朝食物云偏移
+  interceptEyePeekY: 0,
+  bodyRollFactor: 1.0,         // 云宝飘动时 body 滚轮 rotate (度/单位 cloudTx; 飘右 → 顶部往左倾)
+  bodyRollMax: 8,              // body roll 最大角度限制
+
+  // 接触 deform (侧向接触, 不是顶部)
+  contactSideX: 20.8,          // 接触点局部坐标 (右侧凸起)
+  contactSideY: 12,
+  contactPressureMax: 0.90,    // 包裹最大强度
+  absorbDepth: 1.2,            // v4: 同化时只向主体贴近一点, 不钻入中心
+  absorbSqueezeX: 0.64,        // 同化中食物云轻微横压
+  absorbSqueezeY: 1.16,        // 同化中食物云轻微纵鼓
+  wrapBulgeOffset: 1.55,       // 同化时保留在侧边外鼓区域的距离
+
+  // 呼吸 (跟 swallow 同步: 周期 = 2.25s = 半 cycle, 每口配一呼吸)
+  breathLow: 0.97,
+  breathHigh: 1.02,
+
+  // edge-system + 阴影
+  cloudShadowOpacity: 0.18,
+};
+
+let params = { ...DEFAULTS };
+let paused = false;
+let scrubbing = false;
+
+/* =========================================================================
+ * defs (复用 cloudling 标准件)
+ * ========================================================================= */
+function commonDefs(p, cloudD) {
+  return `
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/><stop offset="0.5" stop-color="#f4f5f9"/><stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="${p}-hi" cx="0.45" cy="0.25" r="0.55">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="${p}-food" x1="0" y1="-3" x2="0" y2="3" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.56" stop-color="#F0F5FF"/>
+      <stop offset="1" stop-color="#DCE6FA"/>
+    </linearGradient>
+    <radialGradient id="${p}-food-hi" cx="0.4" cy="0.3" r="0.55">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="${p}-food-rim" x1="-4" y1="-2" x2="4" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D6DFFF"/>
+      <stop offset="1" stop-color="#AAB9F6"/>
+    </linearGradient>
+    <filter id="${p}-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="${params.cloudShadowOpacity}"/>
+    </filter>
+    <filter id="${p}-food-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="food-cloud-shadow" dx="0" dy="0.28" stdDeviation="0.36" flood-color="#7A9DFF" flood-opacity="0.08"/>
+    </filter>
+    <filter id="${p}-food-melt" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="0.10" result="soft"/>
+      <feDropShadow class="food-cloud-shadow" dx="0" dy="0.2" stdDeviation="0.35" flood-color="#3941FF" flood-opacity="0.08"/>
+    </filter>
+    <filter id="${p}-edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <clipPath id="${p}-clip"><path d="${cloudD}"/></clipPath>
+  `;
+}
+
+/* =========================================================================
+ * cloudling + 眼睛 (capsule + smile)
+ * ========================================================================= */
+function makeEyes(p, mode, openness, offX, offY) {
+  const lcx = 9, rcx = 15, cy = 12;
+  let lEye, rEye;
+
+  if (mode === 'smile') {
+    const w = 3.5, h = 1.0, smileCY = 12.7;
+    const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
+    lEye = `<path d="${smilePath(lcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>`;
+    rEye = `<path d="${smilePath(rcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>`;
+  } else {
+    // capsule
+    const baseH = 5;
+    const h = Math.max(0.3, baseH * openness);
+    const y = 9.5 + (baseH - h) / 2;
+    const rx = Math.min(1.3, h / 2);
+    lEye = `<rect x="7.7" y="${y.toFixed(2)}" width="2.6" height="${h.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${rx.toFixed(2)}" fill="url(#${p}-eye)" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+    rEye = `<rect x="13.7" y="${y.toFixed(2)}" width="2.6" height="${h.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${rx.toFixed(2)}" fill="url(#${p}-eye)" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+  }
+  return `<g class="eyes" transform="translate(${offX.toFixed(2)} ${offY.toFixed(2)})">${lEye}${rEye}</g>`;
+}
+
+function makeCloudlingBody(p) {
+  return `
+    <g class="cloudling-body">
+      <g class="edge-system">
+        <use class="edge-contact" href="#${p}-cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#${p}-shadow)">
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
+      </g>
+    </g>
+  `;
+}
+
+function makeAbsorbFrontRim(p, opacity) {
+  return `
+    <g class="absorb-front-rim" opacity="${opacity.toFixed(3)}">
+      <use href="#${p}-cloud-shape" fill="none" stroke="#f7f9ff" stroke-width="0.46" stroke-linejoin="round"/>
+      <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.80" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+    </g>
+  `;
+}
+
+function makeFoodCloud(p, cx, cy, scale, opacity, opts = {}) {
+  const path = makeFoodCloudPath();
+  const sx = opts.sx ?? 1;
+  const sy = opts.sy ?? 1;
+  const rot = opts.rot ?? 0;
+  const filterId = opts.melting ? `${p}-food-melt` : `${p}-food-shadow`;
+  const hiOpacity = opts.melting ? 0.55 : 1;
+  return `
+    <g class="food-cloud" opacity="${opacity.toFixed(3)}" transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) rotate(${rot.toFixed(2)}) scale(${(scale * sx).toFixed(3)} ${(scale * sy).toFixed(3)})" filter="url(#${filterId})">
+      <path d="${path}" fill="url(#${p}-food)"/>
+      <ellipse cx="-0.6" cy="-0.7" rx="2.6" ry="1.2" fill="url(#${p}-food-hi)" opacity="${hiOpacity}"/>
+    </g>
+  `;
+}
+
+function makeAbsorbWash(p, cx, cy, scale, opacity, opts = {}) {
+  const path = makeFoodCloudPath();
+  const sx = opts.sx ?? 1;
+  const sy = opts.sy ?? 1;
+  const rot = opts.rot ?? 0;
+  return `
+    <g class="absorb-wash" clip-path="url(#${p}-clip)" opacity="${opacity.toFixed(3)}" transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) rotate(${rot.toFixed(2)}) scale(${(scale * sx).toFixed(3)} ${(scale * sy).toFixed(3)})" filter="url(#${p}-food-melt)">
+      <path d="${path}" fill="url(#${p}-body)" opacity="0.72"/>
+      <ellipse cx="-0.7" cy="-0.7" rx="2.4" ry="1.0" fill="url(#${p}-hi)" opacity="0.46"/>
+    </g>
+  `;
+}
+
+/* =========================================================================
+ * duang duang spring overshoot
+ * 阻尼弹簧: scale = 1 + A × cos(2π × freq × t) × exp(-damping × t)
+ * t = 0 时 scale = 1 + A (第一弹峰)
+ * ========================================================================= */
+function springOvershoot(tLocal, amp, freq, damping) {
+  if (tLocal < 0) return 0;
+  return amp * Math.cos(2 * Math.PI * freq * tLocal) * Math.exp(-damping * tLocal);
+}
+
+/* =========================================================================
+ * 单口 (half cycle = 2.25s) 求 frame
+ * side: 'right' | 'left'
+ * tHalf: 0 ~ T_CYCLE/2, 当口的本地时间
+ * ========================================================================= */
+function computeHalfCycle(tHalf, side) {
+  const sign = (side === 'right') ? +1 : -1;
+  const f = {};
+  const cloudCenterX = 12;
+  const cpX = (side === 'right') ? params.contactSideX : (24 - params.contactSideX);
+  const cpY = params.contactSideY;
+
+  // ---- 云宝拦截 translate (对角拦截: Y 跟食物云入场对角联动) ----
+  // interceptDyMatch=1 时, 右口 cloudTy 向上 (-) 接住右上来的食物云; 左口向下 (+) 接住左下来的
+  // 接住 Y 偏移 = foodEnterYDelta 的一半 (云宝不必完全跟到食物云入场高度, 只是迎接)
+  const targetDy = params.interceptDyMatch
+    ? sign * params.foodEnterYDelta * 0.45
+    : params.interceptDy;
+  let cloudTx = 0, cloudTy = 0;
+  if (tHalf < params.T_INTERCEPT_START) {
+    cloudTx = 0; cloudTy = 0;
+  } else if (tHalf < params.T_CONTACT) {
+    const u = progress(tHalf, params.T_INTERCEPT_START, params.T_CONTACT);
+    cloudTx = lerp(0, sign * params.interceptDx, easeOut(u));
+    cloudTy = lerp(0, targetDy, easeOut(u));
+  } else if (tHalf < params.T_RETURN_END) {
+    if (tHalf < params.T_SWALLOW_END) {
+      cloudTx = sign * params.interceptDx;
+      cloudTy = targetDy;
+    } else {
+      const u = progress(tHalf, params.T_SWALLOW_END, params.T_RETURN_END);
+      cloudTx = lerp(sign * params.interceptDx, 0, easeInOut(u));
+      cloudTy = lerp(targetDy, 0, easeInOut(u));
+    }
+  }
+  f.cloudTx = cloudTx;
+  f.cloudTy = cloudTy;
+
+  // ---- 食物云 ----
+  // v4: 接触后停在侧边外鼓区域, 被主体包住并同化成临时 puff.
+  const foodStart = cloudCenterX + sign * params.foodEnterOffsetX;
+  const foodSurfaceX = cloudCenterX + sign * params.foodTargetOffsetX;
+  const foodSurfaceY = targetDy + params.foodTargetY;
+  const foodStartY = foodSurfaceY + sign * params.foodEnterYDelta;
+  const foodContactX = foodSurfaceX - sign * params.foodExitOvershoot;
+  const foodWrappedX = cloudTx + cpX + sign * params.wrapBulgeOffset - sign * params.absorbDepth * 0.35;
+  const foodWrappedY = targetDy + cpY;
+  const sideFoodScale = params.foodSize * (side === 'right' ? params.foodSizeRight : params.foodSizeLeft);
+  let foodVisible = false, foodCx = foodStart, foodCy = foodStartY;
+  let foodOpacity = params.foodOpacity, foodScale = sideFoodScale;
+  let foodLayer = 'none', foodSx = 1, foodSy = 1, foodRot = 0, absorbWashOpacity = 0;
+
+  if (tHalf < params.T_FOOD_ENTER_START) {
+    foodVisible = false;
+  } else if (tHalf < params.T_CONTACT) {
+    foodVisible = true;
+    foodLayer = 'behind';
+    const u = progress(tHalf, params.T_FOOD_ENTER_START, params.T_CONTACT);
+    foodCx = lerp(foodStart, foodContactX, u);
+    foodCy = lerp(foodStartY, foodSurfaceY, u);
+    const driftPhase = (tHalf - params.T_FOOD_ENTER_START) / 0.55 * Math.PI * 2;
+    foodCy += Math.sin(driftPhase) * params.foodDriftY;
+    foodOpacity = clamp01(progress(tHalf, params.T_FOOD_ENTER_START, params.T_FOOD_ENTER_START + 0.25)) * params.foodOpacity;
+  } else if (tHalf < params.T_SWALLOW_END) {
+    foodVisible = true;
+    foodLayer = 'front';
+    const u = progress(tHalf, params.T_CONTACT, params.T_SWALLOW_END);
+    const slide = easeInOut(u);
+    const fade = easeIn(progress(u, 0.48, 1));
+    const squeeze = Math.sin(Math.min(1, u * 1.15) * Math.PI);
+    foodCx = lerp(foodContactX, foodWrappedX, slide);
+    foodCy = lerp(foodSurfaceY, foodWrappedY, slide) + sign * Math.sin(u * Math.PI) * 0.10;
+    foodScale = lerp(sideFoodScale, sideFoodScale * 0.72, easeIn(u));
+    foodOpacity = params.foodOpacity * (1 - fade);
+    foodSx = lerp(1, params.absorbSqueezeX, easeOut(u));
+    foodSy = lerp(1, params.absorbSqueezeY, squeeze);
+    foodRot = -sign * Math.sin(u * Math.PI) * 4;
+    absorbWashOpacity = Math.sin(u * Math.PI) * 0.46 * params.foodOpacity + easeIn(progress(u, 0.40, 1)) * 0.20;
+  } else {
+    foodVisible = false;
+  }
+  f.foodVisible = foodVisible;
+  f.foodLayer = foodLayer;
+  f.foodCx = foodCx;
+  f.foodCy = foodCy;
+  f.foodLocalCx = foodCx - cloudTx;
+  f.foodLocalCy = foodCy - cloudTy;
+  f.foodScale = foodScale;
+  f.foodOpacity = foodOpacity;
+  f.foodSx = foodSx;
+  f.foodSy = foodSy;
+  f.foodRot = foodRot;
+  f.absorbWashOpacity = absorbWashOpacity;
+
+  // ---- body roll (滚轮感: 飘动时 body rotate, eyes 不 rotate) ----
+  let bodyRoll = -cloudTx * params.bodyRollFactor;
+  bodyRoll = Math.max(-params.bodyRollMax, Math.min(params.bodyRollMax, bodyRoll));
+  f.bodyRoll = bodyRoll;
+
+  // ---- 眼睛 (peek 朝食物云偏移) ----
+  let eyeMode = 'capsule', eyeOpenness = 1, eyeOffX = 0, eyeOffY = 0;
+  if (tHalf < params.T_FOOD_ENTER_START + 0.05) {
+    eyeMode = 'capsule';
+  } else if (tHalf < params.T_CONTACT) {
+    // 看到食物云 → peek
+    const u = progress(tHalf, params.T_FOOD_ENTER_START + 0.05, params.T_INTERCEPT_START);
+    eyeOffX = lerp(0, sign * params.interceptEyePeekX, easeOut(u));
+    eyeOffY = params.interceptEyePeekY;
+  } else if (tHalf < params.T_SWALLOW_END) {
+    // 融入时保持专注, 不用嘴部符号.
+    const u = progress(tHalf, params.T_CONTACT, params.T_SWALLOW_END);
+    eyeMode = 'capsule';
+    eyeOpenness = lerp(1, 0.55, Math.sin(u * Math.PI));
+    eyeOffX = sign * params.interceptEyePeekX * 0.55;
+  } else if (tHalf < params.T_SWALLOW_END + 0.24) {
+    // 完全融入后才 smile + 弹.
+    eyeMode = 'smile';
+    eyeOffX = sign * params.interceptEyePeekX * 0.35;
+  } else if (tHalf < params.T_RETURN_END) {
+    // 飘回时眼睛 capsule + offset 回中
+    const u = progress(tHalf, params.T_SWALLOW_END + 0.24, params.T_RETURN_END);
+    eyeMode = 'capsule';
+    eyeOffX = lerp(sign * params.interceptEyePeekX * 0.35, 0, easeOut(u));
+  }
+  f.eyeMode = eyeMode;
+  f.eyeOpenness = eyeOpenness;
+  f.eyeOffX = eyeOffX;
+  f.eyeOffY = eyeOffY;
+
+  // ---- 接触 deform pressure ----
+  // 贴边前开始外鼓, 同化时保持包裹, 融完后释放.
+  let pressure = 0;
+  const tPressureStart = params.T_CONTACT - 0.20;
+  const tPressurePeak = params.T_CONTACT + 0.08;
+  const tPressureReleaseStart = params.T_SWALLOW_END - 0.05;
+  const tPressureReleaseEnd = params.T_SWALLOW_END + 0.16;
+  if (tHalf >= tPressureStart && tHalf < params.T_CONTACT) {
+    pressure = lerp(0, 0.72, easeInOut(progress(tHalf, tPressureStart, params.T_CONTACT))) * params.contactPressureMax;
+  } else if (tHalf >= params.T_CONTACT && tHalf < tPressurePeak) {
+    pressure = lerp(0.72, 1, easeOut(progress(tHalf, params.T_CONTACT, tPressurePeak))) * params.contactPressureMax;
+  } else if (tHalf >= tPressurePeak && tHalf < tPressureReleaseStart) {
+    pressure = params.contactPressureMax;
+  } else if (tHalf >= tPressureReleaseStart && tHalf < tPressureReleaseEnd) {
+    pressure = params.contactPressureMax * (1 - easeInOut(progress(tHalf, tPressureReleaseStart, tPressureReleaseEnd)));
+  }
+  f.pressure = pressure;
+  f.contactPoint = { x: cpX, y: cpY };
+
+  // ---- duang spring scale (完全融入后才弹) ----
+  let springScale = 1;
+  const springStart = params.T_SWALLOW_END + 0.03;
+  if (tHalf >= springStart && tHalf < springStart + params.springDuration) {
+    const tLocal = tHalf - springStart;
+    springScale = 1 + springOvershoot(tLocal, params.springAmp, params.springFreq, params.springDamping);
+  }
+  f.springScale = springScale;
+
+  // ---- 呼吸 (持续, 周期 = T_CYCLE / 2 = 2.25s; 每口对齐一个呼吸) ----
+  const breathPeriod = params.T_CYCLE / 2;
+  const breathPhase = (Math.cos(2 * Math.PI * tHalf / breathPeriod) + 1) / 2;
+  f.breathScale = lerp(params.breathLow, params.breathHigh, breathPhase);
+
+  return f;
+}
+
+/* =========================================================================
+ * 主帧计算: 把全局 t 切成两个 half cycle
+ * ========================================================================= */
+function computeFrame(t) {
+  const T = params.T_CYCLE;
+  const tMod = ((t % T) + T) % T;
+  const half = T / 2;
+  let tHalf, side;
+  if (tMod < half) {
+    tHalf = tMod;
+    side = 'right';
+  } else {
+    tHalf = tMod - half;
+    side = 'left';
+  }
+  const f = computeHalfCycle(tHalf, side);
+  f.tMod = tMod;
+  f.tHalf = tHalf;
+  f.side = side;
+  return f;
+}
+
+/* =========================================================================
+ * 渲染
+ * ========================================================================= */
+const stage = document.getElementById('stage');
+
+function renderFrame(t) {
+  const f = computeFrame(t);
+  const p = 'crr';
+
+  const cloudD = makeSoftCloudPath(f.pressure, f.contactPoint);
+  const cloudlingBody = makeCloudlingBody(p);
+  const eyes = makeEyes(p, f.eyeMode, f.eyeOpenness, f.eyeOffX, f.eyeOffY);
+
+  // food cloud: 接触前在背景层, 接触后压到主体表面层.
+  const foodBehindHTML = f.foodVisible && f.foodLayer === 'behind'
+    ? makeFoodCloud(p, f.foodCx, f.foodCy, f.foodScale, f.foodOpacity)
+    : '';
+  const foodSurfaceHTML = f.foodVisible && f.foodLayer === 'front'
+    ? makeFoodCloud(p, f.foodLocalCx, f.foodLocalCy, f.foodScale, f.foodOpacity, {
+        sx: f.foodSx,
+        sy: f.foodSy,
+        rot: f.foodRot,
+        melting: true,
+      })
+    : '';
+  const absorbWashHTML = f.absorbWashOpacity > 0.01
+    ? makeAbsorbWash(p, f.foodLocalCx, f.foodLocalCy, f.foodScale, f.absorbWashOpacity, {
+        sx: f.foodSx,
+        sy: f.foodSy,
+        rot: f.foodRot,
+      })
+    : '';
+  const absorbRimHTML = f.pressure > 0.02
+    ? makeAbsorbFrontRim(p, Math.min(0.34, (f.pressure / params.contactPressureMax) * 0.30))
+    : '';
+
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+}
+</style>
+<defs>
+        ${commonDefs(p, cloudD)}
+        <path id="${p}-cloud-shape" d="${cloudD}"/>
+      </defs>
+      <!-- 食物云 (背景层) -->
+      ${foodBehindHTML}
+      <!-- cloudling: translate → spring → breath → (body roll) -->
+      <g class="scene" transform="translate(${f.cloudTx.toFixed(3)} ${f.cloudTy.toFixed(3)})">
+        <g class="spring" transform="translate(12 12) scale(${f.springScale.toFixed(4)}) translate(-12 -12)">
+          <g class="breath" transform="translate(12 12) scale(${f.breathScale.toFixed(4)}) translate(-12 -12)">
+            <g class="body-roll" transform="rotate(${f.bodyRoll.toFixed(3)} 12 12)">
+              ${cloudlingBody}
+              ${absorbWashHTML}
+              ${foodSurfaceHTML}
+              ${absorbRimHTML}
+            </g>
+            ${eyes}
+          </g>
+        </g>
+      </g>
+  `;
+}
+
+/* =========================================================================
+ * 主循环 + 控件
+ * ========================================================================= */
+let startT = performance.now();
+let elapsedOffset = 0;
+let pausedAt = 0;
+
+const scrubberEl = document.getElementById('scrubber');
+const tDisplayEl = document.getElementById('t-display');
+
+function getCurrentT() {
+  if (scrubbing) return Number(scrubberEl.value);
+  if (paused) return elapsedOffset + (pausedAt - startT) / 1000;
+  return elapsedOffset + (performance.now() - startT) / 1000;
+}
+
+function loop() {
+  const t = getCurrentT();
+  scrubberEl.max = params.T_CYCLE.toFixed(2);
+  const tMod = ((t % params.T_CYCLE) + params.T_CYCLE) % params.T_CYCLE;
+  if (!scrubbing) scrubberEl.value = tMod.toFixed(3);
+  tDisplayEl.textContent = `${tMod.toFixed(2)} s`;
+  renderFrame(t);
+  requestAnimationFrame(loop);
+}
+renderFrame(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

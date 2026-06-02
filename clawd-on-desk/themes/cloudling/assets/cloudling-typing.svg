@@ -1,0 +1,354 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+    <defs>
+      <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.5" stop-color="#f4f5f9"/>
+        <stop offset="1" stop-color="#dee2eb"/>
+      </linearGradient>
+      <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF"/>
+        <stop offset="0.5" stop-color="#7A9DFF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+      <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.22"/>
+      </filter>
+      <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="0.16"/>
+      </filter>
+      <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      <clipPath id="cloud-clip">
+        <use href="#cloud-shape"/>
+      </clipPath>
+    </defs>
+
+    <!-- 云朵 layer (rotate + scale, 配置不变 — drop shadow + radial highlight + body-grad) -->
+    <g id="cloud-group">
+      <g id="edge-system">
+        <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+        <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+        <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#drop)">
+        <use href="#cloud-shape" fill="url(#body-grad)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+      </g>
+    </g>
+
+    <!-- 眼睛 layer (只 scale 不 rotate, 字符直立; d/fill/stroke 由 JS 实时填充) -->
+    <g id="eye-group">
+      <path id="eye-l-path" stroke-linecap="round" stroke-linejoin="round"/>
+      <path id="eye-r-path" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+<script type="application/ecmascript"><![CDATA[
+const cloudGroup = document.getElementById('cloud-group');
+const eyeGroup = document.getElementById('eye-group');
+const eyeL = document.getElementById('eye-l-path');
+const eyeR = document.getElementById('eye-r-path');
+const eyeGrad = document.getElementById('eye-grad');
+
+/* token 库保留原版 8 个; 组合池过滤纯随机撞出的丑 pair. */
+const TOKENS = ['gt', 'lt', 'und', 'colon', 'eq', 'plus', 'slash', 'bslash'];
+const A_PAIRS = [
+  ['lt', 'gt'], ['lt', 'eq'], ['gt', 'eq'], ['eq', 'gt'], ['eq', 'lt'],
+  ['gt', 'und'], ['lt', 'und'], ['slash', 'und'], ['und', 'bslash'],
+  ['eq', 'slash'], ['eq', 'bslash'],
+];
+const B_PAIRS = [
+  ['colon', 'gt'], ['colon', 'slash'], ['colon', 'bslash'], ['colon', 'und'],
+  ['plus', 'und'], ['slash', 'plus'], ['bslash', 'plus'],
+];
+const ACTIVE_PAIRS = [...A_PAIRS, ...A_PAIRS, ...A_PAIRS, ...B_PAIRS];
+
+/* token builder: 返回 { d, mode, sw }. mode='stroke' 用描边, mode='fill' 用填充 (圆点类). */
+function tok(d, mode, sw) { return { d, mode, sw }; }
+
+const TOKEN_BUILDERS = {
+  /* > chevron (描边折角) */
+  gt: (cx, cy) => tok(
+    `M ${cx-0.78} ${cy-1.58} L ${cx+0.74} ${cy} L ${cx-0.78} ${cy+1.58}`,
+    'stroke', 1.16
+  ),
+  /* < chevron (反向) */
+  lt: (cx, cy) => tok(
+    `M ${cx+0.78} ${cy-1.58} L ${cx-0.74} ${cy} L ${cx+0.78} ${cy+1.58}`,
+    'stroke', 1.16
+  ),
+  /* _ underscore (下划线) */
+  und: (cx, cy) => tok(
+    `M ${cx-1.18} ${cy+1.42} L ${cx+1.18} ${cy+1.42}`,
+    'stroke', 1.10
+  ),
+  /* : colon (上下两个圆点, fill 实心) */
+  colon: (cx, cy) => {
+    const r = 0.64;
+    return tok(
+      `M ${cx-r} ${cy-0.94} A ${r} ${r} 0 1 0 ${cx+r} ${cy-0.94} A ${r} ${r} 0 1 0 ${cx-r} ${cy-0.94} Z ` +
+      `M ${cx-r} ${cy+0.94} A ${r} ${r} 0 1 0 ${cx+r} ${cy+0.94} A ${r} ${r} 0 1 0 ${cx-r} ${cy+0.94} Z`,
+      'fill', 0
+    );
+  },
+  /* = 两道横线 (多线交叉降到 0.9 防糊) */
+  eq: (cx, cy) => tok(
+    `M ${cx-1.08} ${cy-0.72} L ${cx+1.08} ${cy-0.72} ` +
+    `M ${cx-1.08} ${cy+0.72} L ${cx+1.08} ${cy+0.72}`,
+    'stroke', 0.84
+  ),
+  /* + 十字 (多线交叉 0.9) */
+  plus: (cx, cy) => tok(
+    `M ${cx-0.96} ${cy} L ${cx+0.96} ${cy} ` +
+    `M ${cx} ${cy-0.96} L ${cx} ${cy+0.96}`,
+    'stroke', 0.82
+  ),
+  /* / slash 斜杠 (左下到右上) */
+  slash: (cx, cy) => tok(
+    `M ${cx-0.92} ${cy+1.48} L ${cx+0.92} ${cy-1.48}`,
+    'stroke', 1.16
+  ),
+  /* \ bslash 反斜杠 (左上到右下) */
+  bslash: (cx, cy) => tok(
+    `M ${cx-0.92} ${cy-1.48} L ${cx+0.92} ${cy+1.48}`,
+    'stroke', 1.16
+  )
+};
+
+/* 把 token 应用到 path 元素 (每次切换调一次, 切 fill/stroke 模式 + d + stroke-width + 字符尺寸缩放) */
+function applyToken(el, cx, cy, tokenId, sx = 1, sy = 1, opacity = 1) {
+  const t = TOKEN_BUILDERS[tokenId](cx, cy);
+  el.setAttribute('d', t.d);
+  if (t.mode === 'fill') {
+    el.setAttribute('fill', 'url(#eye-grad)');
+    el.setAttribute('stroke', 'none');
+    el.removeAttribute('stroke-width');
+  } else {
+    el.setAttribute('fill', 'none');
+    el.setAttribute('stroke', 'url(#eye-grad)');
+    el.setAttribute('stroke-width', t.sw);
+  }
+  el.setAttribute('opacity', opacity.toFixed(3));
+  /* 以字符中心为锚整体缩放 (stroke 跟随放大, 视觉一致) */
+  el.setAttribute(
+    'transform',
+    `translate(${cx} ${cy}) scale(${(P.EYE_SIZE * sx).toFixed(3)} ${(P.EYE_SIZE * sy).toFixed(3)}) translate(${-cx} ${-cy})`
+  );
+}
+
+const P = {
+  /* 字符尺寸 (鹿鹿 2026-04-26 锁定 1.40×) */
+  EYE_SIZE: 1.40,
+  /* 卡顿旋转 (鹿鹿 2026-04-26 锁定, 总周期 4.45s) */
+  ROT_AMOUNT: 190, ROT_DIR: -1,
+  T_SPIN: 1.40, OVERSHOOT: 8,
+  T_HOLD_FAR: 0.85, T_BACK: 1.00, T_HOLD_HOME: 1.20,
+  /* 大呼吸 */
+  SCALE_LOW: 0.94, SCALE_HIGH: 1.05, BREATH_PERIOD: 1.6,
+  /* 字符切换 (角速度阈值, 大角度 — 旋转一周才换 1-2 次) */
+  SWITCH_DEG_L: 96, SWITCH_DEG_R: 96, SWITCH_JITTER: 0.25,
+  SWITCH_SOFT_MS: 90,
+  /* 流动渐变 */
+  FLOW_PERIOD: 3.0, FLOW_AMP: 4
+};
+
+/* 字符切换状态 */
+let lastLeft = 'gt', lastRight = 'und';
+let switchAccumL = 0, switchAccumR = 0;
+let nextThresholdL = P.SWITCH_DEG_L;
+let nextThresholdR = P.SWITCH_DEG_R;
+let switchStartL = -Infinity;
+let switchStartR = -Infinity;
+let rngState = 0xC10D1E;
+
+function rand() {
+  rngState = (rngState * 1664525 + 1013904223) >>> 0;
+  return rngState / 4294967296;
+}
+function choose(list) { return list[Math.floor(rand() * list.length) % list.length]; }
+function jitterFactor(j) { return 1 + (rand() * 2 - 1) * j; }
+function pairKey(l, r) { return `${l}|${r}`; }
+const A_PAIR_KEYS = new Set(A_PAIRS.map(([l, r]) => pairKey(l, r)));
+
+function currentPairIsA() {
+  return A_PAIR_KEYS.has(pairKey(lastLeft, lastRight));
+}
+
+function getPhaseInfo(t) {
+  const cycle = P.T_SPIN + P.T_HOLD_FAR + P.T_BACK + P.T_HOLD_HOME;
+  const phase = t % Math.max(cycle, 0.01);
+  if (phase < P.T_SPIN) {
+    return { name: 'spin', u: phase / Math.max(P.T_SPIN, 0.01), aOnly: phase / Math.max(P.T_SPIN, 0.01) > .80 };
+  }
+  if (phase < P.T_SPIN + P.T_HOLD_FAR) {
+    return { name: 'holdFar', u: 1, aOnly: true };
+  }
+  if (phase < P.T_SPIN + P.T_HOLD_FAR + P.T_BACK) {
+    const u = (phase - P.T_SPIN - P.T_HOLD_FAR) / Math.max(P.T_BACK, 0.01);
+    return { name: 'back', u, aOnly: u > .75 };
+  }
+  return { name: 'holdHome', u: 1, aOnly: true };
+}
+
+function settleToA(now) {
+  if (currentPairIsA()) return;
+  const sameRight = A_PAIRS.filter(([l, r]) => r === lastRight && l !== lastLeft);
+  const sameLeft = A_PAIRS.filter(([l, r]) => l === lastLeft && r !== lastRight);
+  if (sameRight.length) {
+    lastLeft = choose(sameRight)[0];
+    switchStartL = now;
+  } else if (sameLeft.length) {
+    lastRight = choose(sameLeft)[1];
+    switchStartR = now;
+  } else {
+    const [l, r] = choose(A_PAIRS);
+    lastLeft = l;
+    lastRight = r;
+    switchStartL = now;
+    switchStartR = now;
+  }
+}
+
+/* 选 token: 另一只眼固定, 从 A/B 组合池中过滤候选; A-only 区间只用 A 档. */
+function pickToken(side, prev, otherEye, aOnly) {
+  const pool = aOnly ? A_PAIRS : ACTIVE_PAIRS;
+  const candidates = pool
+    .filter(([l, r]) => side === 'left' ? r === otherEye : l === otherEye)
+    .map(([l, r]) => side === 'left' ? l : r)
+    .filter(token => token !== prev && token !== otherEye);
+  if (candidates.length) return choose(candidates);
+  return prev;
+}
+
+function switchSoft(startMs, nowMs) {
+  const p = Math.min(1, Math.max(0, (nowMs - startMs) / P.SWITCH_SOFT_MS));
+  const e = easeOutCubic(p);
+  return {
+    sx: 1.025 - 0.025 * e,
+    sy: 0.56 + 0.44 * e,
+    opacity: 0.76 + 0.24 * e
+  };
+}
+
+/* easing */
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOutCubic(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; }
+function spinOutWithOvershoot(k, overshootRatio) {
+  if (k <= 0.78) {
+    const k2 = k / 0.78;
+    return (1 + overshootRatio) * easeOutCubic(k2);
+  } else {
+    const k2 = (k - 0.78) / 0.22;
+    return (1 + overshootRatio) - overshootRatio * easeOutCubic(k2);
+  }
+}
+
+/* 主旋转: 周期内分四段 */
+function getRotation(t) {
+  const cycle = P.T_SPIN + P.T_HOLD_FAR + P.T_BACK + P.T_HOLD_HOME;
+  const phase = t % Math.max(cycle, 0.01);
+  const amount = P.ROT_AMOUNT * P.ROT_DIR;
+  const overshootRatio = P.OVERSHOOT / Math.max(P.ROT_AMOUNT, 0.01);
+
+  if (phase < P.T_SPIN) {
+    return amount * spinOutWithOvershoot(phase / P.T_SPIN, overshootRatio);
+  } else if (phase < P.T_SPIN + P.T_HOLD_FAR) {
+    return amount;
+  } else if (phase < P.T_SPIN + P.T_HOLD_FAR + P.T_BACK) {
+    const k = (phase - P.T_SPIN - P.T_HOLD_FAR) / P.T_BACK;
+    return amount * (1 - easeInOutCubic(k));
+  } else {
+    return 0;
+  }
+}
+
+/* 初始字符 */
+applyToken(eyeL, 9, 12, lastLeft);
+applyToken(eyeR, 15, 12, lastRight);
+
+let prevAngle = 0;
+let lastT = performance.now();
+const startT = performance.now();
+
+function loop(now) {
+  const dt = (now - lastT) / 1000;
+  lastT = now;
+  const t = (now - startT) / 1000;
+  const phaseInfo = getPhaseInfo(t);
+
+  /* 卡顿旋转 */
+  const angleDeg = getRotation(t);
+  /* 角速度 (用于字符切换累积) */
+  const angularVelDeg = Math.abs(angleDeg - prevAngle) / Math.max(dt, 0.001);
+  prevAngle = angleDeg;
+
+  /* 大幅呼吸 */
+  const phase = (Math.cos(2 * Math.PI * t / Math.max(P.BREATH_PERIOD, 0.01)) + 1) / 2;
+  const scale = P.SCALE_LOW + (P.SCALE_HIGH - P.SCALE_LOW) * phase;
+
+  /* 应用 cloud transform */
+  cloudGroup.setAttribute(
+    'transform',
+    `translate(12 12) rotate(${angleDeg.toFixed(3)}) scale(${scale.toFixed(4)}) translate(-12 -12)`
+  );
+
+  /* 眼睛 group: 只 scale, 字符直立 */
+  eyeGroup.setAttribute(
+    'transform',
+    `translate(12 12) scale(${scale.toFixed(4)}) translate(-12 -12)`
+  );
+
+  /* ⭐ 字符联动切换: 累积转过的角度, 到阈值才切换 */
+  if (phaseInfo.aOnly) settleToA(now);
+  const angleStep = angularVelDeg * dt;
+  switchAccumL += angleStep;
+  switchAccumR += angleStep;
+  if (switchAccumL >= nextThresholdL) {
+    lastLeft = pickToken('left', lastLeft, lastRight, phaseInfo.aOnly);
+    switchStartL = now;
+    switchAccumL = 0;
+    nextThresholdL = P.SWITCH_DEG_L * jitterFactor(P.SWITCH_JITTER);
+  }
+  if (switchAccumR >= nextThresholdR) {
+    lastRight = pickToken('right', lastRight, lastLeft, phaseInfo.aOnly);
+    switchStartR = now;
+    switchAccumR = 0;
+    nextThresholdR = P.SWITCH_DEG_R * jitterFactor(P.SWITCH_JITTER);
+  }
+
+  const softL = switchSoft(switchStartL, now);
+  const softR = switchSoft(switchStartR, now);
+  applyToken(eyeL, 9, 12, lastLeft, softL.sx, softL.sy, softL.opacity);
+  applyToken(eyeR, 15, 12, lastRight, softR.sx, softR.sy, softR.opacity);
+
+  /* 流动渐变 (stroke 用 url(#eye-grad), 流动让描边色微妙变化) */
+  const flowOffset = Math.sin(2 * Math.PI * t / Math.max(P.FLOW_PERIOD, 0.01)) * P.FLOW_AMP;
+  eyeGrad.setAttribute('y1', (3 + flowOffset).toFixed(2));
+  eyeGrad.setAttribute('y2', (21 + flowOffset).toFixed(2));
+
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+]]></script>
+</svg>

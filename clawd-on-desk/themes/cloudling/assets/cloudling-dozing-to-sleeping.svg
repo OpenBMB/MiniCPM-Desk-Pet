@@ -1,0 +1,578 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="btn-play"></g>
+<g id="phase"></g>
+<g id="scrubber"></g>
+<g id="time"></g>
+<g id="timing-controls"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const SOFT_CLOUD_POINTS = [
+  {x:9.064,y:3.344},{x:9.825,y:3.106},{x:10.616,y:3.004},{x:11.413,y:3.040},
+  {x:12.192,y:3.210},{x:12.928,y:3.518},{x:13.599,y:3.948},{x:14.255,y:4.291},
+  {x:15.046,y:4.188},{x:15.843,y:4.224},{x:16.621,y:4.398},{x:17.357,y:4.706},
+  {x:18.029,y:5.134},{x:18.617,y:5.673},{x:19.103,y:6.306},{x:19.471,y:7.013},
+  {x:19.715,y:7.772},{x:19.812,y:8.564},{x:19.784,y:9.361},{x:19.797,y:10.105},
+  {x:20.287,y:10.735},{x:20.656,y:11.442},{x:20.897,y:12.202},{x:20.995,y:12.994},
+  {x:20.964,y:13.791},{x:20.791,y:14.569},{x:20.480,y:15.304},{x:20.052,y:15.977},
+  {x:19.516,y:16.567},{x:18.882,y:17.052},{x:18.174,y:17.418},{x:17.539,y:17.808},
+  {x:17.231,y:18.545},{x:16.805,y:19.218},{x:16.264,y:19.805},{x:15.633,y:20.292},
+  {x:14.925,y:20.660},{x:14.163,y:20.895},{x:13.372,y:20.996},{x:12.575,y:20.964},
+  {x:11.796,y:20.793},{x:11.061,y:20.483},{x:10.392,y:20.049},{x:9.736,y:19.714},
+  {x:8.946,y:19.811},{x:8.148,y:19.777},{x:7.370,y:19.606},{x:6.634,y:19.299},
+  {x:5.962,y:18.868},{x:5.377,y:18.326},{x:4.885,y:17.698},{x:4.522,y:16.989},
+  {x:4.283,y:16.228},{x:4.182,y:15.437},{x:4.220,y:14.640},{x:4.179,y:13.907},
+  {x:3.696,y:13.273},{x:3.332,y:12.563},{x:3.092,y:11.803},{x:3.003,y:11.010},
+  {x:3.038,y:10.213},{x:3.202,y:9.433},{x:3.514,y:8.699},{x:3.944,y:8.027},
+  {x:4.484,y:7.440},{x:5.114,y:6.951},{x:5.822,y:6.586},{x:6.445,y:6.191},
+  {x:6.752,y:5.455},{x:7.185,y:4.785},{x:7.723,y:4.197},{x:8.356,y:3.711},
+];
+
+const DOZE = {
+  slump: 0.55,
+  topSag: 1.42,
+  shoulderSag: 0.34,
+  spread: 0.82,
+  floorY: 19.92,
+  floorFlatten: 0.56,
+  bottomSquish: 0.82,
+  leftLean: -0.18,
+  bodyTy: 1.15,
+  bodyRot: -1.5,
+  bodyScale: 1.04,
+  eyeY: 13.0,
+  eyeGap: 6.12,
+  eyeW: 2.70,
+  eyeH: 1.28,
+  eyeTilt: 7.7,
+  eyeStroke: 0.80,
+  haloY: 20.62,
+  haloRx: 10.8,
+  haloRy: 1.28,
+};
+
+const SLEEP = {
+  bodyTilt: -6,
+  breathScale: 1.02,
+  hatTx: -2,
+  hatTy: -0.4,
+  hatRot: -10,
+  hatScale: 0.98,
+  maskTx: 0,
+  maskTy: -0.6,
+  maskRot: -9,
+  maskScale: 1.00,
+};
+
+const TIMING = {
+  hold: 0.54,
+  unwind: 1.95,
+  hat: 1.42,
+  mask: 1.30,
+  settle: 0.88,
+};
+
+const CONTROLS = [
+  { key: 'hold', label: 'doze hold', min: 0.10, max: 1.00, step: 0.01 },
+  { key: 'unwind', label: 'sleep inhale', min: 0.90, max: 2.40, step: 0.01 },
+  { key: 'hat', label: 'hat fall', min: 0.70, max: 1.80, step: 0.01 },
+  { key: 'mask', label: 'mask settle', min: 0.60, max: 1.70, step: 0.01 },
+  { key: 'settle', label: 'final quiet', min: 0.20, max: 1.20, step: 0.01 },
+];
+
+const SLEEP_MASK_PATH = {
+  d: "M488.728,341.587l-7.846-2.599c-0.405-16.992-7.605-47.34-48.625-70.941c-38.301-22.036-96.652-33.215-173.431-33.224c-76.822,0-135.146,11.165-173.438,33.183c-42.335,24.344-48.659,55.883-48.661,72.516c0,2.608,0.135,5.183,0.352,7.735h-2.649c-0.001,0-0.001,0-0.002,0c-9.635,0-17.446,7.811-17.448,17.445c-0.001,9.636,7.81,17.449,17.445,17.45l13,0.001c15.257,28.43,45.267,47.814,79.728,47.818c20.016-0.001,36.647-11.511,54.256-23.695c20.65-14.29,44.048-30.481,77.388-30.481c33.359,0.003,56.757,16.204,77.402,30.497c17.61,12.192,34.24,23.707,54.251,23.709h0.012c24.153,0,46.861-9.404,63.941-26.481c8.937-8.936,15.751-19.422,20.239-30.839l3.111,1.031c1.82,0.604,3.67,0.89,5.489,0.89c7.318,0,14.133-4.64,16.56-11.966C502.835,354.489,497.876,344.617,488.728,341.587Z",
+  bboxX: 15, bboxY: 232, bboxW: 487, bboxH: 200
+};
+
+const stage = document.getElementById('stage');
+const scrubber = document.getElementById('scrubber');
+const timeOut = document.getElementById('time');
+const phaseEl = document.getElementById('phase');
+const timingControls = document.getElementById('timing-controls');
+let playing = true;
+let start = performance.now();
+let manualT = 0;
+let DURATION = 4.70;
+
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function progress(t, a, b) { return clamp01((t - a) / Math.max(0.0001, b - a)); }
+function smoothstep(a, b, t) {
+  const x = progress(t, a, b);
+  return x * x * (3 - 2 * x);
+}
+function easeInOut(t) {
+  return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+}
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeOutBackSoft(t) {
+  const c1 = 0.74;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function buildTimeline() {
+  const tl = {};
+  let t = 0;
+  tl.holdEnd = t += TIMING.hold;
+  tl.unwindStart = tl.holdEnd;
+  tl.unwindEnd = t += TIMING.unwind;
+  tl.hatStart = tl.unwindStart + TIMING.unwind * 0.68;
+  tl.hatEnd = tl.hatStart + TIMING.hat;
+  tl.maskStart = tl.hatStart + TIMING.hat * 0.46;
+  tl.maskEnd = tl.maskStart + TIMING.mask;
+  tl.eyeFadeStart = tl.maskStart + TIMING.mask * 0.22;
+  tl.eyeFadeEnd = tl.maskStart + TIMING.mask * 0.82;
+  tl.duration = Math.max(tl.maskEnd, tl.hatEnd, tl.unwindEnd) + TIMING.settle;
+  return tl;
+}
+
+function syncTimeline() {
+  const tl = buildTimeline();
+  DURATION = tl.duration;
+  scrubber.max = DURATION.toFixed(2);
+  if (manualT > DURATION) manualT = DURATION;
+  return tl;
+}
+
+function catmullRomClosedPath(points, tension = 1) {
+  const q = (n) => n.toFixed(3);
+  let d = `M ${q(points[0].x)} ${q(points[0].y)}`;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) * tension / 6;
+    const c1y = p1.y + (p2.y - p0.y) * tension / 6;
+    const c2x = p2.x - (p3.x - p1.x) * tension / 6;
+    const c2y = p2.y - (p3.y - p1.y) * tension / 6;
+    d += ` C ${q(c1x)} ${q(c1y)} ${q(c2x)} ${q(c2y)} ${q(p2.x)} ${q(p2.y)}`;
+  }
+  return `${d} Z`;
+}
+
+function makeDozeCloudPath(amount) {
+  const mix = clamp01(amount);
+  if (mix <= 0.0001) return CLOUD_D;
+  const slump = DOZE.slump * mix;
+  const points = SOFT_CLOUD_POINTS.map((pt) => {
+    const dx = pt.x - 12;
+    const distX = Math.abs(dx);
+    const sign = dx === 0 ? 0 : Math.sign(dx);
+    const topWeight = Math.pow(clamp01((8.2 - pt.y) / 5.2), 0.95);
+    const crownCenter = clamp01(1 - distX / 6.6);
+    const shoulderWeight = clamp01((pt.y - 6.0) / 8.5) * clamp01((18.6 - pt.y) / 10.5);
+    const lowerWeight = Math.pow(clamp01((pt.y - 15.4) / 5.8), 0.78);
+    const sideWeight = clamp01((distX - 2.2) / 7.5) * clamp01((20.2 - pt.y) / 16.2);
+
+    const topSag = slump * topWeight * DOZE.topSag * (0.70 + crownCenter * 0.42);
+    const shoulderSag = slump * shoulderWeight * DOZE.shoulderSag;
+    const floorCurve = DOZE.floorY + Math.pow(distX / 10, 2) * 0.46 - crownCenter * 0.04;
+    const floorPull = (floorCurve - pt.y) * lowerWeight * DOZE.floorFlatten * slump;
+    const sideOut = sign * slump * DOZE.spread * (0.18 + sideWeight * 0.76 + lowerWeight * 0.42);
+    const bottomInhale = lowerWeight * DOZE.bottomSquish * slump * -0.34;
+    const lean = DOZE.leftLean * slump * (0.15 + topWeight * 0.50 + shoulderWeight * 0.30);
+
+    return { x: pt.x + sideOut + lean, y: pt.y + topSag + shoulderSag + floorPull + bottomInhale };
+  });
+  return catmullRomClosedPath(points, lerp(0.95, 0.68, mix));
+}
+
+function defs(p, cloudD) {
+  return `
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#f4f5f9"/>
+      <stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/>
+      <stop offset="0.5" stop-color="#7A9DFF"/>
+      <stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="${p}-hi" cx="0.45" cy="0.25" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="${p}-halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#7A9DFF" stop-opacity="0.55"/>
+      <stop offset="0.54" stop-color="#3941FF" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#3941FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="${p}-hat" x1="11" y1="-3" x2="14" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7AA0FF"/>
+      <stop offset="0.45" stop-color="#3941FF"/>
+      <stop offset="1" stop-color="#1F2BC2"/>
+    </linearGradient>
+    <linearGradient id="${p}-cuff" x1="12" y1="3.0" x2="12" y2="8.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#fafbff"/>
+      <stop offset="1" stop-color="#e8ecf6"/>
+    </linearGradient>
+    <linearGradient id="${p}-star-yellow" x1="0" y1="-2" x2="0" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE9A8"/>
+      <stop offset="0.5" stop-color="#FFD360"/>
+      <stop offset="1" stop-color="#F5A623"/>
+    </linearGradient>
+    <filter id="${p}-star-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0.4" stdDeviation="0.5" flood-color="#F5A623" flood-opacity="0.32"/>
+    </filter>
+    <filter id="${p}-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+    </filter>
+    <filter id="${p}-edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <filter id="${p}-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="0.18"/>
+    </filter>
+    <filter id="${p}-halo-blur" x="-80%" y="-120%" width="260%" height="340%">
+      <feGaussianBlur stdDeviation="0.42"/>
+    </filter>
+    <clipPath id="${p}-clip"><path d="${cloudD}"/></clipPath>
+  `;
+}
+
+function closedEyeStrokePath(cx, cy, w, h, tiltDeg, flip) {
+  const x1 = cx - w / 2;
+  const x2 = cx + w / 2;
+  const mid = cy + h * 0.56;
+  const c1x = cx - w * 0.18;
+  const c2x = cx + w * 0.18;
+  const tilt = flip * tiltDeg * 0.018;
+  return `M ${x1.toFixed(2)} ${(cy - tilt).toFixed(2)} C ${c1x.toFixed(2)} ${mid.toFixed(2)} ${c2x.toFixed(2)} ${mid.toFixed(2)} ${x2.toFixed(2)} ${(cy + tilt).toFixed(2)}`;
+}
+
+function makeDozeEyes(opacity) {
+  const left = 12 - DOZE.eyeGap / 2;
+  const right = 12 + DOZE.eyeGap / 2;
+  return `
+    <g fill="none" stroke="url(#dz-eye)" stroke-width="${DOZE.eyeStroke}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity.toFixed(3)}">
+      <path d="${closedEyeStrokePath(left, DOZE.eyeY, DOZE.eyeW, DOZE.eyeH, DOZE.eyeTilt, -1)}"/>
+      <path d="${closedEyeStrokePath(right, DOZE.eyeY, DOZE.eyeW, DOZE.eyeH, DOZE.eyeTilt, 1)}"/>
+    </g>
+  `;
+}
+
+function makeFluffyCuff(p, cx, cy, rx, ry, asym, bumps) {
+  const parts = [];
+  const circles = [];
+  for (let i = 0; i < bumps; i++) {
+    const ang = (i * 2 * Math.PI) / bumps - Math.PI / 2;
+    const x = cx + Math.cos(ang) * rx;
+    const y = cy + Math.sin(ang) * ry;
+    const sizeY = -Math.sin(ang);
+    const sizeBoost = 0.18 * (sizeY + 1) / 2 + 0.10;
+    const jitter = ((i * 13) % 7) / 35;
+    let r = 0.62 + sizeBoost + jitter;
+    if (asym !== 0) r *= 1 + asym * Math.cos(ang) * 0.28;
+    circles.push({ x, y, r });
+  }
+  const innerRy = ry + 0.40;
+  parts.push(`<g filter="url(#${p}-soft)">`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx + 0.30).toFixed(2)}" ry="${(innerRy + 0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r + 0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`));
+  parts.push(`</g>`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx + 0.15).toFixed(2)}" ry="${(innerRy + 0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r + 0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`));
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx.toFixed(2)}" ry="${innerRy.toFixed(2)}" fill="url(#${p}-cuff)"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${c.r.toFixed(2)}" fill="url(#${p}-cuff)"/>`));
+  parts.push(`<ellipse cx="${cx}" cy="${(cy - ry * 0.45).toFixed(2)}" rx="${(rx * 0.78).toFixed(2)}" ry="${(ry * 0.32).toFixed(2)}" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="0.14"/>`);
+  return parts.join('');
+}
+
+function makeBentHat(bend) {
+  const baseLeft = { x: 8.5, y: 5.0 };
+  const baseRight = { x: 15.5, y: 5.0 };
+  const elbowX = 12 + bend * 2.2;
+  const elbowY = -0.5 + bend * 2.3;
+  const tipX = 11 - bend * 5.5;
+  const tipY = 0.0 + bend * 0.5;
+  const tipBottomX = tipX + 1.2 + bend * 0.4;
+  const tipBottomY = tipY + 1.4 + bend * 0.3;
+  const c1 = { x: baseRight.x + 0.5, y: baseRight.y - 1.5 };
+  const c2 = { x: elbowX + 0.8, y: elbowY + 1.0 };
+  const c3 = { x: elbowX - 0.5, y: elbowY - 0.8 };
+  const c4 = { x: tipX + 1.5, y: tipY - 0.5 };
+  const c5 = { x: tipX - 0.3, y: tipY + 0.6 };
+  const c6 = { x: tipBottomX - 1.0, y: tipBottomY };
+  const c7 = { x: 8.5, y: 4.0 };
+  return `M ${baseLeft.x} ${baseLeft.y} Q 12 5.55 ${baseRight.x} ${baseRight.y} C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)} ${c2.x.toFixed(2)} ${c2.y.toFixed(2)} ${elbowX.toFixed(2)} ${elbowY.toFixed(2)} C ${c3.x.toFixed(2)} ${c3.y.toFixed(2)} ${c4.x.toFixed(2)} ${c4.y.toFixed(2)} ${tipX.toFixed(2)} ${tipY.toFixed(2)} C ${c5.x.toFixed(2)} ${c5.y.toFixed(2)} ${c6.x.toFixed(2)} ${c6.y.toFixed(2)} ${tipBottomX.toFixed(2)} ${tipBottomY.toFixed(2)} C ${c7.x.toFixed(2)} ${c7.y.toFixed(2)} 8.0 4.5 ${baseLeft.x} ${baseLeft.y} Z`;
+}
+
+function makeStar(cx, cy, r, rotationDeg, cornerRound, innerRatio) {
+  const innerR = r * innerRatio;
+  const rotRad = (rotationDeg * Math.PI) / 180;
+  const verts = [];
+  for (let i = 0; i < 10; i++) {
+    const ang = (i * Math.PI / 5) + rotRad - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : innerR;
+    verts.push({ x: cx + Math.cos(ang) * radius, y: cy + Math.sin(ang) * radius });
+  }
+  const inP = [], outP = [];
+  for (let i = 0; i < 10; i++) {
+    const prev = verts[(i - 1 + 10) % 10];
+    const cur = verts[i];
+    const next = verts[(i + 1) % 10];
+    const v1x = prev.x - cur.x, v1y = prev.y - cur.y;
+    const v2x = next.x - cur.x, v2y = next.y - cur.y;
+    const v1Len = Math.hypot(v1x, v1y);
+    const v2Len = Math.hypot(v2x, v2y);
+    const cr = Math.min(cornerRound, v1Len * 0.48, v2Len * 0.48);
+    inP[i] = { x: cur.x + (v1x / v1Len) * cr, y: cur.y + (v1y / v1Len) * cr };
+    outP[i] = { x: cur.x + (v2x / v2Len) * cr, y: cur.y + (v2y / v2Len) * cr };
+  }
+  let path = `M ${inP[0].x.toFixed(2)} ${inP[0].y.toFixed(2)} `;
+  for (let i = 0; i < 10; i++) {
+    path += `Q ${verts[i].x.toFixed(2)} ${verts[i].y.toFixed(2)} ${outP[i].x.toFixed(2)} ${outP[i].y.toFixed(2)} `;
+    const nextI = (i + 1) % 10;
+    path += `L ${inP[nextI].x.toFixed(2)} ${inP[nextI].y.toFixed(2)} `;
+  }
+  return `${path}Z`;
+}
+
+function makeHat(p) {
+  const hatPath = makeBentHat(0.4);
+  const cuff = makeFluffyCuff(p, 12, 5.4, 3.7, 0.85, 0, 18);
+  const star = makeStar(8.55, 0.35, 1.00, 30, 0.27, 0.56);
+  return `
+    <g filter="url(#${p}-shadow)"><path d="${hatPath}" fill="url(#${p}-hat)"/></g>
+    <g>${cuff}</g>
+    <g filter="url(#${p}-star-glow)">
+      <path d="${star}" fill="url(#${p}-star-yellow)" stroke="#ffffff" stroke-width="0.06" stroke-opacity="0.7" stroke-linejoin="round"/>
+    </g>
+  `;
+}
+
+function makeSleepMask(p, tx, ty, rot, scale) {
+  const cx = 12 + tx;
+  const cy = 12 + ty;
+  const W = 16.61 * scale;
+  const H = 7.55 * scale;
+  const eyeScale = 1.18;
+  const eyeRot = 5;
+  const eyeOffsetY = -0.25;
+  const lashW = 2.45;
+  const lashH = 0.70;
+  const lashStroke = 0.45;
+  const lashGap = 6.00 * scale;
+  const lashHairLen = 0.66;
+  const sx = W / SLEEP_MASK_PATH.bboxW;
+  const sy = H / SLEEP_MASK_PATH.bboxH;
+  const cxOrig = SLEEP_MASK_PATH.bboxX + SLEEP_MASK_PATH.bboxW / 2;
+  const cyOrig = SLEEP_MASK_PATH.bboxY + SLEEP_MASK_PATH.bboxH / 2;
+  const body = `<g transform="translate(${cx} ${cy}) scale(${sx.toFixed(5)} ${sy.toFixed(5)}) translate(${(-cxOrig).toFixed(2)} ${(-cyOrig).toFixed(2)})">
+    <path d="${SLEEP_MASK_PATH.d}" fill="#22305A" stroke="#000000" stroke-width="0.22" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </g>`;
+  const arcLocal = `<path d="M ${(-lashW/2).toFixed(2)} 0 Q 0 ${(lashH * 2).toFixed(2)} ${(lashW/2).toFixed(2)} 0" fill="none" stroke="#FFFFFF" stroke-width="${lashStroke}" stroke-linecap="round"/>`;
+  const hairs = [];
+  for (let i = 0; i < 3; i++) {
+    const t = 0.18 + (i / 2) * 0.64;
+    const sxh = (1-t)*(1-t)*(-lashW/2) + t*t*(lashW/2);
+    const syh = 2*(1-t)*t*(2*lashH);
+    const tangX = 2*(1-t)*(lashW/2) + 2*t*(lashW/2);
+    const tangY = 2*(1-t)*(2*lashH) + 2*t*(-2*lashH);
+    const len = Math.hypot(tangX, tangY);
+    const nx1 = -tangY / len, ny1 = tangX / len;
+    const nx2 = tangY / len, ny2 = -tangX / len;
+    const nx = ny1 > 0 ? nx1 : nx2;
+    const ny = ny1 > 0 ? ny1 : ny2;
+    hairs.push(`<line x1="${sxh.toFixed(2)}" y1="${syh.toFixed(2)}" x2="${(sxh + nx * lashHairLen).toFixed(2)}" y2="${(syh + ny * lashHairLen).toFixed(2)}" stroke="#FFFFFF" stroke-width="0.38" stroke-linecap="round" opacity="0.92"/>`);
+  }
+  const eye = (ecx, sign) => `<g transform="translate(${ecx.toFixed(2)} ${(cy + eyeOffsetY).toFixed(2)}) rotate(${(sign * eyeRot).toFixed(2)}) scale(${eyeScale.toFixed(3)})">${arcLocal}${hairs.join('')}</g>`;
+  return `
+    <g transform="rotate(${rot} ${cx} ${cy})" filter="url(#${p}-shadow)">
+      ${body}
+      ${eye(cx - lashGap / 2, -1)}
+      ${eye(cx + lashGap / 2, 1)}
+    </g>
+  `;
+}
+
+function computeFrame(t) {
+  const tl = syncTimeline();
+  const unwindU = easeInOut(progress(t, tl.unwindStart, tl.unwindEnd));
+  const breathArc = Math.sin(unwindU * Math.PI);
+  const pathU = 1 - unwindU;
+  const sceneRot = lerp(DOZE.bodyRot, SLEEP.bodyTilt, easeInOut(progress(t, tl.unwindStart + 0.18, tl.unwindEnd + 0.32)));
+  const bodyTy = lerp(DOZE.bodyTy, 0, unwindU) + breathArc * 0.18;
+  const scale = lerp(DOZE.bodyScale, SLEEP.breathScale, unwindU) - breathArc * 0.028;
+  const haloOpacity = (1 - smoothstep(tl.unwindStart, tl.unwindEnd, t)) * 0.34;
+
+  const hatU = easeOutBackSoft(progress(t, tl.hatStart, tl.hatEnd));
+  const hatOpacity = smoothstep(tl.hatStart, tl.hatStart + 0.24, t);
+  const hatY = lerp(-6.3, SLEEP.hatTy, clamp01(hatU)) + Math.sin(clamp01(hatU) * Math.PI) * 0.16;
+  const hatRot = lerp(-18, SLEEP.hatRot, clamp01(hatU));
+  const hatScale = lerp(0.88, SLEEP.hatScale, clamp01(hatU));
+
+  const maskU = easeOutCubic(progress(t, tl.maskStart, tl.maskEnd));
+  const maskOpacity = smoothstep(tl.maskStart, tl.maskStart + 0.26, t);
+  const maskY = lerp(-4.4, SLEEP.maskTy, maskU) + Math.sin(maskU * Math.PI) * 0.10;
+  const maskRot = lerp(-2, SLEEP.maskRot, maskU);
+  const eyeOpacity = 0.92 * (1 - smoothstep(tl.eyeFadeStart, tl.eyeFadeEnd, t));
+
+  return {
+    pathU,
+    sceneRot,
+    bodyTy,
+    scale,
+    haloOpacity,
+    hat: { opacity: hatOpacity, y: hatY, rot: hatRot, scale: hatScale },
+    mask: { opacity: maskOpacity, y: maskY, rot: maskRot },
+    eyeOpacity,
+    phase: phaseName(t, tl),
+  };
+}
+
+function phaseName(t, tl) {
+  if (t < tl.holdEnd) return 'dozing hold';
+  if (t < tl.unwindEnd) return 'sleeping inhale';
+  if (t < tl.hatEnd) return 'hat settling';
+  if (t < tl.maskEnd) return 'mask settling';
+  return 'sleeping loop handoff';
+}
+
+function renderFrame(t) {
+  const f = computeFrame(t);
+  const p = 'dz';
+  const cloudD = makeDozeCloudPath(f.pathU);
+  const hat = makeHat(p);
+  const mask = makeSleepMask(p, SLEEP.maskTx, f.mask.y, f.mask.rot, SLEEP.maskScale);
+  const hatTransform = `translate(${SLEEP.hatTx} ${f.hat.y.toFixed(3)}) rotate(${f.hat.rot.toFixed(3)} 12 5.4) scale(${f.hat.scale.toFixed(4)})`;
+
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft  { stroke-opacity: .06; }
+.edge-contact   { stroke-opacity: .08; }
+.wrap {
+  width: min(960px, 100%);
+  display: grid;
+  gap: 18px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: end;
+}
+#stage {
+  width: min(520px, 82vw);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+output {
+  min-width: 76px;
+  color: rgba(255,255,255,.70);
+  font-size: 12px;
+  text-align: right;
+}
+.phase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 16px;
+  color: rgba(255,255,255,.62);
+  font-size: 12px;
+}
+.phase b { color: rgba(255,255,255,.88); font-weight: 650; }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 10px 14px;
+}
+.field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+  color: rgba(255,255,255,.58);
+  font-size: 12px;
+}
+.field input { grid-column: 1 / -1; }
+.field output { min-width: 46px; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft  { stroke-opacity: .10; }
+.edge-contact   { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.phase, output, .field { color: rgba(21,33,63,.62); }
+.phase b { color: rgba(21,33,63,.86); }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+</style>
+<defs>
+        ${defs(p, cloudD)}
+        <path id="${p}-cloud-shape" d="${cloudD}"/>
+      </defs>
+      <g opacity="${f.haloOpacity.toFixed(3)}">
+        <ellipse cx="12" cy="${DOZE.haloY}" rx="${DOZE.haloRx}" ry="${DOZE.haloRy}" fill="url(#${p}-halo)" filter="url(#${p}-halo-blur)"/>
+      </g>
+      <g class="scene" transform="rotate(${f.sceneRot.toFixed(3)} 12 12)">
+        <g id="breath-group" transform="translate(12 12) scale(${f.scale.toFixed(4)}) translate(-12 -12) translate(0 ${f.bodyTy.toFixed(3)})">
+          <g class="edge-system">
+            <use class="edge-contact" href="#${p}-cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#${p}-edge-blur)"/>
+            <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+            <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+          </g>
+          <g filter="url(#${p}-shadow)">
+            <use href="#${p}-cloud-shape" fill="url(#${p}-body)"/>
+            <rect x="1" y="2" width="22" height="11" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
+          </g>
+          ${makeDozeEyes(f.eyeOpacity)}
+          <g opacity="${f.hat.opacity.toFixed(3)}" transform="${hatTransform}">
+            ${hat}
+          </g>
+          <g opacity="${f.mask.opacity.toFixed(3)}">
+            ${mask}
+          </g>
+        </g>
+      </g>
+  `;
+  scrubber.value = t.toFixed(2);
+  timeOut.value = `${t.toFixed(2)} s`;
+  phaseEl.innerHTML = `<span>phase: <b>${f.phase}</b></span><span>cloud slump ${(f.pathU * 100).toFixed(0)}%</span><span>tilt ${f.sceneRot.toFixed(1)}deg</span><span>scale ${f.scale.toFixed(3)}</span><span>eyes ${(f.eyeOpacity * 100).toFixed(0)}%</span>`;
+}
+
+function currentTime(now) {
+  if (!playing) return manualT;
+  const t = (now - start) / 1000;
+  return Math.min(t, DURATION);
+}
+
+function loop(now) {
+  const t = currentTime(now);
+  renderFrame(t);
+  if (playing && t >= DURATION) {
+    playing = false;
+    manualT = DURATION;
+    { const __btn = document.getElementById('btn-play'); if (__btn) __btn.textContent = 'Play'; }
+  }
+  requestAnimationFrame(loop);
+}
+
+function restart() {
+  syncTimeline();
+  playing = true;
+  manualT = 0;
+  start = performance.now();
+  { const __btn = document.getElementById('btn-play'); if (__btn) __btn.textContent = 'Pause'; }
+}
+
+renderFrame(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

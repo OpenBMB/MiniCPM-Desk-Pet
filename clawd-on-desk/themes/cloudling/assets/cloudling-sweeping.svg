@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="phase-label"></g>
+<g id="play"></g>
+<g id="scrubber"></g>
+<g id="time-label"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const stage = document.getElementById('stage');
+const scrubber = document.getElementById('scrubber');
+const timeLabel = document.getElementById('time-label');
+const phaseLabel = document.getElementById('phase-label');
+const playButton = document.getElementById('play');
+
+const P = {
+  cycle: 4.55,
+  cardW: 6.8,
+  cardH: 8.6,
+  events: [
+    { start: .36, end: 1.22, slot: 0, yNudge: -.10 },
+    { start: 1.36, end: 2.22, slot: 1, yNudge: .55 },
+    { start: 2.36, end: 3.22, slot: 2, yNudge: .18 },
+  ],
+  compactStart: 3.36,
+  compactEnd: 3.96,
+};
+
+function clamp01(t) { return Math.max(0, Math.min(1, t)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function progress(t, a, b) { return clamp01((t - a) / (b - a)); }
+function easeInOut(t) { return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2; }
+function smoothstep(a, b, t) {
+  const x = progress(t, a, b);
+  return x * x * (3 - 2 * x);
+}
+function cubic(a, b, c, d, t) {
+  const u = 1 - t;
+  return u*u*u*a + 3*u*u*t*b + 3*u*t*t*c + t*t*t*d;
+}
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function commonDefs() {
+  return `
+    <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".54" stop-color="#f4f5f9"/>
+      <stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="eye-grad" x1="12" y1="8" x2="12" y2="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/>
+      <stop offset=".55" stop-color="#7A9DFF"/>
+      <stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="hi-grad" cx=".45" cy=".25" r=".55">
+      <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy=".65" stdDeviation=".8" flood-color="#3941FF" flood-opacity=".18"/>
+    </filter>
+    <filter id="small-shadow" x="-70%" y="-70%" width="240%" height="240%">
+      <feDropShadow dx="0" dy=".42" stdDeviation=".62" flood-color="#101524" flood-opacity=".56"/>
+    </filter>
+    <filter id="edge-blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation=".16"/>
+    </filter>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation=".45"/>
+    </filter>
+    <path id="cloud-shape" d="${CLOUD_D}"/>
+    <clipPath id="cloud-clip"><use href="#cloud-shape"/></clipPath>
+  `;
+}
+
+function slotPos(slot) {
+  return {
+    x: 17.55 + slot * .46,
+    y: 14.65 + slot * .54,
+  };
+}
+
+function orbitPoint(ev, t) {
+  const u = progress(t, ev.start, ev.end);
+  const e = easeInOut(u);
+  const end = slotPos(ev.slot);
+  const x = cubic(-8.6, -3.6, 9.5, end.x, e);
+  const y = cubic(7.2 + ev.yNudge, 7.4 + ev.yNudge, 17.1 + ev.yNudge, end.y, e);
+  return { x, y, u };
+}
+
+function activeEvent(t) {
+  return P.events.find(ev => t >= ev.start && t < ev.end) ?? null;
+}
+
+function makeCard(x, y, opacity, opts = {}) {
+  const scale = opts.scale ?? 1;
+  const detail = opts.detail ?? 1;
+  const id = opts.id ?? 0;
+  const extraClass = opts.layer ?? '';
+  const lineSets = [
+    [4.0, 5.2, 3.4],
+    [4.8, 3.6, 4.9],
+    [3.5, 5.0, 3.1],
+  ];
+  const lines = lineSets[id % lineSets.length];
+  return `
+    <g class="ctx-card-group ${extraClass}" opacity="${opacity.toFixed(3)}" transform="translate(${x.toFixed(3)} ${y.toFixed(3)}) scale(${scale.toFixed(3)})" filter="url(#small-shadow)">
+      <rect class="ctx-card-plate" x="-.14" y="-.14" width="${(P.cardW + .28).toFixed(2)}" height="${(P.cardH + .28).toFixed(2)}" rx="1.46"/>
+      <rect class="ctx-card" x="0" y="0" width="${P.cardW}" height="${P.cardH}" rx="1.32" stroke-width=".42"/>
+      <rect class="ctx-card-tint" x=".28" y=".28" width="${(P.cardW - .56).toFixed(2)}" height="${(P.cardH - .56).toFixed(2)}" rx="1.06"/>
+      <rect class="ctx-card-inner" x=".48" y=".48" width="${(P.cardW - .96).toFixed(2)}" height="${(P.cardH - .96).toFixed(2)}" rx=".96" stroke-width=".16" opacity="${(.68 * detail).toFixed(3)}"/>
+      <rect class="ctx-line-a" x="1.28" y="1.98" width="${lines[0]}" height=".34" rx=".17" opacity="${(.96 * detail).toFixed(3)}"/>
+      <rect class="ctx-line-b" x="1.28" y="3.64" width="${lines[1]}" height=".30" rx=".15" opacity="${(.84 * detail).toFixed(3)}"/>
+      <rect class="ctx-line-c" x="1.28" y="5.24" width="${lines[2]}" height=".30" rx=".15" opacity="${(.80 * detail).toFixed(3)}"/>
+      <rect class="ctx-line-a" x="1.28" y="6.84" width="${(lines[1] * .68).toFixed(2)}" height=".30" rx=".15" opacity="${(.50 * detail).toFixed(3)}"/>
+    </g>
+  `;
+}
+
+function makeMovingCard(t, layer) {
+  const ev = activeEvent(t);
+  if (!ev) return '';
+  const p = orbitPoint(ev, t);
+  const fadeIn = smoothstep(ev.start, ev.start + .16, t);
+  const backAlpha = smoothstep(.58, .76, p.u);
+  const frontAlpha = 1 - smoothstep(.62, .80, p.u);
+  const opacity = layer === 'back' ? backAlpha * fadeIn * .78 : frontAlpha * fadeIn;
+  if (opacity <= .01) return '';
+  return makeCard(p.x, p.y, opacity, { id: ev.slot, detail: layer === 'back' ? .72 : 1, layer: `moving-${layer}` });
+}
+
+function makeStack(t) {
+  const compactU = progress(t, P.compactStart, P.compactEnd);
+  const compacting = t >= P.compactStart && t < P.compactEnd;
+  if (t >= P.compactEnd) return '';
+
+  const arrived = P.events.filter(ev => t >= ev.end).length;
+  if (arrived === 0) return '';
+
+  const op = compacting ? lerp(1, 0, smoothstep(P.compactStart + .18, P.compactEnd, t)) : 1;
+  const scale = compacting ? lerp(1, .76, easeInOut(compactU)) : 1;
+  const cx = 20.8;
+  const cy = 19.4;
+  const cards = [];
+  for (let i = 0; i < arrived; i++) {
+    const s = slotPos(i);
+    cards.push(makeCard(s.x, s.y, op * .82, { id: i, detail: i === arrived - 1 ? .76 : .58, layer: 'stacked-behind' }));
+  }
+  const flash = compacting ? Math.sin(progress(t, P.compactStart, P.compactStart + .34) * Math.PI) : 0;
+  return `
+    <g class="behind-stack" transform="translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${scale.toFixed(3)}) translate(${-cx.toFixed(2)} ${-cy.toFixed(2)})">
+      ${cards.join('')}
+      <rect x="17.15" y="14.25" width="9.8" height="12.6" rx="2.0" fill="none" stroke="#fff" stroke-width=".16" opacity="${(flash * .28).toFixed(3)}" filter="url(#glow)"/>
+    </g>
+  `;
+}
+
+function computeCloudPose(t) {
+  const ev = activeEvent(t);
+  let eyeX = 0;
+  let eyeY = 0;
+  let rot = 0;
+  if (ev) {
+    const p = orbitPoint(ev, t);
+    const cx = p.x + P.cardW / 2;
+    const cy = p.y + P.cardH / 2;
+    const dx = cx - 12;
+    const dy = cy - 12;
+    const d = Math.hypot(dx, dy) || 1;
+    const sat = Math.tanh(d / 7);
+    eyeX = (dx / d) * sat * .48;
+    eyeY = (dy / d) * sat * .32;
+    rot = clamp(dx * .27, -3.6, 4.2) * Math.sin(Math.PI * p.u);
+  } else if (t >= P.compactStart && t <= P.compactEnd) {
+    const u = progress(t, P.compactStart, P.compactEnd);
+    eyeX = .28 * (1 - u);
+    rot = 2.2 * Math.sin(Math.PI * u);
+  }
+  const breath = 1 + Math.sin(t * Math.PI * 2 / 3.2) * .018;
+  const compactDip = t >= P.compactStart && t <= P.compactEnd ? -Math.sin(progress(t, P.compactStart, P.compactEnd) * Math.PI) * .016 : 0;
+  return { eyeX, eyeY, rot, scale: breath + compactDip };
+}
+
+function makeCloudling(t) {
+  const pose = computeCloudPose(t);
+  const smile = smoothstep(P.compactStart + .14, P.compactStart + .34, t) * (1 - smoothstep(P.compactStart + .64, P.compactEnd + .12, t));
+  return `
+    <g class="cloudling" transform="rotate(${pose.rot.toFixed(3)} 12 12) translate(12 12) scale(${pose.scale.toFixed(4)}) translate(-12 -12)">
+      <g class="edge-system">
+        <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 .18)" filter="url(#edge-blur)"/>
+        <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width=".90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+        <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width=".42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#shadow)">
+        <use href="#cloud-shape" fill="url(#body-grad)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+      </g>
+      <g class="eyes" transform="translate(${pose.eyeX.toFixed(3)} ${pose.eyeY.toFixed(3)})">
+        <g opacity="${(1 - smile).toFixed(3)}">
+          <rect x="7.7" y="9.5" width="2.6" height="5" rx="1.3" fill="url(#eye-grad)" stroke="#fff" stroke-width=".08" stroke-opacity=".7"/>
+          <rect x="13.7" y="9.5" width="2.6" height="5" rx="1.3" fill="url(#eye-grad)" stroke="#fff" stroke-width=".08" stroke-opacity=".7"/>
+        </g>
+        <g opacity="${smile.toFixed(3)}">
+          <path d="M7.55 12.15 Q9 10.75 10.45 12.15" fill="none" stroke="url(#eye-grad)" stroke-width=".72" stroke-linecap="round"/>
+          <path d="M13.55 12.15 Q15 10.75 16.45 12.15" fill="none" stroke="url(#eye-grad)" stroke-width=".72" stroke-linecap="round"/>
+        </g>
+      </g>
+    </g>
+  `;
+}
+
+function phaseName(t) {
+  const ev = activeEvent(t);
+  if (ev) return `card ${ev.slot + 1} orbit`;
+  if (t >= P.compactStart && t < P.compactEnd) return 'behind compact';
+  if (t >= P.compactEnd) return 'idle reset';
+  return 'idle';
+}
+
+function renderFrame(t) {
+  stage.innerHTML = `
+<style>
+:root, svg {
+  --bg: #17171d;
+  --panel: #101018;
+  --stage-a: #1d2234;
+  --stage-b: #0d0f18;
+  --ink: #edeef6;
+  --muted: rgba(237,238,246,.66);
+  --accent: #B1A7FF;
+  --card-plate: rgba(16,22,50,.58);
+  --card-fill: rgba(218,226,246,.78);
+  --card-tint: rgba(112,139,214,.14);
+  --card-stroke: rgba(28,35,76,.82);
+  --card-inner: rgba(96,113,172,.46);
+  --line-a: rgba(28,35,76,.64);
+  --line-b: rgba(54,70,128,.50);
+  --line-c: rgba(72,84,132,.42);
+}
+.edge-rim-tight { stroke-opacity: .10; }
+.edge-rim-soft { stroke-opacity: .07; }
+.edge-contact { stroke-opacity: .09; }
+.ctx-card-plate { fill: var(--card-plate); }
+.ctx-card { fill: var(--card-fill); stroke: var(--card-stroke); }
+.ctx-card-tint { fill: var(--card-tint); }
+.ctx-card-inner { fill: none; stroke: var(--card-inner); }
+.ctx-line-a { fill: var(--line-a); }
+.ctx-line-b { fill: var(--line-b); }
+.ctx-line-c { fill: var(--line-c); }
+@media (prefers-color-scheme: light) {
+:root, svg {--bg: #f5f6fb; --panel: #ffffff; --stage-a: #ffffff; --stage-b: #edf1fb; --ink: #2e3038; --muted: rgba(46,48,56,.62); --accent: #6B5CFF; --card-plate: rgba(52,61,110,.18); --card-fill: rgba(245,247,255,.82); --card-tint: rgba(91,121,220,.08); --card-stroke: rgba(56,68,132,.42); --card-inner: rgba(99,116,178,.34); --line-a: rgba(56,68,132,.52); --line-b: rgba(77,92,154,.40); --line-c: rgba(85,96,126,.34)}
+.edge-rim-tight { stroke-opacity: .18; }
+.edge-rim-soft { stroke-opacity: .12; }
+.edge-contact { stroke-opacity: .18; }
+}
+</style>
+<defs>${commonDefs()}</defs>
+      ${makeStack(t)}
+      ${makeMovingCard(t, 'back')}
+      ${makeCloudling(t)}
+      ${makeMovingCard(t, 'front')}
+      <g fill="#BFD0FF">
+        <circle cx="-3.2" cy="6.8" r=".13" opacity=".24"/>
+        <circle cx="29.6" cy="6.1" r=".13" opacity=".22"/>
+      </g>
+  `;
+  scrubber.value = t.toFixed(2);
+  timeLabel.textContent = `${t.toFixed(2)}s`;
+  phaseLabel.textContent = phaseName(t);
+}
+
+let start = performance.now();
+let paused = false;
+let scrubLock = false;
+let pauseT = 0;
+
+function currentTime(now) {
+  return ((now - start) / 1000) % P.cycle;
+}
+
+function tick(now) {
+  if (!paused && !scrubLock) renderFrame(currentTime(now));
+  requestAnimationFrame(tick);
+}
+
+renderFrame(0);
+requestAnimationFrame(tick);
+]]></script>
+</svg>

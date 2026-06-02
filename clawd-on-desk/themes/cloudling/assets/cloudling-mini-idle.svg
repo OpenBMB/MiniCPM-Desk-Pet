@@ -1,0 +1,253 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="-12 -12 48 48" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.v {
+  text-align: right;
+  font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #7A9DFF;
+}
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.v { color: #3941FF; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+      <defs>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.5" stop-color="#f4f5f9"/>
+          <stop offset="1" stop-color="#dee2eb"/>
+        </linearGradient>
+        <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.5" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.55" stdDeviation="0.72" flood-color="#3941FF" flood-opacity="0.17"/>
+        </filter>
+        <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="0.16"/>
+        </filter>
+        <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+        <clipPath id="cloud-clip">
+          <use href="#cloud-shape"/>
+        </clipPath>
+      </defs>
+
+      <rect x="-12" y="-12" width="48" height="48" fill="transparent"/>
+
+      <g id="body-js">
+        <g id="breath-js">
+          <g id="edge-system">
+            <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.00" stroke-linejoin="round" transform="translate(0 .18)" filter="url(#edge-blur)"/>
+            <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width=".84" stroke-linejoin="round" filter="url(#edge-blur)"/>
+            <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width=".38" stroke-linejoin="round"/>
+          </g>
+          <g filter="url(#drop)">
+            <use href="#cloud-shape" fill="url(#body-grad)"/>
+            <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+          </g>
+        </g>
+      </g>
+      <g id="eyes-js">
+        <g id="blink-js">
+          <rect id="eye-l" class="eye" x="6.65" y="9.65" width="2.2" height="4.65" rx="1.1" ry="1.1" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+          <rect id="eye-r" class="eye" x="11.05" y="9.65" width="2.2" height="4.65" rx="1.1" ry="1.1" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        </g>
+      </g>
+    <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="offset-readout"></g>
+<g id="scale-readout"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const svg = document.getElementById("cloudling");
+const eyes = document.getElementById("eyes-js");
+const body = document.getElementById("breath-js");
+const eyeGrad = document.getElementById("eye-grad");
+const eyeL = document.getElementById("eye-l");
+const eyeR = document.getElementById("eye-r");
+const readout = document.getElementById("offset-readout");
+const scaleReadout = document.getElementById("scale-readout");
+
+const face = { x: 9.95, y: 11.975 };
+const EYE_BASE = {
+  l: { x: 6.65, y: 9.65, h: 4.65, rx: 1.1 },
+  r: { x: 11.05, y: 9.65, h: 4.65, rx: 1.1 },
+};
+const params = {
+  eyeMax: 2.05,
+  yClamp: 0.85,
+  maxRotDeg: 13,
+  cloudLag: 0.20,
+  scaleLow: 0.96,
+  breathPeriod: 5.0,
+  distNear: 6,
+  distFar: 20,
+  distMaxScale: 1.15,
+  distRecenter: 0.5,
+  flowPeriod: 5.5,
+  flowAmp: 4,
+  blinkInterval: 6.0,
+  blinkDur: 0.16,
+  eyeTrack: 0.06,
+  recenter: 0.15,
+};
+let pointerInside = false;
+let pointer = { ...face };
+let current = { x: 0, y: 0 };
+let target = { x: 0, y: 0 };
+let cloudRotate = 0;
+let currentDistScale = 1.0;
+let lastT = performance.now();
+const startT = performance.now();
+let nextBlinkT = 3 + Math.random() * 2;
+let blinkActive = false;
+let blinkStartT = 0;
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function svgPointFromEvent(e) {
+  const r = svg.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (48 / r.width) - 12,
+    y: (e.clientY - r.top) * (48 / r.height) - 12,
+  };
+}
+
+function updateTarget() {
+  if (!pointerInside) {
+    target.x = 0;
+    target.y = 0;
+    return;
+  }
+  const dx = pointer.x - face.x;
+  const dy = pointer.y - face.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 0.01) {
+    target.x = 0;
+    target.y = 0;
+    return;
+  }
+  const sat = Math.tanh(dist / 6);
+  target.x = (dx / dist) * sat * params.eyeMax;
+  target.y = clamp((dy / dist) * sat * params.eyeMax, -params.eyeMax * params.yClamp, params.eyeMax * params.yClamp);
+}
+
+function tick(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  const t = (now - startT) / 1000;
+  updateTarget();
+  const eyeTime = pointerInside ? params.eyeTrack : params.recenter;
+  const eyeRate = 1 - Math.exp(-dt / eyeTime);
+  current.x += (target.x - current.x) * eyeRate;
+  current.y += (target.y - current.y) * eyeRate;
+
+  const maxRot = params.maxRotDeg * Math.PI / 180;
+  const targetRot = (current.x / Math.max(params.eyeMax, 0.01)) * maxRot;
+  cloudRotate += (targetRot - cloudRotate) * params.cloudLag;
+
+  const phase = (Math.cos(2 * Math.PI * t / params.breathPeriod) + 1) / 2;
+  const breathScale = params.scaleLow + (1 - params.scaleLow) * phase;
+  let targetDistScale = 1.0;
+  if (pointerInside) {
+    const dx = pointer.x - face.x;
+    const dy = pointer.y - face.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > params.distNear) {
+      const t01 = Math.min((dist - params.distNear) / Math.max(params.distFar - params.distNear, 0.01), 1);
+      targetDistScale = 1.0 + (params.distMaxScale - 1.0) * t01;
+    }
+  }
+  const distRate = 1 - Math.exp(-dt / params.distRecenter);
+  currentDistScale += (targetDistScale - currentDistScale) * distRate;
+  const finalScale = breathScale * currentDistScale;
+  const angleDeg = cloudRotate * 180 / Math.PI;
+  body.setAttribute(
+    "transform",
+    `translate(12 12) rotate(${angleDeg.toFixed(3)}) scale(${finalScale.toFixed(4)}) translate(-12 -12)`
+  );
+  const eyeScale = currentDistScale;
+  eyes.setAttribute(
+    "transform",
+    `translate(${current.x.toFixed(3)} ${current.y.toFixed(3)}) translate(${face.x} ${face.y}) scale(${eyeScale.toFixed(4)}) translate(${-face.x} ${-face.y})`
+  );
+  applyBlink(t);
+  const flowOffset = Math.sin(2 * Math.PI * t / params.flowPeriod) * params.flowAmp;
+  eyeGrad.setAttribute("y1", (3 + flowOffset).toFixed(2));
+  eyeGrad.setAttribute("y2", (21 + flowOffset).toFixed(2));
+  readout.textContent = `offset: ${current.x.toFixed(2)}, ${current.y.toFixed(2)}`;
+  scaleReadout.textContent = `scale: ${finalScale.toFixed(3)}, rot: ${angleDeg.toFixed(1)}deg`;
+  requestAnimationFrame(tick);
+}
+
+function getBlinkScale(t) {
+  if (!blinkActive && t > nextBlinkT) {
+    blinkActive = true;
+    blinkStartT = t;
+  }
+  if (blinkActive) {
+    const d = t - blinkStartT;
+    const half = params.blinkDur / 2;
+    if (d < half) return 1 - 0.94 * (d / half);
+    if (d < params.blinkDur) return 0.06 + 0.94 * ((d - half) / half);
+    blinkActive = false;
+    nextBlinkT = t + params.blinkInterval * (0.8 + Math.random() * 0.4);
+  }
+  return 1;
+}
+
+function setBlinkRect(rect, base, scale) {
+  const h = Math.max(base.h * scale, 0.15);
+  const y = base.y + (base.h - h) / 2;
+  const rx = Math.min(base.rx, h / 2);
+  rect.setAttribute("height", h.toFixed(3));
+  rect.setAttribute("y", y.toFixed(3));
+  rect.setAttribute("rx", rx.toFixed(3));
+  rect.setAttribute("ry", rx.toFixed(3));
+}
+
+function applyBlink(t) {
+  const scale = getBlinkScale(t);
+  setBlinkRect(eyeL, EYE_BASE.l, scale);
+  setBlinkRect(eyeR, EYE_BASE.r, scale);
+}
+
+window.addEventListener("pointermove", e => {
+  const r = svg.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right
+    && e.clientY >= r.top && e.clientY <= r.bottom;
+  pointerInside = inside;
+  if (inside) pointer = svgPointFromEvent(e);
+});
+svg.addEventListener("pointerleave", () => {
+  pointerInside = false;
+});
+window.__cloudlingSetPointer = payload => {
+  if (!payload || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) return;
+  pointer.x = payload.x;
+  pointer.y = payload.y;
+  pointerInside = !!payload.inside;
+};
+requestAnimationFrame(tick);
+]]></script>
+</svg>

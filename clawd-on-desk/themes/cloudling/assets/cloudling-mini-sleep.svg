@@ -1,0 +1,260 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="-12 -12 48 48" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.v {
+  text-align: right;
+  font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #7A9DFF;
+}
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.v { color: #3941FF; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+      <defs>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.5" stop-color="#f4f5f9"/>
+          <stop offset="1" stop-color="#dee2eb"/>
+        </linearGradient>
+        <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.5" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <linearGradient id="zzz-grad" x1="0" y1="-2" x2="0" y2="3" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.55" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.55" stdDeviation="0.72" flood-color="#3941FF" flood-opacity="0.17"/>
+        </filter>
+        <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="0.16"/>
+        </filter>
+        <filter id="zzz-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feDropShadow dx="0" dy="0.25" stdDeviation="0.26" flood-color="#7A9DFF" flood-opacity="0.38"/>
+        </filter>
+        <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.740 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+        <clipPath id="cloud-clip">
+          <use href="#cloud-shape"/>
+        </clipPath>
+      </defs>
+
+      <rect x="-12" y="-12" width="48" height="48" fill="transparent"/>
+
+      <g id="zzz-js" fill="none" stroke="url(#zzz-grad)" stroke-linecap="round" stroke-linejoin="round" filter="url(#zzz-glow)" opacity="0.72">
+        <path id="z1" stroke-width="0.58"/>
+        <path id="z2" stroke-width="0.68"/>
+        <path id="z3" stroke-width="0.80"/>
+      </g>
+
+      <g id="body-js">
+        <g id="breath-js">
+          <g id="edge-system">
+            <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.00" stroke-linejoin="round" transform="translate(0 .18)" filter="url(#edge-blur)"/>
+            <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width=".84" stroke-linejoin="round" filter="url(#edge-blur)"/>
+            <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width=".38" stroke-linejoin="round"/>
+          </g>
+          <g filter="url(#drop)">
+            <use href="#cloud-shape" fill="url(#body-grad)"/>
+            <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+          </g>
+        </g>
+      </g>
+      <g id="eyes-js">
+        <path id="eye-l" class="eye" fill="none" stroke="url(#eye-grad)" stroke-width="0.72" stroke-linecap="round" stroke-linejoin="round"/>
+        <path id="eye-r" class="eye" fill="none" stroke="url(#eye-grad)" stroke-width="0.72" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="phase-readout"></g>
+<g id="pose-readout"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const body = document.getElementById("breath-js");
+const eyes = document.getElementById("eyes-js");
+const zzz = document.getElementById("zzz-js");
+const zEls = [
+  document.getElementById("z1"),
+  document.getElementById("z2"),
+  document.getElementById("z3"),
+];
+const eyeL = document.getElementById("eye-l");
+const eyeR = document.getElementById("eye-r");
+const eyeGrad = document.getElementById("eye-grad");
+const phaseReadout = document.getElementById("phase-readout");
+const poseReadout = document.getElementById("pose-readout");
+
+const EYE_BASE = {
+  l: { cx: 7.75, cy: 12.02, w: 2.58, h: 1.18, tilt: -6.0 },
+  r: { cx: 12.15, cy: 12.02, w: 2.58, h: 1.18, tilt: 6.0 },
+};
+const params = {
+  period: 6.4,
+  breath: 0.050,
+  nodDepth: 0.40,
+  nodRot: -0.55,
+  eyeDrop: 0.12,
+  eyeSoft: 0.10,
+  flowAmp: 2.4,
+  eyeStroke: 0.72,
+  zInterval: 2.05,
+  zLifetime: 3.15,
+  zStartX: 1.40,
+  zStartY: 9.25,
+  zRiseDist: 5.35,
+  zDriftX: -1.35,
+  zMaxSize: 1.90,
+  zMinSize: 1.43,
+  zMaxOpacity: 0.68,
+};
+
+let startT = performance.now();
+let paused = false;
+let pausedAt = 0;
+let pauseOffset = 0;
+let lastState = null;
+let glyphFlipCompensation = false;
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function smoothstep01(x) {
+  const t = clamp(x, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function loopDistance(a, b) {
+  return Math.abs(((a - b + 0.5) % 1 + 1) % 1 - 0.5);
+}
+
+function loopBump(phase, center, width) {
+  const d = loopDistance(phase, center);
+  if (d >= width) return 0;
+  return 1 - smoothstep01(d / width);
+}
+
+function sleepyEyePath(base, drop, soft) {
+  const x1 = base.cx - base.w / 2;
+  const x2 = base.cx + base.w / 2;
+  const cy = base.cy + drop;
+  const mid = cy + base.h * 0.48 + soft;
+  const c1x = base.cx - base.w * 0.17;
+  const c2x = base.cx + base.w * 0.17;
+  const tilt = base.tilt * 0.018;
+  return `M ${x1.toFixed(2)} ${(cy - tilt).toFixed(2)} C ${c1x.toFixed(2)} ${mid.toFixed(2)} ${c2x.toFixed(2)} ${mid.toFixed(2)} ${x2.toFixed(2)} ${(cy + tilt).toFixed(2)}`;
+}
+
+function zPath(scale) {
+  const w = 1.55 * scale;
+  const h = 1.20 * scale;
+  const x0 = glyphFlipCompensation ? w / 2 : -w / 2;
+  const x1 = -x0;
+  return `M ${x0.toFixed(2)} ${(-h / 2).toFixed(2)} L ${x1.toFixed(2)} ${(-h / 2).toFixed(2)} L ${x0.toFixed(2)} ${(h / 2).toFixed(2)} L ${x1.toFixed(2)} ${(h / 2).toFixed(2)}`;
+}
+
+function frameAt(seconds) {
+  const phase = (seconds / params.period) % 1;
+  const inhale = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+  const nod = loopBump(phase, 0.68, 0.15);
+  const micro = Math.sin(phase * Math.PI * 2) * 0.012;
+  const sx = 1 + inhale * params.breath * 0.62 + nod * 0.006;
+  const sy = 1 + inhale * params.breath * 1.00 - nod * 0.008;
+  const ty = -inhale * params.breath * 2.9 + nod * params.nodDepth + micro;
+  const rot = nod * params.nodRot + inhale * 0.06;
+  const eyeDrop = params.eyeDrop - inhale * 0.045 + nod * 0.075;
+  const eyeSoft = params.eyeSoft + inhale * 0.055 + nod * 0.055;
+  const eyeStroke = params.eyeStroke + inhale * 0.025 + nod * 0.02;
+  const flowOffset = Math.sin(2 * Math.PI * phase) * params.flowAmp;
+  return { phase, inhale, nod, sx, sy, ty, rot, eyeDrop, eyeSoft, eyeStroke, flowOffset };
+}
+
+function renderZzz(seconds) {
+  params.zMinSize = params.zMaxSize * 0.75;
+  const slotCount = zEls.length;
+  for (let i = 0; i < slotCount; i++) {
+    const bornAt = i * params.zInterval;
+    const cycle = params.zInterval * slotCount;
+    const age = ((seconds - bornAt) % cycle + cycle) % cycle;
+    const el = zEls[i];
+    if (age > params.zLifetime) {
+      el.setAttribute("opacity", "0");
+      continue;
+    }
+    const u = age / params.zLifetime;
+    const x = params.zStartX + params.zDriftX * u + Math.sin(u * Math.PI * 2) * 0.16;
+    const y = params.zStartY - params.zRiseDist * u;
+    const size = params.zMaxSize + (params.zMinSize - params.zMaxSize) * u;
+    let opacity;
+    if (u < 0.18) {
+      opacity = (u / 0.18) * params.zMaxOpacity;
+    } else if (u < 0.68) {
+      opacity = params.zMaxOpacity;
+    } else {
+      opacity = params.zMaxOpacity * (1 - (u - 0.68) / 0.32);
+    }
+    el.setAttribute("d", zPath(size));
+    el.setAttribute("transform", `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(-7)`);
+    el.setAttribute("opacity", Math.max(0, opacity).toFixed(3));
+  }
+  zzz.setAttribute("opacity", "0.82");
+}
+
+function renderFrame(seconds) {
+  const s = frameAt(seconds);
+  body.setAttribute(
+    "transform",
+    `translate(12 12) translate(0 ${s.ty.toFixed(3)}) rotate(${s.rot.toFixed(3)}) scale(${s.sx.toFixed(4)} ${s.sy.toFixed(4)}) translate(-12 -12)`
+  );
+  eyeL.setAttribute("d", sleepyEyePath(EYE_BASE.l, s.eyeDrop, s.eyeSoft));
+  eyeR.setAttribute("d", sleepyEyePath(EYE_BASE.r, s.eyeDrop, s.eyeSoft));
+  eyeL.setAttribute("stroke-width", s.eyeStroke.toFixed(3));
+  eyeR.setAttribute("stroke-width", s.eyeStroke.toFixed(3));
+  eyes.setAttribute("opacity", (0.92 + s.inhale * 0.05 - s.nod * 0.03).toFixed(3));
+  eyeGrad.setAttribute("y1", (3 + s.flowOffset).toFixed(2));
+  eyeGrad.setAttribute("y2", (21 + s.flowOffset).toFixed(2));
+  renderZzz(seconds);
+  phaseReadout.textContent = `phase: ${s.phase.toFixed(2)}, inhale: ${s.inhale.toFixed(2)}, nod: ${s.nod.toFixed(2)}`;
+  poseReadout.textContent = `scale: ${s.sx.toFixed(3)} ${s.sy.toFixed(3)}, ty: ${s.ty.toFixed(2)}, rot: ${s.rot.toFixed(2)}deg`;
+  lastState = s;
+  return s;
+}
+
+window.__clawdSetGlyphFlipCompensation = enabled => {
+  const next = !!enabled;
+  if (next === glyphFlipCompensation) return;
+  glyphFlipCompensation = next;
+  renderFrame(currentSeconds(performance.now()));
+};
+
+function currentSeconds(now) {
+  if (paused) return (pausedAt - startT - pauseOffset) / 1000;
+  return (now - startT - pauseOffset) / 1000;
+}
+
+function tick(now) {
+  renderFrame(currentSeconds(now));
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+]]></script>
+</svg>

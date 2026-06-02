@@ -1,0 +1,380 @@
+<svg aria-label="Cloudling happy burst animation" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.phase-tag {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 4px 14px;
+  border-radius: 6px;
+  background: rgba(122, 157, 255, .16);
+  color: #8ea6ff;
+  font: 700 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.timeline {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  left: 16px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .06);
+}
+.timeline-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #9a8cff, #61b8ff, #58e6d4, #ff8fc6, #ffffff);
+}
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.phase-tag {
+  background: rgba(57, 65, 255, .1);
+  color: #4650ff;
+}
+.timeline { background: rgba(0, 0, 0, .06); }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .1; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+    <defs>
+      <linearGradient id="bg-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#fff"/>
+        <stop offset=".5" stop-color="#f4f5f9"/>
+        <stop offset="1" stop-color="#dee2eb"/>
+      </linearGradient>
+      <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF"/>
+        <stop offset=".5" stop-color="#7A9DFF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+      <radialGradient id="hi-grad" cx=".45" cy=".25" r=".55">
+        <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
+        <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+      <path id="cs" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      <clipPath id="cp"><use href="#cs"/></clipPath>
+      <filter id="drop" x="-45%" y="-45%" width="190%" height="190%">
+        <feDropShadow class="cloud-drop-shadow" dx="0" dy=".65" stdDeviation=".8" flood-color="#3941FF" flood-opacity=".18"/>
+      </filter>
+      <filter id="edge-blur" x="-45%" y="-45%" width="190%" height="190%">
+        <feGaussianBlur stdDeviation=".16"/>
+      </filter>
+      <filter id="ring-glow" x="-70%" y="-70%" width="240%" height="240%">
+        <feGaussianBlur stdDeviation=".68" result="blur"/>
+        <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 .52 0" result="soft"/>
+        <feMerge>
+          <feMergeNode in="soft"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+    </defs>
+
+    <g id="rainbowRing" filter="url(#ring-glow)">
+      <use id="halo" href="#cs" fill="none" stroke="#fff" stroke-width="10.4" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="r4" href="#cs" fill="none" stroke="#FF8FC6" stroke-width="8.3" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="r3" href="#cs" fill="none" stroke="#58E6D4" stroke-width="6.2" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="r2" href="#cs" fill="none" stroke="#61B8FF" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="r1" href="#cs" fill="none" stroke="#9A8CFF" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="0 100" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="runnerAura" href="#cs" fill="none" stroke="#fff" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="4.8 95.2" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="runnerTail" href="#cs" fill="none" stroke="#DFF7FF" stroke-width="4.1" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="8.5 91.5" stroke-dashoffset="-16" stroke-opacity="0"/>
+      <use id="runnerCore" href="#cs" fill="none" stroke="#fff" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" pathLength="100" stroke-dasharray="2.8 97.2" stroke-dashoffset="-16" stroke-opacity="0"/>
+    </g>
+
+    <g id="sparkles">
+      <circle class="spark" cx="0" cy="0" r=".3" fill="#F3FBFF"/>
+      <path class="spark" d="M0 -0.45 L0.45 0 L0 0.45 L-0.45 0 Z" fill="#58E6D4"/>
+      <circle class="spark" cx="0" cy="0" r=".24" fill="#FF8FC6"/>
+      <path class="spark" d="M0 -0.38 L0.38 0 L0 0.38 L-0.38 0 Z" fill="#9A8CFF"/>
+      <circle class="spark" cx="0" cy="0" r=".22" fill="#FFFFFF"/>
+      <circle class="spark" cx="0" cy="0" r=".18" fill="#61B8FF"/>
+    </g>
+
+    <g id="cloudWrap">
+      <g id="edge-system">
+        <use class="edge-contact" href="#cs" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 .18)" filter="url(#edge-blur)"/>
+        <use class="edge-rim-soft" href="#cs" fill="none" stroke="#7A9DFF" stroke-width=".9" stroke-linejoin="round" filter="url(#edge-blur)"/>
+        <use class="edge-rim-tight" href="#cs" fill="none" stroke="#aab3c6" stroke-width=".42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#drop)">
+        <use href="#cs" fill="url(#bg-grad)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cp)"/>
+      </g>
+      <g id="capsuleEye">
+        <rect id="capL" x="7.7" y="9.5" width="2.6" height="5" rx="1.3" fill="url(#eye-grad)"/>
+        <rect id="capR" x="13.7" y="9.5" width="2.6" height="5" rx="1.3" fill="url(#eye-grad)"/>
+      </g>
+      <g id="arcEye" opacity="0">
+        <path id="arcL" fill="none" stroke="url(#eye-grad)" stroke-width="1.25" stroke-linecap="round"/>
+        <path id="arcR" fill="none" stroke="url(#eye-grad)" stroke-width="1.25" stroke-linecap="round"/>
+      </g>
+    </g>
+  <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="debug"></g>
+<g id="light"></g>
+<g id="pause"></g>
+<g id="phaseTag"></g>
+<g id="replay"></g>
+<g id="timelineFill"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const ring = document.getElementById('rainbowRing');
+const cloudWrap = document.getElementById('cloudWrap');
+const halo = document.getElementById('halo');
+const runnerAura = document.getElementById('runnerAura');
+const runnerTail = document.getElementById('runnerTail');
+const runnerCore = document.getElementById('runnerCore');
+const ringLayers = [
+  { el: document.getElementById('r1'), opacity: 1 },
+  { el: document.getElementById('r2'), opacity: .98 },
+  { el: document.getElementById('r3'), opacity: .96 },
+  { el: document.getElementById('r4'), opacity: .92 },
+];
+const capsule = document.getElementById('capsuleEye');
+const arcEye = document.getElementById('arcEye');
+const arcL = document.getElementById('arcL');
+const arcR = document.getElementById('arcR');
+const sparkEls = [...document.querySelectorAll('.spark')];
+const phaseTag = document.getElementById('phaseTag');
+const timelineFill = document.getElementById('timelineFill');
+const pauseBtn = document.getElementById('pause');
+const replayBtn = document.getElementById('replay');
+const light = document.getElementById('light');
+const debug = document.getElementById('debug');
+
+const TOTAL = 2.84;
+const GAP = .82;
+const SWEEP_OFFSET = -16;
+const RING_COUNT = 4;
+const SMILE = { h: 1, w: 3.5 };
+const LAUGH = { h: 1.32, w: 3.95 };
+const EYE_CY = 12.7;
+const CX_L = 8.65;
+const CX_R = 15.35;
+const sparks = [
+  { x: 4.1, y: 4.1, dx: -2.4, dy: -1.7, d: 0, s: 1.1, rot: -18 },
+  { x: 12.1, y: 1.2, dx: .1, dy: -2.4, d: .08, s: .95, rot: 16 },
+  { x: 20.6, y: 6.4, dx: 2.2, dy: -1.4, d: .14, s: 1, rot: 24 },
+  { x: 22.1, y: 15.4, dx: 2.2, dy: 1.4, d: .2, s: .92, rot: -14 },
+  { x: 10.3, y: 22, dx: -.6, dy: 2.1, d: .25, s: .85, rot: 11 },
+  { x: 1.8, y: 14.2, dx: -2, dy: .9, d: .18, s: .82, rot: -28 },
+];
+
+let elapsed = 0;
+let prev = 0;
+let paused = false;
+
+function clamp(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+function easeInCubic(x) { return x * x * x; }
+function easeInOutCubic(x) {
+  return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+function arcPath(h, w) {
+  const w2 = w / 2;
+  const peakY = EYE_CY - 2 * h;
+  return {
+    l: `M ${(CX_L - w2).toFixed(2)} ${EYE_CY} Q ${CX_L} ${peakY.toFixed(2)} ${(CX_L + w2).toFixed(2)} ${EYE_CY}`,
+    r: `M ${(CX_R - w2).toFixed(2)} ${EYE_CY} Q ${CX_R} ${peakY.toFixed(2)} ${(CX_R + w2).toFixed(2)} ${EYE_CY}`,
+  };
+}
+function setArc(shape) {
+  const d = arcPath(shape.h, shape.w);
+  arcL.setAttribute('d', d.l);
+  arcR.setAttribute('d', d.r);
+}
+function setCenteredTransform(el, sx, sy = sx, rot = 0, tx = 0, ty = 0) {
+  el.setAttribute('transform', `translate(${(12 + tx).toFixed(3)} ${(12 + ty).toFixed(3)}) rotate(${rot.toFixed(3)}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(-12 -12)`);
+}
+function setRing(layerLevels, haloOpacity, scale, runnerProgress, runnerOpacity) {
+  ringLayers.forEach(({ el, opacity: layerOpacity }, i) => {
+    el.setAttribute('stroke-dasharray', '100 .01');
+    el.setAttribute('stroke-dashoffset', 0);
+    el.setAttribute('stroke-opacity', (clamp(layerLevels[i] || 0, 0, 1) * layerOpacity).toFixed(3));
+  });
+  halo.setAttribute('stroke-dasharray', '100 .01');
+  halo.setAttribute('stroke-dashoffset', 0);
+  halo.setAttribute('stroke-opacity', clamp(haloOpacity, 0, .1).toFixed(3));
+  const runnerOffset = SWEEP_OFFSET - 100 * runnerProgress;
+  runnerAura.setAttribute('stroke-dashoffset', runnerOffset.toFixed(2));
+  runnerTail.setAttribute('stroke-dashoffset', runnerOffset.toFixed(2));
+  runnerCore.setAttribute('stroke-dashoffset', runnerOffset.toFixed(2));
+  runnerAura.setAttribute('stroke-opacity', (runnerOpacity * .18).toFixed(3));
+  runnerTail.setAttribute('stroke-opacity', (runnerOpacity * .78).toFixed(3));
+  runnerCore.setAttribute('stroke-opacity', runnerOpacity.toFixed(3));
+  setCenteredTransform(ring, scale);
+}
+function setSparkles(amount) {
+  sparkEls.forEach((el, i) => {
+    const cfg = sparks[i];
+    const p = clamp((amount - cfg.d) / .62, 0, 1);
+    const visible = Math.sin(Math.PI * p);
+    const move = easeOutCubic(p);
+    const x = cfg.x + cfg.dx * move;
+    const y = cfg.y + cfg.dy * move;
+    const scale = cfg.s * (.45 + .75 * visible);
+    el.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(cfg.rot + 80 * p).toFixed(1)}) scale(${scale.toFixed(3)})`);
+    el.setAttribute('opacity', (visible * .95).toFixed(3));
+  });
+}
+function render(t) {
+  const T_anti = .16;
+  const T_layers = .96;
+  const T_confirm = .18;
+  const T_hold = .86;
+  const T_fade = .42;
+  const T_back = .26;
+  const a1 = T_anti;
+  const a2 = a1 + T_layers;
+  const a3 = a2 + T_confirm;
+  const a4 = a3 + T_hold;
+  const a5 = a4 + T_fade;
+  const a6 = a5 + T_back;
+
+  let phase = 'idle baseline';
+  let layerLevels = [0, 0, 0, 0];
+  let haloOpacity = 0;
+  let ringScale = 1;
+  let runnerProgress = 0;
+  let runnerOpacity = 0;
+  let cloudSx = 1;
+  let cloudSy = 1;
+  let cloudRot = 0;
+  let capsuleOp = 1;
+  let arcOp = 0;
+  let eye = SMILE;
+  let sparkleAmount = 0;
+
+  if (t < a1) {
+    phase = '① squash charge';
+    const p = t / T_anti;
+    const pulse = Math.sin(Math.PI * p);
+    cloudSx = 1 + .055 * pulse;
+    cloudSy = 1 - .08 * pulse;
+    capsuleOp = 1;
+    arcOp = 0;
+    eye = SMILE;
+  } else if (t < a2) {
+    const p = (t - a1) / T_layers;
+    const laps = p * RING_COUNT;
+    const completed = Math.min(RING_COUNT, Math.floor(laps));
+    const lapLocal = laps - completed;
+    const lightIn = easeOutCubic(clamp(p * 4, 0, 1));
+    const justLit = completed > 0 ? Math.max(0, 1 - (lapLocal * T_layers / RING_COUNT) / .085) : 0;
+    phase = `② runner lap ${Math.min(completed + 1, RING_COUNT)}/${RING_COUNT}`;
+    layerLevels = ringLayers.map((_, i) => i < completed ? 1 : 0);
+    haloOpacity = 0;
+    ringScale = 1 + .014 * lightIn + .012 * justLit;
+    runnerProgress = laps;
+    runnerOpacity = .9 * lightIn;
+    cloudSx = cloudSy = 1 + .014 * lightIn + .007 * justLit;
+    capsuleOp = 1 - easeOutCubic(clamp(p * 1.7, 0, 1));
+    arcOp = easeOutCubic(clamp(p * 1.7, 0, 1));
+    eye = {
+      h: lerp(SMILE.h, LAUGH.h, easeInOutCubic(clamp((p - .2) / .8, 0, 1))),
+      w: lerp(SMILE.w, LAUGH.w, easeInOutCubic(clamp((p - .2) / .8, 0, 1))),
+    };
+  } else if (t < a3) {
+    phase = '③ confirm lap';
+    const p = (t - a2) / T_confirm;
+    const pop = Math.sin(Math.PI * p);
+    layerLevels = [1, 1, 1, 1];
+    haloOpacity = .04;
+    ringScale = 1.018 + .02 * pop;
+    runnerProgress = RING_COUNT + p;
+    runnerOpacity = .95 * (1 - .25 * p);
+    cloudSx = cloudSy = 1.02 + .018 * pop;
+    cloudRot = 2.6 * Math.sin(2 * Math.PI * p);
+    capsuleOp = 0;
+    arcOp = 1;
+    eye = LAUGH;
+    sparkleAmount = p * .72;
+  } else if (t < a4) {
+    phase = '④ happy hold';
+    const p = (t - a3) / T_hold;
+    layerLevels = [1, 1, 1, 1];
+    haloOpacity = .04;
+    ringScale = 1.026 + .006 * Math.sin(2 * Math.PI * p);
+    runnerProgress = RING_COUNT + 1;
+    runnerOpacity = 0;
+    cloudSx = cloudSy = 1.025;
+    capsuleOp = 0;
+    arcOp = 1;
+    eye = LAUGH;
+    sparkleAmount = .75 + p * .45;
+  } else if (t < a5) {
+    phase = '⑤ soft fade';
+    const p = (t - a4) / T_fade;
+    const keep = 1 - easeInCubic(p);
+    layerLevels = [1, 1, 1, 1].map(() => .12 + .88 * keep);
+    haloOpacity = .04 * keep;
+    ringScale = 1.006 + .02 * keep;
+    runnerProgress = RING_COUNT + 1;
+    runnerOpacity = 0;
+    cloudSx = cloudSy = 1 + .025 * keep;
+    capsuleOp = 0;
+    arcOp = 1;
+    eye = {
+      h: lerp(LAUGH.h, SMILE.h, easeInOutCubic(p)),
+      w: lerp(LAUGH.w, SMILE.w, easeInOutCubic(p)),
+    };
+    sparkleAmount = 1.2;
+  } else if (t < a6) {
+    phase = '⑥ smile return';
+    const p = (t - a5) / T_back;
+    const out = 1 - easeOutCubic(p);
+    layerLevels = [1, 1, 1, 1].map(() => .12 * out);
+    haloOpacity = .02 * out;
+    ringScale = 1 + .02 * out;
+    runnerProgress = RING_COUNT + 1;
+    runnerOpacity = 0;
+    capsuleOp = easeInOutCubic(p);
+    arcOp = 1 - easeInOutCubic(p);
+    eye = SMILE;
+  } else {
+    phase = 'idle baseline';
+  }
+
+  setCenteredTransform(cloudWrap, cloudSx, cloudSy, cloudRot);
+  setRing(layerLevels, haloOpacity, ringScale, runnerProgress, runnerOpacity);
+  setSparkles(sparkleAmount);
+  capsule.setAttribute('opacity', capsuleOp.toFixed(3));
+  arcEye.setAttribute('opacity', arcOp.toFixed(3));
+  setArc(eye);
+  phaseTag.textContent = phase;
+  timelineFill.style.width = `${clamp((t / TOTAL) * 100, 0, 100).toFixed(1)}%`;
+}
+function loop(now) {
+  if (!prev) prev = now;
+  const dt = (now - prev) / 1000;
+  prev = now;
+  if (!paused) elapsed += dt;
+  const cycle = TOTAL + GAP;
+  const tt = elapsed % cycle;
+  render(tt > TOTAL ? 0 : tt);
+  requestAnimationFrame(loop);
+}
+
+setArc(SMILE);
+setSparkles(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

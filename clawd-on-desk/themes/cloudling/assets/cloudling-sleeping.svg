@@ -1,0 +1,500 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="breath-group"></g>
+<g id="hat-sway"></g>
+<g id="root-svg"></g>
+<g id="z-container"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+/* =========================================================================
+ * 默认锁定参数
+ * ========================================================================= */
+const DEFAULTS = {
+  // 静帧摆位 (鹿鹿 2026-04-28 调好)
+  bodyTilt: -6,
+  hatTx: -2,
+  hatTy: -0.4,
+  hatRot: -10,
+  hatScale: 0.98,
+  maskTx: 0,
+  maskTy: -0.6,
+  maskRot: -9,
+  maskScale: 1.00,
+
+  // 主层: 呼吸
+  breathPeriod: 4,
+  breathLow: 0.96,
+  breathHigh: 1.02,
+
+  // 次层: 帽子独立 sway (异步)
+  hatSwayPeriod: 6,
+  hatSwayAmp: 2,
+
+  // 梦境层: Z 字
+  zEnable: 1,
+  zInterval: 1.8,
+  zLifetime: 2.9,
+  zStartX: 19.4,
+  zStartY: 3.6,
+  zRiseDist: 8,
+  zDriftX: 4,
+  zMaxSize: 1.6,
+  zMinSize: 1.3,
+  zStroke: 0.55,
+  zMaxOpacity: 0.45,
+};
+
+let params = { ...DEFAULTS };
+let paused = false;
+
+/* =========================================================================
+ * defs
+ * ========================================================================= */
+function commonDefs(p) {
+  return `
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#f4f5f9"/>
+      <stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/>
+      <stop offset="0.5" stop-color="#7A9DFF"/>
+      <stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="${p}-hi" cx="0.45" cy="0.25" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="${p}-hat" x1="11" y1="-3" x2="14" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7AA0FF"/>
+      <stop offset="0.45" stop-color="#3941FF"/>
+      <stop offset="1" stop-color="#1F2BC2"/>
+    </linearGradient>
+    <linearGradient id="${p}-cuff" x1="12" y1="3.0" x2="12" y2="8.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#fafbff"/>
+      <stop offset="1" stop-color="#e8ecf6"/>
+    </linearGradient>
+    <linearGradient id="${p}-star-yellow" x1="0" y1="-2" x2="0" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE9A8"/>
+      <stop offset="0.5" stop-color="#FFD360"/>
+      <stop offset="1" stop-color="#F5A623"/>
+    </linearGradient>
+    <filter id="${p}-star-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0.4" stdDeviation="0.5" flood-color="#F5A623" flood-opacity="0.32"/>
+    </filter>
+    <linearGradient id="${p}-z-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B1A7FF"/>
+      <stop offset="0.5" stop-color="#7A9DFF"/>
+      <stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <filter id="${p}-z-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0.3" stdDeviation="0.35" flood-color="#7A9DFF" flood-opacity="0.45"/>
+    </filter>
+    <filter id="${p}-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+    </filter>
+    <filter id="${p}-edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <filter id="${p}-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="0.18"/>
+    </filter>
+    <clipPath id="${p}-clip"><path d="${CLOUD_D}"/></clipPath>
+  `;
+}
+
+/* =========================================================================
+ * 部件 (从 sleeping-static-pose v1 复制)
+ * ========================================================================= */
+function makeFluffyCuff(p, cx, cy, rx, ry, asym, bumps) {
+  let parts = [];
+  const circles = [];
+  for (let i = 0; i < bumps; i++) {
+    const ang = (i * 2 * Math.PI) / bumps - Math.PI / 2;
+    const x = cx + Math.cos(ang) * rx;
+    const y = cy + Math.sin(ang) * ry;
+    const sizeY = -Math.sin(ang);
+    const sizeBoost = 0.18 * (sizeY + 1) / 2 + 0.10;
+    const jitter = ((i * 13) % 7) / 35;
+    let r = 0.62 + sizeBoost + jitter;
+    if (asym !== 0) {
+      const leftRight = Math.cos(ang);
+      r *= 1 + asym * leftRight * 0.28;
+    }
+    circles.push({ x, y, r });
+  }
+  const innerRy = ry + 0.40;
+  parts.push(`<g filter="url(#${p}-soft)">`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx + 0.30).toFixed(2)}" ry="${(innerRy + 0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`);
+  circles.forEach(c => {
+    parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r + 0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`);
+  });
+  parts.push(`</g>`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx + 0.15).toFixed(2)}" ry="${(innerRy + 0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`);
+  circles.forEach(c => {
+    parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r + 0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`);
+  });
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx.toFixed(2)}" ry="${innerRy.toFixed(2)}" fill="url(#${p}-cuff)"/>`);
+  circles.forEach(c => {
+    parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${c.r.toFixed(2)}" fill="url(#${p}-cuff)"/>`);
+  });
+  parts.push(`<ellipse cx="${cx}" cy="${(cy - ry * 0.45).toFixed(2)}" rx="${(rx * 0.78).toFixed(2)}" ry="${(ry * 0.32).toFixed(2)}" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="0.14"/>`);
+  return parts.join('');
+}
+
+function makeBentHat(bend) {
+  const baseLeft = { x: 8.5, y: 5.0 };
+  const baseRight = { x: 15.5, y: 5.0 };
+  const elbowX = 12 + bend * 2.2;
+  const elbowY = -0.5 + bend * 2.3;
+  const tipX = 11 - bend * 5.5;
+  const tipY = 0.0 + bend * 0.5;
+  const tipBottomX = tipX + 1.2 + bend * 0.4;
+  const tipBottomY = tipY + 1.4 + bend * 0.3;
+  const c1 = { x: baseRight.x + 0.5, y: baseRight.y - 1.5 };
+  const c2 = { x: elbowX + 0.8, y: elbowY + 1.0 };
+  const c3 = { x: elbowX - 0.5, y: elbowY - 0.8 };
+  const c4 = { x: tipX + 1.5, y: tipY - 0.5 };
+  const c5 = { x: tipX - 0.3, y: tipY + 0.6 };
+  const c6 = { x: tipBottomX - 1.0, y: tipBottomY };
+  const c7 = { x: 8.5, y: 4.0 };
+  return {
+    path: `M ${baseLeft.x} ${baseLeft.y} Q 12 5.55 ${baseRight.x} ${baseRight.y} C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)} ${c2.x.toFixed(2)} ${c2.y.toFixed(2)} ${elbowX.toFixed(2)} ${elbowY.toFixed(2)} C ${c3.x.toFixed(2)} ${c3.y.toFixed(2)} ${c4.x.toFixed(2)} ${c4.y.toFixed(2)} ${tipX.toFixed(2)} ${tipY.toFixed(2)} C ${c5.x.toFixed(2)} ${c5.y.toFixed(2)} ${c6.x.toFixed(2)} ${c6.y.toFixed(2)} ${tipBottomX.toFixed(2)} ${tipBottomY.toFixed(2)} C ${c7.x.toFixed(2)} ${c7.y.toFixed(2)} 8.0 4.5 ${baseLeft.x} ${baseLeft.y} Z`
+  };
+}
+
+function makeStar(cx, cy, r, rotationDeg, cornerRound, chubbiness, innerRatio) {
+  const innerR = r * innerRatio;
+  const rotRad = (rotationDeg * Math.PI) / 180;
+  const verts = [];
+  for (let i = 0; i < 10; i++) {
+    const ang = (i * Math.PI / 5) + rotRad - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : innerR;
+    verts.push({ x: cx + Math.cos(ang) * radius, y: cy + Math.sin(ang) * radius });
+  }
+  const inP = [], outP = [];
+  for (let i = 0; i < 10; i++) {
+    const prev = verts[(i - 1 + 10) % 10];
+    const cur = verts[i];
+    const next = verts[(i + 1) % 10];
+    const v1x = prev.x - cur.x, v1y = prev.y - cur.y;
+    const v1Len = Math.sqrt(v1x * v1x + v1y * v1y);
+    const v2x = next.x - cur.x, v2y = next.y - cur.y;
+    const v2Len = Math.sqrt(v2x * v2x + v2y * v2y);
+    const cr = Math.min(cornerRound, v1Len * 0.48, v2Len * 0.48);
+    inP[i] = { x: cur.x + (v1x / v1Len) * cr, y: cur.y + (v1y / v1Len) * cr };
+    outP[i] = { x: cur.x + (v2x / v2Len) * cr, y: cur.y + (v2y / v2Len) * cr };
+  }
+  let path = `M ${inP[0].x.toFixed(2)} ${inP[0].y.toFixed(2)} `;
+  for (let i = 0; i < 10; i++) {
+    path += `Q ${verts[i].x.toFixed(2)} ${verts[i].y.toFixed(2)} ${outP[i].x.toFixed(2)} ${outP[i].y.toFixed(2)} `;
+    const nextI = (i + 1) % 10;
+    const start = outP[i], end = inP[nextI];
+    if (chubbiness > 0) {
+      const midX = (start.x + end.x) / 2, midY = (start.y + end.y) / 2;
+      const dx = midX - cx, dy = midY - cy;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const offset = chubbiness * r * 0.32;
+      const ctrlX = midX + (dx / len) * offset, ctrlY = midY + (dy / len) * offset;
+      path += `Q ${ctrlX.toFixed(2)} ${ctrlY.toFixed(2)} ${end.x.toFixed(2)} ${end.y.toFixed(2)} `;
+    } else {
+      path += `L ${end.x.toFixed(2)} ${end.y.toFixed(2)} `;
+    }
+  }
+  path += 'Z';
+  return path;
+}
+
+const STAR_LOCKED = {
+  cx: 8.55, cy: 0.35, size: 1.00, rotation: 30,
+  cornerRound: 0.27, chubbiness: 0, innerRatio: 0.56
+};
+
+const SLEEP_MASK_PATH = {
+  d: "M488.728,341.587l-7.846-2.599c-0.405-16.992-7.605-47.34-48.625-70.941c-38.301-22.036-96.652-33.215-173.431-33.224c-76.822,0-135.146,11.165-173.438,33.183c-42.335,24.344-48.659,55.883-48.661,72.516c0,2.608,0.135,5.183,0.352,7.735h-2.649c-0.001,0-0.001,0-0.002,0c-9.635,0-17.446,7.811-17.448,17.445c-0.001,9.636,7.81,17.449,17.445,17.45l13,0.001c15.257,28.43,45.267,47.814,79.728,47.818c20.016-0.001,36.647-11.511,54.256-23.695c20.65-14.29,44.048-30.481,77.388-30.481c33.359,0.003,56.757,16.204,77.402,30.497c17.61,12.192,34.24,23.707,54.251,23.709h0.012c24.153,0,46.861-9.404,63.941-26.481c8.937-8.936,15.751-19.422,20.239-30.839l3.111,1.031c1.82,0.604,3.67,0.89,5.489,0.89c7.318,0,14.133-4.64,16.56-11.966C502.835,354.489,497.876,344.617,488.728,341.587Z",
+  bboxX: 15, bboxY: 232, bboxW: 487, bboxH: 200
+};
+
+function makeSleepMask(p, tx, ty, rot, scale) {
+  const cx = 12 + tx;
+  const cy = 12 + ty;
+  const W = 16.61 * scale;
+  const H = 7.55 * scale;
+  const eyeScale = 1.18;
+  const eyeRot = 5;
+  const eyeOffsetY = -0.25;
+  const lashW = 2.45;
+  const lashH = 0.70;
+  const lashStroke = 0.45;
+  const lashGap = 6.00 * scale;
+  const lashHairLen = 0.66;
+  const lashHairCount = 3;
+
+  const sx = W / SLEEP_MASK_PATH.bboxW;
+  const sy = H / SLEEP_MASK_PATH.bboxH;
+  const cxOrig = SLEEP_MASK_PATH.bboxX + SLEEP_MASK_PATH.bboxW / 2;
+  const cyOrig = SLEEP_MASK_PATH.bboxY + SLEEP_MASK_PATH.bboxH / 2;
+  const body = `<g transform="translate(${cx} ${cy}) scale(${sx.toFixed(5)} ${sy.toFixed(5)}) translate(${(-cxOrig).toFixed(2)} ${(-cyOrig).toFixed(2)})">
+    <path d="${SLEEP_MASK_PATH.d}" fill="#22305A" stroke="#000000" stroke-width="0.22" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </g>`;
+
+  const arcLocal = `<path d="M ${(-lashW/2).toFixed(2)} 0 Q 0 ${(lashH * 2).toFixed(2)} ${(lashW/2).toFixed(2)} 0" fill="none" stroke="#FFFFFF" stroke-width="${lashStroke}" stroke-linecap="round"/>`;
+
+  const hairs = [];
+  const tPad = 0.18;
+  for (let i = 0; i < lashHairCount; i++) {
+    const t = tPad + (i / (lashHairCount - 1)) * (1 - 2 * tPad);
+    const sxh = (1-t)*(1-t)*(-lashW/2) + 2*(1-t)*t*0 + t*t*(lashW/2);
+    const syh = (1-t)*(1-t)*0 + 2*(1-t)*t*(2*lashH) + t*t*0;
+    const tangX = 2*(1-t)*(0 - (-lashW/2)) + 2*t*((lashW/2) - 0);
+    const tangY = 2*(1-t)*((2*lashH) - 0) + 2*t*(0 - (2*lashH));
+    const tLen = Math.hypot(tangX, tangY);
+    const normX1 = -tangY / tLen, normY1 = tangX / tLen;
+    const normX2 = tangY / tLen, normY2 = -tangX / tLen;
+    const useFirst = normY1 > 0;
+    const dirX = useFirst ? normX1 : normX2;
+    const dirY = useFirst ? normY1 : normY2;
+    const ex = sxh + dirX * lashHairLen;
+    const ey = syh + dirY * lashHairLen;
+    hairs.push(`<line x1="${sxh.toFixed(2)}" y1="${syh.toFixed(2)}" x2="${ex.toFixed(2)}" y2="${ey.toFixed(2)}" stroke="#FFFFFF" stroke-width="${(lashStroke * 0.85).toFixed(2)}" stroke-linecap="round" opacity="0.92"/>`);
+  }
+  const hairsLocal = hairs.join('');
+
+  const eyeL_cx = cx - lashGap / 2;
+  const eyeR_cx = cx + lashGap / 2;
+  const wrapEye = (ecx, sign) => `<g transform="translate(${ecx.toFixed(2)} ${(cy + eyeOffsetY).toFixed(2)}) rotate(${(sign * eyeRot).toFixed(2)}) scale(${eyeScale.toFixed(3)})">
+    ${arcLocal}
+    ${hairsLocal}
+  </g>`;
+  const lashes = wrapEye(eyeL_cx, -1) + wrapEye(eyeR_cx, +1);
+
+  return `
+    <g class="sleep-mask" transform="rotate(${rot} ${cx} ${cy})" filter="url(#${p}-shadow)">
+      ${body}
+      ${lashes}
+    </g>
+  `;
+}
+
+function makeCloudling(p) {
+  return `
+    <g class="cloudling-base">
+      <g class="edge-system">
+        <use class="edge-contact" href="#${p}-cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#${p}-shadow)">
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
+      </g>
+    </g>
+  `;
+}
+
+/* =========================================================================
+ * Z 字 path - 苹果精致风手写体
+ *   流畅手写 Z = 上横 + 下笔斜对角(略带圆滑) + 下横
+ *   用 stroke 描边 + linecap=round + 紫蓝渐变 + glow
+ * ========================================================================= */
+function makeZPath() {
+  // 在局部坐标 (-1, -1) 到 (1, 1) 区间内画 Z
+  // 上横: (-1, -1) → (1, -1) 但末端略弯 (Q 控制点)
+  // 斜杠: (1, -1) → (-1, 1) 略带 S 弧
+  // 下横: (-1, 1) → (1, 1) 末端略弯
+  return "M -1.0 -1.0 Q 0.0 -1.0 1.0 -1.0 Q 1.05 -0.85 0.6 -0.4 Q 0 0.1 -0.6 0.6 Q -1.05 0.95 -1.0 1.0 Q 0.0 1.0 1.0 1.0";
+}
+
+/* =========================================================================
+ * 渲染静态结构 + 用 JS RAF 驱动 transform / Z 字
+ * ========================================================================= */
+const stage = document.getElementById('stage');
+let svgRoot = null;
+let cloudGroup = null;
+let hatGroup = null;
+let zContainer = null;
+
+function renderStage() {
+  const p = 'sl';
+  const hatData = makeBentHat(0.4);
+  const cuffSVG = makeFluffyCuff(p, 12, 5.4, 3.7, 0.85, 0, 18);
+  const s = STAR_LOCKED;
+  const starPath = makeStar(s.cx, s.cy, s.size, s.rotation, s.cornerRound, s.chubbiness, s.innerRatio);
+  const cloudling = makeCloudling(p);
+  const mask = makeSleepMask(p, params.maskTx, params.maskTy, params.maskRot, params.maskScale);
+
+  // 帽子结构: 整顶帽子作为一个 group, transform-origin 在 cuff 底部 (12, 5.4)
+  // 帽子 sway 围绕这个点 rotate
+  const hatStaticTransform = `translate(${params.hatTx} ${params.hatTy}) rotate(${params.hatRot} 12 5.4) scale(${params.hatScale})`;
+  const hatInner = `
+    <g filter="url(#${p}-shadow)">
+      <path d="${hatData.path}" fill="url(#${p}-hat)"/>
+    </g>
+    <g class="cuff-fluffy">${cuffSVG}</g>
+    <g class="star-piece" filter="url(#${p}-star-glow)">
+      <path d="${starPath}" fill="url(#${p}-star-yellow)" stroke="#ffffff" stroke-width="0.06" stroke-opacity="0.7" stroke-linejoin="round"/>
+    </g>
+  `;
+
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+</style>
+<defs>
+        ${commonDefs(p)}
+        <path id="${p}-cloud-shape" d="${CLOUD_D}"/>
+      </defs>
+      <g class="scene" transform="rotate(${params.bodyTilt} 12 12)">
+        <!-- 主层: 呼吸 group, 包住 cloudling + hat + mask 整体 scale -->
+        <g id="breath-group" style="transform-box: fill-box;">
+          ${cloudling}
+          <!-- 帽子: 自己的 sway transform 套在静态摆位之上 -->
+          <g id="hat-static" transform="${hatStaticTransform}">
+            <g id="hat-sway" style="transform-origin: 12px 5.4px;">
+              ${hatInner}
+            </g>
+          </g>
+          ${mask}
+        </g>
+        <!-- 梦境层: Z 字 (在呼吸外, 不跟着主体起伏) -->
+        <g id="z-container"></g>
+      </g>
+  `;
+
+  svgRoot = document.getElementById('root-svg');
+  cloudGroup = document.getElementById('breath-group');
+  hatGroup = document.getElementById('hat-sway');
+  zContainer = document.getElementById('z-container');
+}
+
+/* =========================================================================
+ * Z 字 lifecycle 管理
+ * ========================================================================= */
+const zList = []; // { bornAt, el }
+let lastZSpawn = -999;
+
+function spawnZ(now) {
+  const p = 'sl';
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  el.setAttribute('class', 'z-particle');
+  el.innerHTML = `
+    <g filter="url(#${p}-z-glow)">
+      <path d="${makeZPath()}" fill="none" stroke="url(#${p}-z-grad)" stroke-width="${params.zStroke}" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  `;
+  zContainer.appendChild(el);
+  zList.push({ bornAt: now, el });
+}
+
+function updateZs(t) {
+  // 出生新 Z
+  if (params.zEnable && t - lastZSpawn >= params.zInterval) {
+    spawnZ(t);
+    lastZSpawn = t;
+  }
+
+  // 更新所有 Z 的 transform / opacity
+  for (let i = zList.length - 1; i >= 0; i--) {
+    const z = zList[i];
+    const age = t - z.bornAt;
+    const life = params.zLifetime;
+
+    if (age >= life) {
+      z.el.remove();
+      zList.splice(i, 1);
+      continue;
+    }
+
+    const u = age / life; // 0 → 1
+
+    // 位置: 起点 (zStartX, zStartY) → 飘升 + 右飘
+    const x = params.zStartX + params.zDriftX * u;
+    const y = params.zStartY - params.zRiseDist * u;
+
+    // 大小: 出生 max → 末段 min
+    const size = params.zMaxSize + (params.zMinSize - params.zMaxSize) * u;
+
+    // 透明度: 三段: 淡入 (0-0.18) → 平稳 (0.18-0.7) → 淡出 (0.7-1)
+    let opacity;
+    if (u < 0.18) {
+      opacity = (u / 0.18) * params.zMaxOpacity;
+    } else if (u < 0.7) {
+      opacity = params.zMaxOpacity;
+    } else {
+      opacity = params.zMaxOpacity * (1 - (u - 0.7) / 0.3);
+    }
+
+    // 微小的 sway (Z 字飘动时左右摆一点)
+    const sway = Math.sin(age * 2.0) * 0.3;
+
+    z.el.setAttribute('transform', `translate(${(x + sway).toFixed(2)} ${y.toFixed(2)}) scale(${size.toFixed(2)})`);
+    z.el.setAttribute('opacity', opacity.toFixed(3));
+  }
+}
+
+/* =========================================================================
+ * 主循环
+ * ========================================================================= */
+let startT = performance.now();
+let pausedAt = 0;
+let elapsedOffset = 0;
+
+function loop(now) {
+  if (paused) {
+    requestAnimationFrame(loop);
+    return;
+  }
+  const t = (now - startT) / 1000 + elapsedOffset;
+
+  // 主层呼吸: scale 在 breathLow .. breathHigh 之间正弦
+  const breathPhase = (Math.cos(2 * Math.PI * t / params.breathPeriod) + 1) / 2; // 0..1
+  const breathScale = params.breathLow + (params.breathHigh - params.breathLow) * breathPhase;
+  if (cloudGroup) {
+    cloudGroup.setAttribute('transform', `translate(12 12) scale(${breathScale.toFixed(4)}) translate(-12 -12)`);
+  }
+
+  // 次层帽子 sway: 异步 sin, 围绕 (12, 5.4) rotate
+  const hatPhase = Math.sin(2 * Math.PI * t / params.hatSwayPeriod);
+  const hatRotDeg = hatPhase * params.hatSwayAmp;
+  if (hatGroup) {
+    hatGroup.setAttribute('transform', `rotate(${hatRotDeg.toFixed(3)} 12 5.4)`);
+  }
+
+  // Z 字
+  updateZs(t);
+
+  requestAnimationFrame(loop);
+}
+
+function resetClock() {
+  startT = performance.now();
+  elapsedOffset = 0;
+  zList.forEach(z => z.el.remove());
+  zList.length = 0;
+  lastZSpawn = -999;
+}
+
+renderStage();
+requestAnimationFrame(loop);
+]]></script>
+</svg>

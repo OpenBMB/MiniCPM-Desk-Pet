@@ -1,0 +1,811 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="scrubber"></g>
+<g id="t-display"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const SOFT_CLOUD_POINTS = [
+  {x:9.064,y:3.344},{x:9.825,y:3.106},{x:10.616,y:3.004},{x:11.413,y:3.040},
+  {x:12.192,y:3.210},{x:12.928,y:3.518},{x:13.599,y:3.948},{x:14.255,y:4.291},
+  {x:15.046,y:4.188},{x:15.843,y:4.224},{x:16.621,y:4.398},{x:17.357,y:4.706},
+  {x:18.029,y:5.134},{x:18.617,y:5.673},{x:19.103,y:6.306},{x:19.471,y:7.013},
+  {x:19.715,y:7.772},{x:19.812,y:8.564},{x:19.784,y:9.361},{x:19.797,y:10.105},
+  {x:20.287,y:10.735},{x:20.656,y:11.442},{x:20.897,y:12.202},{x:20.995,y:12.994},
+  {x:20.964,y:13.791},{x:20.791,y:14.569},{x:20.480,y:15.304},{x:20.052,y:15.977},
+  {x:19.516,y:16.567},{x:18.882,y:17.052},{x:18.174,y:17.418},{x:17.539,y:17.808},
+  {x:17.231,y:18.545},{x:16.805,y:19.218},{x:16.264,y:19.805},{x:15.633,y:20.292},
+  {x:14.925,y:20.660},{x:14.163,y:20.895},{x:13.372,y:20.996},{x:12.575,y:20.964},
+  {x:11.796,y:20.793},{x:11.061,y:20.483},{x:10.392,y:20.049},{x:9.736,y:19.714},
+  {x:8.946,y:19.811},{x:8.148,y:19.777},{x:7.370,y:19.606},{x:6.634,y:19.299},
+  {x:5.962,y:18.868},{x:5.377,y:18.326},{x:4.885,y:17.698},{x:4.522,y:16.989},
+  {x:4.283,y:16.228},{x:4.182,y:15.437},{x:4.220,y:14.640},{x:4.179,y:13.907},
+  {x:3.696,y:13.273},{x:3.332,y:12.563},{x:3.092,y:11.803},{x:3.003,y:11.010},
+  {x:3.038,y:10.213},{x:3.202,y:9.433},{x:3.514,y:8.699},{x:3.944,y:8.027},
+  {x:4.484,y:7.440},{x:5.114,y:6.951},{x:5.822,y:6.586},{x:6.445,y:6.191},
+  {x:6.752,y:5.455},{x:7.185,y:4.785},{x:7.723,y:4.197},{x:8.356,y:3.711},
+];
+
+function catmullRomClosedPath(points, tension = 1) {
+  const q = (n) => n.toFixed(3);
+  let d = `M ${q(points[0].x)} ${q(points[0].y)}`;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) * tension / 6;
+    const c1y = p1.y + (p2.y - p0.y) * tension / 6;
+    const c2x = p2.x - (p3.x - p1.x) * tension / 6;
+    const c2y = p2.y - (p3.y - p1.y) * tension / 6;
+    d += ` C ${q(c1x)} ${q(c1y)} ${q(c2x)} ${q(c2y)} ${q(p2.x)} ${q(p2.y)}`;
+  }
+  return `${d} Z`;
+}
+
+function makeSoftCloudPath(pressure) {
+  const a = clamp01(pressure);
+  if (a <= 0.0001) return CLOUD_D;
+  const volume = Math.sin(a * Math.PI) * 0.18;
+  const points = SOFT_CLOUD_POINTS.map((pt) => {
+    const distX = Math.abs(pt.x - 12);
+    const topWeight = Math.pow(clamp01((7.2 - pt.y) / 4.2), 1.15);
+    const contactWeight = clamp01(1 - distX / 8.6);
+    const shoulderWeight = clamp01((distX - 3.2) / 6.2) * clamp01((16.5 - pt.y) / 12.5);
+    const lowerWeight = clamp01((pt.y - 16.2) / 4.8);
+    const targetTopY = 4.58 + Math.pow(distX / 8.6, 2) * 0.34;
+    const topDown = Math.max(0, targetTopY - pt.y) * topWeight * (0.35 + contactWeight * 0.65) * a;
+    const sideOut = Math.sign(pt.x - 12 || 1) * (topWeight * 0.95 + shoulderWeight * 0.48) * a;
+    const lowerSettle = lowerWeight * volume * 0.18;
+    return {
+      x: pt.x + sideOut,
+      y: pt.y + topDown + lowerSettle
+    };
+  });
+  return catmullRomClosedPath(points, lerp(0.96, 0.72, a));
+}
+
+const DEFAULTS = {
+  // 时间线 (秒)
+  T_LAMP_APPEAR: 0.55,
+  T_NOTICE_BEGIN: 0.35,   // notice 跟 lamp_appear 重叠 0.2s
+  T_NOTICE_END: 0.95,
+  T_CROUCH: 0.35,
+  T_JUMP_UP: 0.34,
+  T_CONTACT_LEAD: 0.28,  // 压扁起点略早于视觉接触, 让 1.39s 已经有形变
+  T_IMPACT_HOLD: 0.16,    // 给撞击和压扁一个可读停顿
+  T_FALL_BACK: 0.34,
+  T_SATISFIED: 0.72,
+  T_HAT_DROP: 0.72,
+  T_MASK_SLIDE: 0.72,
+  T_SETTLE: 0.55,
+  T_LAMP_FADE_OUT: 0.35,  // 灯渐隐时长, 起点 = satisfied 结束
+
+  // notice 段眼睛朝灯方向偏移
+  noticeEyeOffsetX: -1.6,
+  noticeEyeOffsetY: -1.4,
+  noticeBodyTilt: -6,
+
+  // 跳跃路径 (云宝从中心跳到 capsule 下方)
+  jumpTx: -8.7,
+  jumpTy: -4.0,          // 头顶进入灯底, 由接触形变表现压扁
+  crouchScaleY: 0.88,
+  jumpUpScaleY: 1.08,
+  impactScaleY: 0.88,
+
+  // 灯位置
+  lampCx: 3,
+  lampCy: -3,
+  lampImpactDip: 0.90,   // 撞击瞬间灯 dip 峰值
+
+  // toggle knob X 偏移 (相对 capsule 中心, 跟原版 sleeping toggle 锁定值)
+  toggleDayKnobOffsetX: -3,
+  toggleNightKnobOffsetX: -0.2,
+
+  // 满意眼 (happy 微笑弧 锁定值)
+  smileH: 1.0,
+  smileW: 3.5,
+
+  // 帽子起点
+  hatStartTx: 3,
+  hatStartTy: -15,
+  hatStartRot: -30,
+  hatStartScale: 0.7,
+
+  // 眼罩起点
+  maskStartTx: 8,
+  maskStartTy: -4.5,
+  maskStartRot: 14,
+
+  // sleeping 锁定终点
+  sleepingBodyTilt: -6,
+  sleepingHatTx: -2,
+  sleepingHatTy: -0.4,
+  sleepingHatRot: -10,
+  sleepingHatScale: 0.98,
+  sleepingMaskTx: 0,
+  sleepingMaskTy: -0.6,
+  sleepingMaskRot: -9,
+  sleepingMaskScale: 1.0,
+};
+
+let params = { ...DEFAULTS };
+let paused = false;
+let scrubbing = false;
+
+/* =========================================================================
+ * defs (复用 v1)
+ * ========================================================================= */
+function commonDefs(p, cloudD = makeSoftCloudPath(0)) {
+  return `
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/><stop offset="0.5" stop-color="#f4f5f9"/><stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="${p}-hi" cx="0.45" cy="0.25" r="0.55">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="${p}-hat" x1="11" y1="-3" x2="14" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7AA0FF"/><stop offset="0.45" stop-color="#3941FF"/><stop offset="1" stop-color="#1F2BC2"/>
+    </linearGradient>
+    <linearGradient id="${p}-cuff" x1="12" y1="3" x2="12" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/><stop offset="0.5" stop-color="#fafbff"/><stop offset="1" stop-color="#e8ecf6"/>
+    </linearGradient>
+    <linearGradient id="${p}-star-yellow" x1="0" y1="-2" x2="0" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE9A8"/><stop offset="0.5" stop-color="#FFD360"/><stop offset="1" stop-color="#F5A623"/>
+    </linearGradient>
+    <filter id="${p}-star-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0.4" stdDeviation="0.5" flood-color="#F5A623" flood-opacity="0.32"/>
+    </filter>
+    <linearGradient id="${p}-z-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <filter id="${p}-z-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0.3" stdDeviation="0.35" flood-color="#7A9DFF" flood-opacity="0.45"/>
+    </filter>
+    <filter id="${p}-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+    </filter>
+    <filter id="${p}-edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <filter id="${p}-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="0.18"/>
+    </filter>
+    <linearGradient id="${p}-toggle-day" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E5EDFF"/><stop offset="1" stop-color="#BFD6FF"/>
+    </linearGradient>
+    <linearGradient id="${p}-toggle-night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A3554"/><stop offset="1" stop-color="#0F1428"/>
+    </linearGradient>
+    <clipPath id="${p}-clip"><path d="${cloudD}"/></clipPath>
+  `;
+}
+
+function makeFluffyCuff(p, cx, cy, rx, ry, asym, bumps) {
+  let parts = [];
+  const circles = [];
+  for (let i = 0; i < bumps; i++) {
+    const ang = (i * 2 * Math.PI) / bumps - Math.PI / 2;
+    const x = cx + Math.cos(ang) * rx;
+    const y = cy + Math.sin(ang) * ry;
+    const sizeY = -Math.sin(ang);
+    const sizeBoost = 0.18 * (sizeY + 1) / 2 + 0.10;
+    const jitter = ((i * 13) % 7) / 35;
+    let r = 0.62 + sizeBoost + jitter;
+    if (asym !== 0) r *= 1 + asym * Math.cos(ang) * 0.28;
+    circles.push({ x, y, r });
+  }
+  const innerRy = ry + 0.40;
+  parts.push(`<g filter="url(#${p}-soft)">`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx+0.30).toFixed(2)}" ry="${(innerRy+0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r+0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`));
+  parts.push(`</g>`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx+0.15).toFixed(2)}" ry="${(innerRy+0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r+0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`));
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx.toFixed(2)}" ry="${innerRy.toFixed(2)}" fill="url(#${p}-cuff)"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${c.r.toFixed(2)}" fill="url(#${p}-cuff)"/>`));
+  parts.push(`<ellipse cx="${cx}" cy="${(cy-ry*0.45).toFixed(2)}" rx="${(rx*0.78).toFixed(2)}" ry="${(ry*0.32).toFixed(2)}" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="0.14"/>`);
+  return parts.join('');
+}
+
+function makeBentHat(bend) {
+  const elbowX = 12 + bend * 2.2;
+  const elbowY = -0.5 + bend * 2.3;
+  const tipX = 11 - bend * 5.5;
+  const tipY = 0.0 + bend * 0.5;
+  const tipBottomX = tipX + 1.2 + bend * 0.4;
+  const tipBottomY = tipY + 1.4 + bend * 0.3;
+  return {
+    path: `M 8.5 5.0 Q 12 5.55 15.5 5.0 C 16.0 3.5 ${(elbowX+0.8).toFixed(2)} ${(elbowY+1.0).toFixed(2)} ${elbowX.toFixed(2)} ${elbowY.toFixed(2)} C ${(elbowX-0.5).toFixed(2)} ${(elbowY-0.8).toFixed(2)} ${(tipX+1.5).toFixed(2)} ${(tipY-0.5).toFixed(2)} ${tipX.toFixed(2)} ${tipY.toFixed(2)} C ${(tipX-0.3).toFixed(2)} ${(tipY+0.6).toFixed(2)} ${(tipBottomX-1.0).toFixed(2)} ${tipBottomY.toFixed(2)} ${tipBottomX.toFixed(2)} ${tipBottomY.toFixed(2)} C 8.5 4.0 8.0 4.5 8.5 5.0 Z`
+  };
+}
+
+function makeStar(cx, cy, r, rotationDeg, cornerRound, innerRatio) {
+  const innerR = r * innerRatio;
+  const rotRad = (rotationDeg * Math.PI) / 180;
+  const verts = [];
+  for (let i = 0; i < 10; i++) {
+    const ang = (i * Math.PI / 5) + rotRad - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : innerR;
+    verts.push({ x: cx + Math.cos(ang) * radius, y: cy + Math.sin(ang) * radius });
+  }
+  const inP = [], outP = [];
+  for (let i = 0; i < 10; i++) {
+    const prev = verts[(i-1+10)%10], cur = verts[i], next = verts[(i+1)%10];
+    const v1x = prev.x - cur.x, v1y = prev.y - cur.y;
+    const v1Len = Math.hypot(v1x, v1y);
+    const v2x = next.x - cur.x, v2y = next.y - cur.y;
+    const v2Len = Math.hypot(v2x, v2y);
+    const cr = Math.min(cornerRound, v1Len*0.48, v2Len*0.48);
+    inP[i] = { x: cur.x + (v1x/v1Len)*cr, y: cur.y + (v1y/v1Len)*cr };
+    outP[i] = { x: cur.x + (v2x/v2Len)*cr, y: cur.y + (v2y/v2Len)*cr };
+  }
+  let path = `M ${inP[0].x.toFixed(2)} ${inP[0].y.toFixed(2)} `;
+  for (let i = 0; i < 10; i++) {
+    path += `Q ${verts[i].x.toFixed(2)} ${verts[i].y.toFixed(2)} ${outP[i].x.toFixed(2)} ${outP[i].y.toFixed(2)} `;
+    path += `L ${inP[(i+1)%10].x.toFixed(2)} ${inP[(i+1)%10].y.toFixed(2)} `;
+  }
+  return path + 'Z';
+}
+
+const SLEEP_MASK_PATH = {
+  d: "M488.728,341.587l-7.846-2.599c-0.405-16.992-7.605-47.34-48.625-70.941c-38.301-22.036-96.652-33.215-173.431-33.224c-76.822,0-135.146,11.165-173.438,33.183c-42.335,24.344-48.659,55.883-48.661,72.516c0,2.608,0.135,5.183,0.352,7.735h-2.649c-0.001,0-0.001,0-0.002,0c-9.635,0-17.446,7.811-17.448,17.445c-0.001,9.636,7.81,17.449,17.445,17.45l13,0.001c15.257,28.43,45.267,47.814,79.728,47.818c20.016-0.001,36.647-11.511,54.256-23.695c20.65-14.29,44.048-30.481,77.388-30.481c33.359,0.003,56.757,16.204,77.402,30.497c17.61,12.192,34.24,23.707,54.251,23.709h0.012c24.153,0,46.861-9.404,63.941-26.481c8.937-8.936,15.751-19.422,20.239-30.839l3.111,1.031c1.82,0.604,3.67,0.89,5.489,0.89c7.318,0,14.133-4.64,16.56-11.966C502.835,354.489,497.876,344.617,488.728,341.587Z",
+  bboxX: 15, bboxY: 232, bboxW: 487, bboxH: 200
+};
+
+function makeSleepMask(p, tx, ty, rot, scale) {
+  const cx = 12 + tx, cy = 12 + ty;
+  const W = 16.61 * scale, H = 7.55 * scale;
+  const sx = W / SLEEP_MASK_PATH.bboxW, sy = H / SLEEP_MASK_PATH.bboxH;
+  const cxOrig = SLEEP_MASK_PATH.bboxX + SLEEP_MASK_PATH.bboxW/2;
+  const cyOrig = SLEEP_MASK_PATH.bboxY + SLEEP_MASK_PATH.bboxH/2;
+  const body = `<g transform="translate(${cx} ${cy}) scale(${sx.toFixed(5)} ${sy.toFixed(5)}) translate(${(-cxOrig).toFixed(2)} ${(-cyOrig).toFixed(2)})">
+    <path d="${SLEEP_MASK_PATH.d}" fill="#22305A" stroke="#000" stroke-width="0.22" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </g>`;
+  const lashW = 2.45, lashH = 0.70;
+  const arc = `<path d="M ${(-lashW/2).toFixed(2)} 0 Q 0 ${(lashH*2).toFixed(2)} ${(lashW/2).toFixed(2)} 0" fill="none" stroke="#fff" stroke-width="0.45" stroke-linecap="round"/>`;
+  const hairs = [];
+  for (let i = 0; i < 3; i++) {
+    const t = 0.18 + (i/2) * 0.64;
+    const sxh = (1-t)*(1-t)*(-lashW/2) + t*t*(lashW/2);
+    const syh = 2*(1-t)*t*(2*lashH);
+    const tangX = 2*(1-t)*(lashW/2) + 2*t*(lashW/2);
+    const tangY = 2*(1-t)*(2*lashH) - 2*t*(2*lashH);
+    const tLen = Math.hypot(tangX, tangY);
+    const dirX = tangY/tLen, dirY = -tangX/tLen;
+    const useDown = dirY > 0 ? 1 : -1;
+    const ex = sxh + dirX * 0.66 * useDown, ey = syh + dirY * 0.66 * useDown;
+    hairs.push(`<line x1="${sxh.toFixed(2)}" y1="${syh.toFixed(2)}" x2="${ex.toFixed(2)}" y2="${ey.toFixed(2)}" stroke="#fff" stroke-width="0.38" stroke-linecap="round" opacity="0.92"/>`);
+  }
+  const lashGap = 6.0 * scale;
+  const wrapEye = (ecx, sign) => `<g transform="translate(${ecx.toFixed(2)} ${(cy-0.25).toFixed(2)}) rotate(${(sign*5).toFixed(2)}) scale(1.18)">${arc}${hairs.join('')}</g>`;
+  const lashes = wrapEye(cx - lashGap/2, -1) + wrapEye(cx + lashGap/2, +1);
+  return `<g class="sleep-mask" transform="rotate(${rot} ${cx} ${cy})" filter="url(#${p}-shadow)">${body}${lashes}</g>`;
+}
+
+/* =========================================================================
+ * 眼睛 (多模式: capsule / arrows / smile / closed)
+ * ========================================================================= */
+function makeEyes(p, mode, openness, offX, offY) {
+  const lcx = 9, rcx = 15, cy = 12;  // 双眼默认位置
+  let lEye, rEye;
+
+  if (mode === 'arrows') {
+    // > < 用力表情 (左眼 > 朝右开, 右眼 < 朝左开)
+    // 用 typing spec stroke 1.25 + linecap=round, 字符尺寸 1.40
+    const sz = 1.4;
+    // > path (左眼): 左上 → 中右 → 左下
+    const gtPath = `M ${(-sz*0.7).toFixed(2)} ${(-sz*0.85).toFixed(2)} L ${(sz*0.7).toFixed(2)} 0 L ${(-sz*0.7).toFixed(2)} ${(sz*0.85).toFixed(2)}`;
+    // < path (右眼): 右上 → 中左 → 右下
+    const ltPath = `M ${(sz*0.7).toFixed(2)} ${(-sz*0.85).toFixed(2)} L ${(-sz*0.7).toFixed(2)} 0 L ${(sz*0.7).toFixed(2)} ${(sz*0.85).toFixed(2)}`;
+    lEye = `<g transform="translate(${lcx} ${cy})"><path d="${gtPath}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+    rEye = `<g transform="translate(${rcx} ${cy})"><path d="${ltPath}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+  } else if (mode === 'smile') {
+    // happy 微笑弧 h=1.0 w=3.5 stroke=1.25 cy=12.7
+    const w = params.smileW, h = params.smileH;
+    const smileCY = 12.7;
+    const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
+    lEye = `<path d="${smilePath(lcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>`;
+    rEye = `<path d="${smilePath(rcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>`;
+  } else {
+    // capsule (default) 或 closed (h 极小)
+    const baseH = 5;
+    const minH = 0.3;
+    const h = Math.max(minH, baseH * openness);
+    const y = 9.5 + (baseH - h) / 2;
+    const rx = Math.min(1.3, h / 2);
+    lEye = `<rect x="7.7" y="${y.toFixed(2)}" width="2.6" height="${h.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${rx.toFixed(2)}" fill="url(#${p}-eye)" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+    rEye = `<rect x="13.7" y="${y.toFixed(2)}" width="2.6" height="${h.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${rx.toFixed(2)}" fill="url(#${p}-eye)" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>`;
+  }
+
+  return `<g class="eyes" transform="translate(${offX.toFixed(2)} ${offY.toFixed(2)})">${lEye}${rEye}</g>`;
+}
+
+function makeCloudling(p, eyeMode, eyeOpenness, eyeOffX, eyeOffY) {
+  return `
+    <g class="cloudling-base">
+      <g class="edge-system">
+        <use class="edge-contact" href="#${p}-cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#${p}-shadow)">
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
+      </g>
+      ${makeEyes(p, eyeMode, eyeOpenness, eyeOffX, eyeOffY)}
+    </g>
+  `;
+}
+
+const STAR_LOCKED = { cx: 8.55, cy: 0.35, size: 1.00, rotation: 30, cornerRound: 0.27, innerRatio: 0.56 };
+
+function makeHat(p, tx, ty, rot, scale) {
+  const hatData = makeBentHat(0.4);
+  const cuffSVG = makeFluffyCuff(p, 12, 5.4, 3.7, 0.85, 0, 18);
+  const s = STAR_LOCKED;
+  const starPath = makeStar(s.cx, s.cy, s.size, s.rotation, s.cornerRound, s.innerRatio);
+  return `
+    <g class="hat-piece" transform="translate(${tx} ${ty}) rotate(${rot} 12 5.4) scale(${scale})">
+      <g filter="url(#${p}-shadow)"><path d="${hatData.path}" fill="url(#${p}-hat)"/></g>
+      <g class="cuff-fluffy">${cuffSVG}</g>
+      <g class="star-piece" filter="url(#${p}-star-glow)">
+        <path d="${starPath}" fill="url(#${p}-star-yellow)" stroke="#fff" stroke-width="0.06" stroke-opacity="0.7" stroke-linejoin="round"/>
+      </g>
+    </g>
+  `;
+}
+
+function makeZPath() {
+  return "M -1.0 -1.0 Q 0.0 -1.0 1.0 -1.0 Q 1.05 -0.85 0.6 -0.4 Q 0 0.1 -0.6 0.6 Q -1.05 0.95 -1.0 1.0 Q 0.0 1.0 1.0 1.0";
+}
+
+function makeLamp(p, cx, cy, dipY, toggleMix, dayOff, nightOff, opacity, scale, knockRot) {
+  const ccy = cy + dipY;
+  const mix = clamp01(toggleMix);
+  const dayOpacity = 1 - mix;
+  const nightOpacity = mix;
+  const dayKnobOpacity = clamp01(1 - mix * 2.2);
+  const nightKnobOpacity = clamp01((mix - 0.18) / 0.82);
+  const knobX = cx + lerp(dayOff, nightOff, mix);
+  const knobY = ccy;
+
+  const dayKnob = `
+    <g opacity="${dayKnobOpacity.toFixed(2)}">
+      <circle cx="${knobX.toFixed(2)}" cy="${knobY.toFixed(2)}" r="2.4" fill="#fff" filter="url(#${p}-shadow)"/>
+      <circle cx="${(knobX+0.85).toFixed(2)}" cy="${(knobY-0.95).toFixed(2)}" r="0.50" fill="#D4DFFF" opacity="0.78"/>
+      <circle cx="${(knobX+1.15).toFixed(2)}" cy="${(knobY+0.55).toFixed(2)}" r="0.28" fill="#D4DFFF" opacity="0.72"/>
+    </g>
+  `;
+
+  const outerR = 2.35, innerR = 1.70, innerDx = 0.80;
+  const ix = (outerR*outerR - innerR*innerR + innerDx*innerDx) / (2*innerDx);
+  const iy = Math.sqrt(outerR*outerR - ix*ix);
+  const nightKnob = `
+    <g class="crescent-knob" filter="url(#${p}-shadow)" opacity="${nightKnobOpacity.toFixed(2)}">
+      <path d="
+        M ${(knobX+ix).toFixed(3)} ${(knobY-iy).toFixed(3)}
+        A ${outerR} ${outerR} 0 1 1 ${(knobX+ix).toFixed(3)} ${(knobY+iy).toFixed(3)}
+        A ${innerR} ${innerR} 0 1 0 ${(knobX+ix).toFixed(3)} ${(knobY-iy).toFixed(3)}
+        Z
+      " fill="#fff"/>
+    </g>
+  `;
+
+  const stars = `
+    <g class="stars" opacity="${nightOpacity.toFixed(2)}">
+      <circle cx="${(cx-1.5).toFixed(2)}" cy="${(ccy-0.9).toFixed(2)}" r="0.18" fill="#fff" opacity="0.95"/>
+      <circle cx="${(cx-0.5).toFixed(2)}" cy="${(ccy+1.3).toFixed(2)}" r="0.14" fill="#fff" opacity="0.85"/>
+      <circle cx="${(cx+0.6).toFixed(2)}" cy="${(ccy-0.4).toFixed(2)}" r="0.10" fill="#fff" opacity="0.75"/>
+      <circle cx="${(cx-1.2).toFixed(2)}" cy="${(ccy+1.6).toFixed(2)}" r="0.10" fill="#fff" opacity="0.78"/>
+      <circle cx="${(cx).toFixed(2)}" cy="${(ccy-1.3).toFixed(2)}" r="0.13" fill="#fff" opacity="0.88"/>
+    </g>
+  `;
+
+  return `
+    <g class="lamp-wrapper" opacity="${opacity.toFixed(2)}" transform="translate(${cx} ${ccy}) rotate(${knockRot.toFixed(3)}) scale(${scale.toFixed(3)}) translate(${-cx} ${-ccy})">
+      <g class="lamp-group" filter="url(#${p}-shadow)">
+        <rect class="toggle-capsule-stroke" x="${(cx-7).toFixed(2)}" y="${(ccy-3).toFixed(2)}" width="14" height="6" rx="3" ry="3" fill="url(#${p}-toggle-day)" opacity="${dayOpacity.toFixed(2)}"/>
+        <rect class="toggle-capsule-stroke" x="${(cx-7).toFixed(2)}" y="${(ccy-3).toFixed(2)}" width="14" height="6" rx="3" ry="3" fill="url(#${p}-toggle-night)" opacity="${nightOpacity.toFixed(2)}"/>
+        <rect x="${(cx-7).toFixed(2)}" y="${(ccy-3).toFixed(2)}" width="14" height="6" rx="3" ry="3" fill="none" stroke="#fff" stroke-opacity="0.18" stroke-width="0.12"/>
+      </g>
+      ${stars}
+      ${dayKnob}
+      ${nightKnob}
+    </g>
+  `;
+}
+
+/* =========================================================================
+ * 时间线 + 插值
+ * ========================================================================= */
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 2); }
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeOutBack(t) {
+  const c1 = 1.45;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+function easeIn(t) { return t * t; }
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+function clamp01(t) { return Math.max(0, Math.min(1, t)); }
+function progress(t, begin, end) { return clamp01((t - begin) / (end - begin)); }
+
+function getTimeline() {
+  const tLampEnd = params.T_LAMP_APPEAR;
+  const tNoticeEnd = params.T_NOTICE_END;
+  const tCrouchStart = tNoticeEnd;
+  const tCrouchEnd = tCrouchStart + params.T_CROUCH;
+  const tJumpUpEnd = tCrouchEnd + params.T_JUMP_UP;
+  const tImpactStart = tJumpUpEnd;
+  const tContactStart = Math.max(tCrouchEnd, tImpactStart - params.T_CONTACT_LEAD);
+  const tImpactEnd = tImpactStart + params.T_IMPACT_HOLD;
+  const tFallEnd = tImpactEnd + params.T_FALL_BACK;
+  const tSatisfiedEnd = tFallEnd + params.T_SATISFIED;
+  const tHatDropEnd = tSatisfiedEnd + params.T_HAT_DROP;
+  const tMaskSlideEnd = tHatDropEnd + params.T_MASK_SLIDE;
+  const tSettleEnd = tMaskSlideEnd + params.T_SETTLE;
+  return {
+    tLampEnd, tNoticeBegin: params.T_NOTICE_BEGIN, tNoticeEnd,
+    tCrouchStart, tCrouchEnd,
+    tJumpUpEnd, tContactStart, tImpactStart, tImpactEnd,
+    tFallEnd, tSatisfiedEnd,
+    tHatDropEnd, tMaskSlideEnd, tSettleEnd
+  };
+}
+
+function computeFrame(t) {
+  const T = getTimeline();
+  const f = {};
+
+  // ---------- 灯渐显 → 满意后渐隐 ----------
+  const tFadeStart = T.tSatisfiedEnd;
+  const tFadeEnd = tFadeStart + params.T_LAMP_FADE_OUT;
+  if (t < params.T_LAMP_APPEAR) {
+    // 渐显 (lamp_appear 段)
+    const p = easeOut(progress(t, 0, params.T_LAMP_APPEAR));
+    f.lampOpacity = p;
+    f.lampScale = lerp(0.85, 1.0, p);
+  } else if (t < tFadeStart) {
+    // 全显 (lamp_appear 完成 → satisfied 结束)
+    f.lampOpacity = 1;
+    f.lampScale = 1;
+  } else if (t < tFadeEnd) {
+    // 渐隐 (满意后 → 完全消失)
+    const p = easeIn(progress(t, tFadeStart, tFadeEnd));
+    f.lampOpacity = lerp(1, 0, p);
+    f.lampScale = 1;
+  } else {
+    // 完全消失
+    f.lampOpacity = 0;
+    f.lampScale = 1;
+  }
+  f.lampScalePulse = 1;
+  f.lampRot = 0;
+  let contactAmount = 0;
+  if (t >= T.tContactStart && t < T.tImpactStart) {
+    contactAmount = lerp(0, 0.82, easeInOut(progress(t, T.tContactStart, T.tImpactStart)));
+  } else if (t >= T.tImpactStart && t < T.tImpactEnd) {
+    contactAmount = lerp(0.82, 1, easeOut(progress(t, T.tImpactStart, T.tImpactEnd)));
+  } else if (t >= T.tImpactEnd && t < T.tFallEnd) {
+    contactAmount = 1 - easeInOut(progress(t, T.tImpactEnd, T.tFallEnd));
+  }
+  f.contactAmount = contactAmount;
+  f.pressAmount = t < T.tImpactStart && contactAmount > 0
+    ? Math.sqrt(contactAmount / 0.82) * 0.82
+    : contactAmount;
+
+  // ---------- cloudling 整体 transform ----------
+  let cloudTx = 0, cloudTy = 0, cloudRot = 0, cloudScaleX = 1, cloudScaleY = 1;
+
+  if (t < T.tNoticeBegin) {
+    // idle 默认
+  } else if (t < T.tNoticeEnd) {
+    // notice: 微歪头朝灯方向
+    const p = easeOut(progress(t, T.tNoticeBegin, T.tNoticeEnd));
+    cloudRot = lerp(0, params.noticeBodyTilt, p);
+  } else if (t < T.tCrouchEnd) {
+    // crouch: scaleY 压扁
+    const p = easeIn(progress(t, T.tCrouchStart, T.tCrouchEnd));
+    cloudTy = lerp(0, 0.45, p);
+    cloudScaleY = lerp(1, params.crouchScaleY, p);
+    cloudRot = params.noticeBodyTilt;
+  } else if (t < T.tJumpUpEnd) {
+    // jump up: 斜向上弧线顶到 capsule, 不是直线飘过去
+    const p = easeOutCubic(progress(t, T.tCrouchEnd, T.tJumpUpEnd));
+    cloudTx = lerp(0, params.jumpTx, p);
+    cloudTy = lerp(0.45, params.jumpTy, p) - Math.sin(p * Math.PI) * 0.85;
+    const jumpScaleY = lerp(params.crouchScaleY, params.jumpUpScaleY, p);
+    cloudScaleX = lerp(1, 1.13, f.pressAmount);
+    cloudScaleY = lerp(jumpScaleY, params.impactScaleY, f.pressAmount);
+    cloudRot = lerp(params.noticeBodyTilt, 0, p); // 起跳过程歪头回正
+  } else if (t < T.tImpactEnd) {
+    // impact: 撞 capsule, 继续加深压扁, 不硬切
+    cloudTx = params.jumpTx;
+    cloudTy = params.jumpTy;
+    cloudScaleX = lerp(1, 1.13, f.pressAmount);
+    cloudScaleY = lerp(params.jumpUpScaleY, params.impactScaleY, f.pressAmount);
+    cloudRot = 0;
+  } else if (t < T.tFallEnd) {
+    // fall back: 从顶位回到中心, 压扁量逐渐释放
+    const p = easeInOut(progress(t, T.tImpactEnd, T.tFallEnd));
+    cloudTx = lerp(params.jumpTx, 0, p);
+    cloudTy = lerp(params.jumpTy, 0, p) + Math.sin(p * Math.PI) * 0.55;
+    cloudScaleX = lerp(1, 1.13, f.pressAmount);
+    cloudScaleY = lerp(1, params.impactScaleY, f.pressAmount);
+  } else if (t < T.tSatisfiedEnd) {
+    // satisfied: 落地后的满足小弹跳, 给表情留时间
+    const p = progress(t, T.tFallEnd, T.tSatisfiedEnd);
+    const settleBounce = Math.sin(p * Math.PI * 2) * Math.exp(-p * 3.2);
+    cloudTy = settleBounce * 0.22;
+    cloudRot = Math.sin(p * Math.PI) * 1.4;
+  } else {
+    // hat/mask/settle: bodyTilt 渐进到 sleeping -6°
+    const p = easeInOut(progress(t, T.tSatisfiedEnd, T.tSettleEnd));
+    cloudRot = lerp(0, params.sleepingBodyTilt, p);
+  }
+
+  f.cloudTx = cloudTx;
+  f.cloudTy = cloudTy;
+  f.cloudRot = cloudRot;
+  f.cloudScaleX = cloudScaleX;
+  f.cloudScaleY = cloudScaleY;
+
+  // ---------- 灯反馈: 跟 contactAmount 同步渐进下压, 离开后轻微余震 ----------
+  f.lampDipY = params.lampImpactDip * f.pressAmount;
+  if (t >= T.tContactStart && t < T.tFallEnd + 0.35) {
+    const contactShake = t < T.tImpactStart
+      ? -1.0 * contactAmount
+      : Math.sin((t - T.tImpactStart) * Math.PI * 12) * 3.8 * Math.exp(-(t - T.tImpactStart) * 4.6);
+    f.lampRot = contactShake;
+    if (t >= T.tImpactStart) {
+      const dt = t - T.tImpactStart;
+      f.lampScalePulse = 1 + Math.max(0, Math.sin(dt * Math.PI * 4.5)) * 0.035 * Math.exp(-dt * 5);
+    }
+    if (t >= T.tFallEnd) {
+      const rt = t - T.tFallEnd;
+      f.lampDipY += params.lampImpactDip * 0.08 * Math.exp(-rt * 8) * Math.sin(rt * Math.PI * 10);
+      f.lampRot = Math.sin(rt * Math.PI * 10) * 1.4 * Math.exp(-rt * 8);
+    }
+  }
+
+  // ---------- toggle state: 撞击后滑过去, 咔哒感比硬切清楚 ----------
+  f.toggleMix = easeOutCubic(progress(t, T.tImpactStart + 0.03, T.tImpactStart + 0.24));
+  f.toggleState = f.toggleMix >= 0.5 ? 'night' : 'day';
+
+  // ---------- 眼睛 mode ----------
+  // v7: 接触加深时进入 ><, 落地后给清楚的满意弧线.
+  let eyeMode, eyeOpenness = 1, eyeOffX = 0, eyeOffY = 0;
+  if (t < T.tNoticeBegin) {
+    eyeMode = 'capsule';
+  } else if (t < T.tNoticeEnd) {
+    // notice: capsule 朝灯偏移
+    const p = easeOut(progress(t, T.tNoticeBegin, T.tNoticeEnd));
+    eyeMode = 'capsule';
+    eyeOffX = lerp(0, params.noticeEyeOffsetX, p);
+    eyeOffY = lerp(0, params.noticeEyeOffsetY, p);
+  } else if (t < T.tImpactStart && f.contactAmount < 0.42) {
+    // crouch + jump up: 保持朝灯偏移, 微微眯眼像在瞄准
+    eyeMode = 'capsule';
+    eyeOpenness = 0.82;
+    eyeOffX = params.noticeEyeOffsetX;
+    eyeOffY = params.noticeEyeOffsetY;
+  } else if (t < T.tImpactEnd + 0.08) {
+    // 接触加深后进入用力表情
+    eyeMode = 'arrows';
+  } else if (t < T.tFallEnd) {
+    // fall_back: 解除用力表情, 避免像被打疼
+    eyeMode = 'capsule';
+    eyeOpenness = 0.72;
+  } else if (t < T.tSatisfiedEnd) {
+    // 落地满意 beat
+    eyeMode = 'smile';
+  } else if (t < T.tMaskSlideEnd) {
+    // 戴帽时还保持一点满意, 眼罩靠近时渐困
+    const p = progress(t, T.tSatisfiedEnd, T.tMaskSlideEnd);
+    if (p < 0.45) {
+      eyeMode = 'smile';
+    } else {
+      eyeMode = 'capsule';
+      eyeOpenness = lerp(0.72, 0.18, progress(p, 0.45, 1));
+    }
+  } else {
+    // settle + sleeping loop: 几乎闭眼 (被 mask 遮住)
+    eyeMode = 'capsule';
+    eyeOpenness = 0.05;
+  }
+  f.eyeMode = eyeMode;
+  f.eyeOpenness = eyeOpenness;
+  f.eyeOffX = eyeOffX;
+  f.eyeOffY = eyeOffY;
+
+  // ---------- 帽子 ----------
+  if (t < T.tSatisfiedEnd) {
+    f.hatVisible = false;
+  } else if (t < T.tHatDropEnd) {
+    f.hatVisible = true;
+    const u = progress(t, T.tSatisfiedEnd, T.tHatDropEnd);
+    const p = easeOutBack(u);
+    f.hatTx = lerp(params.hatStartTx, params.sleepingHatTx, p);
+    f.hatTy = lerp(params.hatStartTy, params.sleepingHatTy, p) - Math.sin(u * Math.PI) * 0.35;
+    f.hatRot = lerp(params.hatStartRot, params.sleepingHatRot, p) + Math.sin(u * Math.PI * 2) * 3.5 * (1 - u);
+    f.hatScale = lerp(params.hatStartScale, params.sleepingHatScale, p);
+  } else {
+    f.hatVisible = true;
+    f.hatTx = params.sleepingHatTx;
+    f.hatTy = params.sleepingHatTy;
+    f.hatRot = params.sleepingHatRot;
+    f.hatScale = params.sleepingHatScale;
+  }
+
+  // ---------- 眼罩 ----------
+  if (t < T.tHatDropEnd) {
+    f.maskVisible = false;
+  } else if (t < T.tMaskSlideEnd) {
+    f.maskVisible = true;
+    const u = progress(t, T.tHatDropEnd, T.tMaskSlideEnd);
+    const p = easeOutBack(u);
+    f.maskTx = lerp(params.maskStartTx, params.sleepingMaskTx, p);
+    f.maskTy = lerp(params.maskStartTy, params.sleepingMaskTy, p) - Math.sin(u * Math.PI) * 0.25;
+    f.maskRot = lerp(params.maskStartRot, params.sleepingMaskRot, p);
+    f.maskScale = params.sleepingMaskScale;
+  } else {
+    f.maskVisible = true;
+    f.maskTx = params.sleepingMaskTx;
+    f.maskTy = params.sleepingMaskTy;
+    f.maskRot = params.sleepingMaskRot;
+    f.maskScale = params.sleepingMaskScale;
+  }
+
+  // ---------- sleeping loop ----------
+  f.inSleepingLoop = t >= T.tSettleEnd;
+  if (f.inSleepingLoop) {
+    const lt = t - T.tSettleEnd;
+    const breathPhase = (Math.cos(2 * Math.PI * lt / 4) + 1) / 2;
+    f.breathScale = lerp(0.96, 1.02, breathPhase);
+    f.hatSwayDeg = Math.sin(2 * Math.PI * lt / 6) * 2.0;
+  } else {
+    f.breathScale = 1.0;
+    f.hatSwayDeg = 0;
+  }
+
+  return f;
+}
+
+/* =========================================================================
+ * 渲染
+ * ========================================================================= */
+const stage = document.getElementById('stage');
+
+function renderFrame(t) {
+  const f = computeFrame(t);
+  const p = 'idl';
+
+  const lamp = makeLamp(
+    p,
+    params.lampCx,
+    params.lampCy,
+    f.lampDipY,
+    f.toggleMix,
+    params.toggleDayKnobOffsetX,
+    params.toggleNightKnobOffsetX,
+    f.lampOpacity,
+    f.lampScale * f.lampScalePulse,
+    f.lampRot
+  );
+
+  const cloudD = makeSoftCloudPath(f.pressAmount);
+  const cloudling = makeCloudling(p, f.eyeMode, f.eyeOpenness, f.eyeOffX, f.eyeOffY);
+
+  const hat = f.hatVisible ? `<g transform="rotate(${f.hatSwayDeg.toFixed(3)} 12 5.4)">${makeHat(p, f.hatTx, f.hatTy, f.hatRot, f.hatScale)}</g>` : '';
+  const mask = f.maskVisible ? makeSleepMask(p, f.maskTx, f.maskTy, f.maskRot, f.maskScale) : '';
+
+  // Z 字 (sleeping loop)
+  let zHTML = '';
+  if (f.inSleepingLoop) {
+    const T = getTimeline();
+    const lt = t - T.tSettleEnd;
+    const lastSpawnTime = Math.floor(lt / 1.8) * 1.8;
+    for (let bornAt = lastSpawnTime; bornAt > lt - 2.9 && bornAt >= 0; bornAt -= 1.8) {
+      const age = lt - bornAt;
+      if (age < 0 || age >= 2.9) continue;
+      const u = age / 2.9;
+      const x = 19.4 + 4 * u;
+      const y = 3.6 - 8 * u;
+      const size = lerp(1.6, 1.3, u);
+      let opacity;
+      if (u < 0.18) opacity = (u/0.18) * 0.45;
+      else if (u < 0.7) opacity = 0.45;
+      else opacity = 0.45 * (1 - (u-0.7)/0.3);
+      const sway = Math.sin(age * 2.0) * 0.3;
+      zHTML += `<g transform="translate(${(x+sway).toFixed(2)} ${y.toFixed(2)}) scale(${size.toFixed(2)})" opacity="${opacity.toFixed(3)}">
+        <g filter="url(#${p}-z-glow)">
+          <path d="${makeZPath()}" fill="none" stroke="url(#${p}-z-grad)" stroke-width="0.55" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+      </g>`;
+    }
+  }
+
+  // squash origin: impact + fall_back 段用云宝头顶 (12, 4.45) 模拟"被灯顶部压扁"
+  // 其他段用中心 (12, 12) 正常 squash & stretch
+  const T2 = getTimeline();
+  const squashOY = (t >= T2.tImpactStart && t < T2.tFallEnd) ? 4.45 : 12;
+
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+.toggle-capsule-stroke { stroke-opacity: 0; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.toggle-capsule-stroke { stroke: #5C7BD9; stroke-width: 0.20; stroke-opacity: 0.55; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+</style>
+<defs>
+        ${commonDefs(p, cloudD)}
+        <path id="${p}-cloud-shape" d="${cloudD}"/>
+      </defs>
+      <!-- cloudling 在灯下面 (先渲染, 灯后渲染压在上面) -->
+      <g class="scene" transform="translate(${f.cloudTx.toFixed(3)} ${f.cloudTy.toFixed(3)}) rotate(${f.cloudRot.toFixed(3)} 12 12)">
+        <g class="squash" transform="translate(12 ${squashOY}) scale(${f.cloudScaleX.toFixed(4)} ${f.cloudScaleY.toFixed(4)}) translate(-12 ${(-squashOY).toFixed(3)})">
+          <g class="breath" transform="translate(12 12) scale(${f.breathScale.toFixed(4)}) translate(-12 -12)">
+            ${cloudling}
+            ${hat}
+            ${mask}
+          </g>
+        </g>
+      </g>
+      <!-- 灯在云宝上面 (云宝顶到灯底, 灯压云宝). v6 去掉拉绳三角坠. -->
+      ${lamp}
+      ${zHTML}
+  `;
+}
+
+/* =========================================================================
+ * 主循环 + 控件
+ * ========================================================================= */
+let startT = performance.now();
+let elapsedOffset = 0;
+let pausedAt = 0;
+
+const scrubberEl = document.getElementById('scrubber');
+const tDisplayEl = document.getElementById('t-display');
+
+function getCurrentT() {
+  if (scrubbing) return Number(scrubberEl.value);
+  if (paused) return elapsedOffset + (pausedAt - startT) / 1000;
+  return elapsedOffset + (performance.now() - startT) / 1000;
+}
+
+function loop() {
+  const t = getCurrentT();
+  const T = getTimeline();
+  const totalLen = T.tSettleEnd + 5;
+  scrubberEl.max = totalLen.toFixed(2);
+  if (!scrubbing) scrubberEl.value = Math.min(t, totalLen).toFixed(3);
+  tDisplayEl.textContent = `${t.toFixed(2)} s`;
+  renderFrame(t);
+  requestAnimationFrame(loop);
+}
+renderFrame(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

@@ -1,0 +1,494 @@
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.statusbar {
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  color: #7A9DFF;
+  background: #1f1f26;
+  border-radius: 8px;
+  padding: 6px 14px;
+  min-width: 760px;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+.statusbar .phase-A { color: #7A9DFF; }
+.statusbar .phase-B { color: #FFA56B; font-weight: 700; }
+.statusbar .phase-C { color: #B1A7FF; }
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.statusbar { background: #fff; color: #3941FF; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+    <defs>
+      <linearGradient id="bg-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.5" stop-color="#f4f5f9"/>
+        <stop offset="1" stop-color="#dee2eb"/>
+      </linearGradient>
+      <radialGradient id="hg-grad" cx="0.45" cy="0.25" r="0.55">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="eye-grad" x1="0" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF"/>
+        <stop offset="0.5" stop-color="#7A9DFF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+      <linearGradient id="signal-grad" x1="-2" y1="12" x2="26" y2="12" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF" stop-opacity="0.10"/>
+        <stop offset="0.22" stop-color="#8EA7FF" stop-opacity="0.92"/>
+        <stop offset="0.78" stop-color="#7A9DFF" stop-opacity="0.92"/>
+        <stop offset="1" stop-color="#3941FF" stop-opacity="0.10"/>
+      </linearGradient>
+      <linearGradient id="alert-grad" x1="19" y1="4" x2="5" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#FFD36E" stop-opacity="0.98"/>
+        <stop offset="0.36" stop-color="#FFA56B" stop-opacity="0.9"/>
+        <stop offset="0.72" stop-color="#8EA7FF" stop-opacity="0.74"/>
+        <stop offset="1" stop-color="#3941FF" stop-opacity="0.18"/>
+      </linearGradient>
+      <filter id="cloud-shadow" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+      </filter>
+      <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="0.16"/>
+      </filter>
+      <filter id="pulse-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="0.22" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="alert-glow" x="-80%" y="-80%" width="260%" height="260%">
+        <feGaussianBlur stdDeviation="0.38" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <clipPath id="cloud-clip">
+        <path d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      </clipPath>
+    </defs>
+
+    <!-- 脉冲圈层 (在 cloudling 后面) -->
+    <g id="pulses-layer"></g>
+
+    <!-- cloudling 主体 -->
+    <g id="g-translate">
+      <g id="g-rotate">
+        <g id="g-squash">
+          <g id="edge-system">
+            <path class="edge-contact" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+            <path class="edge-rim-soft" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+            <path class="edge-rim-tight" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+          </g>
+          <g id="cloud-body" filter="url(#cloud-shadow)">
+            <path d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z" fill="url(#bg-grad)"/>
+            <rect x="1" y="2" width="22" height="11" fill="url(#hg-grad)" clip-path="url(#cloud-clip)"/>
+          </g>
+          <g id="rim-flash-layer"></g>
+          <!-- 眼睛层 (counter-rotate 容器) -->
+          <g id="eyes-counter">
+            <g id="eye-left" transform="translate(9 12)"></g>
+            <g id="eye-right" transform="translate(15 12)"></g>
+          </g>
+        </g>
+      </g>
+    </g>
+  <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="params"></g>
+<g id="statusbar"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+/* ============================================================
+   Cloudling notification — ABC 三段式 + 老式闹铃
+   ============================================================ */
+
+const COLOR = '#7A9DFF';
+const EYE_GRAD = 'url(#eye-grad)';
+
+// ===== 默认参数 (推荐值) =====
+const DEFAULTS = {
+  totalPeriod: 2600,       // ms 总周期
+  ratioA: 0.22,            // A 段占比
+  ratioB: 0.50,            // B 段占比 (C = 1 - A - B)
+  shakeAngle: 14,          // ° 摇晃幅度
+  shakeFreqHz: 7,          // Hz 摇晃频率
+  shakeJumpY: 0.46,        // px 跟随微跳幅度
+  squashStrength: 0.040,   // 摇晃顶点 squash (1 - x)
+  scaleMicro: 0.034,       // micro 顶点撑大幅度
+  scaleMacro: 0.060,       // macro B 段整气幅度
+  idleBreathAmp: 0.02,     // idle 微呼吸幅度 (0.96 ↔ 1.00 → ±0.02)
+  idleBreathPeriod: 5000,  // ms idle 呼吸周期 (跟 idle 锁定一致)
+  pulseLifetimeA: 760,     // ms A 段预亮生命
+  pulseLifetimeB: 520,     // ms B 段冲击弧生命
+  pulseScaleEnd: 1.54,     // 终值 scale
+  pulseStrokeWidth: 0.76,  // 通知弧描边宽度
+  pulseGlow: 0.36,         // glow stdDeviation
+  pulseStartRadius: 8.9,   // 弧出生时半径
+  pulseFadeIn: 35,         // ms 弧入场 fade in (opacity 0→max)
+  eyeWidenAmount: 0.22,    // capsule rx +22%
+  eyeWidenDuration: 100,   // ms 瞪大持续时间
+  counterRotate: true,     // 眼睛是否抵消 rotate
+};
+let P = { ...DEFAULTS };
+
+// ===== params UI =====
+const PARAM_DEFS = [
+  { group: '节奏 / RHYTHM' },
+  { key: 'totalPeriod',     label: '总周期 (ms)',         min: 1500, max: 4000, step: 100 },
+  { key: 'ratioA',          label: 'A 段占比 (蓄势)',     min: 0.10, max: 0.50, step: 0.02 },
+  { key: 'ratioB',          label: 'B 段占比 (发作)',     min: 0.20, max: 0.70, step: 0.02 },
+  { group: '摇晃 / SHAKE' },
+  { key: 'shakeAngle',      label: '摇晃幅度 (±°)',        min: 4,    max: 25,   step: 1 },
+  { key: 'shakeFreqHz',     label: '摇晃频率 (Hz)',        min: 3,    max: 10,   step: 0.5 },
+  { key: 'shakeJumpY',      label: '微跳幅度 (px)',        min: 0,    max: 2,    step: 0.1 },
+  { key: 'squashStrength',  label: 'squash 强度 (顶点压)', min: 0,    max: 0.12, step: 0.01 },
+  { group: '呼吸 / BREATH (整体 scale)' },
+  { key: 'scaleMicro',      label: 'micro 顶点撑大 (B)',   min: 0,    max: 0.10, step: 0.005 },
+  { key: 'scaleMacro',      label: 'macro 整气 (B 段)',    min: 0,    max: 0.15, step: 0.005 },
+  { key: 'idleBreathAmp',   label: 'idle 呼吸幅度 (A/C)',  min: 0,    max: 0.05, step: 0.005 },
+  { key: 'idleBreathPeriod',label: 'idle 呼吸周期 (ms)',   min: 2000, max: 8000, step: 200 },
+  { group: '通知弧 / PULSE' },
+  { key: 'pulseLifetimeA',  label: 'A 段缓弧生命 (ms)',     min: 500,  max: 1500, step: 50 },
+  { key: 'pulseLifetimeB',  label: 'B 段密集弧生命 (ms)',   min: 250,  max: 1000, step: 50 },
+  { key: 'pulseScaleEnd',   label: '弧终值 scale',          min: 1.15, max: 1.9,  step: 0.05 },
+  { key: 'pulseStrokeWidth',label: '弧描边粗细',            min: 0.35, max: 1.6,  step: 0.05 },
+  { key: 'pulseGlow',       label: 'glow stdDeviation',     min: 0.1,  max: 1.5,  step: 0.05 },
+  { key: 'pulseStartRadius',label: '弧出生半径',            min: 8.8,  max: 12,   step: 0.2 },
+  { key: 'pulseFadeIn',     label: '弧入场 fade in (ms)',   min: 0,    max: 250,  step: 10 },
+  { group: '眼睛 / EYES' },
+  { key: 'eyeWidenAmount',  label: '瞪大幅度 (+rx %)',      min: 0,    max: 0.5,  step: 0.02 },
+  { key: 'eyeWidenDuration',label: '瞪大持续 (ms)',         min: 50,   max: 300,  step: 10 },
+  { key: 'counterRotate',   label: '眼睛 counter-rotate',   type: 'cb' },
+];
+
+const paramsEl = document.getElementById('params');
+function buildParams() {
+  paramsEl.innerHTML = '';
+  for (const def of PARAM_DEFS) {
+    if (def.group) {
+      const h = document.createElement('h3');
+      h.textContent = def.group;
+      paramsEl.appendChild(h);
+      continue;
+    }
+    const lab = document.createElement('label');
+    if (def.type === 'cb') {
+      lab.className = 'cb';
+      lab.innerHTML = `
+        <input type="checkbox" data-key="${def.key}" ${P[def.key] ? 'checked' : ''}/>
+        <span>${def.label}</span>
+      `;
+      lab.querySelector('input').onchange = e => { P[def.key] = e.target.checked; };
+    } else {
+      lab.innerHTML = `
+        <span>${def.label}</span>
+        <input type="range" data-key="${def.key}" min="${def.min}" max="${def.max}" step="${def.step}" value="${P[def.key]}"/>
+        <span class="val" data-val="${def.key}">${P[def.key]}</span>
+      `;
+      const range = lab.querySelector('input');
+      const val = lab.querySelector('[data-val]');
+      range.oninput = e => {
+        P[def.key] = parseFloat(e.target.value);
+        val.textContent = (def.step < 1) ? P[def.key].toFixed(2) : P[def.key];
+      };
+    }
+    paramsEl.appendChild(lab);
+  }
+}
+
+// ===== 眼睛绘制 =====
+function setEyeCapsule(g, widenFactor = 1, heightFactor = 1, tilt = 0) {
+  const w = 2.55 * widenFactor;
+  const h = 4.85 * heightFactor;
+  const rx = Math.min(w / 2, 1.25);
+  g.innerHTML = `<rect x="${(-w/2).toFixed(3)}" y="${(-h/2).toFixed(3)}" width="${w.toFixed(3)}" height="${h.toFixed(3)}" rx="${rx.toFixed(3)}" fill="${EYE_GRAD}" stroke="#fff" stroke-width="0.08" stroke-opacity="0.55" transform="rotate(${tilt.toFixed(3)})"/>`;
+}
+function setEyeGT(g) {
+  // > chevron 向右
+  const w = 1.6, h = 1.7;
+  g.innerHTML = `<path d="M ${-w/2} ${-h} L ${w/2} 0 L ${-w/2} ${h}" fill="none" stroke="${EYE_GRAD}" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+function setEyeLT(g) {
+  // < chevron 向左
+  const w = 1.6, h = 1.7;
+  g.innerHTML = `<path d="M ${w/2} ${-h} L ${-w/2} 0 L ${w/2} ${h}" fill="none" stroke="${EYE_GRAD}" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+const eyeL = document.getElementById('eye-left');
+const eyeR = document.getElementById('eye-right');
+const eyesCounter = document.getElementById('eyes-counter');
+const gTrans = document.getElementById('g-translate');
+const gRotate = document.getElementById('g-rotate');
+const gSquash = document.getElementById('g-squash');
+const pulsesLayer = document.getElementById('pulses-layer');
+const rimFlashLayer = document.getElementById('rim-flash-layer');
+const cloudPathD = document.querySelector('#cloud-clip path').getAttribute('d');
+
+// ===== 脉冲池 =====
+let pulses = [];   // { bornT (perf ms), lifetime, scaleEnd, type }
+let pulseIdCounter = 0;
+
+function emitPulse(type, now) {
+  pulses.push({
+    id: ++pulseIdCounter,
+    bornT: now,
+    lifetime: type === 'A' ? P.pulseLifetimeA : P.pulseLifetimeB,
+    scaleEnd: P.pulseScaleEnd,
+    type
+  });
+}
+
+// 动态 glow filter
+const glowBlur = document.querySelector('#pulse-glow feGaussianBlur');
+function updateGlowStdDev() {
+  glowBlur.setAttribute('stdDeviation', P.pulseGlow);
+}
+
+function polarPoint(cx, cy, r, deg) {
+  const a = deg * Math.PI / 180;
+  return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+}
+
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const [x0, y0] = polarPoint(cx, cy, r, startDeg);
+  const [x1, y1] = polarPoint(cx, cy, r, endDeg);
+  const largeArc = Math.abs(endDeg - startDeg) > 180 ? 1 : 0;
+  const sweep = endDeg >= startDeg ? 1 : 0;
+  return `M${x0.toFixed(3)} ${y0.toFixed(3)} A${r.toFixed(3)} ${r.toFixed(3)} 0 ${largeArc} ${sweep} ${x1.toFixed(3)} ${y1.toFixed(3)}`;
+}
+
+function renderPulses(now) {
+  pulses = pulses.filter(p => now - p.bornT < p.lifetime);
+  let html = '';
+  for (const p of pulses) {
+    const ageMs = now - p.bornT;
+    const t = ageMs / p.lifetime;
+    const scale = 1 + (p.scaleEnd - 1) * easeOutCubic(t);
+    const r = P.pulseStartRadius * scale;
+    const baseOp = p.type === 'A' ? 0.34 : 0.82;
+    const fadeIn = P.pulseFadeIn > 0 ? Math.min(1, ageMs / P.pulseFadeIn) : 1;
+    const fadeOut = Math.pow(1 - t, p.type === 'A' ? 1.22 : 1.55);
+    const opacity = baseOp * fadeIn * fadeOut;
+    const wobble = p.type === 'B' ? ((p.id % 3) - 1) * 7 : 0;
+    const strokeW = P.pulseStrokeWidth * (p.type === 'A' ? 0.62 : 1);
+    const segments = p.type === 'A'
+      ? [[-70, -34], [-12, 18], [34, 56]]
+      : [[-122, -86], [-48, 14], [42, 78], [130, 166], [190, 216]];
+
+    for (let i = 0; i < segments.length; i++) {
+      const [a0, a1] = segments[i];
+      const d = arcPath(12, 12, r + (i % 2) * 0.26, a0 + wobble, a1 + wobble);
+      const segOp = opacity * (1 - i * 0.085);
+      const stroke = (p.type === 'B' && i < 2) ? 'url(#alert-grad)' : 'url(#signal-grad)';
+      html += `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${strokeW.toFixed(3)}" stroke-linecap="round" stroke-opacity="${segOp.toFixed(3)}" filter="url(#pulse-glow)"/>`;
+    }
+  }
+  pulsesLayer.innerHTML = html;
+}
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+function expPulse(x, center, width) {
+  const d = (x - center) / width;
+  return Math.exp(-d * d);
+}
+
+function renderAlertLayer(phase, phaseTms, tA, tB, tC, shakePeak, bEnvelope) {
+  let prep = 0, ping = 0, fade = 0;
+  if (phase === 'A') {
+    prep = easeInOutCubic(clamp(phaseTms / tA, 0, 1));
+    fade = 0.48 + prep * 0.36;
+  } else if (phase === 'B') {
+    const b = clamp(phaseTms / tB, 0, 1);
+    const ping1 = expPulse(b, 0.10, 0.055);
+    const ping2 = expPulse(b, 0.54, 0.070);
+    ping = Math.max(ping1, ping2, shakePeak * bEnvelope * 0.34);
+    fade = 0.92;
+  } else {
+    const c = clamp(phaseTms / tC, 0, 1);
+    fade = (1 - easeOutCubic(c)) * 0.56;
+  }
+
+  const rimOp = clamp(ping * 0.58 + prep * 0.12, 0, 0.68);
+  const rimW = 0.28 + ping * 0.42;
+  rimFlashLayer.innerHTML = rimOp > 0.015
+    ? `<path d="${cloudPathD}" fill="none" stroke="url(#alert-grad)" stroke-width="${rimW.toFixed(3)}" stroke-linejoin="round" stroke-opacity="${rimOp.toFixed(3)}" filter="url(#alert-glow)"/>`
+    : '';
+}
+
+// ===== 主循环 =====
+let t0 = performance.now();
+let lastCycleT = -1;
+let emittedA = false;
+let emittedBPeaks = 0;
+let cycleCount = 0;
+let paused = false;
+
+let pauseAccumT = 0;
+let pauseStart = 0;
+
+const sb = document.getElementById('statusbar');
+
+function tick() {
+  if (paused) {
+    requestAnimationFrame(tick);
+    return;
+  }
+  const now = performance.now();
+  const tInCycle = ((now - t0) % P.totalPeriod);
+
+  // cycle wrap detection
+  if (tInCycle < lastCycleT) {
+    cycleCount++;
+    emittedA = false;
+    emittedBPeaks = 0;
+  }
+  lastCycleT = tInCycle;
+
+  // 段时长 (动态从当前 P 算)
+  const tA = P.totalPeriod * P.ratioA;
+  const tB = P.totalPeriod * P.ratioB;
+  const tC = P.totalPeriod - tA - tB;
+
+  let phase, phaseTms;
+  if (tInCycle < tA) {
+    phase = 'A'; phaseTms = tInCycle;
+  } else if (tInCycle < tA + tB) {
+    phase = 'B'; phaseTms = tInCycle - tA;
+  } else {
+    phase = 'C'; phaseTms = tInCycle - tA - tB;
+  }
+
+  // ===== 脉冲发射 =====
+  // A 段: 在段开头发 1 圈 (缓)
+  if (phase === 'A' && !emittedA) {
+    emitPulse('A', now);
+    emittedA = true;
+  }
+  // B 段: 摇晃顶点 = 圈出生 (每半周期一个顶点)
+  if (phase === 'B') {
+    const tBSec = phaseTms / 1000;
+    const peakInterval = 1 / (2 * P.shakeFreqHz);  // 半周期 = 一个顶点间隔
+    // 顶点位于 (k + 0.25) * (1/freq) = (2k+0.5) * peakInterval, k=0,1,2,...
+    // 简化: 等间隔发射, 第一发在 peakInterval / 2 (即 1/(4*freq))
+    const expectedPeaks = Math.floor((tBSec - peakInterval / 2) / peakInterval) + 1;
+    while (emittedBPeaks < expectedPeaks && emittedBPeaks * peakInterval + peakInterval / 2 < (tB / 1000)) {
+      if (emittedBPeaks % 3 === 0) emitPulse('B', now);
+      emittedBPeaks++;
+    }
+  }
+
+  // ===== 摇晃 / 形变 / 呼吸 =====
+  let rotate = 0, jumpY = 0;
+  let burstX = 1, burstY = 1;  // B 段额外 scale (在 idle 呼吸基础上叠加)
+  let shakePeak = 0;
+  let bEnvelope = 0;
+
+  if (phase === 'B') {
+    const tBSec = phaseTms / 1000;
+    const angularFreq = 2 * Math.PI * P.shakeFreqHz;
+    // 进场 envelope: 前 0.15s 内从 0 -> 1, ease in
+    const envIn = Math.min(1, tBSec / 0.15);
+    // 出场 envelope: 最后 0.2s ease out
+    const tBTotal = tB / 1000;
+    const envOut = Math.min(1, (tBTotal - tBSec) / 0.2);
+    const env = Math.min(envIn, envOut);
+    const sinV = Math.sin(angularFreq * tBSec);
+    const absSin = Math.abs(sinV);
+    shakePeak = absSin;
+    bEnvelope = env;
+    rotate = P.shakeAngle * sinV * env;
+    // 微跳: abs(sin) 的 2 倍频, 每次顶点跳一下
+    jumpY = -P.shakeJumpY * Math.abs(Math.sin(angularFreq * tBSec / 2 + Math.PI / 4)) * env;
+    // micro 撑大: 跟摇晃顶点同步, abs(sin) 在顶点为 1
+    const microFactor = 1 + P.scaleMicro * absSin * env;
+    // macro 整气: B 段一次大吸气-呼气, sin(π * t/T), 中点峰值
+    const macroFactor = 1 + P.scaleMacro * Math.sin(Math.PI * Math.min(1, Math.max(0, tBSec / tBTotal)));
+    // squash 顶点压 (scaleY 减一点)
+    const squashFactor = 1 - P.squashStrength * absSin * env;
+    burstX = microFactor * macroFactor;
+    burstY = microFactor * macroFactor * squashFactor;
+  } else if (phase === 'C') {
+    // C 段: 摇晃用衰减振荡 ease out
+    const tCSec = phaseTms / 1000;
+    const tCTotal = tC / 1000;
+    const decay = Math.max(0, 1 - tCSec / tCTotal);
+    const decayEased = decay * decay;
+    const angularFreq = 2 * Math.PI * P.shakeFreqHz * 0.7;
+    rotate = P.shakeAngle * decayEased * 0.5 * Math.sin(angularFreq * (tB / 1000 + tCSec));
+    jumpY = 0;
+  }
+
+  // ===== idle 呼吸 base (跨 cycle 连续, 不重置) =====
+  // 中心值 1 - amp, 上下 ±amp, 范围 [1-2*amp, 1] (跟 idle 锁定 0.96-1.00 一致)
+  const breathPhase = (now / P.idleBreathPeriod) * 2 * Math.PI;
+  const baseBreath = (1 - P.idleBreathAmp) + P.idleBreathAmp * Math.sin(breathPhase);
+  // 注意: 上面公式范围 [1-2*amp, 1], idle 锁定 0.96-1.00 即 amp=0.02
+
+  const finalScaleX = baseBreath * burstX;
+  const finalScaleY = baseBreath * burstY;
+
+  // ===== 应用 transform =====
+  gTrans.setAttribute('transform', `translate(0 ${jumpY.toFixed(3)})`);
+  gRotate.setAttribute('transform', `rotate(${rotate.toFixed(3)} 12 12)`);
+  gSquash.setAttribute('transform', `translate(12 12) scale(${finalScaleX.toFixed(4)} ${finalScaleY.toFixed(4)}) translate(-12 -12)`);
+
+  // ===== 眼睛 counter-rotate =====
+  if (P.counterRotate) {
+    eyesCounter.setAttribute('transform', `rotate(${(-rotate).toFixed(3)} 12 12)`);
+  } else {
+    eyesCounter.removeAttribute('transform');
+  }
+
+  // ===== 眼睛 swap =====
+  let widenFactor = 1;
+  let eyeHeight = 1;
+  let eyeTiltL = 0;
+  let eyeTiltR = 0;
+  if (phase === 'A') {
+    const remainA = tA - phaseTms;
+    if (remainA < P.eyeWidenDuration) {
+      // 瞪大
+      const widen01 = 1 - remainA / P.eyeWidenDuration;
+      widenFactor = 1 + P.eyeWidenAmount * widen01;
+    }
+  } else if (phase === 'B') {
+    widenFactor = 1 + P.eyeWidenAmount * 0.92 + shakePeak * bEnvelope * 0.070;
+    eyeHeight = 1.04 + shakePeak * bEnvelope * 0.040;
+    eyeTiltL = -3.0 * bEnvelope;
+    eyeTiltR = 3.0 * bEnvelope;
+  } else if (phase === 'C') {
+    // C 段开头 capsule 重新渐入 (微小入场)
+    const fadeIn = Math.min(1, phaseTms / 120);
+    widenFactor = 1 + P.eyeWidenAmount * (1 - fadeIn) * 0.5;  // 收回时残留
+  }
+
+  setEyeCapsule(eyeL, widenFactor, eyeHeight, eyeTiltL);
+  setEyeCapsule(eyeR, widenFactor, eyeHeight, eyeTiltR);
+
+  // ===== 渲染脉冲 =====
+  updateGlowStdDev();
+  renderPulses(now);
+  renderAlertLayer(phase, phaseTms, tA, tB, tC, shakePeak, bEnvelope);
+
+  // ===== 状态栏 =====
+  sb.innerHTML = `phase: <span class="phase-${phase}">${phase}</span> · cycle: ${cycleCount} · pulses: ${pulses.length} · t: ${tInCycle.toFixed(0)}ms / ${P.totalPeriod}`;
+
+  requestAnimationFrame(tick);
+}
+
+requestAnimationFrame(tick);
+]]></script>
+</svg>

@@ -1,0 +1,648 @@
+<svg id="stageSvg" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+#stageBg { fill: #0f0f14; }
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+#stageBg { fill: #fff; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+      <defs>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.5" stop-color="#f4f5f9"/>
+          <stop offset="1" stop-color="#dee2eb"/>
+        </linearGradient>
+        <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.5" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="plane-white" x1="5" y1="5" x2="31" y2="25" gradientUnits="userSpaceOnUse">
+          <stop id="planeWhite0" offset="0" stop-color="#fff7d6"/>
+          <stop id="planeWhite1" offset="0.46" stop-color="#FCE3B0"/>
+          <stop id="planeWhite2" offset="1" stop-color="#EFB85C"/>
+        </linearGradient>
+        <linearGradient id="plane-lavender" x1="4" y1="6" x2="21" y2="32" gradientUnits="userSpaceOnUse">
+          <stop id="planeLavender0" offset="0" stop-color="#ffeaf3"/>
+          <stop id="planeLavender1" offset="0.54" stop-color="#FCC9DD"/>
+          <stop id="planeLavender2" offset="1" stop-color="#D768A0"/>
+        </linearGradient>
+        <linearGradient id="plane-mid" x1="8" y1="10" x2="25" y2="29" gradientUnits="userSpaceOnUse">
+          <stop id="planeMid0" offset="0" stop-color="#dbfff8"/>
+          <stop id="planeMid1" offset="0.60" stop-color="#A0E5DD"/>
+          <stop id="planeMid2" offset="1" stop-color="#35AFA8"/>
+        </linearGradient>
+        <linearGradient id="plane-dark" x1="5" y1="8" x2="23" y2="29" gradientUnits="userSpaceOnUse">
+          <stop id="planeDark0" offset="0" stop-color="#dcd5ff"/>
+          <stop id="planeDark1" offset="0.55" stop-color="#B1A7FF"/>
+          <stop id="planeDark2" offset="1" stop-color="#5F52D9"/>
+        </linearGradient>
+        <filter id="cloud-drop" x="-45%" y="-45%" width="190%" height="190%">
+          <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+        </filter>
+      <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="0.16"/>
+      </filter>
+        <filter id="plane-drop" x="-45%" y="-45%" width="190%" height="190%">
+          <feDropShadow id="planeShadow" dx="0" dy="0.45" stdDeviation="0.65" flood-color="#3941FF" flood-opacity="0.30"/>
+        </filter>
+        <filter id="trail-blur" x="-80%" y="-90%" width="260%" height="280%">
+          <feGaussianBlur stdDeviation="0.10"/>
+        </filter>
+        <clipPath id="cloud-clip">
+          <path id="cloud-clip-path"/>
+        </clipPath>
+        <g id="paper-plane-symbol">
+          <polygon points="3,6 24,23 20.6,29.5" fill="url(#plane-mid)"/>
+          <polygon points="3,6 20.1,25.6 20.6,29.5" fill="url(#plane-dark)"/>
+          <polygon points="3,6 20.1,25.6 6.7,32.2" fill="url(#plane-lavender)"/>
+          <polygon points="3,6 34,15.7 24,23" fill="url(#plane-white)"/>
+          <g id="planeFoldLines" stroke="rgba(57,65,255,.38)" stroke-width="0.34" stroke-linecap="round" fill="none">
+            <line x1="3" y1="6" x2="24" y2="23"/>
+            <line x1="3" y1="6" x2="20.6" y2="29.5"/>
+            <line x1="3" y1="6" x2="20.1" y2="25.6"/>
+          </g>
+          <path id="planeNoseHighlight" d="M 3 6 L 34 15.7" stroke="rgba(255,255,255,.74)" stroke-width="0.3" stroke-linecap="round" fill="none"/>
+        </g>
+        <g id="paper-plane-under-symbol">
+          <polygon id="planeUnderMid" points="3,6 24,23 20.6,29.5" fill="#327E86"/>
+          <polygon id="planeUnderDark" points="3,6 20.1,25.6 20.6,29.5" fill="#3F3595"/>
+          <polygon id="planeUnderLavender" points="3,6 20.1,25.6 6.7,32.2" fill="#A94B7E"/>
+          <polygon id="planeUnderWhite" points="3,6 34,15.7 24,23" fill="#B9863C"/>
+          <g id="planeUnderFoldLines" stroke="rgba(255,255,255,.28)" stroke-width="0.32" stroke-linecap="round" fill="none">
+            <line x1="3" y1="6" x2="24" y2="23"/>
+            <line x1="3" y1="6" x2="20.6" y2="29.5"/>
+            <line x1="3" y1="6" x2="20.1" y2="25.6"/>
+          </g>
+          <path id="planeUnderNoseHighlight" d="M 3 6 L 34 15.7" stroke="rgba(255,255,255,.34)" stroke-width="0.28" stroke-linecap="round" fill="none"/>
+        </g>
+      </defs>
+<g id="trailBack" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path id="trailBackSoft" filter="url(#trail-blur)"/>
+        <path id="trailBackMain"/>
+        <path id="trailBackAccent"/>
+      </g>
+      <g id="planeBack" filter="url(#plane-drop)">
+        <g id="planeBackUnder"><use href="#paper-plane-under-symbol"/></g>
+        <g id="planeBackTop"><use href="#paper-plane-symbol"/></g>
+      </g>
+
+      <g id="cloudEdge">
+        <path id="edgeContact" class="edge-contact" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+        <path id="edgeRimSoft" class="edge-rim-soft" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+        <path id="edgeRimTight" class="edge-rim-tight" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g id="cloudGroup" filter="url(#cloud-drop)">
+        <path id="cloudPath" fill="url(#body-grad)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+      </g>
+      <g id="eyeGroup">
+        <rect id="eyeL" x="7.7" y="9.5" width="2.6" height="5" rx="1.3" ry="1.3" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        <rect id="eyeR" x="13.7" y="9.5" width="2.6" height="5" rx="1.3" ry="1.3" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+      </g>
+
+      <g id="trailFront" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path id="trailFrontSoft" filter="url(#trail-blur)"/>
+        <path id="trailFrontMain"/>
+        <path id="trailFrontAccent"/>
+      </g>
+      <g id="planeFront" filter="url(#plane-drop)">
+        <g id="planeFrontUnder"><use href="#paper-plane-under-symbol"/></g>
+        <g id="planeFrontTop"><use href="#paper-plane-symbol"/></g>
+      </g>
+    <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="planePaletteV"></g>
+<g id="readout"></g>
+<g id="scrub"></g>
+<g id="scrubV"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const CENTER = { x: 12, y: 12 };
+/* A 版配色下, 视觉机头会被读成右侧白色尖角 TR, 不是命名里的 N 点。 */
+function visualForwardDeg() {
+  return Math.atan2(15.7 - P.pivotY, 34 - P.pivotX) * 180 / Math.PI;
+}
+
+const els = {
+  cloudPath: document.getElementById('cloudPath'),
+  cloudClipPath: document.getElementById('cloud-clip-path'),
+  edgeContact: document.getElementById('edgeContact'),
+  edgeRimSoft: document.getElementById('edgeRimSoft'),
+  edgeRimTight: document.getElementById('edgeRimTight'),
+  eyeGroup: document.getElementById('eyeGroup'),
+  eyeL: document.getElementById('eyeL'),
+  eyeR: document.getElementById('eyeR'),
+  eyeGrad: document.getElementById('eye-grad'),
+  planeBack: document.getElementById('planeBack'),
+  planeFront: document.getElementById('planeFront'),
+  planeBackTop: document.getElementById('planeBackTop'),
+  planeBackUnder: document.getElementById('planeBackUnder'),
+  planeFrontTop: document.getElementById('planeFrontTop'),
+  planeFrontUnder: document.getElementById('planeFrontUnder'),
+  trailBack: document.getElementById('trailBack'),
+  trailFront: document.getElementById('trailFront'),
+  trailBackSoft: document.getElementById('trailBackSoft'),
+  trailBackMain: document.getElementById('trailBackMain'),
+  trailBackAccent: document.getElementById('trailBackAccent'),
+  trailFrontSoft: document.getElementById('trailFrontSoft'),
+  trailFrontMain: document.getElementById('trailFrontMain'),
+  trailFrontAccent: document.getElementById('trailFrontAccent'),
+  readout: document.getElementById('readout'),
+  scrub: document.getElementById('scrub'),
+  scrubV: document.getElementById('scrubV')
+};
+
+const P = {
+  duration: 5.2,
+  rx: 17.8,
+  ry: 4.9,
+  tilt: -13,
+  theta: 0,
+  planeScale: 0.20,
+  planePalette: 'bluePractical',
+  planeOffsetX: 0,
+  planeOffsetY: 0,
+  planeRotOffset: 123,
+  pivotX: 19,
+  pivotY: 19,
+  backScale: 0.71,
+  backOpacity: 0.65,
+  rightRush: 0.58,
+  rightRushTighten: 0.28,
+  trailStrength: 0.90,
+  rollMinScale: 0.85,
+  rollFade: 0.18,
+  manualRotOverride: false,
+  manualPlane: false,
+  manualX: 26,
+  manualY: 24,
+  manualRot: -35,
+  manualScale: 0.22,
+  morphMin: 0.08,
+  morphMax: 0.60,
+  cloudR: 7.0,
+  eyeShift: 1.20,
+  eyeFlowPeriod: 5.5,
+  eyeFlowAmp: 4,
+  blinkInterval: 6.0,
+  blinkDur: 0.16,
+  showTrail: true,
+  pause: false
+};
+
+const PLANE_PALETTES = {
+  happyPop: {
+    label: 'Happy',
+    gradients: {
+      White: ['#fff7d6', '#FCE3B0', '#EFB85C'],
+      Lavender: ['#ffeaf3', '#FCC9DD', '#D768A0'],
+      Mid: ['#dbfff8', '#A0E5DD', '#35AFA8'],
+      Dark: ['#dcd5ff', '#B1A7FF', '#5F52D9']
+    },
+    under: {
+      Mid: '#327E86',
+      Dark: '#3F3595',
+      Lavender: '#A94B7E',
+      White: '#B9863C'
+    },
+    fold: 'rgba(57,65,255,.38)',
+    underFold: 'rgba(255,255,255,.28)',
+    highlight: 'rgba(255,255,255,.74)',
+    underHighlight: 'rgba(255,255,255,.34)',
+    trailBack: '#A0E5DD',
+    trailFront: '#FCE3B0',
+    shadow: '#3941FF',
+    shadowOpacity: '0.30'
+  },
+  happySoft: {
+    label: 'Soft',
+    gradients: {
+      White: ['#ffffff', '#FCE3B0', '#F4C76E'],
+      Lavender: ['#fff3f8', '#FCC9DD', '#E58AB7'],
+      Mid: ['#effffb', '#A0E5DD', '#68C9C1'],
+      Dark: ['#eeeaff', '#B1A7FF', '#7D71E8']
+    },
+    under: {
+      Mid: '#5AAEA8',
+      Dark: '#6558C4',
+      Lavender: '#C9789E',
+      White: '#D4A54E'
+    },
+    fold: 'rgba(57,65,255,.30)',
+    underFold: 'rgba(255,255,255,.24)',
+    highlight: 'rgba(255,255,255,.70)',
+    underHighlight: 'rgba(255,255,255,.30)',
+    trailBack: '#A0E5DD',
+    trailFront: '#B1A7FF',
+    shadow: '#7A9DFF',
+    shadowOpacity: '0.26'
+  },
+  ticketWarm: {
+    label: 'Warm',
+    gradients: {
+      White: ['#ffd28c', '#dc5a1c', '#a64214'],
+      Lavender: ['#ff9b45', '#dc5a1c', '#7b2f10'],
+      Mid: ['#d8722c', '#9d4315', '#5c260d'],
+      Dark: ['#743217', '#4a1f0d', '#271006']
+    },
+    under: {
+      Mid: '#5d260d',
+      Dark: '#1f0c04',
+      Lavender: '#713010',
+      White: '#8b3a13'
+    },
+    fold: 'rgba(42,18,8,.44)',
+    underFold: 'rgba(255,211,154,.20)',
+    highlight: 'rgba(255,225,190,.58)',
+    underHighlight: 'rgba(255,205,150,.24)',
+    trailBack: '#9d4315',
+    trailFront: '#dc5a1c',
+    shadow: '#dc5a1c',
+    shadowOpacity: '0.24'
+  },
+  bluePractical: {
+    label: 'Blue',
+    gradients: {
+      White: ['#ffffff', '#b8c8ff', '#6f86ff'],
+      Lavender: ['#e6e2ff', '#aeb8ff', '#6874f2'],
+      Mid: ['#9bb7ff', '#536dff', '#3941FF'],
+      Dark: ['#646bff', '#3037d4', '#171b82']
+    },
+    under: {
+      Mid: '#3037d4',
+      Dark: '#12165f',
+      Lavender: '#5664ff',
+      White: '#8ea1ff'
+    },
+    fold: 'rgba(17,27,140,.46)',
+    underFold: 'rgba(255,255,255,.24)',
+    highlight: 'rgba(255,255,255,.72)',
+    underHighlight: 'rgba(255,255,255,.36)',
+    trailBack: '#7A9DFF',
+    trailFront: '#B1A7FF',
+    shadow: '#3941FF',
+    shadowOpacity: '0.36'
+  }
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrap01 = v => ((v % 1) + 1) % 1;
+const smoothstep = t => t * t * (3 - 2 * t);
+const smoothstepRange = (a, b, v) => smoothstep(clamp((v - a) / (b - a), 0, 1));
+const TAU = Math.PI * 2;
+
+function orbitProgressFor(timeProgress) {
+  const p = wrap01(timeProgress);
+  const a = TAU * p;
+  const warped = p
+    + P.rightRush * Math.sin(a) / TAU
+    + P.rightRushTighten * Math.sin(2 * a) / (2 * TAU);
+  return wrap01(warped);
+}
+
+function orbitSpeedFor(timeProgress) {
+  const p = wrap01(timeProgress);
+  const a = TAU * p;
+  return 1 + P.rightRush * Math.cos(a) + P.rightRushTighten * Math.cos(2 * a);
+}
+
+const EYE_BASE = {
+  l: { y: 9.5, h: 5, rx: 1.3 },
+  r: { y: 9.5, h: 5, rx: 1.3 }
+};
+
+let nextBlinkT = 2.4;
+let blinkActive = false;
+let blinkStartT = 0;
+
+function getBlinkScale(t) {
+  if (!blinkActive && t > nextBlinkT) {
+    blinkActive = true;
+    blinkStartT = t;
+  }
+  if (blinkActive) {
+    const dt = t - blinkStartT;
+    const half = P.blinkDur / 2;
+    if (dt < half) return 1 - 0.94 * (dt / half);
+    if (dt < P.blinkDur) return 0.06 + 0.94 * ((dt - half) / half);
+    blinkActive = false;
+    nextBlinkT = t + P.blinkInterval * (0.82 + Math.random() * 0.36);
+  }
+  return 1;
+}
+
+function applyBlink(rect, base, scale) {
+  const h = Math.max(base.h * scale, 0.15);
+  const y = base.y + (base.h - h) / 2;
+  const rx = Math.min(base.rx, h / 2);
+  rect.setAttribute('height', h.toFixed(3));
+  rect.setAttribute('y', y.toFixed(3));
+  rect.setAttribute('rx', rx.toFixed(3));
+  rect.setAttribute('ry', rx.toFixed(3));
+}
+
+function setStop(id, color) {
+  document.getElementById(id).setAttribute('stop-color', color);
+}
+
+function applyPlanePalette(key) {
+  const palette = PLANE_PALETTES[key] || PLANE_PALETTES.happyPop;
+  P.planePalette = key;
+  for (const [name, colors] of Object.entries(palette.gradients)) {
+    colors.forEach((color, i) => setStop(`plane${name}${i}`, color));
+  }
+  for (const [name, color] of Object.entries(palette.under)) {
+    document.getElementById(`planeUnder${name}`).setAttribute('fill', color);
+  }
+  document.getElementById('planeFoldLines').setAttribute('stroke', palette.fold);
+  document.getElementById('planeUnderFoldLines').setAttribute('stroke', palette.underFold);
+  document.getElementById('planeNoseHighlight').setAttribute('stroke', palette.highlight);
+  document.getElementById('planeUnderNoseHighlight').setAttribute('stroke', palette.underHighlight);
+  [els.trailBackSoft, els.trailBackMain, els.trailBackAccent].forEach(el => el.setAttribute('stroke', palette.trailBack));
+  [els.trailFrontSoft, els.trailFrontMain, els.trailFrontAccent].forEach(el => el.setAttribute('stroke', palette.trailFront));
+  document.getElementById('planeShadow').setAttribute('flood-color', palette.shadow);
+  document.getElementById('planeShadow').setAttribute('flood-opacity', palette.shadowOpacity);
+  document.getElementById('planePaletteV').textContent = palette.label;
+  renderAt(currentProgress);
+}
+
+function samplePath(d, N) {
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  const len = path.getTotalLength();
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const p = path.getPointAtLength(i / N * len);
+    pts.push({ x: p.x, y: p.y });
+  }
+  return pts;
+}
+
+let basePoints = samplePath(CLOUD_D, 64);
+
+function morphPoints(pts, R, t) {
+  return pts.map(p => {
+    const dx = p.x - CENTER.x;
+    const dy = p.y - CENTER.y;
+    const a = Math.atan2(dy, dx);
+    return {
+      x: lerp(p.x, CENTER.x + R * Math.cos(a), t),
+      y: lerp(p.y, CENTER.y + R * Math.sin(a), t)
+    };
+  });
+}
+
+function pointsToSmoothPath(pts) {
+  const n = pts.length;
+  let d = `M ${pts[0].x.toFixed(3)} ${pts[0].y.toFixed(3)}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n];
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % n];
+    const p3 = pts[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x.toFixed(3)} ${c1y.toFixed(3)} ${c2x.toFixed(3)} ${c2y.toFixed(3)} ${p2.x.toFixed(3)} ${p2.y.toFixed(3)}`;
+  }
+  return d + ' Z';
+}
+
+function orbitPoint(thetaDeg) {
+  const t = thetaDeg * Math.PI / 180;
+  const r = P.tilt * Math.PI / 180;
+  const ct = Math.cos(t), st = Math.sin(t);
+  const cr = Math.cos(r), sr = Math.sin(r);
+  return {
+    x: CENTER.x + P.rx * ct * cr - P.ry * st * sr,
+    y: CENTER.y + P.rx * ct * sr + P.ry * st * cr
+  };
+}
+
+function orbitDerivative(thetaDeg) {
+  const t = thetaDeg * Math.PI / 180;
+  const r = P.tilt * Math.PI / 180;
+  const cr = Math.cos(r), sr = Math.sin(r);
+  const dx = -P.rx * Math.sin(t) * cr - P.ry * Math.cos(t) * sr;
+  const dy = -P.rx * Math.sin(t) * sr + P.ry * Math.cos(t) * cr;
+  return { x: dx, y: dy };
+}
+
+function getPlaneState(progress) {
+  const orbitProgress = orbitProgressFor(progress);
+  const theta = P.theta + orbitProgress * 360;
+  const orbitDepth = Math.sin(theta * Math.PI / 180);
+  return {
+    phase: 'orbit',
+    theta,
+    orbitDepth,
+    orbitProximity: smoothstepRange(0.22, 0.90, Math.abs(orbitDepth)),
+    p: orbitPoint(theta),
+    d: orbitDerivative(theta),
+    orbitT: orbitProgress,
+    timeT: wrap01(progress),
+    orbitSpeed: orbitSpeedFor(progress),
+    frontOverride: false,
+    opacity: 1
+  };
+}
+
+function cloudMorphFor(orbitProximity) {
+  return lerp(P.morphMin, P.morphMax, orbitProximity);
+}
+
+function trailPathD(timeProgress, fromLag, toLag, samples) {
+  let d = '';
+  for (let i = 0; i <= samples; i++) {
+    const lag = lerp(fromLag, toLag, i / samples);
+    const sample = getAutoPlaneVisual(getPlaneState(timeProgress - lag));
+    d += i === 0
+      ? `M ${sample.p.x.toFixed(3)} ${sample.p.y.toFixed(3)}`
+      : ` L ${sample.p.x.toFixed(3)} ${sample.p.y.toFixed(3)}`;
+  }
+  return d;
+}
+
+function setTrailLayer(el, d, opacity, width, dash = 'none', dashOffset = 0) {
+  el.setAttribute('d', d);
+  el.setAttribute('opacity', opacity.toFixed(3));
+  el.setAttribute('stroke-width', width.toFixed(3));
+  el.setAttribute('stroke-dasharray', dash);
+  el.setAttribute('stroke-dashoffset', dashOffset.toFixed(3));
+}
+
+function renderTrailLines(timeProgress, orbitSpeed, plane) {
+  const enabled = P.showTrail && !P.manualPlane;
+  const speedBurst = clamp((orbitSpeed - 1) / 0.86, 0, 1);
+  const base = enabled ? P.trailStrength * lerp(0.82, 1.24, speedBurst) : 0;
+  const frontBase = base * plane.frontness;
+  const backBase = base * (1 - plane.frontness) * P.backOpacity;
+  const drift = timeProgress * P.duration;
+  const mainD = trailPathD(timeProgress, 0.145, 0.010, 18);
+  const shortD = trailPathD(timeProgress, 0.090, 0.006, 12);
+  const longD = trailPathD(timeProgress, 0.190, 0.016, 22);
+  const mainOffset = -drift * 0.36;
+  const accentOffset = -drift * 0.58;
+
+  setTrailLayer(els.trailBackSoft, longD, backBase * 0.12, 0.62, 'none', 0);
+  setTrailLayer(els.trailBackMain, mainD, backBase * 0.42, 0.30, '0.72 0.62', mainOffset);
+  setTrailLayer(els.trailBackAccent, shortD, backBase * 0.22, 0.20, '1.16 0.55', accentOffset);
+  setTrailLayer(els.trailFrontSoft, longD, frontBase * 0.12, 0.62, 'none', 0);
+  setTrailLayer(els.trailFrontMain, mainD, frontBase * 0.42, 0.30, '0.72 0.62', mainOffset);
+  setTrailLayer(els.trailFrontAccent, shortD, frontBase * 0.22, 0.20, '1.16 0.55', accentOffset);
+}
+
+function getAutoPlaneVisual(s) {
+  const p = {
+    x: s.p.x + P.planeOffsetX,
+    y: s.p.y + P.planeOffsetY
+  };
+  const tangentDeg = Math.atan2(s.d.y, s.d.x) * 180 / Math.PI;
+  const orbitFrontness = clamp((p.y - CENTER.y + 1.3) / 4.0, 0, 1);
+  const frontness = s.frontOverride ? 1 : orbitFrontness;
+  const depthScale = lerp(P.backScale, 1, frontness);
+  const totalScale = P.planeScale * depthScale;
+  const bank = (frontness - 0.5) * 7;
+  const rot = tangentDeg - visualForwardDeg() + bank + P.planeRotOffset;
+  const faceMix = smoothstepRange(-P.rollFade, P.rollFade, s.orbitDepth);
+  const rollStrength = smoothstepRange(0.10, 0.88, Math.abs(s.orbitDepth));
+  return {
+    phase: s.phase,
+    p,
+    tangentDeg,
+    frontness,
+    orbitT: s.orbitT,
+    orbitDepth: s.orbitDepth,
+    orbitProximity: s.orbitProximity,
+    topFaceOpacity: faceMix,
+    underFaceOpacity: 1 - faceMix,
+    rollForeshorten: lerp(P.rollMinScale, 1, rollStrength),
+    totalScale,
+    rot,
+    frontOpacity: s.opacity * frontness,
+    backOpacity: s.opacity * (1 - frontness) * P.backOpacity
+  };
+}
+
+function getPlaneVisual(s) {
+  if (!P.manualPlane) {
+    const auto = getAutoPlaneVisual(s);
+    if (!P.manualRotOverride) return auto;
+    return {
+      ...auto,
+      phase: 'orbit+manual-rot',
+      tangentDeg: P.manualRot,
+      rot: P.manualRot
+    };
+  }
+  return {
+    phase: 'manual',
+    p: { x: P.manualX, y: P.manualY },
+    tangentDeg: P.manualRot,
+    frontness: 1,
+    orbitDepth: 1,
+    orbitProximity: 1,
+    topFaceOpacity: 1,
+    underFaceOpacity: 0,
+    rollForeshorten: 1,
+    totalScale: P.manualScale,
+    rot: P.manualRot,
+    frontOpacity: 1,
+    backOpacity: 0
+  };
+}
+
+function renderAt(progress) {
+  const s = getPlaneState(progress);
+  const plane = getPlaneVisual(s);
+  const morph = cloudMorphFor(s.orbitProximity);
+  const cloudD = pointsToSmoothPath(morphPoints(basePoints, P.cloudR, morph));
+  els.cloudPath.setAttribute('d', cloudD);
+  els.cloudClipPath.setAttribute('d', cloudD);
+  els.edgeContact.setAttribute('d', cloudD);
+  els.edgeRimSoft.setAttribute('d', cloudD);
+  els.edgeRimTight.setAttribute('d', cloudD);
+
+  const lookDx = plane.p.x - CENTER.x;
+  const lookDy = plane.p.y - CENTER.y;
+  const lookLen = Math.max(Math.hypot(lookDx, lookDy), 0.001);
+  const eyeDrive = P.eyeShift;
+  const eyeX = lookDx / lookLen * eyeDrive;
+  const eyeY = lookDy / lookLen * eyeDrive * 0.55;
+  const eyeScale = lerp(1, 0.82, morph / Math.max(P.morphMax, 0.001));
+  els.eyeGroup.setAttribute('transform', `translate(${eyeX.toFixed(3)} ${eyeY.toFixed(3)}) translate(12 12) scale(${eyeScale.toFixed(3)}) translate(-12 -12)`);
+  els.eyeL.setAttribute('opacity', lerp(1, 0.88, morph).toFixed(3));
+  els.eyeR.setAttribute('opacity', lerp(1, 0.88, morph).toFixed(3));
+  const tNow = performance.now() / 1000;
+  const blinkScale = getBlinkScale(tNow);
+  applyBlink(els.eyeL, EYE_BASE.l, blinkScale);
+  applyBlink(els.eyeR, EYE_BASE.r, blinkScale);
+  const flowOffset = Math.sin(2 * Math.PI * tNow / P.eyeFlowPeriod) * P.eyeFlowAmp;
+  els.eyeGrad.setAttribute('y1', (3 + flowOffset).toFixed(2));
+  els.eyeGrad.setAttribute('y2', (21 + flowOffset).toFixed(2));
+
+  const transform = `translate(${plane.p.x.toFixed(3)} ${plane.p.y.toFixed(3)}) rotate(${plane.rot.toFixed(3)}) scale(${plane.totalScale.toFixed(4)} ${(plane.totalScale * plane.rollForeshorten).toFixed(4)}) translate(${(-P.pivotX).toFixed(3)} ${(-P.pivotY).toFixed(3)})`;
+  els.planeFront.setAttribute('transform', transform);
+  els.planeBack.setAttribute('transform', transform);
+  els.planeFront.setAttribute('opacity', plane.frontOpacity.toFixed(3));
+  els.planeBack.setAttribute('opacity', plane.backOpacity.toFixed(3));
+  els.planeFrontTop.setAttribute('opacity', plane.topFaceOpacity.toFixed(3));
+  els.planeBackTop.setAttribute('opacity', plane.topFaceOpacity.toFixed(3));
+  els.planeFrontUnder.setAttribute('opacity', plane.underFaceOpacity.toFixed(3));
+  els.planeBackUnder.setAttribute('opacity', plane.underFaceOpacity.toFixed(3));
+
+  renderTrailLines(progress, s.orbitSpeed, plane);
+
+  els.scrub.value = progress.toFixed(3);
+  els.scrubV.textContent = `${Math.round(progress * 100)}%`;
+  els.readout.textContent =
+`phase=${plane.phase}  progress=${progress.toFixed(3)}
+plane=(${plane.p.x.toFixed(2)}, ${plane.p.y.toFixed(2)})  rot=${plane.rot.toFixed(1)}deg  tangent=${plane.tangentDeg.toFixed(1)}deg  frontness=${plane.frontness.toFixed(2)}
+cloud morph=${Math.round(morph * 100)}%  sidePass=${s.orbitProximity.toFixed(2)} depth=${s.orbitDepth.toFixed(2)}  range=${Math.round(P.morphMin * 100)}-${Math.round(P.morphMax * 100)}%
+roll top=${plane.topFaceOpacity.toFixed(2)} under=${plane.underFaceOpacity.toFixed(2)} squash=${plane.rollForeshorten.toFixed(2)}
+eyes dx=${eyeX.toFixed(2)} dy=${eyeY.toFixed(2)} blink=${blinkScale.toFixed(2)} flow=${flowOffset.toFixed(1)}
+orbit t=${s.orbitT.toFixed(3)} speed=${s.orbitSpeed.toFixed(2)}x  rx=${P.rx.toFixed(1)} ry=${P.ry.toFixed(1)} tilt=${P.tilt.toFixed(0)}deg start=${P.theta.toFixed(0)}deg
+plane global offset=(${P.planeOffsetX.toFixed(1)}, ${P.planeOffsetY.toFixed(1)}) rotOffset=${P.planeRotOffset.toFixed(0)}deg pivot=(${P.pivotX.toFixed(1)}, ${P.pivotY.toFixed(1)})
+palette=${P.planePalette} (${PLANE_PALETTES[P.planePalette]?.label || 'custom'})
+manual=${P.manualPlane ? `position on x=${P.manualX.toFixed(1)} y=${P.manualY.toFixed(1)} rot=${P.manualRot.toFixed(0)} scale=${P.manualScale.toFixed(2)}` : `position off rotOverride=${P.manualRotOverride ? `on rot=${P.manualRot.toFixed(0)}` : 'off'}`}
+trail style=short dash
+note: right side has a short rush; trail variants are line-based for review.`;
+}
+
+let startTime = performance.now();
+let currentProgress = 0;
+
+function loop(now) {
+  if (!P.pause) {
+    currentProgress = ((now - startTime) / 1000 / P.duration) % 1;
+  }
+  renderAt(currentProgress);
+  requestAnimationFrame(loop);
+}
+
+applyPlanePalette(P.planePalette);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

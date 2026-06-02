@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="btn-play"></g>
+<g id="duration-total"></g>
+<g id="motion-controls"></g>
+<g id="motion-summary"></g>
+<g id="phase"></g>
+<g id="scrubber"></g>
+<g id="time"></g>
+<g id="timing-controls"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const SOFT_CLOUD_POINTS = [
+  {x:9.064,y:3.344},{x:9.825,y:3.106},{x:10.616,y:3.004},{x:11.413,y:3.040},
+  {x:12.192,y:3.210},{x:12.928,y:3.518},{x:13.599,y:3.948},{x:14.255,y:4.291},
+  {x:15.046,y:4.188},{x:15.843,y:4.224},{x:16.621,y:4.398},{x:17.357,y:4.706},
+  {x:18.029,y:5.134},{x:18.617,y:5.673},{x:19.103,y:6.306},{x:19.471,y:7.013},
+  {x:19.715,y:7.772},{x:19.812,y:8.564},{x:19.784,y:9.361},{x:19.797,y:10.105},
+  {x:20.287,y:10.735},{x:20.656,y:11.442},{x:20.897,y:12.202},{x:20.995,y:12.994},
+  {x:20.964,y:13.791},{x:20.791,y:14.569},{x:20.480,y:15.304},{x:20.052,y:15.977},
+  {x:19.516,y:16.567},{x:18.882,y:17.052},{x:18.174,y:17.418},{x:17.539,y:17.808},
+  {x:17.231,y:18.545},{x:16.805,y:19.218},{x:16.264,y:19.805},{x:15.633,y:20.292},
+  {x:14.925,y:20.660},{x:14.163,y:20.895},{x:13.372,y:20.996},{x:12.575,y:20.964},
+  {x:11.796,y:20.793},{x:11.061,y:20.483},{x:10.392,y:20.049},{x:9.736,y:19.714},
+  {x:8.946,y:19.811},{x:8.148,y:19.777},{x:7.370,y:19.606},{x:6.634,y:19.299},
+  {x:5.962,y:18.868},{x:5.377,y:18.326},{x:4.885,y:17.698},{x:4.522,y:16.989},
+  {x:4.283,y:16.228},{x:4.182,y:15.437},{x:4.220,y:14.640},{x:4.179,y:13.907},
+  {x:3.696,y:13.273},{x:3.332,y:12.563},{x:3.092,y:11.803},{x:3.003,y:11.010},
+  {x:3.038,y:10.213},{x:3.202,y:9.433},{x:3.514,y:8.699},{x:3.944,y:8.027},
+  {x:4.484,y:7.440},{x:5.114,y:6.951},{x:5.822,y:6.586},{x:6.445,y:6.191},
+  {x:6.752,y:5.455},{x:7.185,y:4.785},{x:7.723,y:4.197},{x:8.356,y:3.711},
+];
+
+let DURATION = 9.03;
+const DOZE = {
+  slump: 0.55,
+  topSag: 1.42,
+  shoulderSag: 0.34,
+  spread: 0.82,
+  floorY: 19.92,
+  floorFlatten: 0.56,
+  bottomSquish: 0.82,
+  leftLean: -0.18,
+  bodyTx: 0,
+  bodyTy: 1.15,
+  bodyRot: -1.5,
+  bodyScale: 1.04,
+  eyeY: 13.0,
+  eyeGap: 6.12,
+  eyeW: 2.70,
+  eyeH: 1.28,
+  eyeTilt: 7.7,
+  eyeStroke: 0.80,
+  eyeOpacity: 0.92,
+  haloY: 20.62,
+  haloRx: 10.8,
+  haloRy: 1.28,
+  haloOpacity: 0.34,
+  glowOpacity: 0.18,
+};
+
+const stage = document.getElementById('stage');
+const scrubber = document.getElementById('scrubber');
+const timeOut = document.getElementById('time');
+const phaseEl = document.getElementById('phase');
+const timingControls = document.getElementById('timing-controls');
+const durationTotal = document.getElementById('duration-total');
+const motionControls = document.getElementById('motion-controls');
+const motionSummary = document.getElementById('motion-summary');
+let playing = true;
+let start = performance.now();
+let pausedAt = 0;
+let manualT = 0;
+
+const TIMING_CONTROLS = [
+  { key: 'idleHold', label: '起始停顿', min: 0.10, max: 1.20, step: 0.01 },
+  { key: 'halfClose1', label: '半闭 1', min: 0.25, max: 1.60, step: 0.01 },
+  { key: 'wake1', label: '睁眼 1', min: 0.12, max: 0.80, step: 0.01 },
+  { key: 'hold1', label: '撑住 1', min: 0.10, max: 1.40, step: 0.01 },
+  { key: 'halfClose2', label: '半闭 2', min: 0.25, max: 1.80, step: 0.01 },
+  { key: 'wake2', label: '睁眼 2', min: 0.12, max: 0.90, step: 0.01 },
+  { key: 'hold2', label: '撑住 2', min: 0.10, max: 1.50, step: 0.01 },
+  { key: 'finalClose', label: '最终闭眼', min: 0.25, max: 1.70, step: 0.01 },
+  { key: 'slump', label: '软塌下移', min: 0.45, max: 2.20, step: 0.01 },
+  { key: 'finalHold', label: '末尾停顿', min: 0.05, max: 0.80, step: 0.01 },
+];
+
+const TIMING = {
+  idleHold: 0.35,
+  halfClose1: 1.00,
+  wake1: 0.30,
+  hold1: 0.80,
+  halfClose2: 1.59,
+  wake2: 0.55,
+  hold2: 1.00,
+  finalClose: 1.32,
+  slump: 1.88,
+  finalHold: 0.24,
+};
+
+const MOTION_CONTROLS = [
+  { key: 'breathAmp', label: '呼吸幅度', min: 0, max: 0.04, step: 0.001, format: (v) => `${(v * 100).toFixed(1)}%` },
+  { key: 'breathPeriod', label: '呼吸周期', min: 1.80, max: 6.00, step: 0.05, format: (v) => `${v.toFixed(2)}s` },
+];
+
+const MOTION = {
+  breathAmp: 0.018,
+  breathPeriod: 3.80,
+};
+
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function progress(t, a, b) { return clamp01((t - a) / (b - a)); }
+function smoothstep(a, b, t) {
+  const x = progress(t, a, b);
+  return x * x * (3 - 2 * x);
+}
+function easeInOut(t) {
+  return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+}
+function easeOutBack(t) {
+  const c1 = 1.18;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
+function buildTimeline() {
+  let t = 0;
+  const tl = {};
+  tl.idleEnd = t += TIMING.idleHold;
+  tl.half1Start = tl.idleEnd;
+  tl.half1Peak = t += TIMING.halfClose1;
+  tl.wake1End = t += TIMING.wake1;
+  tl.hold1End = t += TIMING.hold1;
+  tl.half2Start = tl.hold1End;
+  tl.half2Peak = t += TIMING.halfClose2;
+  tl.wake2End = t += TIMING.wake2;
+  tl.hold2End = t += TIMING.hold2;
+  tl.closeStart = tl.hold2End;
+  tl.closeEnd = t += TIMING.finalClose;
+  tl.slumpStart = tl.closeEnd;
+  tl.slumpEnd = t += TIMING.slump;
+  tl.duration = t += TIMING.finalHold;
+  tl.haloStart = tl.slumpStart + TIMING.slump * 0.13;
+  tl.dropStart = tl.slumpStart + TIMING.slump * 0.03;
+  return tl;
+}
+
+let timeline = buildTimeline();
+DURATION = timeline.duration;
+
+function syncDuration() {
+  timeline = buildTimeline();
+  DURATION = timeline.duration;
+  scrubber.max = DURATION.toFixed(2);
+  if (manualT > DURATION) manualT = DURATION;
+  durationTotal.textContent = `total ${DURATION.toFixed(2)} s`;
+}
+
+function catmullRomClosedPath(points, tension = 1) {
+  const q = (n) => n.toFixed(3);
+  let d = `M ${q(points[0].x)} ${q(points[0].y)}`;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) * tension / 6;
+    const c1y = p1.y + (p2.y - p0.y) * tension / 6;
+    const c2x = p2.x - (p3.x - p1.x) * tension / 6;
+    const c2y = p2.y - (p3.y - p1.y) * tension / 6;
+    d += ` C ${q(c1x)} ${q(c1y)} ${q(c2x)} ${q(c2y)} ${q(p2.x)} ${q(p2.y)}`;
+  }
+  return `${d} Z`;
+}
+
+function makeDozeCloudPath(amount) {
+  const mix = clamp01(amount);
+  if (mix <= 0.0001) return CLOUD_D;
+  const slump = DOZE.slump * mix;
+  const points = SOFT_CLOUD_POINTS.map((pt) => {
+    const dx = pt.x - 12;
+    const distX = Math.abs(dx);
+    const sign = dx === 0 ? 0 : Math.sign(dx);
+    const topWeight = Math.pow(clamp01((8.2 - pt.y) / 5.2), 0.95);
+    const crownCenter = clamp01(1 - distX / 6.6);
+    const shoulderWeight = clamp01((pt.y - 6.0) / 8.5) * clamp01((18.6 - pt.y) / 10.5);
+    const lowerWeight = Math.pow(clamp01((pt.y - 15.4) / 5.8), 0.78);
+    const sideWeight = clamp01((distX - 2.2) / 7.5) * clamp01((20.2 - pt.y) / 16.2);
+
+    const topSag = slump * topWeight * DOZE.topSag * (0.70 + crownCenter * 0.42);
+    const shoulderSag = slump * shoulderWeight * DOZE.shoulderSag;
+    const floorCurve = DOZE.floorY + Math.pow(distX / 10, 2) * 0.46 - crownCenter * 0.04;
+    const floorPull = (floorCurve - pt.y) * lowerWeight * DOZE.floorFlatten * slump;
+    const sideOut = sign * slump * DOZE.spread * (0.18 + sideWeight * 0.76 + lowerWeight * 0.42);
+    const bottomInhale = lowerWeight * DOZE.bottomSquish * slump * -0.34;
+    const lean = DOZE.leftLean * slump * (0.15 + topWeight * 0.50 + shoulderWeight * 0.30);
+
+    return {
+      x: pt.x + sideOut + lean,
+      y: pt.y + topSag + shoulderSag + floorPull + bottomInhale
+    };
+  });
+  return catmullRomClosedPath(points, lerp(0.95, 0.68, mix));
+}
+
+function defs(cloudD) {
+  return `
+    <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.48" stop-color="#f5f6fa"/>
+      <stop offset="1" stop-color="#dde2ec"/>
+    </linearGradient>
+    <linearGradient id="eye-grad" x1="12" y1="8" x2="12" y2="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/>
+      <stop offset="0.55" stop-color="#7A9DFF"/>
+      <stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="hi-grad" cx="0.43" cy="0.22" r="0.62">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.82"/>
+      <stop offset="0.58" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo-grad" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#7A9DFF" stop-opacity="0.55"/>
+      <stop offset="0.54" stop-color="#3941FF" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="#3941FF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="drop" x="-45%" y="-45%" width="190%" height="190%">
+      <feDropShadow dx="0" dy="0.72" stdDeviation="0.92" flood-color="#3941FF" flood-opacity="0.18"/>
+    </filter>
+    <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <filter id="halo-blur" x="-80%" y="-120%" width="260%" height="340%">
+      <feGaussianBlur stdDeviation="0.42"/>
+    </filter>
+    <clipPath id="cloud-clip"><path d="${cloudD}"/></clipPath>
+  `;
+}
+
+function capsulePath(cx, cy, w, h) {
+  const r = w / 2;
+  const top = cy - h / 2;
+  const bottom = cy + h / 2;
+  return [
+    `M ${cx.toFixed(2)} ${top.toFixed(2)}`,
+    `C ${(cx + r).toFixed(2)} ${top.toFixed(2)} ${(cx + r).toFixed(2)} ${(top + r).toFixed(2)} ${(cx + r).toFixed(2)} ${(top + r).toFixed(2)}`,
+    `L ${(cx + r).toFixed(2)} ${(bottom - r).toFixed(2)}`,
+    `C ${(cx + r).toFixed(2)} ${bottom.toFixed(2)} ${cx.toFixed(2)} ${bottom.toFixed(2)} ${cx.toFixed(2)} ${bottom.toFixed(2)}`,
+    `C ${(cx - r).toFixed(2)} ${bottom.toFixed(2)} ${(cx - r).toFixed(2)} ${(bottom - r).toFixed(2)} ${(cx - r).toFixed(2)} ${(bottom - r).toFixed(2)}`,
+    `L ${(cx - r).toFixed(2)} ${(top + r).toFixed(2)}`,
+    `C ${(cx - r).toFixed(2)} ${top.toFixed(2)} ${cx.toFixed(2)} ${top.toFixed(2)} ${cx.toFixed(2)} ${top.toFixed(2)} Z`
+  ].join(' ');
+}
+
+function roundedRectPath(cx, cy, w, h) {
+  const r = Math.min(w, h) / 2;
+  const k = 0.5522847498;
+  const left = cx - w / 2;
+  const right = cx + w / 2;
+  const top = cy - h / 2;
+  const bottom = cy + h / 2;
+  const c = r * k;
+  return [
+    `M ${(left + r).toFixed(2)} ${top.toFixed(2)}`,
+    `L ${(right - r).toFixed(2)} ${top.toFixed(2)}`,
+    `C ${(right - r + c).toFixed(2)} ${top.toFixed(2)} ${right.toFixed(2)} ${(top + r - c).toFixed(2)} ${right.toFixed(2)} ${(top + r).toFixed(2)}`,
+    `L ${right.toFixed(2)} ${(bottom - r).toFixed(2)}`,
+    `C ${right.toFixed(2)} ${(bottom - r + c).toFixed(2)} ${(right - r + c).toFixed(2)} ${bottom.toFixed(2)} ${(right - r).toFixed(2)} ${bottom.toFixed(2)}`,
+    `L ${(left + r).toFixed(2)} ${bottom.toFixed(2)}`,
+    `C ${(left + r - c).toFixed(2)} ${bottom.toFixed(2)} ${left.toFixed(2)} ${(bottom - r + c).toFixed(2)} ${left.toFixed(2)} ${(bottom - r).toFixed(2)}`,
+    `L ${left.toFixed(2)} ${(top + r).toFixed(2)}`,
+    `C ${left.toFixed(2)} ${(top + r - c).toFixed(2)} ${(left + r - c).toFixed(2)} ${top.toFixed(2)} ${(left + r).toFixed(2)} ${top.toFixed(2)} Z`
+  ].join(' ');
+}
+
+function closedEyeStrokePath(cx, cy, w, h, tiltDeg, flip) {
+  const x1 = cx - w / 2;
+  const x2 = cx + w / 2;
+  const mid = cy + h * 0.56;
+  const c1x = cx - w * 0.18;
+  const c2x = cx + w * 0.18;
+  const tilt = flip * tiltDeg * 0.018;
+  return `M ${x1.toFixed(2)} ${(cy - tilt).toFixed(2)} C ${c1x.toFixed(2)} ${mid.toFixed(2)} ${c2x.toFixed(2)} ${mid.toFixed(2)} ${x2.toFixed(2)} ${(cy + tilt).toFixed(2)}`;
+}
+
+function makeClippedCapsuleEye(cx, cy, w, h, lid, clipId) {
+  const d = capsulePath(cx, cy, w, h);
+  const cut = clamp01(lid);
+  if (cut <= 0.012) return `<path d="${d}"/>`;
+
+  const cutY = cy - h / 2 + h * cut;
+  return `
+        <clipPath id="${clipId}" clipPathUnits="userSpaceOnUse">
+          <rect x="${(cx - w / 2 - 0.18).toFixed(2)}" y="${cutY.toFixed(2)}" width="${(w + 0.36).toFixed(2)}" height="${(h + 0.48).toFixed(2)}"/>
+        </clipPath>
+        <path d="${d}" clip-path="url(#${clipId})"/>`;
+}
+
+function makeClosingSlitEye(cx, cy, w, h, close, clipId) {
+  const u = clamp01(close);
+  const squeeze = smoothstep(0.42, 0.84, u);
+  if (squeeze <= 0.001) return makeClippedCapsuleEye(cx, cy, w, h, u * 0.96, clipId);
+
+  const cutY = cy - h / 2 + h * u * 0.96;
+  const bottomY = cy + h / 2;
+  const visibleH = Math.max(0.34, bottomY - cutY);
+  const visibleCy = cutY + visibleH / 2;
+  const slitH = lerp(visibleH, 0.34, squeeze);
+  const slitW = lerp(w, w * 0.90, squeeze);
+  const slitCy = lerp(visibleCy, cy + 0.25, squeeze);
+  return `<path d="${roundedRectPath(cx, slitCy, slitW, slitH)}"/>`;
+}
+
+function makeEyes(eye) {
+  const fillGap = 6.00;
+  const fillCy = 12.00;
+  const fillW = 2.60;
+  const fillH = 5.00;
+  const fillLeft = 12 - fillGap / 2;
+  const fillRight = 12 + fillGap / 2;
+
+  const closedGap = lerp(5.84, DOZE.eyeGap, eye.drop);
+  const closedCy = lerp(12.12, DOZE.eyeY, eye.drop);
+  const closedW = lerp(2.28, DOZE.eyeW, eye.drop);
+  const closedH = lerp(0.72, DOZE.eyeH, eye.drop);
+  const closedTilt = lerp(2.8, DOZE.eyeTilt, eye.drop);
+  const closedStroke = lerp(0.62, DOZE.eyeStroke, eye.drop);
+  const closedLeft = 12 - closedGap / 2;
+  const closedRight = 12 + closedGap / 2;
+
+  return `
+    <g id="eyes-morph">
+      <g fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7" opacity="${eye.fillOpacity.toFixed(3)}">
+        ${eye.finalClose > 0.001
+          ? makeClosingSlitEye(fillLeft, fillCy, fillW, fillH, eye.finalClose, 'eye-l-clip')
+          : makeClippedCapsuleEye(fillLeft, fillCy, fillW, fillH, eye.lid, 'eye-l-clip')}
+        ${eye.finalClose > 0.001
+          ? makeClosingSlitEye(fillRight, fillCy, fillW, fillH, eye.finalClose, 'eye-r-clip')
+          : makeClippedCapsuleEye(fillRight, fillCy, fillW, fillH, eye.lid, 'eye-r-clip')}
+      </g>
+      <g id="eyes-doze" fill="none" stroke="url(#eye-grad)" stroke-width="${closedStroke.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" opacity="${(eye.closedOpacity * DOZE.eyeOpacity).toFixed(3)}">
+        <path d="${closedEyeStrokePath(closedLeft, closedCy, closedW, closedH, closedTilt, -1)}"/>
+        <path d="${closedEyeStrokePath(closedRight, closedCy, closedW, closedH, closedTilt, 1)}"/>
+      </g>
+    </g>
+  `;
+}
+
+function dozeBeat(t, start, peak, end) {
+  return Math.min(smoothstep(start, peak, t), 1 - smoothstep(peak, end, t));
+}
+
+function computeFrame(t) {
+  const tl = timeline;
+  const beatA = dozeBeat(t, tl.half1Start, tl.half1Peak, tl.wake1End);
+  const beatB = dozeBeat(t, tl.half2Start, tl.half2Peak, tl.wake2End);
+  const closeU = smoothstep(tl.closeStart, tl.closeEnd, t);
+  const pathU = easeInOut(progress(t, tl.slumpStart, tl.slumpEnd));
+  const settleU = easeInOut(progress(t, tl.dropStart, tl.slumpEnd));
+  const wakeA = Math.sin(progress(t, tl.half1Peak, tl.wake1End) * Math.PI) * 0.42;
+  const wakeB = Math.sin(progress(t, tl.half2Peak, tl.wake2End) * Math.PI) * 0.34;
+  const nodU = Math.max(beatA * 0.72, beatB * 1.05);
+  const reboundU = wakeA + wakeB;
+  const haloU = smoothstep(tl.haloStart, tl.slumpEnd, t);
+  const eyeDropU = easeInOut(progress(t, tl.dropStart, tl.slumpEnd));
+  const breathWave = Math.sin((t / MOTION.breathPeriod) * Math.PI * 2);
+  const breathFade = lerp(1, 0.72, pathU);
+  const breath = breathWave * MOTION.breathAmp * breathFade;
+  const sleepyU = Math.max(beatA * 0.82, beatB, closeU);
+  const lid = beatA * 0.56 + beatB * 0.66 + closeU * 0.96;
+  const fillOpacity = 1 - smoothstep(0.58, 0.88, closeU);
+  const closedOpacity = smoothstep(0.58, 1.0, closeU);
+
+  return {
+    pathU,
+    haloU,
+    eye: {
+      sleepy: sleepyU,
+      lid,
+      finalClose: closeU,
+      fillOpacity,
+      closedOpacity,
+      drop: eyeDropU,
+    },
+    bodyTx: lerp(0, DOZE.bodyTx, settleU) - 0.05 * nodU,
+    bodyTy: lerp(0, DOZE.bodyTy, settleU) + 0.74 * nodU - 0.18 * reboundU,
+    bodyRot: lerp(0, DOZE.bodyRot, settleU) - 2.1 * nodU + 0.42 * reboundU,
+    bodySx: lerp(1, DOZE.bodyScale, settleU) + 0.025 * nodU + breath * 0.58,
+    bodySy: lerp(1, DOZE.bodyScale, settleU) - 0.045 * nodU + breath,
+    breath,
+  };
+}
+
+function phaseName(t) {
+  const tl = timeline;
+  if (t < tl.idleEnd) return 'idle';
+  if (t < tl.half1Peak) return 'half close 1';
+  if (t < tl.wake1End) return 'wake 1';
+  if (t < tl.hold1End) return 'holding on';
+  if (t < tl.half2Peak) return 'half close 2';
+  if (t < tl.wake2End) return 'wake 2';
+  if (t < tl.hold2End) return 'holding on';
+  if (t < tl.closeEnd) return 'natural close';
+  if (t < tl.slumpEnd) return 'soft slump';
+  return 'dozing hold';
+}
+
+function renderFrame(t) {
+  const f = computeFrame(t);
+  const cloudD = makeDozeCloudPath(f.pathU);
+  const bodyTransform = `translate(${f.bodyTx.toFixed(3)} ${f.bodyTy.toFixed(3)}) translate(12 12) rotate(${f.bodyRot.toFixed(3)}) scale(${f.bodySx.toFixed(4)} ${f.bodySy.toFixed(4)}) translate(-12 -12)`;
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft  { stroke-opacity: .06; }
+.edge-contact   { stroke-opacity: .08; }
+.page {
+  width: min(1040px, 100%);
+  display: grid;
+  gap: 18px;
+}
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.timeline, .tuning {
+  border: 1px solid rgba(149, 170, 255, .22);
+  background: rgba(5, 10, 24, .46);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, .34);
+  border-radius: 8px;
+}
+.timeline {
+  padding: 13px;
+  display: grid;
+  grid-template-columns: 70px 1fr 72px auto auto auto;
+  gap: 10px;
+  align-items: center;
+}
+.timeline span, .timeline output {
+  color: rgba(226, 234, 255, .76);
+  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.phase {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: rgba(226, 234, 255, .54);
+  font-size: 11px;
+}
+.phase b {
+  color: rgba(235, 240, 255, .84);
+  font-weight: 650;
+}
+.tuning {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+.tuning-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(226, 234, 255, .82);
+  font-size: 12px;
+  font-weight: 650;
+}
+.tuning-head output {
+  color: rgba(226, 234, 255, .62);
+  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 500;
+}
+.timing-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px 16px;
+}
+.timing-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 56px;
+  gap: 10px;
+  align-items: center;
+}
+.timing-row label {
+  color: rgba(226, 234, 255, .72);
+  font-size: 12px;
+}
+.timing-row output {
+  color: rgba(226, 234, 255, .66);
+  font: 11px ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: right;
+}
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft  { stroke-opacity: .10; }
+.edge-contact   { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.timeline, .tuning {
+  background: rgba(255, 255, 255, .68);
+  border-color: rgba(82, 111, 190, .22);
+  box-shadow: 0 20px 70px rgba(58, 78, 130, .14);
+}
+.phase, .timeline span, .timeline output, .tuning-head output, .timing-row label, .timing-row output { color: rgba(21, 33, 63, .66); }
+.phase b { color: rgba(21, 33, 63, .86); }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+</style>
+<defs>
+        ${defs(cloudD)}
+        <path id="cloud-shape" d="${cloudD}"/>
+      </defs>
+      <g id="halo-layer" opacity="${f.haloU.toFixed(3)}">
+        <ellipse cx="12" cy="${DOZE.haloY}" rx="${lerp(7.8, DOZE.haloRx, f.haloU).toFixed(2)}" ry="${lerp(.72, DOZE.haloRy, f.haloU).toFixed(2)}" fill="url(#halo-grad)" opacity="${DOZE.haloOpacity}" filter="url(#halo-blur)"/>
+        <ellipse cx="12" cy="${(DOZE.haloY + 0.05).toFixed(2)}" rx="${(DOZE.haloRx * 0.68).toFixed(2)}" ry="${(DOZE.haloRy * 0.46).toFixed(2)}" fill="#7A9DFF" opacity="${DOZE.glowOpacity}" filter="url(#halo-blur)"/>
+      </g>
+      <g id="body-pose" transform="${bodyTransform}">
+        <g id="edge-system">
+          <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.00" stroke-linejoin="round" transform="translate(0 0.16)" filter="url(#edge-blur)"/>
+          <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.88" stroke-linejoin="round" filter="url(#edge-blur)"/>
+          <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.40" stroke-linejoin="round"/>
+        </g>
+        <g filter="url(#drop)">
+          <use href="#cloud-shape" fill="url(#body-grad)"/>
+          <rect x="1" y="2.2" width="22" height="10.4" fill="url(#hi-grad)" clip-path="url(#cloud-clip)" opacity=".88"/>
+        </g>
+        ${makeEyes(f.eye)}
+      </g>
+  `;
+  scrubber.value = t.toFixed(2);
+  timeOut.value = `${t.toFixed(2)} s`;
+  phaseEl.innerHTML = `<span>phase: <b>${phaseName(t)}</b></span><span>path ${(f.pathU * 100).toFixed(0)}%</span><span>halo ${(f.haloU * 100).toFixed(0)}%</span><span>breath ${(f.breath * 100).toFixed(1)}%</span>`;
+}
+
+function currentTime(now) {
+  if (!playing) return manualT;
+  const t = ((now - start) / 1000);
+  return Math.min(t, DURATION);
+}
+
+function loop(now) {
+  const t = currentTime(now);
+  renderFrame(t);
+  if (playing && t >= DURATION) {
+    playing = false;
+    manualT = DURATION;
+    { const __btn = document.getElementById('btn-play'); if (__btn) __btn.textContent = 'Play'; }
+  }
+  requestAnimationFrame(loop);
+}
+
+renderFrame(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

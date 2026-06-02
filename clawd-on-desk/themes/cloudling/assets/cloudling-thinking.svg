@@ -1,0 +1,720 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.phase {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+}
+.phase span { color: #7A9DFF; font-weight: 600; }
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.phase span { color: #3941FF; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+    <defs>
+      <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.5" stop-color="#f4f5f9"/>
+        <stop offset="1" stop-color="#dee2eb"/>
+      </linearGradient>
+      <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF"/>
+        <stop offset="0.5" stop-color="#7A9DFF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+      <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+      </filter>
+      <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="0.16"/>
+      </filter>
+      <radialGradient id="lens-glass-grad" cx="0.34" cy="0.22" r="0.86">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.72"/>
+        <stop offset="0.48" stop-color="#DDE7FF" stop-opacity="0.35"/>
+        <stop offset="1" stop-color="#89A7FF" stop-opacity="0.12"/>
+      </radialGradient>
+      <linearGradient id="lens-rim-grad" x1="-5" y1="-5" x2="5" y2="5" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.82"/>
+        <stop offset="0.44" stop-color="#B9C6DC" stop-opacity="0.54"/>
+        <stop offset="1" stop-color="#6F83B7" stop-opacity="0.42"/>
+      </linearGradient>
+      <linearGradient id="scan-grad" x1="-4" y1="0" x2="4" y2="0" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#89F2FF" stop-opacity="0"/>
+        <stop offset="0.5" stop-color="#EAFBFF" stop-opacity="0.72"/>
+        <stop offset="1" stop-color="#89F2FF" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="lens-soft-glow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="0.45" result="glow"/>
+        <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      <clipPath id="cloud-clip"><use href="#cloud-shape"/></clipPath>
+
+      <!-- 镜片 clip 中心化到 (0,0), lens-group 通过 transform 平移 -->
+      <clipPath id="lens-clip"><circle cx="0" cy="0" r="4.75"/></clipPath>
+
+      <!-- 轻玻璃镜框 (中心化到 0,0) -->
+      <g id="lens-frame">
+        <circle cx="0" cy="0" r="5.05" stroke="url(#lens-rim-grad)" stroke-width="0.34" fill="none" opacity="0.9"/>
+        <circle cx="0" cy="0" r="4.55" stroke="#ffffff" stroke-width="0.10" stroke-opacity="0.34" fill="none"/>
+        <path id="lens-frame-highlight" d="M -1.728 -4.745 A 5.05 5.05 0 0 1 1.728 -4.745"
+              stroke="#ffffff" stroke-width="0.22" stroke-opacity="0.78"
+              stroke-linecap="round" fill="none"/>
+      </g>
+    </defs>
+
+    <!-- 云朵 layer (rotate + scale 围绕 12,12) -->
+    <g id="cloud-group">
+      <g id="edge-system">
+        <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+        <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+        <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#drop)">
+        <use href="#cloud-shape" fill="url(#body-grad)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+      </g>
+    </g>
+
+    <!-- 眼睛 layer (只 scale, 不 rotate, 眼睛保持竖直 — typing 同款分层)
+         每只眼 = capsule + dot 两个元素, opacity 互斥 fade (不再 morph 形状, 避免横扁椭圆中间帧鬼畜) -->
+    <g id="eye-group">
+      <g id="eye-l-wrap" transform="translate(9 12)">
+        <rect class="cap" x="-1.3" y="-2.5" width="2.6" height="5" rx="1.3" ry="1.3"
+              fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        <circle class="dot" cx="0" cy="0" r="1.35" fill="url(#eye-grad)"/>
+      </g>
+      <g id="eye-r-wrap" transform="translate(15 12)">
+        <rect class="cap" x="-1.3" y="-2.5" width="2.6" height="5" rx="1.3" ry="1.3"
+              fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        <circle class="dot" cx="0" cy="0" r="1.35" fill="url(#eye-grad)"/>
+      </g>
+    </g>
+
+    <!-- 镜片 layer (独立, transform 平移到 lensX/lensY) -->
+    <g id="lens-group" transform="translate(15 12)">
+      <circle id="lens-glow" cx="0" cy="0" r="5.05" fill="#7A9DFF" opacity="0.08" filter="url(#lens-soft-glow)"/>
+      <circle id="lens-glass" cx="0" cy="0" r="4.75" fill="url(#lens-glass-grad)"/>
+      <g clip-path="url(#lens-clip)">
+        <g id="lens-content"></g>
+      </g>
+      <use href="#lens-frame"/>
+    </g>
+  <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="phaseLabel"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+/* ───────────── 元素引用 ───────────── */
+const cloudGroup = document.getElementById('cloud-group');
+const eyeGroup = document.getElementById('eye-group');
+const eyeLWrap = document.getElementById('eye-l-wrap');
+const eyeRWrap = document.getElementById('eye-r-wrap');
+const eyeLCap = eyeLWrap.querySelector('.cap');
+const eyeLDot = eyeLWrap.querySelector('.dot');
+const eyeRCap = eyeRWrap.querySelector('.cap');
+const eyeRDot = eyeRWrap.querySelector('.dot');
+const lensGroup = document.getElementById('lens-group');
+const lensFrameHighlight = document.getElementById('lens-frame-highlight');
+const lensContent = document.getElementById('lens-content');
+const eyeGrad = document.getElementById('eye-grad');
+const phaseLabel = document.getElementById('phaseLabel');
+
+/* ───────────── 拉杆参数 ───────────── */
+const params = {
+  total: 6.0,
+  ratio: 3.00,        // 定睛/滑动 = 2.25/0.75 = 3.00
+  rot: 7.0,
+  sh: 1.10,
+  sl: 1.00,
+  ba: 0.024,
+  bper: 5.0,
+  arc: 1.15,
+  fa: 0.12,
+  fp: 3.1,
+  fh: 1.10,
+  sweep: 0.78,        // 5 token 扫描总时长
+  accel: 1.65,        // 加速强度: 1=匀速, 高=末尾更快
+  ph: 0.24,           // 回正后到第一次眨眼的呼吸时长
+  bd: 0.22,           // 眨眼单次时长
+  bm: 0.06,           // 眨眼最低 sy (BLINK_MIN)
+  hd: 1.25,
+  dd: 6.0,
+  gp: 5.0,
+  ga: 9,
+  pause: false
+};
+
+/* 段时长 (从 total + ratio 推) */
+function segments() {
+  // 定睛 2 段 + 滑动 2 段, 满足: 2*focus + 2*transit = total, focus/transit = ratio
+  const transit = params.total / (2 * (params.ratio + 1));
+  const focus = transit * params.ratio;
+  return { focus, transit };
+}
+
+/* ───────────── 工具函数 ───────────── */
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = t => t * t * (3 - 2 * t);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function getBodyBreath(t) {
+  const period = Math.max(params.bper, 0.1);
+  const p = ((t % period) + period) % period / period;
+  // 稍快吸气、稍慢呼气，比正弦更像自然呼吸。
+  const inhale = p < 0.42
+    ? easeInOut(p / 0.42)
+    : 1 - easeInOut((p - 0.42) / 0.58);
+  const centered = inhale * 2 - 1;
+  return {
+    sx: 1 + centered * params.ba * 0.35,
+    sy: 1 + centered * params.ba
+  };
+}
+
+/* ───────────── token 库 (中心化到 0,0) ───────────── */
+const TOKENS = ['gt', 'lt', 'und', 'colon', 'eq', 'plus', 'slash', 'bslash'];
+
+/* token stroke 跟着 transform scale 放大, v2 降低线重, 给镜片内代码流留精细感。 */
+function tokenSVG(name) {
+  switch (name) {
+    case 'gt':     return `<path d="M -0.8 -1.7 L 0.8 0 L -0.8 1.7" stroke="url(#eye-grad)" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
+    case 'lt':     return `<path d="M 0.8 -1.7 L -0.8 0 L 0.8 1.7" stroke="url(#eye-grad)" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
+    case 'und':    return `<line x1="-1.0" y1="1.0" x2="1.0" y2="1.0" stroke="url(#eye-grad)" stroke-width="1.05" stroke-linecap="round"/>`;
+    case 'colon':  return `<circle cx="0" cy="-1.05" r="0.78" fill="url(#eye-grad)"/><circle cx="0" cy="1.05" r="0.78" fill="url(#eye-grad)"/>`;
+    case 'eq':     return `<line x1="-1.0" y1="-0.85" x2="1.0" y2="-0.85" stroke="url(#eye-grad)" stroke-width="0.76" stroke-linecap="round"/><line x1="-1.0" y1="0.85" x2="1.0" y2="0.85" stroke="url(#eye-grad)" stroke-width="0.76" stroke-linecap="round"/>`;
+    case 'plus':   return `<line x1="-1.0" y1="0" x2="1.0" y2="0" stroke="url(#eye-grad)" stroke-width="0.76" stroke-linecap="round"/><line x1="0" y1="-1.0" x2="0" y2="1.0" stroke="url(#eye-grad)" stroke-width="0.76" stroke-linecap="round"/>`;
+    case 'slash':  return `<path d="M 0.8 -1.5 L -0.8 1.5" stroke="url(#eye-grad)" stroke-width="1.05" stroke-linecap="round" fill="none"/>`;
+    case 'bslash': return `<path d="M -0.8 -1.5 L 0.8 1.5" stroke="url(#eye-grad)" stroke-width="1.05" stroke-linecap="round" fill="none"/>`;
+  }
+  return '';
+}
+
+const LENS_MAG = 1.35;
+
+function contentOffsetForEye(eyeX, eyeY, lensX, lensY) {
+  return {
+    x: (eyeX - lensX) * LENS_MAG,
+    y: (eyeY - lensY) * LENS_MAG
+  };
+}
+
+/* capsule (默认中心化到 0,0), scale 只用于镜片内鱼眼放大 */
+function capsuleSVG(scale = 1, offset = { x: 0, y: 0 }) {
+  const w = 2.6 * scale;
+  const h = 5 * scale;
+  const r = 1.3 * scale;
+  return `<rect x="${offset.x - w/2}" y="${offset.y - h/2}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="url(#eye-grad)"/>`;
+}
+
+/* 每 focus 段重新 pick 中间 3 个 token (从 6 个非 / 非 \ 池中取). 入口固定 slash, 出口固定 bslash. */
+const MIDDLE_POOL = ['gt', 'lt', 'und', 'colon', 'eq', 'plus'];
+function pickFocusTokens() {
+  const shuffled = [...MIDDLE_POOL];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return ['slash', shuffled[0], shuffled[1], shuffled[2], 'bslash'];
+}
+
+let rightFocusTokens = pickFocusTokens();
+let leftFocusTokens = pickFocusTokens();
+let lastLoopId = -1;
+
+/* ───────────── 镜片下那只眼的内部时序 (v5 加速硬切轮播) ─────────────
+   focus 段内部:
+     morphIn (capsule 收点 → / 长出)  0.13s
+     5 token 加速硬切 (/ R1 R2 R3 \) sweep s (默认 0.58s, 加速强度 accel 控制递减)
+     morphOut (\ 收点 → capsule 长出) 0.13s
+     capsule hold 起步                0.04s
+     blink 1 (单次时长 bd, 默认 0.22s)
+     间隙 hold                        0.04s
+     blink 2 (单次时长 bd)
+     收尾 hold (剩余时间)             ≈ 0.27s
+
+   sweep 内部 5 个 token 各自时长按几何级数递减:
+     dur_i = sweep * (accel^(-i)) / sum(accel^(-k) for k=0..4)
+     accel=1.0 → 5 等分; accel=2.2 → 第一个最长, 第五个最短 ≈ 1/4. */
+
+const MORPH_IN_DUR = 0.13;
+const MORPH_OUT_DUR = 0.13;
+const INTER_BLINK_HOLD = 0.04;
+
+function getTokenDurations(sweepDur, accel) {
+  // 线性递减: dur_0 / dur_4 = accel, sum = sweepDur
+  // dur_i = a - i * b, b = a * (1 - 1/accel) / 4, a = sweepDur / (2.5 + 2.5/accel)
+  const a = sweepDur / (2.5 + 2.5 / accel);
+  const b = a * (1 - 1 / accel) / 4;
+  return [0, 1, 2, 3, 4].map(i => a - i * b);
+}
+
+function blinkLerp(p, blinkMin) {  // p 0..1, 闭+开: 1 → MIN → 1
+  p = clamp(p, 0, 1);
+  return p < 0.5
+    ? lerp(1, blinkMin, easeInOut(p / 0.5))
+    : lerp(blinkMin, 1, easeInOut((p - 0.5) / 0.5));
+}
+
+function getFocusEyeState(localT) {
+  // localT 是 focus 段内部秒数 (绝对秒, 不归一化)
+  const sweepDur = params.sweep;
+  const tokenDurs = getTokenDurations(sweepDur, params.accel);
+  const bd = params.bd;
+
+  // 各阶段终点 (秒)
+  const morphInEnd = MORPH_IN_DUR;
+  const tok1End = morphInEnd + tokenDurs[0];
+  const tok2End = tok1End + tokenDurs[1];
+  const tok3End = tok2End + tokenDurs[2];
+  const tok4End = tok3End + tokenDurs[3];
+  const tok5End = tok4End + tokenDurs[4];
+  const morphOutEnd = tok5End + MORPH_OUT_DUR;
+  const preBlinkEnd = morphOutEnd + params.ph;
+  const blink1End = preBlinkEnd + bd;
+  const interEnd = blink1End + INTER_BLINK_HOLD;
+  const blink2End = interEnd + bd;
+
+  if (localT < morphInEnd)   return { stage: 'morphIn',  progress: localT / morphInEnd };
+  if (localT < tok1End)      return { stage: 'token',    tokenIdx: 0 };
+  if (localT < tok2End)      return { stage: 'token',    tokenIdx: 1 };
+  if (localT < tok3End)      return { stage: 'token',    tokenIdx: 2 };
+  if (localT < tok4End)      return { stage: 'token',    tokenIdx: 3 };
+  if (localT < tok5End)      return { stage: 'token',    tokenIdx: 4 };
+  if (localT < morphOutEnd)  return { stage: 'morphOut', progress: (localT - tok5End) / MORPH_OUT_DUR };
+  if (localT < preBlinkEnd)  return { stage: 'capsule',  sy: 1 };
+  if (localT < blink1End)    return { stage: 'capsule',  sy: blinkLerp((localT - preBlinkEnd) / bd, params.bm) };
+  if (localT < interEnd)     return { stage: 'capsule',  sy: 1 };
+  if (localT < blink2End)    return { stage: 'capsule',  sy: blinkLerp((localT - interEnd) / bd, params.bm) };
+  return { stage: 'capsule', sy: 1 };
+}
+
+/* ───────────── 主状态 ───────────── */
+function getState(t) {
+  const TOTAL = params.total;
+  const { focus, transit } = segments();
+  t = ((t % TOTAL) + TOTAL) % TOTAL;
+
+  const T1 = focus, T2 = transit, T3 = focus, T4 = transit;
+  const t1End = T1, t2End = T1 + T2, t3End = T1 + T2 + T3;
+
+  let phase, localT, lensX, lensY, cloudRot, cloudScale;
+  let transitP = 0, transitDir = 0, motion = 0;
+
+  if (t < t1End) {
+    phase = 'right-focus';
+    localT = t;
+    lensX = 15;
+    lensY = 12;
+    cloudRot = params.rot;
+    cloudScale = params.sh;
+  } else if (t < t2End) {
+    phase = 'transit-left';
+    transitP = (t - t1End) / T2;
+    transitDir = -1;
+    motion = Math.sin(transitP * Math.PI);
+    const p = easeInOut(transitP);
+    // 二次贝塞尔 X: 15 → 12 → 9
+    lensX = (1-p)*(1-p)*15 + 2*(1-p)*p*12 + p*p*9;
+    // Y 弧线 (上凸)
+    lensY = 12 - params.arc * Math.sin(p * Math.PI);
+    cloudRot = params.rot * (1 - 2 * p);  // +rot → 0 → -rot 单调
+    cloudScale = params.sh - (params.sh - params.sl) * Math.sin(p * Math.PI);  // V 形, 中间最低
+  } else if (t < t3End) {
+    phase = 'left-focus';
+    localT = t - t2End;
+    lensX = 9;
+    lensY = 12;
+    cloudRot = -params.rot;
+    cloudScale = params.sh;
+  } else {
+    phase = 'transit-right';
+    transitP = (t - t3End) / T4;
+    transitDir = 1;
+    motion = Math.sin(transitP * Math.PI);
+    const p = easeInOut(transitP);
+    lensX = (1-p)*(1-p)*9 + 2*(1-p)*p*12 + p*p*15;
+    lensY = 12 - params.arc * Math.sin(p * Math.PI);
+    cloudRot = -params.rot * (1 - 2 * p);  // -rot → 0 → +rot
+    cloudScale = params.sh - (params.sh - params.sl) * Math.sin(p * Math.PI);
+  }
+
+  // 镜片微浮动 (异步 sin)
+  const nowSec = (lastWallTime || performance.now()) / 1000;
+  lensY += params.fa * Math.sin(2 * Math.PI * nowSec / params.fp);
+
+  return { phase, localT, focusDur: focus, lensX, lensY, cloudRot, cloudScale, transitP, transitDir, motion };
+}
+
+/* ───────────── 眼睛 capsule/dot opacity swap ─────────────
+   不再 morph 形状 (避免横扁椭圆中间帧 = 视觉旋转鬼畜)
+   distance < hd:                 hidden (镜片覆盖)
+   hd ≤ distance < SWITCH:        capsule (远到看清, 镜片刚走 / 远端)
+   distance ≥ SWITCH:             dot (圆点眯眼, 离镜片远 = 被对方审视配合眯起)
+   切换瞬间 dot/capsule opacity 互换 (短窗口 fade) */
+const SWITCH_DIST = 4.0;
+const FADE_HALF = 0.25;
+function getEyeOpacities(eyeCx, lensX) {
+  const d = Math.abs(lensX - eyeCx);
+  const visibility = clamp((d - params.hd) / 0.5, 0, 1);  // hd..(hd+0.5) 渐显
+  // dot 占比: distance 越远越显, SWITCH 附近 fade swap
+  const dotRatio = clamp((d - (SWITCH_DIST - FADE_HALF)) / (2 * FADE_HALF), 0, 1);
+  return {
+    capsuleOpacity: (1 - dotRatio) * visibility,
+    dotOpacity: dotRatio * visibility
+  };
+}
+
+/* ───────────── 渲染 ───────────── */
+let lastWallTime = 0;
+
+function applyEyeFollow(s) {
+  const ldx = clamp((s.lensX - 9) / 6, -1, 1) * 0.22;
+  const rdx = clamp((s.lensX - 15) / 6, -1, 1) * 0.22;
+  const dy = clamp((s.lensY - 12) / 3, -1, 1) * 0.12;
+  eyeLWrap.setAttribute('transform', `translate(9 12) translate(${ldx.toFixed(3)} ${dy.toFixed(3)})`);
+  eyeRWrap.setAttribute('transform', `translate(15 12) translate(${rdx.toFixed(3)} ${dy.toFixed(3)})`);
+}
+
+function render(t) {
+  const s = getState(t);
+  const breath = getBodyBreath(t);
+
+  // 1. 云朵 transform (rotate + scale + body-only breathing around 12,12)
+  cloudGroup.setAttribute('transform',
+    `translate(12 12) scale(${s.cloudScale}) rotate(${s.cloudRot}) scale(${breath.sx.toFixed(4)} ${breath.sy.toFixed(4)}) translate(-12 -12)`);
+
+  // 2. 眼睛 layer 跟着 scale 但不 rotate (typing 同款)
+  eyeGroup.setAttribute('transform',
+    `translate(12 12) scale(${s.cloudScale}) translate(-12 -12)`);
+  applyEyeFollow(s);
+
+  // 3. 双眼 capsule/dot opacity swap (不 morph 形状)
+  const lO = getEyeOpacities(9, s.lensX);
+  const rO = getEyeOpacities(15, s.lensX);
+  eyeLCap.setAttribute('opacity', lO.capsuleOpacity);
+  eyeLDot.setAttribute('opacity', lO.dotOpacity);
+  eyeRCap.setAttribute('opacity', rO.capsuleOpacity);
+  eyeRDot.setAttribute('opacity', rO.dotOpacity);
+
+  // 4. 镜片位置
+  lensGroup.setAttribute('transform', `translate(${s.lensX} ${s.lensY})`);
+  applyLensFrameHighlight(s);
+
+  // 5. 镜片下内容
+  let stageLabel = '';
+  if (s.phase === 'right-focus' || s.phase === 'left-focus') {
+    const focusState = getFocusEyeState(s.localT);
+    const tokens = (s.phase === 'right-focus') ? rightFocusTokens : leftFocusTokens;
+    const sourceX = s.phase === 'right-focus' ? 15 : 9;
+    renderLensContent(focusState, tokens, contentOffsetForEye(sourceX, 12, s.lensX, s.lensY));
+    stageLabel = focusState.stage === 'token'
+      ? `scan[${focusState.tokenIdx}]=${tokens[focusState.tokenIdx]}`
+      : focusState.stage;
+  } else {
+    // transit: 按 lens 到最近眼的距离 fade capsule, 避免 focus 切 transit 瞬间内容突然清空
+    const dL = Math.hypot(s.lensX - 9, s.lensY - 12);
+    const dR = Math.hypot(s.lensX - 15, s.lensY - 12);
+    const dMin = Math.min(dL, dR);
+    // 距离 0-1: fade=1 (lens 在眼附近, 保持 capsule 满显)
+    // 距离 1-2.5: fade 从 1 → 0 渐隐
+    // 距离 > 2.5: 保留微弱 glint, 避免镜片滑动时完全空掉
+    const fade = 1 - clamp((dMin - 1) / 1.5, 0, 1);
+    if (fade < 0.02) {
+      lensContent.innerHTML = renderLensTransitGlints(0.28 + s.motion * 0.12);
+      stageLabel = `transit-glints (d=${dMin.toFixed(1)})`;
+    } else {
+      const sourceX = dL <= dR ? 9 : 15;
+      const offset = contentOffsetForEye(sourceX, 12, s.lensX, s.lensY);
+      lensContent.innerHTML = `
+        <g opacity="${(fade * 0.56).toFixed(3)}">${renderLensCapsule(1, offset)}</g>
+        ${renderLensTransitGlints(0.22 + (1 - fade) * 0.18)}
+      `;
+      stageLabel = `transit-fade=${fade.toFixed(2)} (d=${dMin.toFixed(1)})`;
+    }
+  }
+
+  // 6. 流动渐变 (跟 idle/typing 同语言, 周期 + 幅度)
+  const gradPhase = (lastWallTime / 1000) % params.gp / params.gp;
+  const gShift = Math.sin(2 * Math.PI * gradPhase) * params.ga;
+  eyeGrad.setAttribute('y1', 3 + gShift);
+  eyeGrad.setAttribute('y2', 21 + gShift);
+
+  // 7. 每 loop 重 pick 两组 focus token (各取中间 3 个随机)
+  const loopId = Math.floor(t / params.total);
+  if (loopId !== lastLoopId) {
+    rightFocusTokens = pickFocusTokens();
+    leftFocusTokens = pickFocusTokens();
+    lastLoopId = loopId;
+  }
+
+  // phase label
+  phaseLabel.innerHTML = `<span>${s.phase}</span> · lens (${s.lensX.toFixed(2)}, ${s.lensY.toFixed(2)}) · cloud rot ${s.cloudRot.toFixed(1)}° scale ${s.cloudScale.toFixed(3)} · stage <b>${stageLabel}</b> · R=[${rightFocusTokens.join(',')}] L=[${leftFocusTokens.join(',')}]`;
+}
+
+function applyLensFrameHighlight(s) {
+  const strength = params.fh;
+  const move = clamp(s.motion, 0, 1);
+  const dir = s.transitDir || 0;
+  const effective = Math.min(strength, 1.2);
+  const centerDeg = dir * move * 5.0 * effective;
+  const spanDeg = 34 + 14 * move * effective;
+  const opacity = 0.64 + 0.12 * move * Math.min(strength, 1);
+
+  lensFrameHighlight.setAttribute('d', frameHighlightArc(centerDeg, spanDeg));
+  lensFrameHighlight.removeAttribute('transform');
+  lensFrameHighlight.setAttribute('stroke-opacity', opacity.toFixed(3));
+}
+
+function frameHighlightArc(centerDeg, spanDeg) {
+  const r = 5.05;
+  const start = (-90 + centerDeg - spanDeg / 2) * Math.PI / 180;
+  const end = (-90 + centerDeg + spanDeg / 2) * Math.PI / 180;
+  const x1 = Math.cos(start) * r;
+  const y1 = Math.sin(start) * r;
+  const x2 = Math.cos(end) * r;
+  const y2 = Math.sin(end) * r;
+  return `M ${x1.toFixed(3)} ${y1.toFixed(3)} A ${r} ${r} 0 0 1 ${x2.toFixed(3)} ${y2.toFixed(3)}`;
+}
+
+/* ─── lens 内 capsule 渲染 (含 sy 闭眼幅度, 用于末段眨 2 下) ─── */
+function renderLensCapsule(sy, offset = { x: 0, y: 0 }) {
+  const scale = LENS_MAG;
+  const baseW = 2.6 * scale;
+  const baseH = 5 * scale;
+  const openness = clamp((sy - params.bm) / (1 - params.bm), 0, 1);
+
+  const eyeMarkup = capsuleSVG(scale, offset);
+
+  if (openness > 0.995) return eyeMarkup;
+
+  // 玻璃镜片内不能用浅色眼皮遮盖, 否则眨眼时会露出矩形补丁。
+  // 这里只裁剪 capsule 本体, 再叠一条闭眼线。
+  const openEase = easeInOut(openness);
+  const apertureW = lerp(baseW * 0.78, baseW + 0.42, Math.sqrt(openEase));
+  const apertureH = lerp(0.16, baseH + 0.36, openEase);
+  const hw = apertureW / 2;
+  const hh = apertureH / 2;
+  const c = hw * 0.74;
+  const ox = offset.x;
+  const oy = offset.y;
+
+  const apertureD = `M ${ox - hw} ${oy} C ${ox - c} ${oy - hh} ${ox + c} ${oy - hh} ${ox + hw} ${oy} C ${ox + c} ${oy + hh} ${ox - c} ${oy + hh} ${ox - hw} ${oy} Z`;
+  const upperEdgeD = `M ${ox - hw} ${oy} C ${ox - c} ${oy - hh} ${ox + c} ${oy - hh} ${ox + hw} ${oy}`;
+  const lowerEdgeD = `M ${ox - hw} ${oy} C ${ox - c} ${oy + hh} ${ox + c} ${oy + hh} ${ox + hw} ${oy}`;
+  const edgeOpacity = clamp((1 - openness) * 0.24, 0, 0.18);
+  const lineOpacity = clamp((0.55 - openness) / 0.55, 0, 1);
+  const lineW = baseW * 0.78;
+
+  return `
+    <defs>
+      <clipPath id="lens-eye-aperture"><path d="${apertureD}"/></clipPath>
+    </defs>
+    <g clip-path="url(#lens-eye-aperture)">${eyeMarkup}</g>
+    <g>
+      <path d="${upperEdgeD}" fill="none" stroke="#aeb7c6" stroke-width="0.20" stroke-opacity="${edgeOpacity}" stroke-linecap="round"/>
+      <path d="${lowerEdgeD}" fill="none" stroke="#aeb7c6" stroke-width="0.20" stroke-opacity="${edgeOpacity}" stroke-linecap="round"/>
+    </g>
+    <line x1="${ox - lineW/2}" y1="${oy}" x2="${ox + lineW/2}" y2="${oy}"
+          stroke="url(#eye-grad)" stroke-width="0.42" stroke-linecap="round"
+          opacity="${lineOpacity}" vector-effect="non-scaling-stroke"/>
+  `;
+}
+
+/* ─── morphIn: capsule 收 + 渐隐, token 渐显 + 长出 (overlap 0.4-0.6 区间, 避免空白帧) ─── */
+function renderMorphIn(p, exitToken, offset = { x: 0, y: 0 }) {
+  const scale = LENS_MAG;
+  const e = easeInOut(clamp(p, 0, 1));
+  let html = '';
+  const ox = offset.x;
+  const oy = offset.y;
+
+  // capsule: e ∈ [0, 0.6] 收 + 渐隐
+  if (e < 0.6) {
+    const t = e / 0.6;  // 0 → 1
+    const sy = 1 - t * 0.7;        // 1 → 0.3
+    const sx = 1 - t * 0.7;        // 1 → 0.3
+    const op = 1 - t;              // 1 → 0
+    const w = 2.6 * scale * sx;
+    const h = 5 * scale * sy;
+    const r = Math.min(1.3 * scale * sx, h / 2);
+    html += `<rect x="${ox - w/2}" y="${oy - h/2}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="url(#eye-grad)" opacity="${op}"/>`;
+  }
+
+  // token: e ∈ [0.4, 1.0] 从中心 burst
+  if (e > 0.4) {
+    const t = (e - 0.4) / 0.6;     // 0 → 1
+    const radius = 0.5 + t * 5;    // 0.5 → 5.5
+    html += `
+      <defs><clipPath id="morph-clip"><circle cx="${ox}" cy="${oy}" r="${radius}"/></clipPath></defs>
+      <g clip-path="url(#morph-clip)" transform="translate(${ox} ${oy}) scale(${scale})">${tokenSVG(exitToken)}</g>
+    `;
+  }
+  return html;
+}
+
+/* ─── morphOut: token 收 + 渐隐, capsule 渐显 + 长出 (镜像 morphIn) ─── */
+function renderMorphOut(p, lastToken, offset = { x: 0, y: 0 }) {
+  const scale = LENS_MAG;
+  const e = easeInOut(clamp(p, 0, 1));
+  let html = '';
+  const ox = offset.x;
+  const oy = offset.y;
+
+  // token: e ∈ [0, 0.6] 收 + 渐隐
+  if (e < 0.6) {
+    const t = e / 0.6;             // 0 → 1
+    const radius = 5.5 - t * 5;    // 5.5 → 0.5
+    const op = 1 - t;              // 1 → 0
+    html += `
+      <defs><clipPath id="morph-clip"><circle cx="${ox}" cy="${oy}" r="${radius}"/></clipPath></defs>
+      <g clip-path="url(#morph-clip)" transform="translate(${ox} ${oy}) scale(${scale})" opacity="${op}">${tokenSVG(lastToken)}</g>
+    `;
+  }
+
+  // capsule: e ∈ [0.4, 1.0] 从中心展开
+  if (e > 0.4) {
+    const t = (e - 0.4) / 0.6;     // 0 → 1
+    const sy = 0.3 + t * 0.7;      // 0.3 → 1
+    const sx = 0.3 + t * 0.7;      // 0.3 → 1
+    const op = t;                  // 0 → 1
+    const w = 2.6 * scale * sx;
+    const h = 5 * scale * sy;
+    const r = Math.min(1.3 * scale * sx, h / 2);
+    html += `<rect x="${ox - w/2}" y="${oy - h/2}" width="${w}" height="${h}" rx="${r}" ry="${r}" fill="url(#eye-grad)" opacity="${op}"/>`;
+  }
+  return html;
+}
+
+/* ─── 镜片内代码扫描流 ─── */
+function renderLensToken(name, offset = { x: 0, y: 0 }) {
+  return `<g transform="translate(${offset.x} ${offset.y}) scale(${LENS_MAG})">${tokenSVG(name)}</g>`;
+}
+
+function renderMiniToken(name, x, y, scale, opacity, active = false) {
+  const glow = active
+    ? `<circle cx="0" cy="0" r="1.62" fill="#7A9DFF" opacity="0.14"/>`
+    : '';
+  return `
+    <g transform="translate(${x.toFixed(3)} ${y.toFixed(3)}) scale(${scale.toFixed(3)})"
+       opacity="${opacity.toFixed(3)}">
+      ${glow}
+      ${tokenSVG(name)}
+    </g>
+  `;
+}
+
+function renderLensScan(opacity = 0.45) {
+  const t = ((lastWallTime || 0) / 1000) % 1;
+  const y = -3.7 + t * 7.4;
+  return `
+    <g opacity="${opacity.toFixed(3)}">
+      <rect x="-4.1" y="${(y - 0.18).toFixed(3)}" width="8.2" height="0.36"
+            fill="url(#scan-grad)" transform="rotate(-8)" opacity="0.9"/>
+      <line x1="-3.2" y1="${(y + 0.38).toFixed(3)}" x2="3.2" y2="${(y - 0.52).toFixed(3)}"
+            stroke="#ffffff" stroke-width="0.06" stroke-opacity="0.5"/>
+    </g>
+  `;
+}
+
+function renderLensCodeStream(focusTokens, tokenIdx) {
+  const time = (lastWallTime || 0) / 1000;
+  const active = focusTokens[tokenIdx] || focusTokens[0];
+  const rows = [
+    [focusTokens[(tokenIdx + 4) % 5], 'eq', focusTokens[(tokenIdx + 1) % 5], 'plus'],
+    ['lt', active, 'colon', focusTokens[(tokenIdx + 2) % 5]],
+    [focusTokens[(tokenIdx + 3) % 5], 'und', 'gt', active]
+  ];
+
+  let html = `
+    <g opacity="0.82">
+      <path d="M -3.55 -2.9 H 3.35 M -3.25 0 H 3.55 M -3.45 2.9 H 3.25"
+            stroke="#8FA2C6" stroke-width="0.08" stroke-opacity="0.34" stroke-linecap="round"/>
+  `;
+
+  rows.forEach((row, rowIdx) => {
+    const y = -2.12 + rowIdx * 2.12;
+    const drift = ((((time * 0.36) + rowIdx * 0.27) % 1) - 0.5) * 0.62;
+    const xs = [-2.55, -0.85, 0.85, 2.55].map(x => x + drift);
+    row.forEach((token, colIdx) => {
+      const isActive = token === active && (rowIdx === 1 || colIdx === 3);
+      const scale = isActive ? 0.46 : 0.34;
+      const opacity = isActive ? 0.96 : 0.42 + rowIdx * 0.05;
+      html += renderMiniToken(token, xs[colIdx], y, scale, opacity, isActive);
+    });
+  });
+
+  html += `
+      ${renderLensScan(0.34)}
+    </g>
+  `;
+  return html;
+}
+
+function renderLensTransitGlints(opacity = 0.32) {
+  const time = (lastWallTime || 0) / 1000;
+  const drift = Math.sin(time * Math.PI * 2.1) * 0.28;
+  const drift2 = Math.cos(time * Math.PI * 1.7) * 0.22;
+  return `
+    <g opacity="${opacity.toFixed(3)}">
+      <circle cx="${(-1.42 + drift).toFixed(3)}" cy="${(-1.08 + drift2 * 0.35).toFixed(3)}" r="0.13" fill="#EAFBFF" opacity="0.42"/>
+      <circle cx="${(0.18 - drift2).toFixed(3)}" cy="${(0.22 + drift * 0.3).toFixed(3)}" r="0.09" fill="#C8D4FF" opacity="0.30"/>
+      <circle cx="${(1.36 - drift).toFixed(3)}" cy="${(1.02 - drift2 * 0.28).toFixed(3)}" r="0.11" fill="#B1A7FF" opacity="0.34"/>
+    </g>
+  `;
+}
+
+function renderLensContent(focusState, focusTokens, offset = { x: 0, y: 0 }) {
+  if (focusState.stage === 'morphIn') {
+    lensContent.innerHTML = renderMorphIn(focusState.progress, focusTokens[0], offset);
+    return;
+  }
+  if (focusState.stage === 'token') {
+    lensContent.innerHTML = `
+      <g opacity="0.18">${renderLensCapsule(1, offset)}</g>
+      ${renderLensCodeStream(focusTokens, focusState.tokenIdx)}
+    `;
+    return;
+  }
+  if (focusState.stage === 'morphOut') {
+    lensContent.innerHTML = renderMorphOut(focusState.progress, focusTokens[focusTokens.length - 1], offset);
+    return;
+  }
+  // capsule (含眨眼)
+  lensContent.innerHTML = renderLensCapsule(focusState.sy, offset);
+}
+
+/* ───────────── 主循环 ───────────── */
+let startTime = null, currentT = 0;
+
+function loop(ts) {
+  if (startTime === null) startTime = ts;
+  lastWallTime = ts;
+  if (!params.pause) {
+    currentT = (ts - startTime) / 1000;
+  }
+  render(currentT);
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+]]></script>
+</svg>

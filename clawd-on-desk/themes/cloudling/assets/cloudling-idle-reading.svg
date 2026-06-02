@@ -1,0 +1,658 @@
+<svg id="svg" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.phase-tag {
+  position: absolute; top: 14px; left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px; border-radius: 6px;
+  background: rgba(255,165,107,.16); color: #FFD3B3;
+  font: 700 10px ui-monospace, monospace; letter-spacing: .05em;
+  pointer-events: none;
+}
+.timeline {
+  position: absolute; left: 16px; right: 16px; bottom: 12px;
+  height: 4px; border-radius: 2px; overflow: hidden;
+  background: rgba(255,255,255,.06);
+}
+.timeline-fill {
+  height: 100%; width: 0; border-radius: 2px;
+  background: linear-gradient(to right, #B1A7FF, #FFD3B3, #FCE3B0, #FCC9DD);
+}
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+.statusbar {
+  min-width: 760px; background: #1f1f26; color: #FFA56B;
+  border-radius: 8px; padding: 6px 14px; text-align: center;
+  font: 10px ui-monospace, monospace; letter-spacing: .05em;
+}
+@media (prefers-color-scheme: light) {
+.phase-tag { background: rgba(201,122,74,.10); color: #C97A4A; }
+.timeline { background: rgba(57,65,255,.08); }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.statusbar { background: #fff; color: #C97A4A; }
+}
+]]></style>
+    <defs>
+      <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.5" stop-color="#f4f5f9"/>
+        <stop offset="1" stop-color="#dee2eb"/>
+      </linearGradient>
+      <linearGradient id="eye-grad" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#B1A7FF"/>
+        <stop offset="0.5" stop-color="#7A9DFF"/>
+        <stop offset="1" stop-color="#3941FF"/>
+      </linearGradient>
+      <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+
+      <linearGradient id="warm-back-grad" x1="0" y1="-9" x2="0" y2="9" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#FFE3CE"/>
+        <stop offset="0.5" stop-color="#FFD3B3"/>
+        <stop offset="1" stop-color="#FFB89A"/>
+      </linearGradient>
+      <linearGradient id="warm-front-grad" x1="0" y1="-9" x2="0" y2="9" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stop-color="#FFF1CE"/>
+        <stop offset="0.5" stop-color="#FCE3B0"/>
+        <stop offset="1" stop-color="#F5C374"/>
+      </linearGradient>
+      <radialGradient id="warm-hi" cx="32%" cy="24%" r="60%">
+        <stop offset="0" stop-color="#ffffff" stop-opacity=".62"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </radialGradient>
+
+      <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+      <clipPath id="cloud-clip"><use href="#cloud-shape"/></clipPath>
+      <path id="warm-cloud-path" d="M-15.6 5.4c-2.4 0-4.4-1.8-4.4-4.0 0-1.9 1.5-3.6 3.5-4.0 .4-2.7 3.0-4.8 6.2-4.8 1.2 0 2.3 .3 3.3 .9 1.4-2.1 3.9-3.5 6.8-3.5 3.6 0 6.6 2.1 7.4 5.0 3.4 0 6.0 2.4 6.0 5.3 0 2.8-2.5 5.0-5.6 5.0H-15.6z"/>
+
+      <filter id="cloud-shadow" x="-50%" y="-50%" width="200%" height="200%">
+        <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+      </filter>
+      <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="0.16"/>
+      </filter>
+      <filter id="warm-shadow" x="-80%" y="-120%" width="260%" height="340%">
+        <feDropShadow dx="0" dy="0.9" stdDeviation="1.05" flood-color="#A2603C" flood-opacity=".18"/>
+      </filter>
+      <filter id="soft-glow" x="-120%" y="-120%" width="340%" height="340%">
+        <feGaussianBlur stdDeviation="0.7" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <filter id="q-glow" x="-80%" y="-80%" width="260%" height="260%">
+        <feGaussianBlur stdDeviation="0.28" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+
+      <symbol id="warm-back-cloud" viewBox="-22 -14 44 28">
+        <g filter="url(#warm-shadow)">
+          <use href="#warm-cloud-path" fill="url(#warm-back-grad)" stroke="#E69E78" stroke-width="0.55" stroke-opacity="0.32" stroke-linejoin="round"/>
+          <ellipse cx="-3.5" cy="-4.5" rx="6" ry="2.8" fill="url(#warm-hi)" opacity=".48"/>
+        </g>
+      </symbol>
+      <symbol id="warm-front-cloud" viewBox="-22 -14 44 28">
+        <g filter="url(#warm-shadow)">
+          <use href="#warm-cloud-path" fill="url(#warm-front-grad)" stroke="#D9A04F" stroke-width="0.55" stroke-opacity="0.36" stroke-linejoin="round"/>
+          <ellipse cx="-3" cy="-4" rx="5.2" ry="2.4" fill="url(#warm-hi)" opacity=".55"/>
+        </g>
+      </symbol>
+    </defs>
+
+    <!-- 后层暖云 (在 cloudling 后面) -->
+    <g id="warmBackLayer" filter="url(#soft-glow)" opacity="0">
+      <g id="warmBackRoot">
+        <use href="#warm-back-cloud" x="-22" y="-14" width="44" height="28"/>
+      </g>
+    </g>
+
+    <!-- cloudling 主体 -->
+    <g id="cloudRoot">
+      <g id="bodyWarp">
+        <g id="cloudShape">
+          <g id="edge-system">
+            <use class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#edge-blur)"/>
+            <use class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#edge-blur)"/>
+            <use class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+          </g>
+          <g filter="url(#cloud-shadow)">
+            <use href="#cloud-shape" fill="url(#body-grad)"/>
+            <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+          </g>
+        </g>
+      </g>
+      <g id="eyeLayer">
+        <g id="capsuleEyes">
+          <rect id="capL" x="7.7" y="9.5" width="2.6" height="5" rx="1.3" ry="1.3" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+          <rect id="capR" x="13.7" y="9.5" width="2.6" height="5" rx="1.3" ry="1.3" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- 前层暖云 (在 cloudling 前面) -->
+    <g id="warmFrontLayer" filter="url(#soft-glow)" opacity="0">
+      <g id="warmFrontRoot">
+        <use href="#warm-front-cloud" x="-22" y="-14" width="44" height="28"/>
+      </g>
+    </g>
+
+    <!-- 问号 (跟着 cloudling 头顶, 默认隐藏) -->
+    <g id="questionMark" opacity="0" filter="url(#q-glow)">
+      <g id="qScale" transform="translate(12 0)">
+        <path d="M -1.4 -1.6 Q -1.4 -3.0 0 -3.0 Q 1.4 -3.0 1.4 -1.6 Q 1.4 -0.6 0.4 0.0 Q -0.1 0.35 -0.1 1.3"
+              fill="none" stroke="url(#eye-grad)" stroke-width="0.72" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="-0.1" cy="2.7" r="0.44" fill="url(#eye-grad)"/>
+      </g>
+    </g>
+  <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="btn-pause"></g>
+<g id="btn-reset"></g>
+<g id="btn-restart"></g>
+<g id="btn-theme"></g>
+<g id="phaseTag"></g>
+<g id="statusbar"></g>
+<g id="timelineFill"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const CENTER = { x: 12, y: 12 };
+const DEFAULTS = {
+  duration: 6.2,
+  gap: 1.0,
+  bodyBreath: 0.030,
+  rimRotate: 1.5,
+  warmSpeed: 1.00,
+  warmOp: 0.95,
+  barrierGap: 3.0,
+  barrierY: 16.5,
+  hideTy: 1.0,
+  peekTy: -4.5,
+  peekTx: 8.5,
+  peekLean: 12.5,
+  peekScaleDip: 0.075,
+  eyeWiden: 0.19,
+  rightEyeOffsetX: 1.40,
+  rightEyeLift: 0.30,
+  qSize: 1.00,
+  qOffsetX: -6.0,
+  qOffsetY: -10.0,
+};
+
+const controls = Object.fromEntries(Object.entries(DEFAULTS).map(([key, value]) => [key, { value: String(value) }]));
+const cloudRoot = document.getElementById('cloudRoot');
+const bodyWarp = document.getElementById('bodyWarp');
+const cloudShape = document.getElementById('cloudShape');
+const eyeLayer = document.getElementById('eyeLayer');
+const capL = document.getElementById('capL');
+const capR = document.getElementById('capR');
+const warmBackLayer = document.getElementById('warmBackLayer');
+const warmBackRoot = document.getElementById('warmBackRoot');
+const warmFrontLayer = document.getElementById('warmFrontLayer');
+const warmFrontRoot = document.getElementById('warmFrontRoot');
+const questionMark = document.getElementById('questionMark');
+const qScale = document.getElementById('qScale');
+const phaseTag = document.getElementById('phaseTag');
+const timelineFill = document.getElementById('timelineFill');
+const statusbar = document.getElementById('statusbar');
+
+let start = performance.now();
+let paused = false;
+let pauseAt = 0;
+
+function clamp(v, a = 0, b = 1) { return Math.max(a, Math.min(b, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeIn(t) { return t * t; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+function smoother(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function wave(u) { return Math.sin(clamp(u) * Math.PI); }
+function remap(t, a, b) { return clamp((t - a) / (b - a)); }
+function enterHold(t, inEnd = 0.18) {
+  if (t < inEnd) return easeOut(t / inEnd);
+  return 1;
+}
+
+// ===== 9 段时间线: 6.2s 叙事版 =====
+//   1 暖云入场+合拢      0.00 - 1.10
+//   2 左探前压扁蓄力    1.10 - 1.45
+//   3 左探+问号          1.45 - 2.35
+//   4 缩回 1             2.35 - 2.75
+//   5 右探前压扁蓄力    2.75 - 3.10
+//   6 右探+左上右中眨眼  3.10 - 4.65
+//   7 缩回 2             4.65 - 5.05
+//   8 暖云散开中心露出  5.05 - 5.85
+//   9 回到 idle          5.85 - 6.20
+function phaseAt(p) {
+  if (p < 1.10 / 6.20) return { name: 'warm-enter', local: remap(p, 0, 1.10 / 6.20) };
+  if (p < 1.45 / 6.20) return { name: 'crouch-left', local: remap(p, 1.10 / 6.20, 1.45 / 6.20) };
+  if (p < 2.35 / 6.20) return { name: 'peek-left', local: remap(p, 1.45 / 6.20, 2.35 / 6.20) };
+  if (p < 2.75 / 6.20) return { name: 'retract-1', local: remap(p, 2.35 / 6.20, 2.75 / 6.20) };
+  if (p < 3.10 / 6.20) return { name: 'crouch-right', local: remap(p, 2.75 / 6.20, 3.10 / 6.20) };
+  if (p < 4.65 / 6.20) return { name: 'peek-right', local: remap(p, 3.10 / 6.20, 4.65 / 6.20) };
+  if (p < 5.05 / 6.20) return { name: 'retract-2', local: remap(p, 4.65 / 6.20, 5.05 / 6.20) };
+  if (p < 5.85 / 6.20) return { name: 'cloud-fade', local: remap(p, 5.05 / 6.20, 5.85 / 6.20) };
+  return { name: 'recover', local: remap(p, 5.85 / 6.20, 1) };
+}
+
+function setEyeRect(node, cx, cy, w, h) {
+  node.setAttribute('width', w.toFixed(3));
+  node.setAttribute('height', h.toFixed(3));
+  const rx = Math.min(w / 2, h / 2, 1.35);
+  node.setAttribute('rx', rx.toFixed(3));
+  node.setAttribute('ry', rx.toFixed(3));
+  node.setAttribute('x', (cx - w / 2).toFixed(3));
+  node.setAttribute('y', (cy - h / 2).toFixed(3));
+}
+
+// ===== 暖云更新 =====
+//   屏障位置: 偏向可视中心, 后层 x=warmCenterX-barrierGap, 前层 x=warmCenterX+barrierGap
+//   入场起点: 从画面内侧进入, 避免 Electron 裁切框露出硬边
+//   消散方向: 先淡出再外飘, 避免退出时被 viewBox 切出直边
+function updateWarmClouds(t, p, phase, v) {
+  const warmCenterX = 15.4;
+  const restBackX = warmCenterX - v.barrierGap;
+  const restFrontX = warmCenterX + v.barrierGap;
+  const enterBackX = 12.4;
+  const enterFrontX = 13.4;
+  const restY = v.barrierY;
+  const microFloat = Math.sin(t * 1.6) * 0.12;
+
+  let backX = enterBackX, backY = restY;
+  let frontX = enterFrontX, frontY = restY;
+  let backOp = 0, frontOp = 0;
+  let backRot = 0, frontRot = 0;
+  let backScaleX = 1.0, backScaleY = 1.0;
+  let frontScaleX = 1.0, frontScaleY = 1.0;
+
+  if (phase.name === 'idle') {
+    backOp = 0; frontOp = 0;
+  } else if (phase.name === 'warm-enter') {
+    const qBack = easeOut(clamp(phase.local * 1.10 * v.warmSpeed));
+    const qFront = easeOut(clamp((phase.local - 0.18) * 1.25 * v.warmSpeed));
+    const bump = wave(remap(phase.local, 0.68, 1.0));
+    backX = lerp(enterBackX, restBackX, qBack);
+    frontX = lerp(enterFrontX, restFrontX, qFront);
+    backY = restY + microFloat * 0.5 + bump * 0.24;
+    frontY = restY + microFloat + bump * 0.30;
+    backScaleX = 1 + bump * 0.035;
+    backScaleY = 1 - bump * 0.045;
+    frontScaleX = 1 + bump * 0.045;
+    frontScaleY = 1 - bump * 0.055;
+    backOp = v.warmOp * qBack;
+    frontOp = v.warmOp * qFront;
+  } else if (phase.name === 'crouch-left' || phase.name === 'peek-left' || phase.name === 'retract-1' ||
+             phase.name === 'crouch-right' || phase.name === 'peek-right' || phase.name === 'retract-2') {
+    const contactBump = (phase.name === 'crouch-left' || phase.name === 'crouch-right') ? wave(phase.local) : 0;
+    const leftPress = phase.name === 'peek-left'
+      ? enterHold(phase.local, 0.18)
+      : (phase.name === 'retract-1' ? 1 - smoother(phase.local) : 0);
+    const rightPress = phase.name === 'peek-right'
+      ? enterHold(phase.local, 0.16)
+      : (phase.name === 'retract-2' ? 1 - smoother(phase.local) : 0);
+    backX = restBackX + microFloat * 0.3;
+    backY = restY + microFloat * 0.5 + contactBump * 0.14 + leftPress * 0.46;
+    frontX = restFrontX + microFloat * 0.3;
+    frontY = restY + microFloat + contactBump * 0.18 + rightPress * 0.46;
+    backRot = -leftPress * 2.6;
+    frontRot = rightPress * 2.6;
+    backScaleX = 1 + contactBump * 0.018 + leftPress * 0.035;
+    backScaleY = 1 - contactBump * 0.025 - leftPress * 0.050;
+    frontScaleX = 1 + contactBump * 0.022 + rightPress * 0.035;
+    frontScaleY = 1 - contactBump * 0.030 - rightPress * 0.050;
+    backOp = v.warmOp;
+    frontOp = v.warmOp;
+  } else if (phase.name === 'cloud-fade') {
+    const q = phase.local;
+    const driftQ = smoother(remap(q, 0.18, 1));
+    const driftDistance = 42;
+    const fade = 1 - smoother(remap(q, 0.08, 0.48));
+    backX = restBackX - driftDistance * driftQ;
+    backY = restY + microFloat * 0.5 - 1 * driftQ;
+    frontX = restFrontX + driftDistance * driftQ;
+    frontY = restY + microFloat - 1 * driftQ;
+    backRot = -3 * driftQ;
+    frontRot = 3 * driftQ;
+    backScaleX = 1.0 - driftQ * 0.10;
+    backScaleY = 1.0 - driftQ * 0.06;
+    frontScaleX = 1.0 - driftQ * 0.10;
+    frontScaleY = 1.0 - driftQ * 0.06;
+    backOp = v.warmOp * fade;
+    frontOp = v.warmOp * fade;
+  } else {
+    // recover, idle: 已散
+    backOp = 0; frontOp = 0;
+  }
+
+  if (backOp > 0 || frontOp > 0) {
+    const warmBreath = Math.sin(t * 1.35) * 0.008;
+    backScaleX += warmBreath;
+    backScaleY -= warmBreath * 0.45;
+    frontScaleX -= warmBreath * 0.55;
+    frontScaleY += warmBreath * 0.35;
+  }
+
+  warmBackRoot.setAttribute('transform',
+    `translate(${backX.toFixed(3)} ${backY.toFixed(3)}) rotate(${backRot.toFixed(2)}) scale(${backScaleX.toFixed(3)} ${backScaleY.toFixed(3)})`);
+  warmBackLayer.setAttribute('opacity', backOp.toFixed(3));
+  warmFrontRoot.setAttribute('transform',
+    `translate(${frontX.toFixed(3)} ${frontY.toFixed(3)}) rotate(${frontRot.toFixed(2)}) scale(${frontScaleX.toFixed(3)} ${frontScaleY.toFixed(3)})`);
+  warmFrontLayer.setAttribute('opacity', frontOp.toFixed(3));
+}
+
+// ===== 问号更新 =====
+function updateQuestionMark(phase, cloudTx, cloudTy, v) {
+  // 只在 peek-left 段显示
+  let qOp = 0;
+  let qScaleVal = 0;
+  let qFloatY = 0;
+  if (phase.name === 'peek-left') {
+    const q = phase.local;
+    // 探头出来后慢慢从头外空白处冒出, 避免贴纸式弹跳.
+    const inT = smoother(remap(q, 0.22, 0.68));
+    const outT = smoother(remap(q, 0.78, 0.98));
+    qOp = inT * (1 - outT);
+    qScaleVal = lerp(0.78, 1.0, inT) * (1 - 0.12 * outT);
+    qFloatY = lerp(1.05, -0.55, inT) - 0.25 * outT;
+  }
+  // 问号位置: 跟着 cloudling 头顶 (cloudling 中心 + headOffset)
+  const qX = CENTER.x + cloudTx + v.qOffsetX;
+  const qY = CENTER.y + cloudTy + v.qOffsetY + qFloatY;
+  questionMark.setAttribute('opacity', qOp.toFixed(3));
+  qScale.setAttribute('transform',
+    `translate(${qX.toFixed(2)} ${qY.toFixed(2)}) scale(${(qScaleVal * v.qSize).toFixed(3)})`);
+}
+
+// ===== cloudling 更新 =====
+function updateCloud(t, p, phase, v) {
+  let tx = 0, ty = 0;
+  let sx = 1, sy = 1;
+  let rootScale = 1;
+  let rot = 0;
+  let eyeShiftX = 0, eyeShiftY = 0;
+  let widenFactor = 1;
+  let heightFactor = 1;
+  let cloudOpacity = 1;
+
+  if (phase.name === 'idle') {
+    const breath = Math.sin(t * Math.PI * 2 / 3.6) * 0.012;
+    sx = 1 - breath * 0.4;
+    sy = 1 + breath;
+  } else if (phase.name === 'warm-enter') {
+    // cloudling 站在原地, 眼睛追着暖云从左飘到中央
+    const q = phase.local;
+    const hideSink = smoother(remap(q, 0.58, 1.0));
+    ty = v.hideTy * hideSink;
+    eyeShiftX = lerp(-0.40, -0.05, smoother(q));   // 看左 → 几乎归正 (云在中下方了)
+    eyeShiftY = lerp(0.0, 0.20, smoother(q));      // 由平视 → 略向下看 (云沉到中下)
+    const breath = Math.sin(t * Math.PI * 2 / 3.6) * 0.010;
+    sx = 1 - breath * 0.4;
+    sy = 1 + breath;
+  } else if (phase.name === 'crouch-left') {
+    // 左探前明确压扁蓄力, 让起跳有准备动作.
+    const q = phase.local;
+    const crouch = wave(q);
+    tx = 0;
+    ty = v.hideTy;
+    rootScale = 1 - crouch * 0.020;
+    sx = 1 + crouch * 0.085;
+    sy = 1 - crouch * 0.115;
+    rot = -crouch * 1.5;
+    eyeShiftY = lerp(0.18, 0.32, crouch);
+    cloudOpacity = 1;
+  } else if (phase.name === 'peek-left') {
+    // 从蓄力释放到左上, 然后停住给问号和小眼神.
+    const q = phase.local;
+    const outT = enterHold(q, 0.18);
+    tx = lerp(0, -v.peekTx, outT);
+    ty = lerp(v.hideTy, v.peekTy, outT);
+    const peekPulse = Math.sin(clamp(q) * Math.PI) * v.peekScaleDip * 0.16;
+    rootScale = 1 - outT * v.peekScaleDip + peekPulse;
+    sx = 1 + outT * v.peekScaleDip * 0.34;
+    sy = 1 - outT * v.peekScaleDip * 0.38;
+    // 眼睛: 露出来后好奇瞪大 + 左右扫
+    if (q > 0.24) {
+      widenFactor = 1 + v.eyeWiden;
+      heightFactor = 1 + 0.04;
+      const scanQ = remap(q, 0.28, 0.76);
+      eyeShiftX = Math.sin(scanQ * Math.PI * 1.25) * 0.28;
+      eyeShiftY = -0.05 + Math.sin(scanQ * Math.PI) * 0.06;
+    }
+    rot = -outT * v.peekLean + Math.sin(clamp(q) * Math.PI * 2) * 0.45;
+    cloudOpacity = 1;
+  } else if (phase.name === 'retract-1') {
+    // "哧溜" 缩回中央被遮 (easeIn 后段加速)
+    const q = phase.local;
+    // 0-0.65: 快速缩 (easeIn), 0.65-1.0: 完全藏好
+    const inT = q < 0.65 ? easeIn(q / 0.65) : 1.0;
+    tx = lerp(-v.peekTx, 0, inT);
+    ty = lerp(v.peekTy, v.hideTy, inT);
+    rootScale = lerp(1 - v.peekScaleDip, 0.985, inT);
+    sx = lerp(1 + v.peekScaleDip * 0.34, 1, inT);
+    sy = lerp(1 - v.peekScaleDip * 0.38, 1, inT);
+    rot = lerp(-v.peekLean, 0, inT);
+    // 缩回时眼睛快速归正
+    eyeShiftX = Math.sin(Math.PI * 1.25) * 0.28 * (1 - easeOut(remap(q, 0, 0.38)));
+    eyeShiftY = -0.05 * (1 - easeOut(remap(q, 0, 0.38)));
+    widenFactor = 1 + v.eyeWiden * (1 - inT);
+    cloudOpacity = 1;
+  } else if (phase.name === 'crouch-right') {
+    // 第二次蓄力稍短, 为右探观察做铺垫.
+    const q = phase.local;
+    const crouch = wave(q);
+    tx = 0;
+    ty = v.hideTy;
+    rootScale = 1 - crouch * 0.018;
+    sx = 1 + crouch * 0.075;
+    sy = 1 - crouch * 0.105;
+    rot = crouch * 1.3;
+    eyeShiftY = lerp(0.16, 0.30, crouch);
+    cloudOpacity = 1;
+  } else if (phase.name === 'peek-right') {
+    // 第二次多停一拍, 像确认状况: 左、上、右、下看一圈再准备缩回.
+    const q = phase.local;
+    const outT = enterHold(q, 0.16);
+    const bodyCheck = Math.sin(remap(q, 0.28, 0.78) * Math.PI * 2) * wave(remap(q, 0.22, 0.92)) * 0.16;
+    tx = lerp(0, v.peekTx, outT);
+    tx += bodyCheck;
+    ty = lerp(v.hideTy, v.peekTy, outT);
+    const peekPulse = Math.sin(clamp(q) * Math.PI) * v.peekScaleDip * 0.16;
+    rootScale = 1 - outT * v.peekScaleDip + peekPulse;
+    sx = 1 + outT * v.peekScaleDip * 0.34;
+    sy = 1 - outT * v.peekScaleDip * 0.38;
+    const rightEyeBiasT = smoother(remap(q, 0.08, 0.36));
+    if (q > 0.18) {
+      widenFactor = 1 + v.eyeWiden;
+      const scanAmp = 0.28;
+      const blink = Math.max(wave(remap(q, 0.78, 0.84)), wave(remap(q, 0.88, 0.94)));
+      heightFactor = (1 + 0.04) * (1 - blink * 0.86);
+      widenFactor *= 1 + blink * 0.08;
+      if (blink > 0.05) {
+        eyeShiftX = 0;
+        eyeShiftY = 0.03;
+      } else if (q < 0.30) {
+        eyeShiftX = 0;
+        eyeShiftY = 0.00;
+      } else if (q < 0.42) {
+        eyeShiftX = lerp(0, -0.06, easeInOut(remap(q, 0.30, 0.42)));
+        eyeShiftY = lerp(0.00, -0.30, easeOut(remap(q, 0.30, 0.42)));
+      } else if (q < 0.50) {
+        eyeShiftX = -0.06;
+        eyeShiftY = -0.30;
+      } else if (q < 0.58) {
+        eyeShiftX = lerp(-0.06, scanAmp, easeInOut(remap(q, 0.50, 0.58)));
+        eyeShiftY = lerp(-0.30, 0.00, easeInOut(remap(q, 0.50, 0.58)));
+      } else if (q < 0.66) {
+        eyeShiftX = scanAmp;
+        eyeShiftY = 0.00;
+      } else if (q < 0.74) {
+        eyeShiftX = lerp(scanAmp, 0, easeOut(remap(q, 0.66, 0.74)));
+        eyeShiftY = 0.00;
+      } else {
+        eyeShiftX = 0;
+        eyeShiftY = 0.00;
+      }
+    }
+    eyeShiftX += v.rightEyeOffsetX * rightEyeBiasT;
+    eyeShiftY -= v.rightEyeLift * rightEyeBiasT;
+    rot = outT * v.peekLean - Math.sin(clamp(q) * Math.PI * 2) * 0.45 + bodyCheck * 0.65;
+    cloudOpacity = 1;
+  } else if (phase.name === 'retract-2') {
+    const q = phase.local;
+    const inT = q < 0.65 ? easeIn(q / 0.65) : 1.0;
+    tx = lerp(v.peekTx, 0, inT);
+    ty = lerp(v.peekTy, v.hideTy, inT);
+    rootScale = lerp(1 - v.peekScaleDip, 0.985, inT);
+    sx = lerp(1 + v.peekScaleDip * 0.34, 1, inT);
+    sy = lerp(1 - v.peekScaleDip * 0.38, 1, inT);
+    rot = lerp(v.peekLean, 0, inT);
+    const eyeReturn = 1 - easeOut(remap(q, 0, 0.35));
+    eyeShiftX = v.rightEyeOffsetX * eyeReturn;
+    eyeShiftY = -v.rightEyeLift * eyeReturn;
+    widenFactor = 1 + v.eyeWiden * (1 - inT);
+    cloudOpacity = 1;
+  } else if (phase.name === 'cloud-fade') {
+    // 云先左右散开, 再露出完整 Cloudling.
+    const q = phase.local;
+    const reveal = smoother(remap(q, 0.12, 0.42));
+    tx = 0;
+    ty = lerp(v.hideTy, 0, smoother(remap(q, 0.20, 0.66)));
+    rootScale = 0.985 + reveal * 0.015;
+    sx = 1 + Math.sin(reveal * Math.PI) * 0.012;
+    sy = 1 - Math.sin(reveal * Math.PI) * 0.008;
+    cloudOpacity = 1;
+  } else if (phase.name === 'recover') {
+    // 完整露出后, 眼睛轻扫一下回 idle.
+    const q = phase.local;
+    if (q < 0.35) {
+      tx = 0; ty = 0;
+      const local = q / 0.35;
+      eyeShiftX = -0.30 * easeOut(local);
+      eyeShiftY = 0.04;
+    } else if (q < 0.70) {
+      tx = 0; ty = 0;
+      const local = (q - 0.35) / 0.35;
+      eyeShiftX = lerp(-0.30, 0.30, easeInOut(local));
+      eyeShiftY = 0.04;
+    } else {
+      tx = 0; ty = 0;
+      const local = (q - 0.70) / 0.30;
+      eyeShiftX = lerp(0.30, 0, easeOut(local));
+      eyeShiftY = lerp(0.04, 0, local);
+      const breath = Math.sin(t * Math.PI * 2 / 3.6) * 0.010;
+      sx = 1 - breath * 0.4;
+      sy = 1 + breath;
+    }
+  }
+
+  let rimRot = 0;
+  if (cloudOpacity > 0.05) {
+    const breath = Math.sin(t * Math.PI * 2 / 3.2);
+    const liveBreath = breath * v.bodyBreath;
+    const rimWave = Math.sin(t * Math.PI * 2 / 4.8 + 0.7);
+    rootScale *= 1 + liveBreath;
+    sx -= liveBreath * 0.18;
+    sy += liveBreath * 0.42;
+    rimRot = rimWave * v.rimRotate;
+  }
+
+  // 应用 transform
+  cloudRoot.setAttribute('transform',
+    `translate(${tx.toFixed(3)} ${ty.toFixed(3)}) rotate(${rot.toFixed(3)} ${CENTER.x} ${CENTER.y}) translate(${CENTER.x} ${CENTER.y}) scale(${rootScale.toFixed(4)}) translate(${-CENTER.x} ${-CENTER.y})`);
+  cloudRoot.setAttribute('opacity', cloudOpacity.toFixed(3));
+  bodyWarp.setAttribute('transform',
+    `translate(${CENTER.x} ${CENTER.y}) scale(${sx.toFixed(4)} ${sy.toFixed(4)}) translate(${-CENTER.x} ${-CENTER.y})`);
+  cloudShape.setAttribute('transform', `rotate(${rimRot.toFixed(3)} ${CENTER.x} ${CENTER.y})`);
+
+  // 眼睛 layer 整体偏移 (eye-track)
+  eyeLayer.setAttribute('transform', `translate(${eyeShiftX.toFixed(3)} ${eyeShiftY.toFixed(3)})`);
+
+  // 眼睛 capsule 大小
+  const eyeW = 2.6 * widenFactor;
+  const eyeH = 5.0 * heightFactor;
+  setEyeRect(capL, 9, 12, eyeW, eyeH);
+  setEyeRect(capR, 15, 12, eyeW, eyeH);
+
+  return { tx, ty, rot };
+}
+
+function values() {
+  const out = {};
+  Object.entries(controls).forEach(([key, node]) => {
+    out[key] = Number(node.value);
+    const label = document.getElementById(`${key}V`);
+    if (!label) return;
+    if (key === 'duration' || key === 'gap') label.textContent = `${out[key].toFixed(2)} s`;
+    else if (key === 'peekLean' || key === 'rimRotate') label.textContent = `${out[key].toFixed(1)}°`;
+    else if (key === 'peekScaleDip' || key === 'bodyBreath') label.textContent = out[key].toFixed(3);
+    else if (key === 'barrierY' || key === 'hideTy' || key === 'peekTy' || key === 'peekTx' || key === 'qOffsetX' || key === 'qOffsetY' || key === 'barrierGap') label.textContent = out[key].toFixed(1);
+    else label.textContent = out[key].toFixed(2);
+  });
+  return out;
+}
+
+function frame(now) {
+  if (!paused) {
+    const v = values();
+    const cycle = v.duration + v.gap;
+    const elapsed = (now - start) / 1000;
+    const t = elapsed % cycle;
+    const activeT = Math.min(t, v.duration);
+    const p = activeT / v.duration;
+    const inGap = t > v.duration;
+    const phase = inGap ? { name: 'idle', local: 1 } : phaseAt(p);
+    updateWarmClouds(elapsed, p, phase, v);
+    const state = updateCloud(elapsed, p, phase, v);
+    updateQuestionMark(phase, state.tx, state.ty, v);
+    phaseTag.textContent = phase.name;
+    timelineFill.style.width = `${(p * 100).toFixed(2)}%`;
+    statusbar.textContent = `phase: ${phase.name} · loop ${(p * 100).toFixed(1)}% · cloud (${state.tx.toFixed(2)}, ${state.ty.toFixed(2)})`;
+  }
+  requestAnimationFrame(frame);
+}
+
+document.getElementById('btn-theme').addEventListener('click', () => {
+  document.body.classList.toggle('light');
+});
+document.getElementById('btn-pause').addEventListener('click', () => {
+  paused = !paused;
+  if (paused) pauseAt = performance.now();
+  else start += performance.now() - pauseAt;
+});
+document.getElementById('btn-restart').addEventListener('click', () => {
+  start = performance.now();
+});
+document.getElementById('btn-reset').addEventListener('click', () => {
+  Object.entries(DEFAULTS).forEach(([key, value]) => {
+    controls[key].value = String(value);
+  });
+});
+Object.entries(DEFAULTS).forEach(([key, value]) => {
+  controls[key].value = String(value);
+});
+values();
+
+// debug seek hook
+window.__seekTo = (p) => {
+  const v = values();
+  paused = true;
+  const elapsed = p * v.duration;
+  const phase = phaseAt(p);
+  updateWarmClouds(elapsed, p, phase, v);
+  const state = updateCloud(elapsed, p, phase, v);
+  updateQuestionMark(phase, state.tx, state.ty, v);
+  phaseTag.textContent = phase.name;
+  timelineFill.style.width = `${(p * 100).toFixed(2)}%`;
+  statusbar.textContent = `phase: ${phase.name} · loop ${(p * 100).toFixed(1)}% · cloud (${state.tx.toFixed(2)}, ${state.ty.toFixed(2)})`;
+};
+
+const urlP = new URLSearchParams(location.search).get('p');
+if (urlP !== null) {
+  setTimeout(() => window.__seekTo(parseFloat(urlP)), 100);
+}
+
+requestAnimationFrame(frame);
+]]></script>
+</svg>

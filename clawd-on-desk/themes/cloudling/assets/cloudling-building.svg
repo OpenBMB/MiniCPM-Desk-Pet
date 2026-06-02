@@ -1,0 +1,667 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="scrubber"></g>
+<g id="t-display"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+/* =========================================================================
+ * Cloudling 主体几何 (沿用 V2 视觉定稿, 跟 carrying-v5 / idle-to-sleeping-v1 同源)
+ * ========================================================================= */
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const SOFT_CLOUD_POINTS = [
+  {x:9.064,y:3.344},{x:9.825,y:3.106},{x:10.616,y:3.004},{x:11.413,y:3.040},
+  {x:12.192,y:3.210},{x:12.928,y:3.518},{x:13.599,y:3.948},{x:14.255,y:4.291},
+  {x:15.046,y:4.188},{x:15.843,y:4.224},{x:16.621,y:4.398},{x:17.357,y:4.706},
+  {x:18.029,y:5.134},{x:18.617,y:5.673},{x:19.103,y:6.306},{x:19.471,y:7.013},
+  {x:19.715,y:7.772},{x:19.812,y:8.564},{x:19.784,y:9.361},{x:19.797,y:10.105},
+  {x:20.287,y:10.735},{x:20.656,y:11.442},{x:20.897,y:12.202},{x:20.995,y:12.994},
+  {x:20.964,y:13.791},{x:20.791,y:14.569},{x:20.480,y:15.304},{x:20.052,y:15.977},
+  {x:19.516,y:16.567},{x:18.882,y:17.052},{x:18.174,y:17.418},{x:17.539,y:17.808},
+  {x:17.231,y:18.545},{x:16.805,y:19.218},{x:16.264,y:19.805},{x:15.633,y:20.292},
+  {x:14.925,y:20.660},{x:14.163,y:20.895},{x:13.372,y:20.996},{x:12.575,y:20.964},
+  {x:11.796,y:20.793},{x:11.061,y:20.483},{x:10.392,y:20.049},{x:9.736,y:19.714},
+  {x:8.946,y:19.811},{x:8.148,y:19.777},{x:7.370,y:19.606},{x:6.634,y:19.299},
+  {x:5.962,y:18.868},{x:5.377,y:18.326},{x:4.885,y:17.698},{x:4.522,y:16.989},
+  {x:4.283,y:16.228},{x:4.182,y:15.437},{x:4.220,y:14.640},{x:4.179,y:13.907},
+  {x:3.696,y:13.273},{x:3.332,y:12.563},{x:3.092,y:11.803},{x:3.003,y:11.010},
+  {x:3.038,y:10.213},{x:3.202,y:9.433},{x:3.514,y:8.699},{x:3.944,y:8.027},
+  {x:4.484,y:7.440},{x:5.114,y:6.951},{x:5.822,y:6.586},{x:6.445,y:6.191},
+  {x:6.752,y:5.455},{x:7.185,y:4.785},{x:7.723,y:4.197},{x:8.356,y:3.711},
+];
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp01(t) { return Math.max(0, Math.min(1, t)); }
+function easeIn(t) { return t * t; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 2); }
+function easeInOut(t) { return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2; }
+function easeOutBack(t) { const c=1.70158; return 1 + (c+1)*Math.pow(t-1,3) + c*Math.pow(t-1,2); }
+function progress(t, begin, end) { return clamp01((t - begin) / (end - begin)); }
+
+function catmullRomClosedPath(points, tension = 1) {
+  const q = (n) => n.toFixed(3);
+  let d = `M ${q(points[0].x)} ${q(points[0].y)}`;
+  const n = points.length;
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n];
+    const p1 = points[i];
+    const p2 = points[(i + 1) % n];
+    const p3 = points[(i + 2) % n];
+    const c1x = p1.x + (p2.x - p0.x) * tension / 6;
+    const c1y = p1.y + (p2.y - p0.y) * tension / 6;
+    const c2x = p2.x - (p3.x - p1.x) * tension / 6;
+    const c2y = p2.y - (p3.y - p1.y) * tension / 6;
+    d += ` C ${q(c1x)} ${q(c1y)} ${q(c2x)} ${q(c2y)} ${q(p2.x)} ${q(p2.y)}`;
+  }
+  return `${d} Z`;
+}
+
+/* =========================================================================
+ * 径向射线投影: 从中心 (cx,cy) 沿角度 angle 射出, 与圆角矩形边界求交.
+ * 这是 building 通用 morph 工具 — 后续 7 个形状只要换边界几何就能复用.
+ * ========================================================================= */
+function rayToRoundedRect(angle, cx, cy, halfW, halfH, r) {
+  const dx = Math.cos(angle), dy = Math.sin(angle);
+  // 1. 先求射线与无圆角矩形的最近交点
+  let t = Infinity;
+  if (Math.abs(dx) > 1e-9) t = Math.min(t, halfW / Math.abs(dx));
+  if (Math.abs(dy) > 1e-9) t = Math.min(t, halfH / Math.abs(dy));
+  let px = cx + dx * t;
+  let py = cy + dy * t;
+  // 2. 检查交点是否落在圆角象限内
+  const lx = Math.abs(px - cx);
+  const ly = Math.abs(py - cy);
+  if (lx > halfW - r - 1e-6 && ly > halfH - r - 1e-6) {
+    // 落在圆角象限 → 用射线与圆求交
+    const sx = px >= cx ? 1 : -1;
+    const sy = py >= cy ? 1 : -1;
+    const ccx = cx + sx * (halfW - r);
+    const ccy = cy + sy * (halfH - r);
+    const ex = cx - ccx;
+    const ey = cy - ccy;
+    const a = dx*dx + dy*dy;
+    const b = 2*(ex*dx + ey*dy);
+    const c = ex*ex + ey*ey - r*r;
+    const disc = b*b - 4*a*c;
+    if (disc >= 0) {
+      const s = (-b + Math.sqrt(disc)) / (2*a);
+      px = cx + dx * s;
+      py = cy + dy * s;
+    }
+  }
+  return {x: px, y: py};
+}
+
+function makeRoundedRectTargetPoints(halfW, halfH, r) {
+  const cx = 12, cy = 12;
+  return SOFT_CLOUD_POINTS.map(cp => {
+    const angle = Math.atan2(cp.y - cy, cp.x - cx);
+    return rayToRoundedRect(angle, cx, cy, halfW, halfH, r);
+  });
+}
+
+/* =========================================================================
+ * 多形态 body path: cloud / terminal / module / monitor / envelope
+ * ========================================================================= */
+function softenTargetPoints(targetPoints, amount) {
+  return SOFT_CLOUD_POINTS.map((cp, i) => ({
+    x: lerp(cp.x, targetPoints[i].x, amount),
+    y: lerp(cp.y, targetPoints[i].y, amount),
+  }));
+}
+
+function mixPointSets(a, b, t) {
+  const u = clamp01(t);
+  return a.map((p, i) => ({
+    x: lerp(p.x, b[i].x, u),
+    y: lerp(p.y, b[i].y, u),
+  }));
+}
+
+function squashPoints(points, squashY) {
+  if (squashY === 1) return points;
+  const cy = 12;
+  return points.map(p => ({ x: p.x, y: cy + (p.y - cy) * squashY }));
+}
+
+function makePathFromPoints(points, sharpness = 0) {
+  return catmullRomClosedPath(points, lerp(1.0, 0.76, clamp01(sharpness)));
+}
+
+function makeShapePointSets() {
+  return {
+    cloud: SOFT_CLOUD_POINTS,
+    terminal: softenTargetPoints(makeRoundedRectTargetPoints(params.terminalHalfW, params.terminalHalfH, params.terminalCornerR), params.terminalMorphAmount),
+    module: softenTargetPoints(makeRoundedRectTargetPoints(params.squareHalfW, params.squareHalfH, params.squareCornerR), params.moduleMorphAmount),
+    monitor: softenTargetPoints(makeRoundedRectTargetPoints(params.monitorHalfW, params.monitorHalfH, params.monitorCornerR), params.monitorMorphAmount),
+    envelope: softenTargetPoints(makeRoundedRectTargetPoints(params.envHalfW, params.envHalfH, params.envCornerR), params.envelopeMorphAmount),
+  };
+}
+
+/* =========================================================================
+ * 默认参数
+ * ========================================================================= */
+const DEFAULTS = {
+  T_CYCLE: 5.4,
+  T_CLOUD_HOLD: 0.42,
+  T_TERMINAL_HOLD: 1.32,
+  T_MODULE_HOLD: 2.18,
+  T_MONITOR_HOLD: 3.04,
+  T_ENVELOPE_HOLD: 3.96,
+  T_SMILE_HOLD: 4.78,
+  blinkClose: 0.12,
+  blinkSwitch: 0.08,
+  blinkOpen: 0.18,
+
+  // morph
+  squashY: 0.86,
+  blinkSquashY: 0.84,
+  terminalMorphAmount: 0.93,
+  moduleMorphAmount: 0.94,
+  monitorMorphAmount: 0.93,
+  envelopeMorphAmount: 0.93,
+
+  // 终端窗口几何
+  terminalHalfW: 11.2,
+  terminalHalfH: 7.3,
+  terminalCornerR: 1.15,
+
+  // 终端装饰
+  titleBarH: 1.35,         // 标题栏高度
+  screenInset: 1.20,       // 屏幕距主体边距, 留出更厚白色边框
+
+  // 模块方块几何
+  squareHalfW: 9.4,
+  squareHalfH: 9.0,
+  squareCornerR: 2.35,
+  moduleDepth: 1.15,
+
+  // 显示器
+  monitorHalfW: 10.8,
+  monitorHalfH: 6.25,
+  monitorCornerR: 1.0,
+  monitorScreenInset: 1.0,
+  monitorScreenCornerR: 0.65,
+  standNeckW: 2.0,
+  standNeckH: 1.6,
+  standBaseW: 6.2,
+  standBaseH: 0.9,
+  standBaseR: 0.38,
+
+  // 信封
+  envHalfW: 11.0,
+  envHalfH: 6.6,
+  envCornerR: 1.05,
+  flapDepth: 3.4,
+  flapInset: 0.85,
+  flapFillOpacity: 0.08,
+  mStrokeW: 1.12,
+  mLegBoost: 1.28,
+
+  // duang spring
+  springAmp: 0.075,
+  springFreq: 4.0,
+  springDamping: 5.5,
+  springDuration: 0.65,
+
+  // 呼吸
+  breathLow: 0.97,
+  breathHigh: 1.02,
+
+  // 眼睛
+  eyeLeftX: 9,
+  eyeRightX: 15,
+  eyeWidth: 2.6,
+  eyeHeight: 5,
+  eyeY: 9.5,
+  eyeFlashStrength: 0.5,    // 变身瞬间眼睛亮度增强 (0-1)
+
+  // 阴影
+  cloudShadowOpacity: 0.28,
+};
+
+let params = { ...DEFAULTS };
+let paused = false;
+let scrubbing = false;
+
+/* =========================================================================
+ * defs (复用 cloudling 标准件)
+ * ========================================================================= */
+function commonDefs(p, cloudD) {
+  return `
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/><stop offset="0.5" stop-color="#f4f5f9"/><stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye-flash" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E8E2FF"/><stop offset="0.5" stop-color="#B6CBFF"/><stop offset="1" stop-color="#7A8AFF"/>
+    </linearGradient>
+    <radialGradient id="${p}-hi" cx="0.45" cy="0.25" r="0.55">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="${p}-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="${params.cloudShadowOpacity}"/>
+    </filter>
+    <filter id="${p}-edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <filter id="${p}-eye-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="0.45" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="${p}-clip"><path d="${cloudD}"/></clipPath>
+  `;
+}
+
+/* =========================================================================
+ * cloudling 主体 (edge-system + drop shadow + 高光) — 跟 carrying-v5 同款
+ * ========================================================================= */
+function makeCloudlingBody(p, f) {
+  const terminalOpacity = f.opacities.terminal;
+  const moduleOpacity = f.opacities.module;
+  const monitorOpacity = f.opacities.monitor;
+  const envelopeOpacity = f.opacities.envelope;
+
+  const moduleDepth = params.moduleDepth * clamp01(moduleOpacity);
+  const moduleSide = moduleOpacity > 0.01 ? `
+    <use href="#${p}-cloud-shape"
+         transform="translate(${moduleDepth.toFixed(2)} ${moduleDepth.toFixed(2)})"
+         fill="#8EA4FF"
+         opacity="${(0.24 * moduleOpacity).toFixed(3)}"/>
+  ` : '';
+
+  const tHalfW = params.terminalHalfW;
+  const tHalfH = params.terminalHalfH;
+  const titleH = params.titleBarH;
+  const inset = params.screenInset;
+  const titleX1 = 12 - tHalfW + 0.5;
+  const titleX2 = 12 + tHalfW - 0.5;
+  const titleY1 = 12 - tHalfH + 0.5;
+  const titleW = titleX2 - titleX1;
+  const screenX1 = titleX1 + inset;
+  const screenX2 = titleX2 - inset;
+  const screenY1 = titleY1 + titleH + 0.3;
+  const screenY2 = 12 + tHalfH - 0.5 - 0.5;
+  const dotY = titleY1 + titleH * 0.5;
+  const dotR = Math.min(titleH * 0.28, 0.48);
+  const dotX1 = titleX1 + 0.75;
+  const dotX2 = dotX1 + 1.20;
+  const dotX3 = dotX2 + 1.20;
+  const promptSize = Math.max(2.4, Math.min(3.6, (screenY2 - screenY1) * 0.34));
+  const promptX = screenX1 + 0.5;
+  const promptY = (screenY1 + screenY2) * 0.5 + promptSize * 0.32;
+
+  const terminalDecor = terminalOpacity > 0.01 ? `
+    <g class="terminal-decor" opacity="${terminalOpacity.toFixed(3)}" clip-path="url(#${p}-clip)">
+      <rect x="${titleX1.toFixed(2)}" y="${titleY1.toFixed(2)}" width="${titleW.toFixed(2)}" height="${titleH.toFixed(2)}" rx="0.45" fill="#EEF2FF" fill-opacity="0.72"/>
+      <circle cx="${dotX1.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotR.toFixed(2)}" fill="#96A9E8"/>
+      <circle cx="${dotX2.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotR.toFixed(2)}" fill="#B7C3F6"/>
+      <circle cx="${dotX3.toFixed(2)}" cy="${dotY.toFixed(2)}" r="${dotR.toFixed(2)}" fill="#D3DAFF"/>
+      <rect x="${screenX1.toFixed(2)}" y="${screenY1.toFixed(2)}" width="${(screenX2-screenX1).toFixed(2)}" height="${(screenY2-screenY1).toFixed(2)}" rx="0.65" fill="#171D2D"/>
+      <text x="${promptX.toFixed(2)}" y="${promptY.toFixed(2)}" font-family="ui-monospace, monospace" font-size="${promptSize.toFixed(2)}" font-weight="700" fill="#7AC8FF" opacity="0.95">&gt;</text>
+    </g>
+  ` : '';
+
+  const mHalfW = params.monitorHalfW;
+  const mHalfH = params.monitorHalfH;
+  const mInset = params.monitorScreenInset;
+  const monX1 = 12 - mHalfW + 0.5 + mInset;
+  const monX2 = 12 + mHalfW - 0.5 - mInset;
+  const monY1 = 12 - mHalfH + 0.5 + mInset;
+  const monY2 = 12 + mHalfH - 0.5 - mInset;
+  const monBottom = 12 + mHalfH - 0.5;
+  const neckW = params.standNeckW;
+  const neckH = params.standNeckH;
+  const neckX = 12 - neckW * 0.5;
+  const neckY = monBottom - 0.05;
+  const baseW = params.standBaseW;
+  const baseH = params.standBaseH;
+  const baseX = 12 - baseW * 0.5;
+  const baseY = neckY + neckH;
+  const monitorStand = monitorOpacity > 0.01 ? `
+    <g class="stand-decor" opacity="${monitorOpacity.toFixed(3)}" filter="url(#${p}-shadow)">
+      <rect x="${neckX.toFixed(2)}" y="${neckY.toFixed(2)}" width="${neckW.toFixed(2)}" height="${neckH.toFixed(2)}" rx="0.18" fill="url(#${p}-body)"/>
+      <rect x="${baseX.toFixed(2)}" y="${baseY.toFixed(2)}" width="${baseW.toFixed(2)}" height="${baseH.toFixed(2)}" rx="${params.standBaseR}" fill="url(#${p}-body)"/>
+    </g>
+    <g class="stand-edge" opacity="${monitorOpacity.toFixed(3)}">
+      <rect x="${neckX.toFixed(2)}" y="${(neckY + 0.05).toFixed(2)}" width="${neckW.toFixed(2)}" height="${(neckH - 0.05).toFixed(2)}" rx="0.18" fill="none" stroke="#aab3c6" stroke-width="0.34" stroke-opacity="0.55"/>
+      <rect x="${baseX.toFixed(2)}" y="${baseY.toFixed(2)}" width="${baseW.toFixed(2)}" height="${baseH.toFixed(2)}" rx="${params.standBaseR}" fill="none" stroke="#aab3c6" stroke-width="0.34" stroke-opacity="0.55"/>
+    </g>
+  ` : '';
+  const monitorScreen = monitorOpacity > 0.01 ? `
+    <g class="screen-decor" opacity="${monitorOpacity.toFixed(3)}" clip-path="url(#${p}-clip)">
+      <rect x="${monX1.toFixed(2)}" y="${monY1.toFixed(2)}" width="${(monX2-monX1).toFixed(2)}" height="${(monY2-monY1).toFixed(2)}" rx="${params.monitorScreenCornerR}" fill="#171D2D"/>
+      <rect x="${(monX1 + 0.20).toFixed(2)}" y="${(monY1 + 0.20).toFixed(2)}" width="${(monX2-monX1 - 0.40).toFixed(2)}" height="${(monY2-monY1 - 0.40).toFixed(2)}" rx="${Math.max(0.2, params.monitorScreenCornerR - 0.16).toFixed(2)}" fill="none" stroke="#7A9DFF" stroke-width="0.18" stroke-opacity="0.34"/>
+    </g>
+  ` : '';
+
+  const eHalfW = params.envHalfW;
+  const eHalfH = params.envHalfH;
+  const eInset = params.flapInset;
+  const flapX1 = 12 - eHalfW + 0.5 + eInset;
+  const flapX2 = 12 + eHalfW - 0.5 - eInset;
+  const flapY = 12 - eHalfH + 0.5 + eInset;
+  const flapBottomY = flapY + params.flapDepth;
+  const mBottomY = 12 + eHalfH - 1.18;
+  const mStrokeW = params.mStrokeW;
+  const mLegStrokeW = mStrokeW * params.mLegBoost;
+  const envelopeDecor = envelopeOpacity > 0.01 ? `
+    <g class="envelope-decor" opacity="${envelopeOpacity.toFixed(3)}" clip-path="url(#${p}-clip)">
+      <path d="M ${flapX1.toFixed(2)} ${flapY.toFixed(2)} L 12 ${flapBottomY.toFixed(2)} L ${flapX2.toFixed(2)} ${flapY.toFixed(2)} Z"
+            fill="#B1A7FF" fill-opacity="${params.flapFillOpacity.toFixed(3)}"/>
+      <path d="M ${flapX1.toFixed(2)} ${mBottomY.toFixed(2)} L ${flapX1.toFixed(2)} ${flapY.toFixed(2)}"
+            fill="none" stroke="#6EA8FF" stroke-width="${mLegStrokeW.toFixed(2)}" stroke-linecap="round"/>
+      <path d="M ${flapX1.toFixed(2)} ${flapY.toFixed(2)} L 12 ${flapBottomY.toFixed(2)}"
+            fill="none" stroke="#FF6B7A" stroke-width="${mStrokeW.toFixed(2)}" stroke-linecap="round"/>
+      <path d="M 12 ${flapBottomY.toFixed(2)} L ${flapX2.toFixed(2)} ${flapY.toFixed(2)}"
+            fill="none" stroke="#FFD45C" stroke-width="${mStrokeW.toFixed(2)}" stroke-linecap="round"/>
+      <path d="M ${flapX2.toFixed(2)} ${flapY.toFixed(2)} L ${flapX2.toFixed(2)} ${mBottomY.toFixed(2)}"
+            fill="none" stroke="#55D08A" stroke-width="${mLegStrokeW.toFixed(2)}" stroke-linecap="round"/>
+    </g>
+  ` : '';
+
+  return `
+    <g class="cloudling-body">
+      ${moduleSide}
+      ${monitorStand}
+      <g class="edge-system">
+        <use class="edge-contact" href="#${p}-cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#${p}-shadow)">
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
+      </g>
+      ${terminalDecor}
+      ${monitorScreen}
+      ${envelopeDecor}
+    </g>
+  `;
+}
+
+/* =========================================================================
+ * 眼睛 (capsule + 闭眼线 + smile, 锚点固定 9,12 / 15,12)
+ * ========================================================================= */
+function makeEyes(p, f) {
+  const mode = f.eyeMode;
+  const openness = f.eyeOpenness;
+  const flashStrength = f.eyeFlash;
+  const lcx = f.eyeLeftX ?? params.eyeLeftX ?? 9;
+  const rcx = f.eyeRightX ?? params.eyeRightX ?? 15;
+  const useFlash = flashStrength > 0.05;
+  const eyeFill = useFlash ? `url(#${p}-eye-flash)` : `url(#${p}-eye)`;
+  const filter = useFlash ? `filter="url(#${p}-eye-glow)"` : '';
+
+  if (mode === 'closed') {
+    const eyeW = f.eyeWidth ?? params.eyeWidth ?? 2.6;
+    const cy = (f.eyeY ?? params.eyeY ?? 9.5) + ((f.eyeHeight ?? params.eyeHeight ?? 5) * 0.5);
+    const linePath = (cx) => `M ${(cx-eyeW*0.48).toFixed(2)} ${cy.toFixed(2)} Q ${cx.toFixed(2)} ${(cy+0.18).toFixed(2)} ${(cx+eyeW*0.48).toFixed(2)} ${cy.toFixed(2)}`;
+    return `
+      <g class="eyes" ${filter}>
+        <path d="${linePath(lcx)}" fill="none" stroke="${eyeFill}" stroke-width="0.62" stroke-linecap="round"/>
+        <path d="${linePath(rcx)}" fill="none" stroke="${eyeFill}" stroke-width="0.62" stroke-linecap="round"/>
+      </g>
+    `;
+  }
+
+  if (mode === 'smile') {
+    const w = 3.5, h = 1.0, smileCY = 12.7;
+    const smilePath = (cx) => `M ${(cx-w/2).toFixed(2)} ${smileCY} Q ${cx} ${(smileCY-2*h).toFixed(2)} ${(cx+w/2).toFixed(2)} ${smileCY}`;
+    return `
+      <g class="eyes">
+        <path d="${smilePath(lcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>
+        <path d="${smilePath(rcx)}" fill="none" stroke="url(#${p}-eye)" stroke-width="1.25" stroke-linecap="round"/>
+      </g>
+    `;
+  }
+
+  const eyeW = f.eyeWidth ?? params.eyeWidth ?? 2.6;
+  const baseH = f.eyeHeight ?? params.eyeHeight ?? 5;
+  const h = Math.max(0.3, baseH * openness);
+  const y = (f.eyeY ?? params.eyeY ?? 9.5) + (baseH - h) / 2;
+  const rx = Math.min(1.3, h / 2);
+  const leftX = lcx - eyeW / 2;
+  const rightX = rcx - eyeW / 2;
+  return `
+    <g class="eyes" ${filter}>
+      <rect x="${leftX.toFixed(2)}" y="${y.toFixed(2)}" width="${eyeW.toFixed(2)}" height="${h.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${rx.toFixed(2)}" fill="${eyeFill}" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>
+      <rect x="${rightX.toFixed(2)}" y="${y.toFixed(2)}" width="${eyeW.toFixed(2)}" height="${h.toFixed(2)}" rx="${rx.toFixed(2)}" ry="${rx.toFixed(2)}" fill="${eyeFill}" stroke="#fff" stroke-width="0.08" stroke-opacity="0.7"/>
+    </g>
+  `;
+}
+
+/* =========================================================================
+ * duang duang spring overshoot (跟 carrying-v5 同款)
+ * ========================================================================= */
+function springOvershoot(tLocal, amp, freq, damping) {
+  if (tLocal < 0) return 0;
+  return amp * Math.cos(2 * Math.PI * freq * tLocal) * Math.exp(-damping * tLocal);
+}
+
+/* =========================================================================
+ * 时间线计算
+ * ========================================================================= */
+const EYE_STYLES = {
+  cloud:    { left: 9.00, right: 15.00, width: 2.60, height: 5.00, y: 9.50 },
+  terminal: { left: 9.35, right: 14.85, width: 2.35, height: 4.20, y: 10.15 },
+  module:   { left: 8.85, right: 15.15, width: 2.65, height: 4.85, y: 9.65 },
+  monitor:  { left: 8.85, right: 15.15, width: 2.25, height: 4.05, y: 10.25 },
+  envelope: { left: 8.75, right: 15.25, width: 2.40, height: 4.20, y: 10.20 },
+};
+
+function mixEyeStyle(from, to, u) {
+  const a = EYE_STYLES[from];
+  const b = EYE_STYLES[to];
+  return {
+    left: lerp(a.left, b.left, u),
+    right: lerp(a.right, b.right, u),
+    width: lerp(a.width, b.width, u),
+    height: lerp(a.height, b.height, u),
+    y: lerp(a.y, b.y, u),
+  };
+}
+
+function setShape(f, from, to, uRaw) {
+  const u = clamp01(uRaw);
+  f.fromShape = from;
+  f.toShape = to;
+  f.shapeU = u;
+  f.opacities = { terminal: 0, module: 0, monitor: 0, envelope: 0 };
+  if (from !== 'cloud') f.opacities[from] += 1 - u;
+  if (to !== 'cloud') f.opacities[to] += u;
+
+  const eye = mixEyeStyle(from, to, u);
+  f.eyeLeftX = eye.left;
+  f.eyeRightX = eye.right;
+  f.eyeWidth = eye.width;
+  f.eyeHeight = eye.height;
+  f.eyeY = eye.y;
+}
+
+function holdShape(f, shape, eyeMode = 'capsule') {
+  setShape(f, shape, shape, 0);
+  f.eyeMode = eyeMode;
+}
+
+function blinkSwitchFrame(f, tLocal, from, to, options = {}) {
+  const closeDur = Math.max(0.04, params.blinkClose);
+  const switchDur = Math.max(0.04, params.blinkSwitch);
+  const openDur = Math.max(0.06, params.blinkOpen);
+  const total = closeDur + switchDur + openDur;
+  const targetEyeMode = options.smile ? 'smile' : 'capsule';
+
+  if (tLocal < closeDur) {
+    const u = easeIn(progress(tLocal, 0, closeDur));
+    setShape(f, from, from, 0);
+    f.eyeMode = 'closed';
+    f.eyeOpenness = lerp(1, 0.08, u);
+    f.squashY = lerp(1, params.blinkSquashY, u);
+    f.eyeFlash = u * params.eyeFlashStrength * 0.55;
+  } else if (tLocal < closeDur + switchDur) {
+    const u = easeInOut(progress(tLocal, closeDur, closeDur + switchDur));
+    setShape(f, from, to, u);
+    f.eyeMode = 'closed';
+    f.eyeOpenness = 0.08;
+    f.squashY = params.blinkSquashY;
+    f.eyeFlash = params.eyeFlashStrength * 0.35;
+  } else if (tLocal < total) {
+    const u = easeOutBack(progress(tLocal, closeDur + switchDur, total));
+    setShape(f, to, to, 0);
+    f.eyeOpenness = lerp(0.08, 1, clamp01(u));
+    f.squashY = lerp(params.blinkSquashY, 1, clamp01(u));
+    f.eyeFlash = lerp(params.eyeFlashStrength * 0.35, 0, clamp01(u));
+    f.springScale = 1 + Math.sin(Math.PI * clamp01(u)) * 0.018;
+    if (options.smile && u > 0.28) f.eyeMode = 'smile';
+  } else {
+    holdShape(f, to, targetEyeMode);
+  }
+}
+
+function computeFrame(t) {
+  const T = params.T_CYCLE;
+  const tMod = ((t % T) + T) % T;
+  const f = {
+    tMod,
+    fromShape: 'cloud',
+    toShape: 'cloud',
+    shapeU: 0,
+    squashY: 1,
+    springScale: 1,
+    eyeMode: 'capsule',
+    eyeOpenness: 1,
+    eyeFlash: 0,
+    opacities: { terminal: 0, module: 0, monitor: 0, envelope: 0 },
+  };
+
+  const blinkTotal = params.blinkClose + params.blinkSwitch + params.blinkOpen;
+  const b1 = params.T_CLOUD_HOLD;
+  const hTerminal = b1 + blinkTotal;
+  const b2 = params.T_TERMINAL_HOLD;
+  const hModule = b2 + blinkTotal;
+  const b3 = params.T_MODULE_HOLD;
+  const hMonitor = b3 + blinkTotal;
+  const b4 = params.T_MONITOR_HOLD;
+  const hEnvelope = b4 + blinkTotal;
+  const b5 = params.T_ENVELOPE_HOLD;
+  const hSmile = b5 + blinkTotal;
+  const b6 = Math.max(params.T_SMILE_HOLD, hSmile + 0.05);
+  const hCloud = b6 + blinkTotal;
+
+  if (tMod < b1) {
+    holdShape(f, 'cloud');
+  } else if (tMod < hTerminal) {
+    blinkSwitchFrame(f, tMod - b1, 'cloud', 'terminal');
+  } else if (tMod < b2) {
+    holdShape(f, 'terminal');
+  } else if (tMod < hModule) {
+    blinkSwitchFrame(f, tMod - b2, 'terminal', 'module');
+  } else if (tMod < b3) {
+    holdShape(f, 'module');
+  } else if (tMod < hMonitor) {
+    blinkSwitchFrame(f, tMod - b3, 'module', 'monitor');
+  } else if (tMod < b4) {
+    holdShape(f, 'monitor');
+  } else if (tMod < hEnvelope) {
+    blinkSwitchFrame(f, tMod - b4, 'monitor', 'envelope');
+  } else if (tMod < b5) {
+    holdShape(f, 'envelope');
+  } else if (tMod < hSmile) {
+    blinkSwitchFrame(f, tMod - b5, 'envelope', 'cloud', { smile: true });
+  } else if (tMod < b6) {
+    holdShape(f, 'cloud', 'smile');
+  } else if (tMod < hCloud) {
+    blinkSwitchFrame(f, tMod - b6, 'cloud', 'cloud');
+  } else {
+    holdShape(f, 'cloud');
+  }
+
+  const breathPhase = (Math.cos(2 * Math.PI * tMod / params.T_CYCLE) + 1) / 2;
+  f.breathScale = lerp(params.breathLow, params.breathHigh, breathPhase);
+  return f;
+}
+
+/* =========================================================================
+ * 渲染
+ * ========================================================================= */
+const stage = document.getElementById('stage');
+
+function renderFrame(t) {
+  const f = computeFrame(t);
+  const p = 'bld';
+
+  const pointSets = makeShapePointSets();
+  let bodyPoints = mixPointSets(pointSets[f.fromShape], pointSets[f.toShape], f.shapeU);
+  bodyPoints = squashPoints(bodyPoints, f.squashY);
+  const nonCloudness = 1 - (f.fromShape === 'cloud' && f.toShape === 'cloud' ? 1 : 0);
+  const sharpness = Math.max(f.opacities.terminal, f.opacities.module, f.opacities.monitor, f.opacities.envelope, nonCloudness * f.shapeU);
+  const cloudD = makePathFromPoints(bodyPoints, sharpness);
+  const cloudlingBody = makeCloudlingBody(p, f);
+  const eyes = makeEyes(p, f);
+
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+</style>
+<defs>
+        ${commonDefs(p, cloudD)}
+        <path id="${p}-cloud-shape" d="${cloudD}"/>
+      </defs>
+      <g class="scene">
+        <g class="spring" transform="translate(12 12) scale(${f.springScale.toFixed(4)}) translate(-12 -12)">
+          <g class="breath" transform="translate(12 12) scale(${f.breathScale.toFixed(4)}) translate(-12 -12)">
+            ${cloudlingBody}
+            ${eyes}
+          </g>
+        </g>
+      </g>
+  `;
+}
+
+/* =========================================================================
+ * 主循环 + 控件 (复用 carrying-v5 模板)
+ * ========================================================================= */
+let startT = performance.now();
+let elapsedOffset = 0;
+let pausedAt = 0;
+
+const scrubberEl = document.getElementById('scrubber');
+const tDisplayEl = document.getElementById('t-display');
+
+function getCurrentT() {
+  if (scrubbing) return Number(scrubberEl.value);
+  if (paused) return elapsedOffset + (pausedAt - startT) / 1000;
+  return elapsedOffset + (performance.now() - startT) / 1000;
+}
+
+function loop() {
+  const t = getCurrentT();
+  scrubberEl.max = params.T_CYCLE.toFixed(2);
+  const tMod = ((t % params.T_CYCLE) + params.T_CYCLE) % params.T_CYCLE;
+  if (!scrubbing) scrubberEl.value = tMod.toFixed(3);
+  tDisplayEl.textContent = `${tMod.toFixed(2)} s`;
+  renderFrame(t);
+  requestAnimationFrame(loop);
+}
+renderFrame(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>

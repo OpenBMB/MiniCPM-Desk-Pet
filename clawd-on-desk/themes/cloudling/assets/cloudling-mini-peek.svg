@@ -1,0 +1,328 @@
+<svg id="cloudling" xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="-12 -12 48 48" preserveAspectRatio="xMidYMid meet">
+<style><![CDATA[
+.v {
+  text-align: right;
+  font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #7A9DFF;
+}
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft { stroke-opacity: .06; }
+.edge-contact { stroke-opacity: .08; }
+@media (prefers-color-scheme: light) {
+.v { color: #3941FF; }
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft { stroke-opacity: .10; }
+.edge-contact { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+]]></style>
+      <defs>
+        <linearGradient id="body-grad" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="0.5" stop-color="#f4f5f9"/>
+          <stop offset="1" stop-color="#dee2eb"/>
+        </linearGradient>
+        <linearGradient id="eye-grad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#B1A7FF"/>
+          <stop offset="0.5" stop-color="#7A9DFF"/>
+          <stop offset="1" stop-color="#3941FF"/>
+        </linearGradient>
+        <radialGradient id="hi-grad" cx="0.45" cy="0.25" r="0.55">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="drop" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.55" stdDeviation="0.72" flood-color="#3941FF" flood-opacity="0.17"/>
+        </filter>
+        <filter id="edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="0.16"/>
+        </filter>
+        <path id="cloud-shape" d="M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.74 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z"/>
+        <clipPath id="cloud-clip">
+          <use href="#cloud-shape"/>
+        </clipPath>
+      </defs>
+
+      <rect x="-12" y="-12" width="48" height="48" fill="transparent"/>
+
+      <g id="pose-js">
+        <g id="body-js">
+          <g id="breath-js">
+            <g id="edge-system">
+              <use id="edge-contact" class="edge-contact" href="#cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.00" stroke-linejoin="round" transform="translate(0 .18)" filter="url(#edge-blur)"/>
+              <use id="edge-soft" class="edge-rim-soft" href="#cloud-shape" fill="none" stroke="#7A9DFF" stroke-width=".84" stroke-linejoin="round" filter="url(#edge-blur)"/>
+              <use id="edge-tight" class="edge-rim-tight" href="#cloud-shape" fill="none" stroke="#aab3c6" stroke-width=".38" stroke-linejoin="round"/>
+            </g>
+            <g filter="url(#drop)">
+              <use href="#cloud-shape" fill="url(#body-grad)"/>
+              <rect x="1" y="2" width="22" height="11" fill="url(#hi-grad)" clip-path="url(#cloud-clip)"/>
+            </g>
+          </g>
+        </g>
+        <g id="eyes-js">
+          <g id="blink-js">
+            <rect id="eye-l" class="eye" x="6.65" y="9.65" width="2.2" height="4.65" rx="1.1" ry="1.1" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+            <rect id="eye-r" class="eye" x="11.05" y="9.65" width="2.2" height="4.65" rx="1.1" ry="1.1" fill="url(#eye-grad)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+          </g>
+        </g>
+      </g>
+    <g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="eye-readout"></g>
+<g id="pose-readout"></g>
+<g id="shake-readout"></g>
+</g>
+
+<script type="application/ecmascript"><![CDATA[
+const svg = document.getElementById("cloudling");
+const pose = document.getElementById("pose-js");
+const eyes = document.getElementById("eyes-js");
+const body = document.getElementById("breath-js");
+const eyeGrad = document.getElementById("eye-grad");
+const eyeL = document.getElementById("eye-l");
+const eyeR = document.getElementById("eye-r");
+const edgeContact = document.getElementById("edge-contact");
+const edgeSoft = document.getElementById("edge-soft");
+const edgeTight = document.getElementById("edge-tight");
+const poseReadout = document.getElementById("pose-readout");
+const shakeReadout = document.getElementById("shake-readout");
+const eyeReadout = document.getElementById("eye-readout");
+
+const MINI_EYE_BASE = {
+  l: { cx: 7.75, cy: 11.975, w: 2.20, h: 4.65, rx: 1.10 },
+  r: { cx: 12.15, cy: 11.975, w: 2.20, h: 4.65, rx: 1.10 },
+};
+const IDLE_EYE_BASE = {
+  l: { cx: 9.00, cy: 12.00, w: 2.60, h: 5.00, rx: 1.30 },
+  r: { cx: 15.00, cy: 12.00, w: 2.60, h: 5.00, rx: 1.30 },
+};
+const face = { x: 12.00, y: 12.00 };
+const params = {
+  settleTx: -0.22,
+  settleTy: -0.04,
+  settleScale: 1.012,
+  settleRot: -0.65,
+  eyeReturnDur: 0.24,
+  idleEyeMax: 0.50,
+  idleYClamp: 1.00,
+  idleRecenter: 0.45,
+  duangDelay: 0.10,
+  duangDur: 1.12,
+  duangPower: 1.16,
+  duangCycles: 4.80,
+  duangTravel: 0.33,
+  duangLift: 0.10,
+  duangRot: 4.20,
+  duangSquash: 0.048,
+  breath: 0.008,
+  rimPower: 1.30,
+  flowPeriod: 4.8,
+  flowAmp: 4.8,
+  blinkInterval: 5.2,
+  blinkDur: 0.14,
+};
+let startT = performance.now();
+let lastFrameT = 0;
+let nextBlinkT = 2.4 + Math.random() * 1.4;
+let blinkActive = false;
+let blinkStartT = 0;
+let lastState = null;
+let pointerInside = false;
+let pointer = { ...face };
+let idleEye = { x: 0, y: 0 };
+
+function clamp(v, min = 0, max = 1) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function smoothstep(edge0, edge1, x) {
+  const t = clamp((x - edge0) / Math.max(edge1 - edge0, 0.0001));
+  return t * t * (3 - 2 * t);
+}
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - clamp(t), 3);
+}
+
+function duangWave(t) {
+  const u = clamp((t - params.duangDelay) / Math.max(params.duangDur, 0.01));
+  if (u <= 0 || u >= 1) return 0;
+  const envelope = Math.pow(1 - u, 1.35);
+  return Math.sin(u * Math.PI * params.duangCycles) * envelope * params.duangPower;
+}
+
+function pointerToSvg(e) {
+  const r = svg.getBoundingClientRect();
+  const x = -12 + ((e.clientX - r.left) / Math.max(r.width, 1)) * 48;
+  const y = -12 + ((e.clientY - r.top) / Math.max(r.height, 1)) * 48;
+  pointer = { x, y };
+  pointerInside = true;
+}
+
+function idleEyeTarget() {
+  const dx = pointer.x - face.x;
+  const dy = pointer.y - face.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 0.001) return { x: 0, y: 0 };
+  const sat = Math.tanh(dist / 6);
+  return {
+    x: (dx / dist) * sat * params.idleEyeMax,
+    y: clamp((dy / dist) * sat * params.idleEyeMax, -params.idleEyeMax * params.idleYClamp, params.idleEyeMax * params.idleYClamp),
+  };
+}
+
+function updateIdleEye(dt) {
+  const target = pointerInside ? idleEyeTarget() : { x: 0, y: 0 };
+  if (pointerInside) {
+    idleEye = target;
+  } else {
+    const recenterRate = 1 - Math.exp(-dt / Math.max(params.idleRecenter, 0.001));
+    idleEye.x += (target.x - idleEye.x) * recenterRate;
+    idleEye.y += (target.y - idleEye.y) * recenterRate;
+  }
+  return idleEye;
+}
+
+function stateAt(t, dt) {
+  const idle = updateIdleEye(dt);
+  const eyeReturn = smoothstep(0, params.eyeReturnDur, t);
+  const bodyWake = easeOutCubic(clamp(t / 0.30));
+  const spring = duangWave(t);
+  const hit = Math.abs(spring);
+  const hold = Math.sin(2 * Math.PI * t / 3.9);
+  const live = smoothstep(0.65, 1.25, t);
+  const bodyStart = 1 - bodyWake;
+  const poseTx = params.settleTx - bodyStart * 0.28 + spring * params.duangTravel + live * Math.sin(2 * Math.PI * t / 3.1 + 0.8) * 0.018;
+  const poseTy = params.settleTy - hit * params.duangLift + hold * 0.022 * live;
+  const poseRot = params.settleRot - bodyStart * 1.15 + spring * params.duangRot + hold * 0.12 * live;
+  const sx = params.settleScale + hit * params.duangSquash;
+  const sy = params.settleScale - hit * params.duangSquash * 0.72;
+  const breathScale = 1 + Math.sin(2 * Math.PI * t / 4.8) * params.breath * live;
+  const eyeTx = idle.x * eyeReturn;
+  const eyeTy = idle.y * eyeReturn;
+  const flowOffset = Math.sin(2 * Math.PI * t / params.flowPeriod) * params.flowAmp;
+  return { t, poseTx, poseTy, poseRot, sx, sy, breathScale, eyeTx, eyeTy, eyeMorph: eyeReturn, idleEyeX: idle.x, idleEyeY: idle.y, flowOffset, spring };
+}
+
+function tick(now) {
+  const t = (now - startT) / 1000;
+  const dt = Math.min(0.05, Math.max(0.001, t - lastFrameT));
+  lastFrameT = t;
+  renderFrame(t, dt);
+  requestAnimationFrame(tick);
+}
+
+function renderFrame(t, dt = 1 / 60) {
+  const s = stateAt(Math.max(0, t), dt);
+  pose.setAttribute(
+    "transform",
+    `translate(${s.poseTx.toFixed(3)} ${s.poseTy.toFixed(3)}) translate(12 12) rotate(${s.poseRot.toFixed(3)}) scale(${s.sx.toFixed(4)} ${s.sy.toFixed(4)}) translate(-12 -12)`
+  );
+  body.setAttribute(
+    "transform",
+    `translate(12 12) scale(${s.breathScale.toFixed(4)}) translate(-12 -12)`
+  );
+  eyes.setAttribute("transform", `translate(${s.eyeTx.toFixed(3)} ${s.eyeTy.toFixed(3)})`);
+  applyEyes(s.t, s.eyeMorph);
+  applyEdgePower();
+  eyeGrad.setAttribute("y1", (3 + s.flowOffset).toFixed(2));
+  eyeGrad.setAttribute("y2", (21 + s.flowOffset).toFixed(2));
+  updateReadouts(s);
+  lastState = s;
+  return s;
+}
+
+function getBlinkScale(t) {
+  if (!blinkActive && t > nextBlinkT) {
+    blinkActive = true;
+    blinkStartT = t;
+  }
+  if (blinkActive) {
+    const d = t - blinkStartT;
+    const half = params.blinkDur / 2;
+    if (d < half) return 1 - 0.94 * (d / half);
+    if (d < params.blinkDur) return 0.06 + 0.94 * ((d - half) / half);
+    blinkActive = false;
+    nextBlinkT = t + params.blinkInterval * (0.8 + Math.random() * 0.4);
+  }
+  return 1;
+}
+
+function setEyeRect(rect, miniBase, idleBase, blinkScale, morph) {
+  const cx = lerp(miniBase.cx, idleBase.cx, morph);
+  const cy = lerp(miniBase.cy, idleBase.cy, morph);
+  const w = lerp(miniBase.w, idleBase.w, morph);
+  const baseH = lerp(miniBase.h, idleBase.h, morph);
+  const h = Math.max(baseH * blinkScale, 0.15);
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  const rx = Math.min(lerp(miniBase.rx, idleBase.rx, morph), w / 2, h / 2);
+  rect.setAttribute("x", x.toFixed(3));
+  rect.setAttribute("width", w.toFixed(3));
+  rect.setAttribute("height", h.toFixed(3));
+  rect.setAttribute("y", y.toFixed(3));
+  rect.setAttribute("rx", rx.toFixed(3));
+  rect.setAttribute("ry", rx.toFixed(3));
+}
+
+function applyEyes(t, morph) {
+  const blinkScale = getBlinkScale(t);
+  setEyeRect(eyeL, MINI_EYE_BASE.l, IDLE_EYE_BASE.l, blinkScale, morph);
+  setEyeRect(eyeR, MINI_EYE_BASE.r, IDLE_EYE_BASE.r, blinkScale, morph);
+}
+
+function applyEdgePower() {
+  edgeContact.style.strokeOpacity = (0.08 * params.rimPower).toFixed(3);
+  edgeSoft.style.strokeOpacity = (0.06 * params.rimPower).toFixed(3);
+  edgeTight.style.strokeOpacity = (0.08 * params.rimPower).toFixed(3);
+}
+
+function updateReadouts(s) {
+  poseReadout.textContent = `pose: tx ${params.settleTx.toFixed(2)}, scale ${params.settleScale.toFixed(3)}, rot ${params.settleRot.toFixed(2)}deg`;
+  shakeReadout.textContent = `duang: power ${params.duangPower.toFixed(2)} / ${params.duangDur.toFixed(2)}s / cycles ${params.duangCycles.toFixed(2)} / now ${s.spring.toFixed(2)}`;
+  eyeReadout.textContent = `eyes: mini 2.2x4.65 gap 4.4 -> idle 2.6x5 gap 6 / morph ${s.eyeMorph.toFixed(2)} / offset ${s.idleEyeX.toFixed(2)}, ${s.idleEyeY.toFixed(2)}`;
+}
+
+renderFrame(0);
+
+window.__miniPeekDebug = {
+  renderAt(seconds) {
+    return renderFrame(Number(seconds) || 0);
+  },
+  getState() {
+    return lastState;
+  },
+  getParams() {
+    return { ...params };
+  },
+};
+
+function restart(now = performance.now()) {
+  startT = now;
+  lastFrameT = 0;
+  nextBlinkT = 2.4 + Math.random() * 1.4;
+  blinkActive = false;
+  renderFrame(0);
+}
+
+svg.addEventListener("pointerenter", e => {
+  pointerToSvg(e);
+  restart();
+});
+svg.addEventListener("pointermove", pointerToSvg);
+svg.addEventListener("pointerleave", () => {
+  pointerInside = false;
+});
+requestAnimationFrame(tick);
+]]></script>
+</svg>

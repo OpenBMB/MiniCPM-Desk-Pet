@@ -1,0 +1,555 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" width="880" height="720" viewBox="-32 -24 88 72" preserveAspectRatio="xMidYMid meet">
+<g id="__cloudling-export-shims" opacity="0" pointer-events="none" style="display:none">
+<g id="btn-play"></g>
+<g id="phase"></g>
+<g id="scrubber"></g>
+<g id="time"></g>
+</g>
+<script type="application/ecmascript"><![CDATA[
+const CLOUD_D = "M9.064 3.344a4.578 4.578 0 012.285-.312c1 .115 1.891.54 2.673 1.275.01.01.024.017.037.021a.09.09 0 00.043 0 4.55 4.55 0 013.046.275l.047.022.116.057a4.581 4.581 0 012.188 2.399c.209.51.313 1.041.315 1.595a4.24 4.24 0 01-.134 1.223.123.123 0 00.03.115c.594.607.988 1.33 1.183 2.17.289 1.425-.007 2.71-.887 3.854l-.136.166a4.548 4.548 0 01-2.201 1.388.123.123 0 00-.081.076c-.191.551-.383 1.023-.740 1.494-.9 1.187-2.222 1.846-3.711 1.838-1.187-.006-2.239-.44-3.157-1.302a.107.107 0 00-.105-.024c-.388.125-.78.143-1.204.138a4.441 4.441 0 01-1.945-.466 4.544 4.544 0 01-1.61-1.335c-.152-.202-.303-.392-.414-.617a5.81 5.81 0 01-.37-.961 4.582 4.582 0 01-.014-2.298.124.124 0 00.006-.056.085.085 0 00-.027-.048 4.467 4.467 0 01-1.034-1.651 3.896 3.896 0 01-.251-1.192 5.189 5.189 0 01.141-1.6c.337-1.112.982-1.985 1.933-2.618.212-.141.413-.251.601-.33.215-.089.43-.164.646-.227a.098.098 0 00.065-.066 4.51 4.51 0 01.829-1.615 4.535 4.535 0 011.837-1.388z";
+
+const SLEEP = {
+  bodyTilt: -6,
+  breathScale: 1.02,
+  hatTx: -2,
+  hatTy: -0.4,
+  hatRot: -10,
+  hatScale: 0.98,
+  maskTx: 0,
+  maskTy: -0.6,
+  maskRot: -9,
+  maskScale: 1,
+};
+
+const IDLE_EYE = {
+  leftX: 7.7,
+  rightX: 13.7,
+  y: 9.5,
+  w: 2.6,
+  h: 5,
+  rx: 1.3,
+};
+
+const TIMING = {
+  hold: 0.35,
+  lampStart: 0.22,
+  lampInEnd: 0.84,
+  switchStart: 0.92,
+  switchEnd: 1.36,
+  maskStart: 1.28,
+  maskEnd: 2.18,
+  hatStart: 1.48,
+  hatEnd: 2.42,
+  eyeStart: 2.12,
+  eyeEnd: 3.12,
+  lampOutStart: 2.82,
+  lampOutEnd: 3.42,
+  settleEnd: 3.65,
+};
+
+const SLEEP_MASK_PATH = {
+  d: "M488.728,341.587l-7.846-2.599c-0.405-16.992-7.605-47.34-48.625-70.941c-38.301-22.036-96.652-33.215-173.431-33.224c-76.822,0-135.146-11.165-173.438,33.183c-42.335,24.344-48.659,55.883-48.661,72.516c0,2.608,0.135,5.183,0.352,7.735h-2.649c-0.001,0-0.001,0-0.002,0c-9.635,0-17.446,7.811-17.448,17.445c-0.001,9.636,7.81,17.449,17.445,17.45l13,0.001c15.257,28.43,45.267,47.814,79.728,47.818c20.016-0.001,36.647-11.511,54.256-23.695c20.65-14.29,44.048-30.481,77.388-30.481c33.359,0.003,56.757,16.204,77.402,30.497c17.61,12.192,34.24,23.707,54.251,23.709h0.012c24.153,0,46.861-9.404,63.941-26.481c8.937-8.936,15.751-19.422,20.239-30.839l3.111,1.031c1.82,0.604,3.67,0.89,5.489,0.89c7.318,0,14.133-4.64,16.56-11.966C502.835,354.489,497.876,344.617,488.728,341.587Z",
+  bboxX: 15, bboxY: 232, bboxW: 487, bboxH: 200
+};
+
+const STAR_LOCKED = {
+  cx: 8.55, cy: 0.35, size: 1.00, rotation: 30,
+  cornerRound: 0.27, chubbiness: 0, innerRatio: 0.56
+};
+
+const WAKE_SWITCH = {
+  cx: 15.6,
+  cy: -5.2,
+  dayKnobOffsetX: -3,
+  nightKnobOffsetX: -0.2,
+};
+
+const stage = document.getElementById('stage');
+const scrubber = document.getElementById('scrubber');
+const timeOut = document.getElementById('time');
+const phaseEl = document.getElementById('phase');
+let playing = true;
+let peekEyes = false;
+let start = performance.now();
+let manualT = 0;
+
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function progress(t, a, b) { return clamp01((t - a) / Math.max(0.0001, b - a)); }
+function smoothstep(a, b, t) {
+  const x = progress(t, a, b);
+  return x * x * (3 - 2 * x);
+}
+function easeInOut(t) {
+  return t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+}
+function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+function commonDefs(p) {
+  return `
+    <linearGradient id="${p}-body" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#f4f5f9"/>
+      <stop offset="1" stop-color="#dee2eb"/>
+    </linearGradient>
+    <linearGradient id="${p}-eye" x1="0" y1="3" x2="0" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B1A7FF"/>
+      <stop offset="0.55" stop-color="#7A9DFF"/>
+      <stop offset="1" stop-color="#3941FF"/>
+    </linearGradient>
+    <radialGradient id="${p}-hi" cx="0.45" cy="0.25" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="${p}-hat" x1="11" y1="-3" x2="14" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7AA0FF"/>
+      <stop offset="0.45" stop-color="#3941FF"/>
+      <stop offset="1" stop-color="#1F2BC2"/>
+    </linearGradient>
+    <linearGradient id="${p}-cuff" x1="12" y1="3.0" x2="12" y2="8.0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#fafbff"/>
+      <stop offset="1" stop-color="#e8ecf6"/>
+    </linearGradient>
+    <linearGradient id="${p}-star-yellow" x1="0" y1="-2" x2="0" y2="2" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE9A8"/>
+      <stop offset="0.5" stop-color="#FFD360"/>
+      <stop offset="1" stop-color="#F5A623"/>
+    </linearGradient>
+    <filter id="${p}-star-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feDropShadow dx="0" dy="0.4" stdDeviation="0.5" flood-color="#F5A623" flood-opacity="0.32"/>
+    </filter>
+    <filter id="${p}-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow class="cloud-drop-shadow" dx="0" dy="0.6" stdDeviation="0.8" flood-color="#3941FF" flood-opacity="0.18"/>
+    </filter>
+    <filter id="${p}-edge-blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="0.16"/>
+    </filter>
+    <filter id="${p}-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="0.18"/>
+    </filter>
+    <linearGradient id="${p}-toggle-day" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E5EDFF"/><stop offset="1" stop-color="#BFD6FF"/>
+    </linearGradient>
+    <linearGradient id="${p}-toggle-night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2A3554"/><stop offset="1" stop-color="#0F1428"/>
+    </linearGradient>
+    <clipPath id="${p}-clip"><path d="${CLOUD_D}"/></clipPath>
+  `;
+}
+
+function makeFluffyCuff(p, cx, cy, rx, ry, asym, bumps) {
+  let parts = [];
+  const circles = [];
+  for (let i = 0; i < bumps; i++) {
+    const ang = (i * 2 * Math.PI) / bumps - Math.PI / 2;
+    const x = cx + Math.cos(ang) * rx;
+    const y = cy + Math.sin(ang) * ry;
+    const sizeY = -Math.sin(ang);
+    const sizeBoost = 0.18 * (sizeY + 1) / 2 + 0.10;
+    const jitter = ((i * 13) % 7) / 35;
+    let r = 0.62 + sizeBoost + jitter;
+    if (asym !== 0) r *= 1 + asym * Math.cos(ang) * 0.28;
+    circles.push({ x, y, r });
+  }
+  const innerRy = ry + 0.40;
+  parts.push(`<g filter="url(#${p}-soft)">`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx + 0.30).toFixed(2)}" ry="${(innerRy + 0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r + 0.30).toFixed(2)}" fill="#7A9DFF" opacity="0.50"/>`));
+  parts.push(`</g>`);
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${(rx + 0.15).toFixed(2)}" ry="${(innerRy + 0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${(c.r + 0.15).toFixed(2)}" fill="#aab3c6" opacity="0.65"/>`));
+  parts.push(`<ellipse cx="${cx}" cy="${cy}" rx="${rx.toFixed(2)}" ry="${innerRy.toFixed(2)}" fill="url(#${p}-cuff)"/>`);
+  circles.forEach(c => parts.push(`<circle cx="${c.x.toFixed(2)}" cy="${c.y.toFixed(2)}" r="${c.r.toFixed(2)}" fill="url(#${p}-cuff)"/>`));
+  parts.push(`<ellipse cx="${cx}" cy="${(cy - ry * 0.45).toFixed(2)}" rx="${(rx * 0.78).toFixed(2)}" ry="${(ry * 0.32).toFixed(2)}" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="0.14"/>`);
+  return parts.join('');
+}
+
+function makeBentHat(bend) {
+  const baseLeft = { x: 8.5, y: 5.0 };
+  const baseRight = { x: 15.5, y: 5.0 };
+  const elbowX = 12 + bend * 2.2;
+  const elbowY = -0.5 + bend * 2.3;
+  const tipX = 11 - bend * 5.5;
+  const tipY = 0.0 + bend * 0.5;
+  const tipBottomX = tipX + 1.2 + bend * 0.4;
+  const tipBottomY = tipY + 1.4 + bend * 0.3;
+  const c1 = { x: baseRight.x + 0.5, y: baseRight.y - 1.5 };
+  const c2 = { x: elbowX + 0.8, y: elbowY + 1.0 };
+  const c3 = { x: elbowX - 0.5, y: elbowY - 0.8 };
+  const c4 = { x: tipX + 1.5, y: tipY - 0.5 };
+  const c5 = { x: tipX - 0.3, y: tipY + 0.6 };
+  const c6 = { x: tipBottomX - 1.0, y: tipBottomY };
+  const c7 = { x: 8.5, y: 4.0 };
+  return {
+    path: `M ${baseLeft.x} ${baseLeft.y} Q 12 5.55 ${baseRight.x} ${baseRight.y} C ${c1.x.toFixed(2)} ${c1.y.toFixed(2)} ${c2.x.toFixed(2)} ${c2.y.toFixed(2)} ${elbowX.toFixed(2)} ${elbowY.toFixed(2)} C ${c3.x.toFixed(2)} ${c3.y.toFixed(2)} ${c4.x.toFixed(2)} ${c4.y.toFixed(2)} ${tipX.toFixed(2)} ${tipY.toFixed(2)} C ${c5.x.toFixed(2)} ${c5.y.toFixed(2)} ${c6.x.toFixed(2)} ${c6.y.toFixed(2)} ${tipBottomX.toFixed(2)} ${tipBottomY.toFixed(2)} C ${c7.x.toFixed(2)} ${c7.y.toFixed(2)} 8.0 4.5 ${baseLeft.x} ${baseLeft.y} Z`
+  };
+}
+
+function makeStar(cx, cy, r, rotationDeg, cornerRound, chubbiness, innerRatio) {
+  const innerR = r * innerRatio;
+  const rotRad = (rotationDeg * Math.PI) / 180;
+  const verts = [];
+  for (let i = 0; i < 10; i++) {
+    const ang = (i * Math.PI / 5) + rotRad - Math.PI / 2;
+    const radius = i % 2 === 0 ? r : innerR;
+    verts.push({ x: cx + Math.cos(ang) * radius, y: cy + Math.sin(ang) * radius });
+  }
+  const inP = [], outP = [];
+  for (let i = 0; i < 10; i++) {
+    const prev = verts[(i - 1 + 10) % 10];
+    const cur = verts[i];
+    const next = verts[(i + 1) % 10];
+    const v1x = prev.x - cur.x, v1y = prev.y - cur.y;
+    const v2x = next.x - cur.x, v2y = next.y - cur.y;
+    const v1Len = Math.hypot(v1x, v1y);
+    const v2Len = Math.hypot(v2x, v2y);
+    const cr = Math.min(cornerRound, v1Len * 0.48, v2Len * 0.48);
+    inP[i] = { x: cur.x + (v1x / v1Len) * cr, y: cur.y + (v1y / v1Len) * cr };
+    outP[i] = { x: cur.x + (v2x / v2Len) * cr, y: cur.y + (v2y / v2Len) * cr };
+  }
+  let path = `M ${inP[0].x.toFixed(2)} ${inP[0].y.toFixed(2)} `;
+  for (let i = 0; i < 10; i++) {
+    path += `Q ${verts[i].x.toFixed(2)} ${verts[i].y.toFixed(2)} ${outP[i].x.toFixed(2)} ${outP[i].y.toFixed(2)} `;
+    const nextI = (i + 1) % 10;
+    const startP = outP[i], endP = inP[nextI];
+    if (chubbiness > 0) {
+      const midX = (startP.x + endP.x) / 2, midY = (startP.y + endP.y) / 2;
+      const dx = midX - cx, dy = midY - cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const offset = chubbiness * r * 0.32;
+      path += `Q ${(midX + (dx / len) * offset).toFixed(2)} ${(midY + (dy / len) * offset).toFixed(2)} ${endP.x.toFixed(2)} ${endP.y.toFixed(2)} `;
+    } else {
+      path += `L ${endP.x.toFixed(2)} ${endP.y.toFixed(2)} `;
+    }
+  }
+  return `${path}Z`;
+}
+
+function makeSleepMask(p, tx, ty, rot, scale) {
+  const cx = 12 + tx;
+  const cy = 12 + ty;
+  const W = 16.61 * scale;
+  const H = 7.55 * scale;
+  const eyeScale = 1.18;
+  const eyeRot = 5;
+  const eyeOffsetY = -0.25;
+  const lashW = 2.45;
+  const lashH = 0.70;
+  const lashStroke = 0.45;
+  const lashGap = 6.00 * scale;
+  const lashHairLen = 0.66;
+  const lashHairCount = 3;
+
+  const sx = W / SLEEP_MASK_PATH.bboxW;
+  const sy = H / SLEEP_MASK_PATH.bboxH;
+  const cxOrig = SLEEP_MASK_PATH.bboxX + SLEEP_MASK_PATH.bboxW / 2;
+  const cyOrig = SLEEP_MASK_PATH.bboxY + SLEEP_MASK_PATH.bboxH / 2;
+  const body = `<g transform="translate(${cx} ${cy}) scale(${sx.toFixed(5)} ${sy.toFixed(5)}) translate(${(-cxOrig).toFixed(2)} ${(-cyOrig).toFixed(2)})">
+    <path d="${SLEEP_MASK_PATH.d}" fill="#22305A" stroke="#000000" stroke-width="0.22" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+  </g>`;
+
+  const arcLocal = `<path d="M ${(-lashW/2).toFixed(2)} 0 Q 0 ${(lashH * 2).toFixed(2)} ${(lashW/2).toFixed(2)} 0" fill="none" stroke="#FFFFFF" stroke-width="${lashStroke}" stroke-linecap="round"/>`;
+  const hairs = [];
+  const tPad = 0.18;
+  for (let i = 0; i < lashHairCount; i++) {
+    const t = tPad + (i / (lashHairCount - 1)) * (1 - 2 * tPad);
+    const sxh = (1-t)*(1-t)*(-lashW/2) + t*t*(lashW/2);
+    const syh = 2*(1-t)*t*(2*lashH);
+    const tangX = 2*(1-t)*(lashW/2) + 2*t*(lashW/2);
+    const tangY = 2*(1-t)*(2*lashH) + 2*t*(-2*lashH);
+    const tLen = Math.hypot(tangX, tangY);
+    const normX1 = -tangY / tLen, normY1 = tangX / tLen;
+    const normX2 = tangY / tLen, normY2 = -tangX / tLen;
+    const useFirst = normY1 > 0;
+    const dirX = useFirst ? normX1 : normX2;
+    const dirY = useFirst ? normY1 : normY2;
+    hairs.push(`<line x1="${sxh.toFixed(2)}" y1="${syh.toFixed(2)}" x2="${(sxh + dirX * lashHairLen).toFixed(2)}" y2="${(syh + dirY * lashHairLen).toFixed(2)}" stroke="#FFFFFF" stroke-width="${(lashStroke * 0.85).toFixed(2)}" stroke-linecap="round" opacity="0.92"/>`);
+  }
+
+  const eyeL = cx - lashGap / 2;
+  const eyeR = cx + lashGap / 2;
+  const wrapEye = (ecx, sign) => `<g transform="translate(${ecx.toFixed(2)} ${(cy + eyeOffsetY).toFixed(2)}) rotate(${(sign * eyeRot).toFixed(2)}) scale(${eyeScale.toFixed(3)})">${arcLocal}${hairs.join('')}</g>`;
+  return `<g class="sleep-mask" transform="rotate(${rot} ${cx} ${cy})" filter="url(#${p}-shadow)">${body}${wrapEye(eyeL, -1)}${wrapEye(eyeR, 1)}</g>`;
+}
+
+function makeCloudling(p) {
+  return `
+    <g class="cloudling-base">
+      <g class="edge-system">
+        <use class="edge-contact" href="#${p}-cloud-shape" fill="none" stroke="#7d8aa7" stroke-width="1.05" stroke-linejoin="round" transform="translate(0 0.18)" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-soft" href="#${p}-cloud-shape" fill="none" stroke="#7A9DFF" stroke-width="0.90" stroke-linejoin="round" filter="url(#${p}-edge-blur)"/>
+        <use class="edge-rim-tight" href="#${p}-cloud-shape" fill="none" stroke="#aab3c6" stroke-width="0.42" stroke-linejoin="round"/>
+      </g>
+      <g filter="url(#${p}-shadow)">
+        <use href="#${p}-cloud-shape" fill="url(#${p}-body)"/>
+        <rect x="1" y="2" width="22" height="11" fill="url(#${p}-hi)" clip-path="url(#${p}-clip)"/>
+      </g>
+    </g>
+  `;
+}
+
+function sleepyEyePath(cx, cy, w, h, tiltDeg, flip) {
+  const x1 = cx - w / 2;
+  const x2 = cx + w / 2;
+  const mid = cy + h * 0.56;
+  const c1x = cx - w * 0.18;
+  const c2x = cx + w * 0.18;
+  const tilt = flip * tiltDeg * 0.018;
+  return `M ${x1.toFixed(2)} ${(cy - tilt).toFixed(2)} C ${c1x.toFixed(2)} ${mid.toFixed(2)} ${c2x.toFixed(2)} ${mid.toFixed(2)} ${x2.toFixed(2)} ${(cy + tilt).toFixed(2)}`;
+}
+
+function makeBodyEyes(p, openU) {
+  const u = clamp01(openU);
+  const closedOpacity = 1 - smoothstep(0.36, 0.74, u);
+  const capsuleOpacity = smoothstep(0.22, 1, u);
+  const eyeCenterY = IDLE_EYE.y + IDLE_EYE.h / 2;
+  const h = lerp(0.20, IDLE_EYE.h, easeInOut(u));
+  const y = eyeCenterY - h / 2;
+  const rx = Math.min(IDLE_EYE.rx, h / 2);
+  const closedStroke = lerp(0.82, 0.40, u);
+  return `
+    <g class="body-eyes">
+      <g fill="none" stroke="url(#${p}-eye)" stroke-width="${closedStroke.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" opacity="${closedOpacity.toFixed(3)}">
+        <path d="${sleepyEyePath(9.00, 12.12, 2.72, 1.16, 7.7, -1)}"/>
+        <path d="${sleepyEyePath(15.00, 12.12, 2.72, 1.16, 7.7, 1)}"/>
+      </g>
+      <g opacity="${capsuleOpacity.toFixed(3)}">
+        <rect x="${IDLE_EYE.leftX}" y="${y.toFixed(3)}" width="${IDLE_EYE.w}" height="${h.toFixed(3)}" rx="${rx.toFixed(3)}" ry="${rx.toFixed(3)}" fill="url(#${p}-eye)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+        <rect x="${IDLE_EYE.rightX}" y="${y.toFixed(3)}" width="${IDLE_EYE.w}" height="${h.toFixed(3)}" rx="${rx.toFixed(3)}" ry="${rx.toFixed(3)}" fill="url(#${p}-eye)" stroke="#ffffff" stroke-width="0.08" stroke-opacity="0.7"/>
+      </g>
+    </g>
+  `;
+}
+
+function makeHat(p, tx, ty, rot, scale, opacity) {
+  const hatData = makeBentHat(0.4);
+  const cuff = makeFluffyCuff(p, 12, 5.4, 3.7, 0.85, 0, 18);
+  const s = STAR_LOCKED;
+  const star = makeStar(s.cx, s.cy, s.size, s.rotation, s.cornerRound, s.chubbiness, s.innerRatio);
+  return `
+    <g opacity="${opacity.toFixed(3)}" transform="translate(${tx.toFixed(3)} ${ty.toFixed(3)}) rotate(${rot.toFixed(3)} 12 5.4) scale(${scale.toFixed(4)})">
+      <g filter="url(#${p}-shadow)"><path d="${hatData.path}" fill="url(#${p}-hat)"/></g>
+      <g>${cuff}</g>
+      <g filter="url(#${p}-star-glow)">
+        <path d="${star}" fill="url(#${p}-star-yellow)" stroke="#ffffff" stroke-width="0.06" stroke-opacity="0.7" stroke-linejoin="round"/>
+      </g>
+    </g>
+  `;
+}
+
+function makeWakeSwitch(p, cx, cy, toggleMix, opacity, scale, rot, glow) {
+  const mix = clamp01(toggleMix);
+  const dayOpacity = 1 - mix;
+  const nightOpacity = mix;
+  const dayKnobOpacity = clamp01(1 - mix * 2.2);
+  const nightKnobOpacity = clamp01((mix - 0.18) / 0.82);
+  const knobX = cx + lerp(WAKE_SWITCH.dayKnobOffsetX, WAKE_SWITCH.nightKnobOffsetX, mix);
+  const knobY = cy;
+
+  const dayKnob = `
+    <g opacity="${dayKnobOpacity.toFixed(2)}">
+      <circle cx="${knobX.toFixed(2)}" cy="${knobY.toFixed(2)}" r="2.4" fill="#fff" filter="url(#${p}-shadow)"/>
+      <circle cx="${(knobX+0.85).toFixed(2)}" cy="${(knobY-0.95).toFixed(2)}" r="0.50" fill="#D4DFFF" opacity="0.78"/>
+      <circle cx="${(knobX+1.15).toFixed(2)}" cy="${(knobY+0.55).toFixed(2)}" r="0.28" fill="#D4DFFF" opacity="0.72"/>
+    </g>
+  `;
+
+  const outerR = 2.35, innerR = 1.70, innerDx = 0.80;
+  const ix = (outerR*outerR - innerR*innerR + innerDx*innerDx) / (2*innerDx);
+  const iy = Math.sqrt(outerR*outerR - ix*ix);
+  const nightKnob = `
+    <g filter="url(#${p}-shadow)" opacity="${nightKnobOpacity.toFixed(2)}">
+      <path d="
+        M ${(knobX+ix).toFixed(3)} ${(knobY-iy).toFixed(3)}
+        A ${outerR} ${outerR} 0 1 1 ${(knobX+ix).toFixed(3)} ${(knobY+iy).toFixed(3)}
+        A ${innerR} ${innerR} 0 1 0 ${(knobX+ix).toFixed(3)} ${(knobY-iy).toFixed(3)}
+        Z
+      " fill="#fff"/>
+    </g>
+  `;
+
+  const stars = `
+    <g opacity="${nightOpacity.toFixed(2)}">
+      <circle cx="${(cx-1.5).toFixed(2)}" cy="${(cy-0.9).toFixed(2)}" r="0.18" fill="#fff" opacity="0.95"/>
+      <circle cx="${(cx-0.5).toFixed(2)}" cy="${(cy+1.3).toFixed(2)}" r="0.14" fill="#fff" opacity="0.85"/>
+      <circle cx="${(cx+0.6).toFixed(2)}" cy="${(cy-0.4).toFixed(2)}" r="0.10" fill="#fff" opacity="0.75"/>
+      <circle cx="${(cx-1.2).toFixed(2)}" cy="${(cy+1.6).toFixed(2)}" r="0.10" fill="#fff" opacity="0.78"/>
+      <circle cx="${cx.toFixed(2)}" cy="${(cy-1.3).toFixed(2)}" r="0.13" fill="#fff" opacity="0.88"/>
+    </g>
+  `;
+
+  const rayOpacity = glow * 0.34;
+  const fineOpacity = glow * 0.22;
+  const rays = `
+    <g fill="none" stroke="#FFE9A8" stroke-linecap="round" filter="url(#${p}-soft)">
+      <path d="M ${(cx-7.8).toFixed(2)} ${(cy-4.2).toFixed(2)} L ${(cx-9.5-glow*0.45).toFixed(2)} ${(cy-5.2-glow*0.25).toFixed(2)}" stroke-width="0.34" opacity="${rayOpacity.toFixed(3)}"/>
+      <path d="M ${(cx-2.0).toFixed(2)} ${(cy-4.6).toFixed(2)} L ${(cx-2.5).toFixed(2)} ${(cy-6.2-glow*0.45).toFixed(2)}" stroke-width="0.28" opacity="${fineOpacity.toFixed(3)}"/>
+      <path d="M ${(cx+5.9).toFixed(2)} ${(cy-4.0).toFixed(2)} L ${(cx+7.4+glow*0.40).toFixed(2)} ${(cy-5.0-glow*0.20).toFixed(2)}" stroke-width="0.34" opacity="${rayOpacity.toFixed(3)}"/>
+      <path d="M ${(cx+7.8).toFixed(2)} ${(cy-0.2).toFixed(2)} L ${(cx+9.5+glow*0.50).toFixed(2)} ${(cy-0.2).toFixed(2)}" stroke-width="0.30" opacity="${fineOpacity.toFixed(3)}"/>
+      <path d="M ${(cx+4.8).toFixed(2)} ${(cy+4.0).toFixed(2)} L ${(cx+6.0+glow*0.32).toFixed(2)} ${(cy+5.0+glow*0.24).toFixed(2)}" stroke-width="0.28" opacity="${fineOpacity.toFixed(3)}"/>
+      <path d="M ${(cx-6.7).toFixed(2)} ${(cy+3.6).toFixed(2)} L ${(cx-8.1-glow*0.38).toFixed(2)} ${(cy+4.6+glow*0.22).toFixed(2)}" stroke-width="0.30" opacity="${rayOpacity.toFixed(3)}"/>
+      <path d="M ${(cx-8.2).toFixed(2)} ${(cy-0.2).toFixed(2)} L ${(cx-9.7-glow*0.42).toFixed(2)} ${(cy-0.2).toFixed(2)}" stroke-width="0.26" opacity="${fineOpacity.toFixed(3)}"/>
+    </g>
+  `;
+
+  return `
+    <g opacity="${opacity.toFixed(3)}" transform="translate(${cx} ${cy}) rotate(${rot.toFixed(3)}) scale(${scale.toFixed(3)}) translate(${-cx} ${-cy})">
+      ${rays}
+      <g filter="url(#${p}-shadow)">
+        <rect x="${(cx-7).toFixed(2)}" y="${(cy-3).toFixed(2)}" width="14" height="6" rx="3" ry="3" fill="url(#${p}-toggle-day)" opacity="${dayOpacity.toFixed(2)}"/>
+        <rect x="${(cx-7).toFixed(2)}" y="${(cy-3).toFixed(2)}" width="14" height="6" rx="3" ry="3" fill="url(#${p}-toggle-night)" opacity="${nightOpacity.toFixed(2)}"/>
+        <rect x="${(cx-7).toFixed(2)}" y="${(cy-3).toFixed(2)}" width="14" height="6" rx="3" ry="3" fill="none" stroke="#fff" stroke-opacity="0.18" stroke-width="0.12"/>
+      </g>
+      ${stars}
+      ${dayKnob}
+      ${nightKnob}
+    </g>
+  `;
+}
+
+function phaseName(t) {
+  if (t < TIMING.lampInEnd) return 'switch appears';
+  if (t < TIMING.switchEnd) return 'night to day';
+  if (t < TIMING.maskEnd) return 'mask sliding';
+  if (t < TIMING.eyeEnd) return 'body eyes waking';
+  return 'idle handoff';
+}
+
+function computeFrame(t) {
+  const lampIn = easeOutCubic(progress(t, TIMING.lampStart, TIMING.lampInEnd));
+  const switchU = easeInOut(progress(t, TIMING.switchStart, TIMING.switchEnd));
+  const lampOut = smoothstep(TIMING.lampOutStart, TIMING.lampOutEnd, t);
+  const maskU = easeOutCubic(progress(t, TIMING.maskStart, TIMING.maskEnd));
+  const hatU = easeOutCubic(progress(t, TIMING.hatStart, TIMING.hatEnd));
+  const eyeU = easeInOut(progress(t, TIMING.eyeStart, TIMING.eyeEnd));
+  const settleU = easeInOut(progress(t, 1.54, TIMING.settleEnd));
+  const maskClear = peekEyes ? 1 : maskU;
+  return {
+    phase: phaseName(t),
+    sceneRot: lerp(SLEEP.bodyTilt, 0, settleU),
+    scale: lerp(SLEEP.breathScale, 1.0, settleU),
+    eyeU,
+    wakeGlow: Math.sin(switchU * Math.PI) * 0.18,
+    lamp: {
+      opacity: lampIn * (1 - lampOut),
+      toggleMix: lerp(1, 0, switchU),
+      scale: lerp(0.88, 1, lampIn) + Math.sin(switchU * Math.PI) * 0.035,
+      rot: Math.sin(switchU * Math.PI * 2) * 1.15 * (1 - switchU),
+      glow: Math.sin(switchU * Math.PI),
+    },
+    mask: {
+      tx: lerp(SLEEP.maskTx, 7.6, maskClear),
+      ty: lerp(SLEEP.maskTy, -5.1, maskClear) - Math.sin(maskClear * Math.PI) * 0.08,
+      rot: lerp(SLEEP.maskRot, 14, maskClear),
+      opacity: peekEyes ? 0.08 : (1 - smoothstep(0.68, 1, maskU)),
+    },
+    hat: {
+      tx: lerp(SLEEP.hatTx, -7.0, hatU),
+      ty: lerp(SLEEP.hatTy, -6.4, hatU) - Math.sin(hatU * Math.PI) * 0.10,
+      rot: lerp(SLEEP.hatRot, -26, hatU),
+      scale: lerp(SLEEP.hatScale, 0.86, hatU),
+      opacity: 1 - smoothstep(0.62, 1, hatU),
+    },
+  };
+}
+
+function renderFrame(t) {
+  const f = computeFrame(t);
+  const p = 'si';
+  const mask = makeSleepMask(p, f.mask.tx, f.mask.ty, f.mask.rot, SLEEP.maskScale);
+  const wakeSwitch = makeWakeSwitch(p, WAKE_SWITCH.cx, WAKE_SWITCH.cy, f.lamp.toggleMix, f.lamp.opacity, f.lamp.scale, f.lamp.rot, f.lamp.glow);
+  stage.innerHTML = `
+<style>
+.edge-rim-tight { stroke-opacity: .08; }
+.edge-rim-soft  { stroke-opacity: .06; }
+.edge-contact   { stroke-opacity: .08; }
+.wrap {
+  width: min(960px, 100%);
+  display: grid;
+  gap: 18px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: end;
+}
+#stage {
+  width: min(520px, 82vw);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+output {
+  min-width: 76px;
+  color: rgba(255,255,255,.70);
+  font-size: 12px;
+  text-align: right;
+}
+.phase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 16px;
+  color: rgba(255,255,255,.62);
+  font-size: 12px;
+}
+.phase b { color: rgba(255,255,255,.88); font-weight: 650; }
+@media (prefers-color-scheme: light) {
+.edge-rim-tight { stroke-opacity: .15; }
+.edge-rim-soft  { stroke-opacity: .10; }
+.edge-contact   { stroke-opacity: .18; }
+.cloud-drop-shadow { flood-opacity: .13; }
+.phase, output { color: rgba(21,33,63,.62); }
+.phase b { color: rgba(21,33,63,.86); }
+.cloud-drop-shadow { flood-opacity: .13; }
+.food-cloud-shadow { flood-opacity: .28; flood-color: #5060FF; }
+.food-cloud > path {
+  stroke: #5870E8 !important;
+  stroke-width: 1.2 !important;
+  stroke-opacity: .9 !important;
+  vector-effect: non-scaling-stroke !important;
+}
+}
+</style>
+<defs>
+        ${commonDefs(p)}
+        <path id="${p}-cloud-shape" d="${CLOUD_D}"/>
+      </defs>
+      <g class="scene" transform="rotate(${f.sceneRot.toFixed(3)} 12 12)">
+        <g transform="translate(12 12) scale(${f.scale.toFixed(4)}) translate(-12 -12)">
+          <use href="#${p}-cloud-shape" fill="none" stroke="#FFE9A8" stroke-width="0.92" stroke-linejoin="round" opacity="${f.wakeGlow.toFixed(3)}" filter="url(#${p}-soft)"/>
+          ${makeCloudling(p)}
+          ${makeBodyEyes(p, f.eyeU)}
+          ${makeHat(p, f.hat.tx, f.hat.ty, f.hat.rot, f.hat.scale, f.hat.opacity)}
+          <g opacity="${f.mask.opacity.toFixed(3)}">${mask}</g>
+        </g>
+      </g>
+      ${wakeSwitch}
+  `;
+  scrubber.value = t.toFixed(2);
+  timeOut.value = `${t.toFixed(2)} s`;
+  phaseEl.innerHTML = `<span>phase: <b>${f.phase}</b></span><span>switch ${((1 - f.lamp.toggleMix) * 100).toFixed(0)}%</span><span>mask ${(progress(t, TIMING.maskStart, TIMING.maskEnd) * 100).toFixed(0)}%</span><span>body eyes ${(f.eyeU * 100).toFixed(0)}%</span><span>tilt ${f.sceneRot.toFixed(1)}deg</span><span>scale ${f.scale.toFixed(3)}</span>`;
+}
+
+function currentTime(now) {
+  if (!playing) return manualT;
+  return Math.min((now - start) / 1000, TIMING.settleEnd);
+}
+
+function loop(now) {
+  const t = currentTime(now);
+  renderFrame(t);
+  if (playing && t >= TIMING.settleEnd) {
+    playing = false;
+    manualT = TIMING.settleEnd;
+    { const __btn = document.getElementById('btn-play'); if (__btn) __btn.textContent = 'Play'; }
+  }
+  requestAnimationFrame(loop);
+}
+
+renderFrame(0);
+requestAnimationFrame(loop);
+]]></script>
+</svg>
