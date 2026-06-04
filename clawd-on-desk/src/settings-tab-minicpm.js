@@ -343,7 +343,11 @@
       },
     ));
 
-    if (IS_WINDOWS) {
+    const backendMode = window.minicpmSettings.getBackendMode
+      ? window.minicpmSettings.getBackendMode()
+      : null;
+
+    if (IS_WINDOWS && backendMode !== "openvino") {
       let devices = null;
       try { devices = await window.minicpmSettings.listDevices(); } catch {}
       const available = Array.isArray(devices && devices.available) ? devices.available : ["cpu"];

@@ -1,14 +1,14 @@
 {
-  "display_name": "本地AI对话",
-  "display_description": "基于本地AI大模型零成本智能对话(仅限英特尔AIPC平台)",
-  "detail_describe": "使用 MiniCPM5-1B 模型在本地 Intel 硬件上运行智能对话，支持 Hybrid Reasoning（思考模式/快速模式），无需联网，数据完全本地处理。",
+  "display_name": "MiniCPM 桌宠体验环境",
+  "display_description": "一键部署 MiniCPM 桌宠 + OpenVINO 推理后端（仅限 Intel AIPC 平台）",
+  "detail_describe": "在 Intel AIPC 本地硬件上部署完整的 MiniCPM 桌宠体验环境。后端采用 OpenVINO 推理引擎运行 MiniCPM5-1B INT8 模型，前端从源码启动 Electron 桌宠应用。部署完成后可直接通过桌宠界面进行本地 AI 对话，支持 Hybrid Reasoning，无需联网。",
   "name": "local-minicpm-pet-openvino",
   "icon": "",
   "use_cases": [
-    "和本地AI聊天",
-    "问AI一个问题并获得本地推理的回答",
-    "用本地模型做文本生成",
-    "离线环境下的智能问答"
+    "部署 MiniCPM 桌宠体验环境",
+    "搭建本地 AI 桌宠 + OpenVINO 后端",
+    "在 Intel AIPC 上运行离线 AI 桌宠",
+    "一键体验 MiniCPM 本地推理桌宠"
   ],
   "author": "MiniCPM",
   "version": "1.0.0"

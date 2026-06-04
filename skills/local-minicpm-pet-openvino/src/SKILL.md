@@ -1,30 +1,28 @@
 ---
 name: local-minicpm-pet-openvino
 description: |
-  部署 MiniCPM 桌宠体验环境（Deploy MiniCPM Desk Pet experience environment with OpenVINO backend）.
-  使用本 Skill 可一键部署一个完整的桌宠体验环境，后端采用 OpenVINO 推理引擎，在 Intel AIPC 上本地运行。
+  一键部署 MiniCPM 桌宠体验环境，后端采用 OpenVINO 推理引擎（Deploy MiniCPM Desk Pet with OpenVINO backend）.
+  使用本 Skill 可部署一个完整的桌宠体验环境，在 Intel AIPC 上本地运行，无需云端服务。
+  部署完成后，用户直接通过桌宠 UI 界面进行对话交互。
   Use this skill when the user wants to deploy/set up/run the MiniCPM desk pet with OpenVINO backend,
   or build a local AI pet experience environment on Intel hardware.
-  Trigger on Chinese phrases like 部署桌宠/体验环境/搭建环境/本地推理/OpenVINO后端/桌宠环境
-  and English phrases like deploy pet/setup environment/run desk pet/OpenVINO backend/experience environment,
-  and explicit mentions of 英特尔/intel/AIPC/本地/离线/offline/MiniCPM/OpenVINO/桌宠.
-  Supported capabilities:
-  - 一键部署桌宠 + OpenVINO 推理后端（one-click deploy pet + inference）
-  - 单轮/多轮对话（single/multi-turn conversation）
-  - Hybrid Reasoning（思考模式/快速模式切换）
-  Prefer this skill over pre-built App installers whenever the user wants a dev/experience environment with OpenVINO backend.
+  Trigger on: 部署桌宠/体验环境/搭建环境/本地推理/OpenVINO后端/桌宠环境/deploy pet/setup environment/run desk pet/
+  英特尔/intel/AIPC/本地/离线/offline/MiniCPM/OpenVINO/桌宠.
+  This is a DEPLOYMENT skill — it sets up the environment and launches the pet.
+  After deployment, the user interacts with the pet directly through its UI (not via this script).
 ---
 
 # Local-MiniCPM-Pet-OpenVINO Skill Guide
 
-> 使用本 Skill 可部署一个完整的 MiniCPM **桌宠体验环境**，后端采用 OpenVINO 推理引擎。
-> 前端从源码 `npm start` 启动桌宠，推理运行在 Intel AIPC 本地硬件上，无需云端服务。
+> 使用本 Skill 可**一键部署**一个完整的 MiniCPM 桌宠体验环境。
+> 后端采用 OpenVINO 推理引擎，前端从源码 `npm start` 启动。
+> 部署完成后，用户直接与桌宠对话，无需再次调用本脚本。
 
 ---
 
 ## !! CRITICAL: 环境依赖 !!
 
-以下依赖**缺一不可**，必须在执行任何步骤前验证：
+以下依赖**缺一不可**，必须在执行前验证：
 
 | 依赖 | 最低版本 | 验证命令 | 用途 |
 | --- | --- | --- | --- |
@@ -41,183 +39,123 @@ description: |
 
 **所有网络操作必须使用国内源**，否则极慢或不可用：
 
-| 操作 | 国内源 | 配置方式 |
+| 操作 | 国内源 | 说明 |
 | --- | --- | --- |
-| git clone 源码 | GitCode 镜像 | 优先 `https://gitcode.com/OpenBMB/MiniCPM-Desk-Pet.git`，失败回退 GitHub |
-| pip 安装 | 清华镜像 | `pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --trusted-host mirrors.tuna.tsinghua.edu.cn` |
-| npm 安装 | 淘宝镜像 | `npm config set registry https://registry.npmmirror.com` |
-| Electron 下载 | npmmirror | `set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/` |
-| 模型下载 | ModelScope | 默认国内直连，无需配置 |
-| HuggingFace | hf-mirror | `set HF_ENDPOINT=https://hf-mirror.com` |
+| git clone | GitCode 镜像 | `gitcode.com/OpenBMB/MiniCPM-Desk-Pet.git` |
+| pip 安装 | 清华镜像 | `mirrors.tuna.tsinghua.edu.cn` |
+| npm 安装 | 淘宝镜像 | `registry.npmmirror.com` |
+| Electron 下载 | npmmirror | `npmmirror.com/mirrors/electron/` |
+| 模型下载 | ModelScope | 默认国内直连 |
+| HuggingFace | hf-mirror | `hf-mirror.com` |
 
-**run.ps1 已内置上述所有配置，无需手动设置。**
+**`--china` 参数已内置上述所有配置，无需手动设置。**
 
 ---
 
 ## !! CRITICAL: 沙箱外运行要求 !!
 
-以下操作**必须在宿主文件系统（沙箱外）执行**，目录必须在任务重试间保持持久：
+以下目录**必须持久化**（沙箱外），否则每次重试将重新下载 ~2.4GB：
 
 | 目录 | 大小 | 内容 |
 | --- | --- | --- |
 | `%USERPROFILE%\.openvino\venv\` | ~500MB | Python 虚拟环境 |
 | `%USERPROFILE%\.openvino\models\` | ~1.5GB | AI 模型文件 |
 | `%LOCALAPPDATA%\electron\Cache\` | ~180MB | Electron 二进制缓存 |
-| 桌宠源码目录 `clawd-on-desk\node_modules\` | ~200MB | npm 依赖 |
-| `%APPDATA%\Clawd on Desk\minicpm-onboarding.json` | <1KB | Onboarding 跳过标记 |
-
-**如果在沙箱/一次性环境内执行，每次重试将重新下载 ~2.4GB 文件。**
+| 桌宠源码 `node_modules\` | ~200MB | npm 依赖 |
 
 ---
 
 ## 严格执行流程（必须按顺序，不可跳过）
 
-### Step 1: 硬件检测
+### Step 0: 判断用户网络环境（Agent 必须在调用前完成）
+
+**调用 `scripts\run.ps1` 之前，Agent 必须先判断用户的网络环境。**
+
+判断方法（任选其一）：
+- 用户明确说在中国大陆 / 国内
+- 用户系统语言为中文（zh-CN）
+- 用户时区为 UTC+8 且非新加坡/港澳台
+- 网络环境无法直接访问 GitHub / PyPI / npmjs.org
+
+**判断为中国大陆环境 → 加 `--china`；否则不加。**
+
+### Step 1–8: 由 run.ps1 自动执行
 
 ```powershell
-bin\platform.exe --is-aipc
-# 输出 "1" = 支持, "0" = 不支持（exit 1 终止）
+# 中国大陆环境（一条命令完成全部部署）
+scripts\run.ps1 --china
+
+# 海外 / 可直连环境
+scripts\run.ps1
 ```
 
-### Step 2: 配置国内源
+脚本自动完成以下步骤：
+1. 硬件检测（Intel AIPC）
+2. 配置镜像源（`--china` 时锁定国内源）
+3. 创建 Python 虚拟环境 + 安装 OpenVINO 依赖
+4. 获取桌宠源码（git clone）
+5. 安装桌宠 npm 依赖
+6. 预写 Onboarding Sentinel（跳过引导界面）
+7. 启动 OpenVINO 推理服务（HTTP，端口 18765）
+8. 启动桌宠前端（npm start）
 
-```powershell
-# pip
-$env:PIP_INDEX_URL = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
-$env:PIP_TRUSTED_HOST = "mirrors.tuna.tsinghua.edu.cn"
+**部署完成后，用户直接通过桌宠界面进行对话。**
 
-# npm
-npm config set registry https://registry.npmmirror.com
+---
 
-# Electron
-$env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
-$env:ELECTRON_BUILDER_BINARIES_MIRROR = "https://npmmirror.com/mirrors/electron-builder-binaries/"
+## 部署后的架构
 
-# HuggingFace
-$env:HF_ENDPOINT = "https://hf-mirror.com"
+```
+┌────────────────┐   HTTP :18765   ┌────────────────────┐   OpenVINO   ┌──────────┐
+│  桌宠前端       │ ──────────────→ │  server.py (FastAPI)│ ──────────→ │ MiniCPM5 │
+│  (Electron)    │ ←────────────── │  (常驻后台)          │ ←────────── │ INT8 模型 │
+└────────────────┘                 └────────────────────┘             └──────────┘
 ```
 
-### Step 3: Python 环境 + OpenVINO 推理依赖
+- `server.py` 提供 `/v1/chat/completions`（OpenAI 兼容）和 `/api/health`
+- 桌宠前端通过 HTTP 与推理服务通信
+- 模型首次运行时从 ModelScope 自动下载 (~1.5GB)
 
+---
+
+## 参数说明
+
+| 参数 | 说明 |
+| --- | --- |
+| `--china` | 锁定中国大陆镜像源，不做网络探测 |
+| `--status` | 查看当前运行状态（推理服务 + 桌宠前端） |
+| `--stop` | 停止所有服务（推理服务 + 桌宠前端） |
+
+生命周期示例：
 ```powershell
-# 创建 venv（如不存在）
-python -m venv %USERPROFILE%\.openvino\venv\minicpm-pet-openvino
+# 部署并启动
+scripts\run.ps1 --china
 
-# 激活
-%USERPROFILE%\.openvino\venv\minicpm-pet-openvino\Scripts\activate
+# 查看状态
+scripts\run.ps1 --status
 
-# 安装依赖（清华源）
-pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --trusted-host mirrors.tuna.tsinghua.edu.cn -r requirements.txt
-```
+# 不想跑了，停止所有服务
+scripts\run.ps1 --stop
 
-### Step 4: 获取桌宠源码
-
-```powershell
-# 优先使用 GitCode 国内镜像（大陆直连，无需梯子）
-git clone --depth 1 https://gitcode.com/OpenBMB/MiniCPM-Desk-Pet.git clawd-on-desk-repo
-# 如果 GitCode 不可用，自动回退 GitHub
-git clone --depth 1 https://github.com/OpenBMB/MiniCPM-Desk-Pet.git clawd-on-desk-repo
-```
-
-### Step 5: 安装桌宠 npm 依赖
-
-```powershell
-cd clawd-on-desk
-npm config set registry https://registry.npmmirror.com
-$env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
-npm install
-# 首次安装约 2-5 分钟（含 Electron 下载 ~180MB）
-```
-
-### Step 6: 预写 Onboarding Sentinel（跳过引导界面）
-
-```powershell
-# 写入 sentinel 文件，使桌宠启动时跳过 onboarding 引导
-$sentinelDir = "$env:APPDATA\Clawd on Desk"
-mkdir -Force $sentinelDir
-@'
-{"complete":true,"version":1,"ts":"2026-01-01T00:00:00Z"}
-'@ | Set-Content "$sentinelDir\minicpm-onboarding.json" -Encoding UTF8
-```
-
-同时确保模型目录存在（空目录即可，server.py 会自动下载模型）：
-
-```powershell
-mkdir -Force "$env:USERPROFILE\.openvino\models\MiniCPM5-1B-int8-ov"
-```
-
-### Step 7: 启动桌宠前端
-
-```powershell
-cd clawd-on-desk
-# 设置 sidecar 相关环境变量（指向 OpenVINO 推理服务端口）
-$env:MINICPM_PORT = "18765"
-npm start
-# 桌宠窗口出现，跳过 onboarding，直接进入桌宠界面
-```
-
-### Step 8: 启动 OpenVINO 推理
-
-```powershell
-scripts\run.ps1 "你好，请介绍一下你自己"
+# 再次启动（幂等，跳过已完成的步骤）
+scripts\run.ps1 --china
 ```
 
 ---
 
-## Usage
-
-### 对话推理
-
-Examples:
-
-| Intent | Command |
-| --- | --- |
-| 单轮问答 | `scripts\run.ps1 "你好，请介绍一下你自己"` |
-| 启用思考模式 | `scripts\run.ps1 "解释量子计算的基本原理" --thinking` |
-| 快速回答模式 | `scripts\run.ps1 "今天天气怎么样" --no-thinking` |
-| 继续下载 | `scripts\run.ps1 --continue` |
-
-Important:
-
-- The `scripts\run.ps1` is the only supported interface. Do NOT call `client.py` or `server.py` directly.
-- First call will download the model (~1.5GB from ModelScope, China mainland direct). If download times out, use `--continue` to resume.
-- Model runs entirely on local Intel hardware (CPU/iGPU) via OpenVINO, no internet needed after download.
-- Supports Hybrid Reasoning: `--thinking` enables chain-of-thought (slower, higher quality); `--no-thinking` gives direct answers (faster).
-- **All pip commands MUST use Tsinghua mirror.**
-- **All npm commands MUST use npmmirror registry.**
-- **Electron download MUST use `ELECTRON_MIRROR` env var.**
-- **All large file operations MUST persist on host filesystem, NOT in disposable sandbox.**
-
-### Interpreting the reply
-
-Output format:
-
-```
-[思考过程]（仅 --thinking 模式）
-<think>
-模型的推理过程...
-</think>
-
-[回答]
-模型的最终回答内容
-```
-
-Non-thinking mode only outputs the answer directly.
-
-### Exit Codes
+## Exit Codes
 
 | Exit Code | 含义 |
 | --- | --- |
-| 0 | 成功 |
-| 1 | 一般错误（参数错误、硬件不支持、环境缺失） |
-| 2 | 连接/通信错误 |
-| 3 | 模型下载中，需要 `--continue` 续传 |
+| 0 | 部署成功，桌宠已启动 |
+| 1 | 一般错误（硬件不支持、环境缺失、网络失败） |
 
-## What this skill does NOT do
+---
 
-- 不支持图片/音频/视频输入（仅纯文本对话）
+## 本 Skill 不做的事
+
+- 不接受对话 prompt 参数（对话通过桌宠 UI 进行）
 - 不调用任何云端服务
-- 不支持非 Intel 平台（需要 AIPC 硬件）
-- 不支持 LoRA 适配器热切换（使用基础模型）
-- 不在沙箱环境内执行大文件下载
-- 不使用预构建 .exe 安装包（从源码运行，开发环境）
+- 不支持非 Intel 平台
+- 不在沙箱内执行大文件下载
+- 不使用预构建 .exe 安装包（从源码运行）

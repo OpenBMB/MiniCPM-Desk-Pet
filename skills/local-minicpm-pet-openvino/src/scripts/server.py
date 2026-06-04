@@ -1,10 +1,9 @@
-"""local-chat server: 长生命周期进程，保持 OpenVINO 模型热加载。
+"""OpenVINO 推理 HTTP 服务，替代 llama-server。
 
-职责：
-- 监听 Named Pipe (\\.\pipe\local-chat)
-- 后台线程下载/加载模型
-- 保持模型常驻内存，处理后续推理请求
-- 响应 status / request / shutdown 操作
+监听 127.0.0.1:18765，提供与桌宠 sidecar 兼容的 API：
+- GET  /api/health          健康检查
+- POST /v1/chat/completions OpenAI 兼容的 chat completions
+- POST /api/shutdown        优雅关闭
 """
 
 from __future__ import annotations
@@ -15,9 +14,13 @@ import sys
 import threading
 import time
 import traceback
-from multiprocessing.connection import Client, Listener
 from pathlib import Path
 from typing import Optional
+
+import uvicorn
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 # ── 编码配置 ──────────────────────────────────────────────────────────────────
 
@@ -32,8 +35,8 @@ _configure_stream_encoding(sys.stderr)
 # ── 常量 ──────────────────────────────────────────────────────────────────────
 
 SKILL_NAME = "local-minicpm-pet-openvino"
-PIPE_ADDRESS = r"\\.\pipe\local-minicpm-pet-openvino"
-AUTHKEY = b"local-minicpm-pet-openvino"
+SERVER_HOST = "127.0.0.1"
+SERVER_PORT = 18765
 
 OPENVINO_ROOT = Path(os.environ.get("USERPROFILE", "~")) / ".openvino"
 MODELS_DIR = OPENVINO_ROOT / "models"
@@ -42,7 +45,7 @@ LOG_DIR = OPENVINO_ROOT / "log"
 # ── 日志 ──────────────────────────────────────────────────────────────────────
 
 LOG_DIR.mkdir(parents=True, exist_ok=True)
-_log_file = LOG_DIR / f"{SKILL_NAME}-server-py-{time.strftime('%Y%m%d-%H%M%S')}.log"
+_log_file = LOG_DIR / f"{SKILL_NAME}-server-{time.strftime('%Y%m%d-%H%M%S')}.log"
 
 
 def log(msg: str):
@@ -56,7 +59,7 @@ def log(msg: str):
 
 class ServerState:
     def __init__(self):
-        self.state = "starting"  # starting/downloading/loading/running/error
+        self.status = "starting"  # starting/downloading/loading/ok/error
         self.error: Optional[str] = None
         self.progress: str = ""
         self.pipe = None
@@ -90,10 +93,9 @@ def _pick_device() -> str:
 # ── 模型管理 ──────────────────────────────────────────────────────────────────
 
 def _get_info() -> dict:
-    # 从 temp 目录读 info.json 或从原始位置
     info_candidates = [
-        OPENVINO_ROOT / "temp" / SKILL_NAME / "info.json",
         Path(__file__).resolve().parent.parent / "info.json",
+        OPENVINO_ROOT / "temp" / SKILL_NAME / "info.json",
     ]
     for p in info_candidates:
         if p.exists():
@@ -103,7 +105,6 @@ def _get_info() -> dict:
 
 
 def _check_model_ready(model_dir: Path, required_files: list) -> bool:
-    """检查模型文件是否完整。"""
     if not model_dir.exists():
         return False
     for rf in required_files:
@@ -113,8 +114,7 @@ def _check_model_ready(model_dir: Path, required_files: list) -> bool:
 
 
 def _download_model(model_info: dict) -> Path:
-    """从 ModelScope 下载模型。"""
-    _state.state = "downloading"
+    _state.status = "downloading"
     model_id = model_info["model_id"]
     dir_name = model_info["dir_name"]
     target_dir = MODELS_DIR / dir_name
@@ -128,17 +128,12 @@ def _download_model(model_info: dict) -> Path:
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     from modelscope import snapshot_download
-    snapshot_download(
-        model_id,
-        local_dir=str(partial_dir),
-    )
+    snapshot_download(model_id, local_dir=str(partial_dir))
 
-    # 验证完整性
     required = model_info.get("required_files", [])
     if not _check_model_ready(partial_dir, required):
         raise RuntimeError(f"Model download incomplete, missing files in {partial_dir}")
 
-    # 原子重命名
     if target_dir.exists():
         import shutil
         shutil.rmtree(target_dir)
@@ -148,8 +143,7 @@ def _download_model(model_info: dict) -> Path:
 
 
 def _load_model(model_dir: Path):
-    """加载 OpenVINO 模型到内存。"""
-    _state.state = "loading"
+    _state.status = "loading"
     log(f"Loading model from {model_dir}")
 
     import openvino_genai
@@ -161,7 +155,6 @@ def _load_model(model_dir: Path):
 
 
 def _ensure_models():
-    """后台线程：下载并加载模型。"""
     try:
         info = _get_info()
         models = info.get("models", [])
@@ -171,24 +164,22 @@ def _ensure_models():
         model_info = models[0]
         model_dir = _download_model(model_info)
         _load_model(model_dir)
-        _state.state = "running"
+        _state.status = "ok"
         log("Server ready")
     except Exception as e:
-        _state.state = "error"
+        _state.status = "error"
         _state.error = str(e)
         log(f"Model init failed: {e}\n{traceback.format_exc()}")
 
 
 # ── 推理 ──────────────────────────────────────────────────────────────────────
 
-def _do_inference(prompt: str, thinking: bool = False) -> dict:
-    """执行推理并返回结果。"""
+def _do_inference(messages: list, thinking: bool = False, max_tokens: int = 512) -> dict:
     import openvino_genai
 
     if not _state.pipe or not _state.tokenizer:
-        return {"ok": False, "error": "模型未加载"}
+        raise RuntimeError("模型未加载")
 
-    messages = [{"role": "user", "content": prompt}]
     tokenized_prompt = _state.tokenizer.apply_chat_template(
         messages,
         add_generation_prompt=True,
@@ -196,7 +187,7 @@ def _do_inference(prompt: str, thinking: bool = False) -> dict:
     )
 
     config = openvino_genai.GenerationConfig()
-    config.max_new_tokens = 1024 if thinking else 512
+    config.max_new_tokens = max_tokens
     config.do_sample = True
     config.temperature = 0.9 if thinking else 0.7
     config.top_p = 0.95
@@ -204,7 +195,6 @@ def _do_inference(prompt: str, thinking: bool = False) -> dict:
     result = _state.pipe.generate(tokenized_prompt, config)
     text = result.texts[0] if hasattr(result, "texts") else str(result)
 
-    # 分离 think 块
     thinking_content = None
     answer_content = text
 
@@ -216,83 +206,95 @@ def _do_inference(prompt: str, thinking: bool = False) -> dict:
             answer_content = text[think_end + len("</think>"):].strip()
 
     return {
-        "ok": True,
         "content": answer_content,
         "thinking": thinking_content,
     }
 
 
-# ── Pipe 请求处理 ─────────────────────────────────────────────────────────────
+# ── FastAPI 应用 ──────────────────────────────────────────────────────────────
 
-def _handle_request(msg: dict) -> dict:
-    op = msg.get("op", "")
-
-    if op == "status":
-        resp = {
-            "ok": True,
-            "state": _state.state,
-            "pid": os.getpid(),
-            "uptime_s": _state.uptime_s,
-        }
-        if _state.error:
-            resp["error"] = _state.error
-        if _state.progress:
-            resp["progress"] = _state.progress
-        return resp
-
-    if op == "request":
-        if _state.state != "running":
-            return {"ok": False, "error": f"Server not ready (state={_state.state})"}
-        prompt = msg.get("prompt", "")
-        thinking = msg.get("thinking", False)
-        if not prompt:
-            return {"ok": False, "error": "Empty prompt"}
-        try:
-            return _do_inference(prompt, thinking=thinking)
-        except Exception as e:
-            log(f"Inference error: {e}")
-            return {"ok": False, "error": str(e)}
-
-    if op == "shutdown":
-        timeout = msg.get("timeout", 10.0)
-        log(f"Shutdown requested (timeout={timeout}s)")
-        threading.Timer(0.5, lambda: os._exit(0)).start()
-        return {"ok": True, "state": "shutting_down"}
-
-    return {"ok": False, "error": f"Unknown op: {op}"}
+app = FastAPI(title="MiniCPM OpenVINO Server")
 
 
-# ── 主循环 ────────────────────────────────────────────────────────────────────
+@app.get("/api/health")
+def health():
+    resp = {
+        "status": _state.status,
+        "pid": os.getpid(),
+        "uptime_s": _state.uptime_s,
+    }
+    if _state.error:
+        resp["error"] = _state.error
+    if _state.progress:
+        resp["progress"] = _state.progress
+    return resp
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatCompletionRequest(BaseModel):
+    model: str = "minicpm5-1b-openvino"
+    messages: list[ChatMessage]
+    max_tokens: int = 512
+    temperature: float = 0.7
+    stream: bool = False
+
+
+@app.post("/v1/chat/completions")
+def chat_completions(req: ChatCompletionRequest):
+    if _state.status != "ok":
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model not ready (status={_state.status})"
+        )
+
+    if req.stream:
+        raise HTTPException(status_code=501, detail="Streaming not supported yet")
+
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+    thinking = req.temperature > 0.8
+
+    try:
+        result = _do_inference(messages, thinking=thinking, max_tokens=req.max_tokens)
+    except Exception as e:
+        log(f"Inference error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    return {
+        "id": f"chatcmpl-{int(time.time())}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": req.model,
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": result["content"],
+            },
+            "finish_reason": "stop",
+        }],
+    }
+
+
+@app.post("/api/shutdown")
+def shutdown():
+    log("Shutdown requested via API")
+    threading.Timer(1.0, lambda: os._exit(0)).start()
+    return {"ok": True, "message": "Shutting down in 1s"}
+
+
+# ── 入口 ─────────────────────────────────────────────────────────────────────
 
 def main():
-    log(f"Server starting, pipe={PIPE_ADDRESS}")
+    log(f"Starting HTTP server on {SERVER_HOST}:{SERVER_PORT}")
 
-    # 后台加载模型
     init_thread = threading.Thread(target=_ensure_models, daemon=True)
     init_thread.start()
 
-    # 监听 Named Pipe
-    listener = Listener(PIPE_ADDRESS, authkey=AUTHKEY)
-    log("Listening on pipe")
-
-    try:
-        while True:
-            try:
-                conn = listener.accept()
-                msg = conn.recv()
-                resp = _handle_request(msg)
-                conn.send(resp)
-                conn.close()
-            except EOFError:
-                continue
-            except Exception as e:
-                log(f"Connection error: {e}")
-                continue
-    except KeyboardInterrupt:
-        pass
-    finally:
-        listener.close()
-        log("Server stopped")
+    uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT, log_level="warning")
 
 
 if __name__ == "__main__":

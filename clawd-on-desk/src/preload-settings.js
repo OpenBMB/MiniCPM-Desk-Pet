@@ -143,6 +143,9 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   enterBubbleEdit: () => ipcRenderer.invoke("minicpm-settings:enter-bubble-edit"),
   exitBubbleEdit: (save) => ipcRenderer.invoke("minicpm-settings:exit-bubble-edit", { save: !!save }),
 
+  // Backend mode (set by external launchers like OpenVINO skill)
+  getBackendMode: () => process.env.MINICPM_BACKEND || null,
+
   // Accelerator (device) manual override
   listDevices: () => ipcRenderer.invoke("minicpm-settings:list-devices"),
   setDevice: (device) => ipcRenderer.invoke("minicpm-settings:set-device", { device }),

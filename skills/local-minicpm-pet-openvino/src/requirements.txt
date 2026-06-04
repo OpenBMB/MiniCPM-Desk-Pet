@@ -1,6 +1,8 @@
-# 安装时必须使用清华源:
+# 中国大陆环境安装:
 # pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --trusted-host mirrors.tuna.tsinghua.edu.cn -r requirements.txt
 openvino-genai>=2026.0
 openvino>=2026.0
 numpy<2.0
 modelscope
+fastapi
+uvicorn[standard]
