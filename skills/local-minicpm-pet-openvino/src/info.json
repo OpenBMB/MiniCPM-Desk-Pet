@@ -1,0 +1,19 @@
+{
+  "venv_name": "minicpm-pet-openvino",
+  "python_version": "3.11",
+  "mem_need_gb": 2.0,
+  "server_alive_timeout": 300,
+  "models": [
+    {
+      "model_id": "snake7gun/MiniCPM5-1B-int8-ov",
+      "dir_name": "MiniCPM5-1B-int8-ov",
+      "required_files": [
+        "openvino_model.xml",
+        "openvino_model.bin",
+        "openvino_tokenizer.xml",
+        "openvino_tokenizer.bin",
+        "tokenizer_config.json"
+      ]
+    }
+  ]
+}

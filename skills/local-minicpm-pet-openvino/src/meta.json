@@ -1,0 +1,15 @@
+{
+  "display_name": "本地AI对话",
+  "display_description": "基于本地AI大模型零成本智能对话(仅限英特尔AIPC平台)",
+  "detail_describe": "使用 MiniCPM5-1B 模型在本地 Intel 硬件上运行智能对话，支持 Hybrid Reasoning（思考模式/快速模式），无需联网，数据完全本地处理。",
+  "name": "local-minicpm-pet-openvino",
+  "icon": "",
+  "use_cases": [
+    "和本地AI聊天",
+    "问AI一个问题并获得本地推理的回答",
+    "用本地模型做文本生成",
+    "离线环境下的智能问答"
+  ],
+  "author": "MiniCPM",
+  "version": "1.0.0"
+}
