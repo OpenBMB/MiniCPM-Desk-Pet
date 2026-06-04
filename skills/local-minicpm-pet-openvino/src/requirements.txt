@@ -1,3 +1,5 @@
+# 安装时必须使用清华源:
+# pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple --trusted-host mirrors.tuna.tsinghua.edu.cn -r requirements.txt
 openvino-genai>=2026.0
 openvino>=2026.0
 numpy<2.0
