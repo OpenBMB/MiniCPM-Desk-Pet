@@ -28,6 +28,7 @@ $China = $false
 $Stop = $false
 $Status = $false
 $Debug = $false
+$Device = ""
 
 for ($i = 0; $i -lt $args.Count; $i++) {
     switch ($args[$i]) {
@@ -35,18 +36,32 @@ for ($i = 0; $i -lt $args.Count; $i++) {
         "--stop"   { $Stop = $true }
         "--status" { $Status = $true }
         "--debug"  { $Debug = $true }
+        "--device" {
+            $i++
+            if ($i -lt $args.Count) { $Device = $args[$i].ToUpper() }
+        }
         default {
             Write-Host "未知参数: $($args[$i])"
             Write-Host ""
-            Write-Host "用法: scripts\run.ps1 [--china]        部署并启动"
-            Write-Host "      scripts\run.ps1 --status         查看运行状态"
-            Write-Host "      scripts\run.ps1 --stop           停止所有服务"
-            Write-Host "      scripts\run.ps1 --debug          输出诊断信息"
+            Write-Host "用法: scripts\run.ps1 [--china] [--device NPU|GPU|CPU]  部署并启动"
+            Write-Host "      scripts\run.ps1 --status                          查看运行状态"
+            Write-Host "      scripts\run.ps1 --stop                            停止所有服务"
+            Write-Host "      scripts\run.ps1 --debug                           输出诊断信息"
             Write-Host ""
-            Write-Host "  --china    使用中国大陆镜像源"
+            Write-Host "  --china          使用中国大陆镜像源"
+            Write-Host "  --device <DEV>   指定推理设备: NPU, GPU, CPU（默认自动检测）"
             exit 1
         }
     }
+}
+
+# 设置推理设备环境变量（server.py 会读取）
+if ($Device) {
+    if ($Device -notin @("NPU", "GPU", "CPU")) {
+        Write-Host "错误: --device 参数必须是 NPU、GPU 或 CPU"
+        exit 1
+    }
+    $env:OPENVINO_DEVICE = $Device
 }
 
 # ── --status: 查看运行状态 ───────────────────────────────────────────────────
@@ -59,7 +74,7 @@ if ($Status) {
     # 检查推理服务
     $serverUp = $false
     try {
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
         if ($resp.StatusCode -eq 200) {
             $health = $resp.Content | ConvertFrom-Json
             $serverUp = $true
@@ -132,7 +147,7 @@ if ($Debug) {
     # 4. 推理服务状态
     Write-Host "[推理服务]"
     try {
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
         if ($resp.StatusCode -eq 200) {
             Write-Host "  状态: 运行中"
             Write-Host "  响应: $($resp.Content)"
@@ -188,10 +203,10 @@ if ($Stop) {
     Write-Host "正在停止 MiniCPM 桌宠环境..."
     Write-Host ""
 
-    # 停止推理服务
+    # 1. 发送优雅关闭信号
     $serverStopped = $false
     try {
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/shutdown" -Method POST -TimeoutSec 5 -ErrorAction SilentlyContinue
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/shutdown" -Method POST -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
         if ($resp.StatusCode -eq 200) {
             $serverStopped = $true
             Write-Host "  推理服务: 已发送停止信号"
@@ -201,7 +216,33 @@ if ($Stop) {
         Write-Host "  推理服务: 未在运行（或已停止）"
     }
 
-    # 停止桌宠前端
+    # 2. 等待优雅退出
+    if ($serverStopped) {
+        Start-Sleep -Seconds 3
+    }
+
+    # 3. 强制清理残留 Python server 进程
+    try {
+        $pyProcs = Get-Process -Name "python", "python3", "pythonw" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -match "server\.py" }
+        if ($pyProcs) {
+            $pyProcs | Stop-Process -Force
+            Write-Host "  推理服务: 已强制终止残留进程"
+        }
+    } catch {}
+
+    # 4. 确认端口释放，如有残留按 PID 强杀
+    $portInUse = netstat -ano 2>$null | Select-String ":18765.*LISTEN"
+    if ($portInUse) {
+        $pidMatch = $portInUse.ToString() -match '\s(\d+)\s*$'
+        if ($pidMatch) {
+            $orphanPid = [int]$Matches[1]
+            Write-Host "  端口 18765 仍被 PID $orphanPid 占用，强制终止..."
+            Stop-Process -Id $orphanPid -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # 5. 停止桌宠前端
     try {
         $procs = Get-Process -Name "electron", "MiniCPM*", "Clawd*" -ErrorAction SilentlyContinue
         if ($procs) {
@@ -225,17 +266,59 @@ Write-Host " MiniCPM 桌宠 + OpenVINO 后端 部署工具"
 Write-Host "=============================================="
 Write-Host ""
 
+Write-Host "[Step 1] 检测处理器..."
+
+$cpu = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue
+$cpuName = if ($cpu) { $cpu.Name.Trim() } else { "Unknown" }
+$manufacturer = if ($cpu) { $cpu.Manufacturer } else { "Unknown" }
+
+Write-Host "  处理器: $cpuName"
+Write-Host "  制造商: $manufacturer"
+
+# 品牌检测：非 Intel 直接阻断
+if ($manufacturer -ne "GenuineIntel") {
+    Write-Host ""
+    Write-Host "=============================================="
+    Write-Host "  错误: 检测到非 Intel 处理器 ($manufacturer)"
+    Write-Host ""
+    Write-Host "  OpenVINO 推理加速仅支持 Intel 处理器。"
+    Write-Host "  您的处理器: $cpuName"
+    Write-Host ""
+    Write-Host "  如需使用 MiniCPM 桌宠，请考虑:"
+    Write-Host "    - 使用默认 llama.cpp 后端（支持更多平台）"
+    Write-Host "    - 或换用 Intel Core Ultra 系列 PC"
+    Write-Host "=============================================="
+    exit 1
+}
+
+# 型号检测：不在已知加速列表则警告但不阻断
+$supportedPatterns = @("Core.*Ultra", "Xeon", "Arc", "Core.*1[2-4]\d{2,3}")
+$isKnownSupported = $false
+foreach ($pat in $supportedPatterns) {
+    if ($cpuName -match $pat) {
+        $isKnownSupported = $true
+        break
+    }
+}
+
+if (-not $isKnownSupported) {
+    Write-Host ""
+    Write-Host "  警告: 您的 Intel 处理器不在已知最佳支持列表中。"
+    Write-Host "  推理仍可运行（CPU 模式），但性能可能不佳。"
+    Write-Host "  推荐: Intel Core Ultra 系列（Lunar Lake/Meteor Lake/Arrow Lake）"
+    Write-Host "  继续部署... (Ctrl+C 取消)"
+    Start-Sleep -Seconds 3
+} else {
+    Write-Host "  硬件检测通过。"
+}
+
+# platform.exe 补充检测（如果存在）
 $PlatformExe = Join-Path $SkillRoot "bin\platform.exe"
 if (Test-Path $PlatformExe) {
-    Write-Host "[Step 1] 检测 Intel AIPC 硬件..."
-    $isAipc = & $PlatformExe --is-aipc
-    if ($isAipc -ne "1") {
-        Write-Host "错误: 需要 Intel AIPC 平台（LNL/ARL/PTL/WCL）。"
-        exit 1
-    }
-    Write-Host "硬件检测通过。"
-} else {
-    Write-Host "[Step 1] 跳过硬件检测（未找到 platform.exe）"
+    $hasNpu = & $PlatformExe --has-npu 2>$null
+    $hasGpu = & $PlatformExe --has-gpu 2>$null
+    Write-Host "  NPU: $(if($hasNpu -eq '1'){'可用'}else{'不可用'})"
+    Write-Host "  GPU: $(if($hasGpu -eq '1'){'可用'}else{'不可用'})"
 }
 
 # ── Step 2: 配置镜像源 ───────────────────────────────────────────────────────
@@ -296,6 +379,10 @@ $PetRepoUrl_GitHub = "https://github.com/OpenBMB/MiniCPM-Desk-Pet.git"
 
 if (-not (Test-Path (Join-Path $PetDir "package.json"))) {
     Write-Host "[Step 4] 桌宠源码不在本地，正在获取..."
+
+    # 跳过 Git LFS 大文件下载（模型由 server.py 单独管理）
+    $env:GIT_LFS_SKIP_SMUDGE = "1"
+
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
     if (-not $gitCmd) {
         Write-Host "错误: 未找到 git。请先安装 git。"
@@ -403,7 +490,7 @@ Write-Host "[Step 7] 启动 OpenVINO 推理服务（端口 18765）..."
 $ServerPort = 18765
 $ServerAlreadyRunning = $false
 try {
-    $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+    $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
     if ($resp.StatusCode -eq 200) {
         $ServerAlreadyRunning = $true
     }
@@ -420,7 +507,7 @@ if (-not $ServerAlreadyRunning) {
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 2
         try {
-            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+            $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 3 -UseBasicParsing -ErrorAction SilentlyContinue
             if ($resp.StatusCode -eq 200) {
                 $health = $resp.Content | ConvertFrom-Json
                 if ($health.status -eq "ok" -or $health.status -eq "downloading") {
@@ -451,12 +538,10 @@ if (-not $PetRunning) {
     Write-Host "[Step 8] 正在启动桌宠前端 (npm start)..."
     $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
     if ($npmCmd) {
-        # 设置后端标识：前端读到此变量时隐藏 CPU/Vulkan 设备选择
+        # 通过 cmd /c 启动确保环境变量正确传递到子进程
+        # Start-Process 直接启动 npm 时可能丢失当前 shell 的环境变量
         $env:MINICPM_BACKEND = "openvino"
-
-        Push-Location $PetDir
-        Start-Process -FilePath "npm" -ArgumentList "start" -WindowStyle Minimized
-        Pop-Location
+        Start-Process -FilePath "cmd" -ArgumentList "/c", "cd /d `"$PetDir`" && set MINICPM_BACKEND=openvino&& npm start" -WindowStyle Minimized
         Start-Sleep -Seconds 3
         Write-Host "桌宠前端已启动（后端模式: OpenVINO）。"
     } else {
@@ -477,7 +562,7 @@ Write-Host ""
 $deployServerStatus = "error"
 $deployModelStatus = "error"
 try {
-    $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 5 -ErrorAction SilentlyContinue
+    $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 5 -UseBasicParsing -ErrorAction SilentlyContinue
     if ($resp.StatusCode -eq 200) {
         $health = $resp.Content | ConvertFrom-Json
         $deployServerStatus = $health.status  # ok / downloading / loading / error
