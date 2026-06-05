@@ -126,6 +126,9 @@ module.exports = function initOnboarding(ctx) {
   function shouldShow() {
     // Force-rerun via env (developer override).
     if (process.env.MINICPM_FORCE_ONBOARDING === "1") return true;
+    // External backend (e.g. OpenVINO skill) manages its own model —
+    // skip onboarding entirely when MINICPM_BACKEND is set.
+    if (process.env.MINICPM_BACKEND) return false;
     const s = readSentinel();
     if (!s || s.complete !== true) return true;
     // Future-proof: a schema bump invalidates older sentinels.
