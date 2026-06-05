@@ -81,12 +81,21 @@ description: |
 
 ### Step 1–8: 由 run.ps1 自动执行
 
+**Agent 必须使用以下方式调用脚本**（禁止直接双击 ps1 文件）：
 ```powershell
 # 中国大陆环境（一条命令完成全部部署）
-scripts\run.ps1 --china
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" --china
 
 # 海外 / 可直连环境
-scripts\run.ps1
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1"
+
+# 指定推理设备（可选：NPU、GPU、CPU，默认自动检测）
+powershell -ExecutionPolicy Bypass -File "scripts\run.ps1" --china --device NPU
+```
+
+或使用 `run.cmd` 包装入口（用户可直接双击）：
+```
+scripts\run.cmd --china
 ```
 
 脚本自动完成以下步骤：
@@ -155,9 +164,15 @@ Agent 应解析此摘要：
 | 参数 | 说明 |
 | --- | --- |
 | `--china` | 锁定中国大陆镜像源，不做网络探测 |
+| `--device NPU\|GPU\|CPU` | 指定推理设备（默认自动检测，优先 GPU） |
 | `--status` | 查看当前运行状态（推理服务 + 桌宠前端） |
-| `--stop` | 停止所有服务（推理服务 + 桌宠前端） |
+| `--stop` | 停止所有服务（推理服务 + 桌宠前端，含强杀残留进程） |
 | `--debug` | 输出详细诊断信息（Python 环境、模型文件、端口、日志） |
+
+**注意事项：**
+- Agent 必须使用 `powershell -ExecutionPolicy Bypass -File` 方式调用（Windows 默认不允许直接执行 .ps1）
+- git clone 时自动设置 `GIT_LFS_SKIP_SMUDGE=1` 跳过 LFS 大文件（模型由 server.py 单独从 ModelScope 下载）
+- 处理器检测：非 Intel CPU 会直接阻断，非 Core Ultra 系列会警告但继续
 
 生命周期示例：
 ```powershell

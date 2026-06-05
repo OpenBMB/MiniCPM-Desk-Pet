@@ -2,7 +2,7 @@
 
 监听 127.0.0.1:18765，提供与桌宠前端完全兼容的 API：
 - GET  /api/health          健康检查（桌宠前端 + 设置面板轮询）
-- POST /api/chat            桌宠对话接口（SSE 流式，前端主要调用入口）
+- POST /api/chat            桌宠对话接口（SSE 真流式，逐 token 输出）
 - POST /v1/chat/completions OpenAI 兼容接口（备用）
 - POST /api/shutdown        优雅关闭
 """
@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import queue
 import sys
 import threading
 import time
@@ -81,6 +82,12 @@ _state = ServerState()
 # ── 设备选择 ──────────────────────────────────────────────────────────────────
 
 def _pick_device() -> str:
+    # 优先级: 环境变量 OPENVINO_DEVICE > 自动检测
+    env_device = os.environ.get("OPENVINO_DEVICE", "").upper()
+    if env_device in ("NPU", "GPU", "CPU"):
+        log(f"Using device from OPENVINO_DEVICE env: {env_device}")
+        return env_device
+
     try:
         import openvino as ov
         devices = ov.Core().available_devices
@@ -181,7 +188,11 @@ def _ensure_models():
 
 # ── 推理 ──────────────────────────────────────────────────────────────────────
 
+_SENTINEL = object()
+
+
 def _do_inference(messages: list, thinking: bool = False, max_tokens: int = 512) -> dict:
+    """非流式推理（用于 /v1/chat/completions）。"""
     import openvino_genai
 
     if not _state.pipe or not _state.tokenizer:
@@ -218,6 +229,49 @@ def _do_inference(messages: list, thinking: bool = False, max_tokens: int = 512)
     }
 
 
+def _do_inference_streaming(messages: list, thinking: bool = False, max_tokens: int = 512) -> queue.Queue:
+    """流式推理，返回 queue，逐 token 输出子词文本片段。
+
+    queue 中的元素：
+    - str: 一个 subword 文本片段
+    - _SENTINEL: 生成结束
+    - Exception: 生成出错
+    """
+    import openvino_genai
+
+    if not _state.pipe or not _state.tokenizer:
+        raise RuntimeError("模型未加载")
+
+    token_queue: queue.Queue = queue.Queue()
+
+    tokenized_prompt = _state.tokenizer.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        extra_context={"enable_thinking": thinking},
+    )
+
+    config = openvino_genai.GenerationConfig()
+    config.max_new_tokens = max_tokens
+    config.do_sample = True
+    config.temperature = 0.9 if thinking else 0.7
+    config.top_p = 0.95
+
+    def streamer_callback(subword: str) -> bool:
+        token_queue.put(subword)
+        return False  # False = continue generation
+
+    def run_generate():
+        try:
+            _state.pipe.generate(tokenized_prompt, config, streamer=streamer_callback)
+        except Exception as e:
+            token_queue.put(e)
+        finally:
+            token_queue.put(_SENTINEL)
+
+    threading.Thread(target=run_generate, daemon=True).start()
+    return token_queue
+
+
 # ── FastAPI 应用 ──────────────────────────────────────────────────────────────
 
 app = FastAPI(title="MiniCPM OpenVINO Server")
@@ -246,7 +300,7 @@ def health():
     return resp
 
 
-# ── /api/chat — 桌宠前端主要调用入口（SSE 流式）─────────────────────────────
+# ── /api/chat — 桌宠前端主要调用入口（SSE 真流式）─────────────────────────────
 
 class ChatRequest(BaseModel):
     messages: list[dict]
@@ -263,9 +317,29 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def api_chat(req: ChatRequest):
-    """桌宠前端对话接口，返回 SSE 流式响应。"""
+    """桌宠前端对话接口，逐 token SSE 流式输出。
+
+    请求示例:
+        POST /api/chat
+        {"messages": [{"role": "user", "content": "你好"}],
+         "stream": true, "max_new_tokens": 768,
+         "temperature": 0.6, "thinking": false}
+
+    响应示例 (SSE text/event-stream):
+        data: {"event":"delta","content":"你"}\n\n
+        data: {"event":"delta","content":"好"}\n\n
+        data: {"event":"delta","content":"！我是MiniCPM"}\n\n
+
+    thinking=true 时先输出 think 事件再输出 delta:
+        data: {"event":"think","content":"让我想想..."}\n\n
+        data: {"event":"delta","content":"答案是..."}\n\n
+
+    错误时:
+        data: {"event":"error","message":"模型推理失败"}\n\n
+    """
     if _state.status != "ok":
-        error_event = json.dumps({"event": "error", "message": f"Model not ready (status={_state.status})"})
+        friendly_msg = "模型尚未就绪，请稍后重试" if _state.status in ("downloading", "loading", "starting") else "模型加载失败，请执行 --debug 排查"
+        error_event = json.dumps({"event": "error", "message": friendly_msg})
         return StreamingResponse(
             iter([f"data: {error_event}\n\n"]),
             media_type="text/event-stream",
@@ -278,39 +352,81 @@ async def api_chat(req: ChatRequest):
         max_tokens = 1280
 
     try:
-        result = _do_inference(messages, thinking=thinking, max_tokens=max_tokens)
+        token_queue = _do_inference_streaming(messages, thinking=thinking, max_tokens=max_tokens)
     except Exception as e:
-        log(f"Inference error: {e}")
-        error_event = json.dumps({"event": "error", "message": str(e)})
+        log(f"[INTERNAL] Inference startup error: {e}\n{traceback.format_exc()}")
+        error_event = json.dumps({"event": "error", "message": "模型推理启动失败，请检查设备是否支持"})
         return StreamingResponse(
             iter([f"data: {error_event}\n\n"]),
             media_type="text/event-stream",
         )
 
-    def generate_sse():
-        # Emit thinking content if present
-        if thinking and result["thinking"]:
-            chunks = _split_into_chunks(result["thinking"], 20)
-            for chunk in chunks:
-                yield f"data: {json.dumps({'event': 'think', 'content': chunk})}\n\n"
+    async def generate_sse():
+        in_think = False
+        think_ended = False
+        buf = ""
 
-        # Emit answer content
-        answer = result["content"] or ""
-        chunks = _split_into_chunks(answer, 20)
-        for chunk in chunks:
-            yield f"data: {json.dumps({'event': 'delta', 'content': chunk})}\n\n"
+        while True:
+            try:
+                item = await asyncio.get_event_loop().run_in_executor(
+                    None, token_queue.get, True, 120.0
+                )
+            except Exception:
+                yield f"data: {json.dumps({'event': 'error', 'message': '推理超时，请重试或尝试减小 max_new_tokens'})}\n\n"
+                return
+
+            if item is _SENTINEL:
+                # If we accumulated thinking content but never saw </think>,
+                # flush remaining buffer as delta
+                if buf and not think_ended:
+                    yield f"data: {json.dumps({'event': 'delta', 'content': buf})}\n\n"
+                return
+
+            if isinstance(item, Exception):
+                log(f"[INTERNAL] Streaming error: {item}\n{traceback.format_exc()}")
+                yield f"data: {json.dumps({'event': 'error', 'message': '模型推理过程中出错，请重试'})}\n\n"
+                return
+
+            # item is a subword string from the streamer
+            buf += item
+
+            if thinking and not think_ended:
+                # Detect <think> tag to start emitting think events
+                if not in_think and "<think>" in buf:
+                    # Discard anything before and including <think>
+                    idx = buf.index("<think>") + len("<think>")
+                    buf = buf[idx:]
+                    in_think = True
+
+                if in_think:
+                    # Check if </think> appeared
+                    if "</think>" in buf:
+                        idx = buf.index("</think>")
+                        think_chunk = buf[:idx]
+                        buf = buf[idx + len("</think>"):]
+                        if think_chunk:
+                            yield f"data: {json.dumps({'event': 'think', 'content': think_chunk})}\n\n"
+                        in_think = False
+                        think_ended = True
+                        # Flush remaining buf as delta
+                        if buf.strip():
+                            yield f"data: {json.dumps({'event': 'delta', 'content': buf})}\n\n"
+                            buf = ""
+                    else:
+                        # Emit accumulated think content, keep last 20 chars
+                        # as buffer in case </think> spans across chunks
+                        if len(buf) > 20:
+                            emit = buf[:-20]
+                            buf = buf[-20:]
+                            yield f"data: {json.dumps({'event': 'think', 'content': emit})}\n\n"
+                continue
+
+            # Non-thinking mode or after </think>: emit as delta
+            if buf:
+                yield f"data: {json.dumps({'event': 'delta', 'content': buf})}\n\n"
+                buf = ""
 
     return StreamingResponse(generate_sse(), media_type="text/event-stream")
-
-
-def _split_into_chunks(text: str, chunk_size: int) -> list[str]:
-    """Split text into character-level chunks to simulate streaming."""
-    if not text:
-        return []
-    chunks = []
-    for i in range(0, len(text), chunk_size):
-        chunks.append(text[i:i + chunk_size])
-    return chunks
 
 
 # ── /v1/chat/completions — OpenAI 兼容接口（备用）────────────────────────────
