@@ -114,6 +114,9 @@ scripts\run.ps1 --status
 
 # 停止所有服务
 scripts\run.ps1 --stop
+
+# 输出诊断信息（排障用）
+scripts\run.ps1 --debug
 ```
 
 脚本参数：
@@ -123,6 +126,19 @@ scripts\run.ps1 --stop
 | `--china` | 锁定中国大陆镜像源（GitCode / 清华 pip / 淘宝 npm / npmmirror Electron） |
 | `--status` | 查看推理服务和桌宠前端的运行状态 |
 | `--stop` | 停止推理服务 + 关闭桌宠前端 |
+| `--debug` | 输出详细诊断信息（见下方说明） |
+
+`--debug` 输出内容：
+
+| 分类 | 信息 |
+| --- | --- |
+| 系统 | Windows 版本、CPU 架构 |
+| Python 环境 | venv 是否存在、Python 版本、openvino/fastapi 等包版本 |
+| 模型 | 模型目录是否存在、文件列表及大小 |
+| 推理服务 | /api/health 响应、端口 18765 占用情况（netstat） |
+| 桌宠前端 | electron 相关进程名和 PID |
+| 环境变量 | MINICPM_BACKEND、PIP_INDEX_URL、ELECTRON_MIRROR 等 |
+| 最近日志 | 最新日志文件的最后 20 行 |
 
 健康检查：
 

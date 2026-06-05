@@ -1,13 +1,15 @@
-"""OpenVINO 推理 HTTP 服务，替代 llama-server。
+"""OpenVINO 推理 HTTP 服务，替代 llama-server + sidecar gateway。
 
-监听 127.0.0.1:18765，提供与桌宠 sidecar 兼容的 API：
-- GET  /api/health          健康检查
-- POST /v1/chat/completions OpenAI 兼容的 chat completions
+监听 127.0.0.1:18765，提供与桌宠前端完全兼容的 API：
+- GET  /api/health          健康检查（桌宠前端 + 设置面板轮询）
+- POST /api/chat            桌宠对话接口（SSE 流式，前端主要调用入口）
+- POST /v1/chat/completions OpenAI 兼容接口（备用）
 - POST /api/shutdown        优雅关闭
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
@@ -18,8 +20,8 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 # ── 编码配置 ──────────────────────────────────────────────────────────────────
@@ -37,6 +39,7 @@ _configure_stream_encoding(sys.stderr)
 SKILL_NAME = "local-minicpm-pet-openvino"
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 18765
+MODEL_NAME = "MiniCPM5-1B-OpenVINO"
 
 OPENVINO_ROOT = Path(os.environ.get("USERPROFILE", "~")) / ".openvino"
 MODELS_DIR = OPENVINO_ROOT / "models"
@@ -64,6 +67,8 @@ class ServerState:
         self.progress: str = ""
         self.pipe = None
         self.tokenizer = None
+        self.model_dir: Optional[str] = None
+        self.device: str = "CPU"
         self.start_time = time.time()
 
     @property
@@ -151,6 +156,8 @@ def _load_model(model_dir: Path):
     device = _pick_device()
     _state.pipe = openvino_genai.LLMPipeline(str(model_dir), device)
     _state.tokenizer = _state.pipe.get_tokenizer()
+    _state.model_dir = str(model_dir)
+    _state.device = device
     log(f"Model loaded on {device}")
 
 
@@ -218,10 +225,19 @@ app = FastAPI(title="MiniCPM OpenVINO Server")
 
 @app.get("/api/health")
 def health():
+    """桌宠前端和设置面板轮询此端点判断服务状态。"""
     resp = {
+        "ok": _state.status == "ok",
         "status": _state.status,
+        "alive": _state.status == "ok",
         "pid": os.getpid(),
         "uptime_s": _state.uptime_s,
+        "model_name": MODEL_NAME,
+        "model_dir": _state.model_dir,
+        "device": _state.device,
+        "persona": "default",
+        "adapter": None,
+        "llama_server": {"status": "ok" if _state.status == "ok" else _state.status},
     }
     if _state.error:
         resp["error"] = _state.error
@@ -229,6 +245,75 @@ def health():
         resp["progress"] = _state.progress
     return resp
 
+
+# ── /api/chat — 桌宠前端主要调用入口（SSE 流式）─────────────────────────────
+
+class ChatRequest(BaseModel):
+    messages: list[dict]
+    stream: bool = True
+    max_new_tokens: int = 768
+    temperature: float = 0.6
+    top_p: float = 0.95
+    top_k: int = 0
+    repetition_penalty: float = 1.05
+    thinking: bool = False
+    silent: bool = False
+    disable_adapter: bool = False
+
+
+@app.post("/api/chat")
+async def api_chat(req: ChatRequest):
+    """桌宠前端对话接口，返回 SSE 流式响应。"""
+    if _state.status != "ok":
+        error_event = json.dumps({"event": "error", "message": f"Model not ready (status={_state.status})"})
+        return StreamingResponse(
+            iter([f"data: {error_event}\n\n"]),
+            media_type="text/event-stream",
+        )
+
+    messages = req.messages
+    thinking = req.thinking
+    max_tokens = req.max_new_tokens
+    if thinking and max_tokens < 1280:
+        max_tokens = 1280
+
+    try:
+        result = _do_inference(messages, thinking=thinking, max_tokens=max_tokens)
+    except Exception as e:
+        log(f"Inference error: {e}")
+        error_event = json.dumps({"event": "error", "message": str(e)})
+        return StreamingResponse(
+            iter([f"data: {error_event}\n\n"]),
+            media_type="text/event-stream",
+        )
+
+    def generate_sse():
+        # Emit thinking content if present
+        if thinking and result["thinking"]:
+            chunks = _split_into_chunks(result["thinking"], 20)
+            for chunk in chunks:
+                yield f"data: {json.dumps({'event': 'think', 'content': chunk})}\n\n"
+
+        # Emit answer content
+        answer = result["content"] or ""
+        chunks = _split_into_chunks(answer, 20)
+        for chunk in chunks:
+            yield f"data: {json.dumps({'event': 'delta', 'content': chunk})}\n\n"
+
+    return StreamingResponse(generate_sse(), media_type="text/event-stream")
+
+
+def _split_into_chunks(text: str, chunk_size: int) -> list[str]:
+    """Split text into character-level chunks to simulate streaming."""
+    if not text:
+        return []
+    chunks = []
+    for i in range(0, len(text), chunk_size):
+        chunks.append(text[i:i + chunk_size])
+    return chunks
+
+
+# ── /v1/chat/completions — OpenAI 兼容接口（备用）────────────────────────────
 
 class ChatMessage(BaseModel):
     role: str
@@ -252,7 +337,7 @@ def chat_completions(req: ChatCompletionRequest):
         )
 
     if req.stream:
-        raise HTTPException(status_code=501, detail="Streaming not supported yet")
+        raise HTTPException(status_code=501, detail="Use /api/chat for streaming")
 
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
     thinking = req.temperature > 0.8
@@ -277,6 +362,21 @@ def chat_completions(req: ChatCompletionRequest):
             "finish_reason": "stop",
         }],
     }
+
+
+# ── /api/adapters — 桌宠前端查询适配器列表（返回空）─────────────────────────
+
+@app.get("/api/adapters")
+def list_adapters():
+    """OpenVINO 后端不支持 LoRA 适配器，返回空列表。"""
+    return {"items": [], "current": None}
+
+
+# ── /api/update-check — 桌宠前端检查更新（返回无更新）─────────────────────────
+
+@app.get("/api/update-check")
+def update_check():
+    return {"available": False, "local_revision": "openvino-1.0", "remote_revision": "openvino-1.0"}
 
 
 @app.post("/api/shutdown")

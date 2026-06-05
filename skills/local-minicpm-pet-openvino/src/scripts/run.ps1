@@ -27,18 +27,21 @@ foreach ($dir in @($OpenVinoRoot, $VenvRoot, $ModelsRoot, $LogRoot)) {
 $China = $false
 $Stop = $false
 $Status = $false
+$Debug = $false
 
 for ($i = 0; $i -lt $args.Count; $i++) {
     switch ($args[$i]) {
         "--china"  { $China = $true }
         "--stop"   { $Stop = $true }
         "--status" { $Status = $true }
+        "--debug"  { $Debug = $true }
         default {
             Write-Host "未知参数: $($args[$i])"
             Write-Host ""
             Write-Host "用法: scripts\run.ps1 [--china]        部署并启动"
             Write-Host "      scripts\run.ps1 --status         查看运行状态"
             Write-Host "      scripts\run.ps1 --stop           停止所有服务"
+            Write-Host "      scripts\run.ps1 --debug          输出诊断信息"
             Write-Host ""
             Write-Host "  --china    使用中国大陆镜像源"
             exit 1
@@ -77,6 +80,103 @@ if ($Status) {
         Write-Host "  桌宠前端: 运行中"
     } else {
         Write-Host "  桌宠前端: 未运行"
+    }
+
+    Write-Host ""
+    exit 0
+}
+
+# ── --debug: 输出诊断信息 ────────────────────────────────────────────────────
+if ($Debug) {
+    Write-Host "=============================================="
+    Write-Host " MiniCPM 桌宠环境诊断信息"
+    Write-Host "=============================================="
+    Write-Host ""
+
+    # 1. 系统信息
+    Write-Host "[系统]"
+    Write-Host "  OS: $([System.Environment]::OSVersion.VersionString)"
+    Write-Host "  Platform: $env:PROCESSOR_ARCHITECTURE"
+    Write-Host ""
+
+    # 2. Python 环境
+    Write-Host "[Python 环境]"
+    $InfoJson = Get-Content (Join-Path $SkillRoot "info.json") -ErrorAction SilentlyContinue | ConvertFrom-Json
+    $VenvName = $InfoJson.venv_name
+    $VenvDir = Join-Path $VenvRoot $VenvName
+    $Python = Join-Path $VenvDir "Scripts\python.exe"
+    if (Test-Path $Python) {
+        Write-Host "  venv: $VenvDir (存在)"
+        $pyVer = & $Python --version 2>&1
+        Write-Host "  Python 版本: $pyVer"
+        Write-Host "  OpenVINO 相关包:"
+        & (Join-Path $VenvDir "Scripts\pip.exe") list 2>$null | Select-String -Pattern "openvino|fastapi|uvicorn|modelscope" | ForEach-Object { Write-Host "    $_" }
+    } else {
+        Write-Host "  venv: $VenvDir (不存在)"
+    }
+    Write-Host ""
+
+    # 3. 模型目录
+    Write-Host "[模型]"
+    $ModelDir = Join-Path $ModelsRoot $InfoJson.models[0].dir_name
+    if (Test-Path $ModelDir) {
+        Write-Host "  目录: $ModelDir (存在)"
+        $files = Get-ChildItem $ModelDir -ErrorAction SilentlyContinue
+        Write-Host "  文件数: $($files.Count)"
+        $files | Select-Object Name, Length | ForEach-Object { Write-Host "    $($_.Name) ($([math]::Round($_.Length/1MB, 1)) MB)" }
+    } else {
+        Write-Host "  目录: $ModelDir (不存在)"
+    }
+    Write-Host ""
+
+    # 4. 推理服务状态
+    Write-Host "[推理服务]"
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:18765/api/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+        if ($resp.StatusCode -eq 200) {
+            Write-Host "  状态: 运行中"
+            Write-Host "  响应: $($resp.Content)"
+        }
+    } catch {
+        Write-Host "  状态: 未运行或无法连接"
+    }
+
+    # 检查端口占用
+    Write-Host "  端口 18765 占用:"
+    $portInfo = netstat -ano 2>$null | Select-String ":18765"
+    if ($portInfo) {
+        $portInfo | ForEach-Object { Write-Host "    $_" }
+    } else {
+        Write-Host "    未被占用"
+    }
+    Write-Host ""
+
+    # 5. 桌宠前端
+    Write-Host "[桌宠前端]"
+    $petProcs = Get-Process -Name "electron", "MiniCPM*", "Clawd*" -ErrorAction SilentlyContinue
+    if ($petProcs) {
+        $petProcs | ForEach-Object { Write-Host "  进程: $($_.ProcessName) (PID=$($_.Id))" }
+    } else {
+        Write-Host "  状态: 未运行"
+    }
+    Write-Host ""
+
+    # 6. 环境变量
+    Write-Host "[环境变量]"
+    Write-Host "  MINICPM_BACKEND=$env:MINICPM_BACKEND"
+    Write-Host "  PIP_INDEX_URL=$env:PIP_INDEX_URL"
+    Write-Host "  ELECTRON_MIRROR=$env:ELECTRON_MIRROR"
+    Write-Host "  HF_ENDPOINT=$env:HF_ENDPOINT"
+    Write-Host ""
+
+    # 7. 最近日志
+    Write-Host "[最近日志 (最后 20 行)]"
+    $latestLog = Get-ChildItem $LogRoot -Filter "*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($latestLog) {
+        Write-Host "  文件: $($latestLog.FullName)"
+        Get-Content $latestLog.FullName -Tail 20 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
+    } else {
+        Write-Host "  无日志文件"
     }
 
     Write-Host ""
@@ -366,15 +466,59 @@ if (-not $PetRunning) {
     Write-Host "[Step 8] 桌宠前端已在运行中，跳过启动。"
 }
 
-# ── 部署完成 ─────────────────────────────────────────────────────────────────
+# ── 部署完成：验证并输出结构化结果 ─────────────────────────────────────────────
 Write-Host ""
 Write-Host "=============================================="
-Write-Host " 部署完成！"
+Write-Host " 部署完成，正在验证..."
 Write-Host "=============================================="
 Write-Host ""
-Write-Host "  推理服务: http://127.0.0.1:$ServerPort"
-Write-Host "  桌宠前端: 已在前台运行"
+
+# 验证推理服务
+$deployServerStatus = "error"
+$deployModelStatus = "error"
+try {
+    $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$ServerPort/api/health" -TimeoutSec 5 -ErrorAction SilentlyContinue
+    if ($resp.StatusCode -eq 200) {
+        $health = $resp.Content | ConvertFrom-Json
+        $deployServerStatus = $health.status  # ok / downloading / loading / error
+        if ($health.status -eq "ok") {
+            $deployModelStatus = "loaded"
+        } elseif ($health.status -eq "downloading") {
+            $deployModelStatus = "downloading"
+        } elseif ($health.status -eq "loading") {
+            $deployModelStatus = "loading"
+        }
+    }
+} catch {
+    $deployServerStatus = "timeout"
+}
+
+# 验证桌宠前端
+$deployPetStatus = "not_running"
+try {
+    $procs = Get-Process -Name "electron", "MiniCPM*", "Clawd*" -ErrorAction SilentlyContinue
+    if ($procs) { $deployPetStatus = "running" }
+} catch {}
+
+# 输出结构化验证摘要（Agent 解析此块判断成功/失败）
+Write-Host "[DEPLOY_RESULT]"
+Write-Host "server_status=$deployServerStatus"
+Write-Host "server_port=$ServerPort"
+Write-Host "pet_frontend=$deployPetStatus"
+Write-Host "model_status=$deployModelStatus"
+Write-Host "[/DEPLOY_RESULT]"
 Write-Host ""
-Write-Host "  现在可以直接与桌宠对话了。"
-Write-Host "  如需停止推理服务: curl http://127.0.0.1:$ServerPort/api/shutdown"
+
+# 人类可读的总结
+if ($deployServerStatus -eq "ok" -and $deployPetStatus -eq "running") {
+    Write-Host "部署成功！现在可以直接与桌宠对话了。"
+} elseif ($deployServerStatus -eq "downloading" -or $deployModelStatus -eq "downloading") {
+    Write-Host "推理服务已启动，模型正在后台下载中（约 1.5GB）。"
+    Write-Host "下载完成后即可通过桌宠对话。可用 --status 查看进度。"
+} else {
+    Write-Host "警告: 部署可能未完全成功。"
+    Write-Host "  推理服务: $deployServerStatus"
+    Write-Host "  桌宠前端: $deployPetStatus"
+    Write-Host "  建议执行 scripts\run.ps1 --debug 查看详细诊断信息。"
+}
 Write-Host ""

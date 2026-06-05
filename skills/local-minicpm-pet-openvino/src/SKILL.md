@@ -101,6 +101,38 @@ scripts\run.ps1
 
 **部署完成后，用户直接通过桌宠界面进行对话。**
 
+### Step 9: 验证部署结果（Agent 必须执行）
+
+**部署脚本执行完毕后，Agent 必须验证部署是否成功，不能直接报告"已完成"。**
+
+验证方法：
+
+```powershell
+scripts\run.ps1 --status
+```
+
+判断标准（解析脚本输出）：
+- 输出包含 `推理服务: 运行中` **且** `桌宠前端: 运行中` → 部署成功，向用户报告
+- 输出包含 `推理服务: 未运行` → 部署失败，执行排障流程（见下方排障指南）
+- 输出包含 `桌宠前端: 未运行` → 前端未启动，再次执行 `scripts\run.ps1` 重试
+
+脚本在部署结束时也会输出结构化摘要，格式如下：
+```
+[DEPLOY_RESULT]
+server_status=ok|error|timeout
+server_port=18765
+pet_frontend=running|not_running
+model_status=loaded|downloading|error
+[/DEPLOY_RESULT]
+```
+
+Agent 应解析此摘要：
+- `server_status=ok` + `pet_frontend=running` → 部署成功
+- `server_status=error` → 执行 `scripts\run.ps1 --debug` 获取诊断信息
+- `model_status=downloading` → 模型仍在下载中，提示用户等待
+
+如果 `--debug` 也无法定位问题，将 debug 输出展示给用户协助排查。
+
 ---
 
 ## 部署后的架构
@@ -125,6 +157,7 @@ scripts\run.ps1
 | `--china` | 锁定中国大陆镜像源，不做网络探测 |
 | `--status` | 查看当前运行状态（推理服务 + 桌宠前端） |
 | `--stop` | 停止所有服务（推理服务 + 桌宠前端） |
+| `--debug` | 输出详细诊断信息（Python 环境、模型文件、端口、日志） |
 
 生命周期示例：
 ```powershell
@@ -149,6 +182,54 @@ scripts\run.ps1 --china
 | --- | --- |
 | 0 | 部署成功，桌宠已启动 |
 | 1 | 一般错误（硬件不支持、环境缺失、网络失败） |
+
+---
+
+## 排障指南（Agent 遇到错误时参考）
+
+### 推理服务未运行（server_status=error 或 timeout）
+
+1. 执行 `scripts\run.ps1 --debug` 查看诊断信息
+2. 检查「Python 环境」部分：确认 openvino-genai 已安装
+3. 检查「端口 18765 占用」：如果被其他进程占用，先 kill 再重试
+4. 检查「最近日志」：查找 Python traceback 或 ImportError
+5. 常见原因：
+   - Python 依赖安装不完整 → 删除 venv 重新执行部署
+   - 端口被占用 → `netstat -ano | findstr :18765` 找到 PID 并 kill
+   - OpenVINO 不支持当前硬件 → 确认是 Intel AIPC（LNL/ARL/PTL/WCL）
+
+### 桌宠前端未运行（pet_frontend=not_running）
+
+1. 确认 Node.js 18+ 和 npm 已安装：`node --version`
+2. 确认 `MINICPM_BACKEND=openvino` 环境变量已设置
+3. 检查 npm install 是否成功完成（是否有 node_modules 目录）
+4. 再次执行 `scripts\run.ps1`（幂等，会自动重试启动前端）
+5. 如果前端卡在 onboarding 引导界面：说明 `MINICPM_BACKEND` 未正确传递，检查环境变量
+
+### 模型下载超时（model_status=downloading）
+
+1. 这不是错误，模型约 1.5GB，首次下载需要时间
+2. 确认已使用 `--china` 参数（国内 ModelScope 直连更快）
+3. 用 `scripts\run.ps1 --status` 查看推理服务是否仍在下载
+4. 下载完成后推理服务会自动加载模型，无需额外操作
+
+### 通用排障步骤
+
+```powershell
+# 1. 查看完整诊断信息
+scripts\run.ps1 --debug
+
+# 2. 停止所有服务
+scripts\run.ps1 --stop
+
+# 3. 重新部署（幂等，已完成的步骤会跳过）
+scripts\run.ps1 --china
+
+# 4. 验证
+scripts\run.ps1 --status
+```
+
+日志位置：`%USERPROFILE%\.openvino\log\`
 
 ---
 
