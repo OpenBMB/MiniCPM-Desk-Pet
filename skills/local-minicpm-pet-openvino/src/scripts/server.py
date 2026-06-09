@@ -190,7 +190,6 @@ def _ensure_models():
 
 _SENTINEL = object()
 
-
 def _do_inference(messages: list, thinking: bool = False, max_tokens: int = 512) -> dict:
     """非流式推理（用于 /v1/chat/completions）。"""
     import openvino_genai
@@ -209,6 +208,11 @@ def _do_inference(messages: list, thinking: bool = False, max_tokens: int = 512)
     config.do_sample = True
     config.temperature = 0.9 if thinking else 0.7
     config.top_p = 0.95
+
+    if not thinking:
+        soc = openvino_genai.StructuredOutputConfig()
+        soc.regex = r"[^<].*"
+        config.structured_output_config = soc
 
     result = _state.pipe.generate(tokenized_prompt, config)
     text = result.texts[0] if hasattr(result, "texts") else str(result)
@@ -255,6 +259,11 @@ def _do_inference_streaming(messages: list, thinking: bool = False, max_tokens: 
     config.do_sample = True
     config.temperature = 0.9 if thinking else 0.7
     config.top_p = 0.95
+
+    if not thinking:
+        soc = openvino_genai.StructuredOutputConfig()
+        soc.regex = r"[^<].*"
+        config.structured_output_config = soc
 
     def streamer_callback(subword: str) -> bool:
         token_queue.put(subword)
