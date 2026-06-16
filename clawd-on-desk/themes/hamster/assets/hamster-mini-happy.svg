@@ -151,6 +151,7 @@
     <!-- 任务清单剪贴板：板背+夹子+纸+三行条目；勾 stroke 描画。局部坐标原点=板中心 -->
     <g id="happy-board-layer" pointer-events="none">
       <g id="happy-board">
+        <g id="happy-board-face">
         <rect id="board-back" x="-45" y="-58" width="90" height="116" rx="9" fill="#d8a686" stroke="#b98c6e" stroke-width="2.5"/>
         <rect id="board-paper" x="-37" y="-46" width="74" height="96" rx="5" fill="#fff8f0" stroke="#ecdcc8" stroke-width="1.5"/>
         <path id="board-clip-arch" d="M -8 -58 C -8 -67 8 -67 8 -58" fill="none" stroke="#8a5a3f" stroke-width="4.5" stroke-linecap="round"/>
@@ -174,6 +175,7 @@
         <g id="board-done" opacity="0">
           <path id="board-done-under" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".25"/>
           <path id="board-done-main" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
         </g>
       </g>
     </g>
@@ -1039,6 +1041,21 @@
   "use strict";
   const SVG_NS = "http://www.w3.org/2000/svg";
   const svg = document.getElementById("mini-stage");
+  let glyphFlipCompensation = false;
+
+  function applyGlyphFlipCompensation() {
+    const boardFace = svg.querySelector("#happy-board-face");
+    if (!boardFace) return;
+    if (glyphFlipCompensation) boardFace.setAttribute("transform", "scale(-1 1)");
+    else boardFace.removeAttribute("transform");
+  }
+
+  window.__clawdSetGlyphFlipCompensation = function(enabled) {
+    const next = !!enabled;
+    if (next === glyphFlipCompensation) return;
+    glyphFlipCompensation = next;
+    applyGlyphFlipCompensation();
+  };
 
   // ── 可调参数（tuner state；定稿后烘焙抄 JSON）──
   const state = {

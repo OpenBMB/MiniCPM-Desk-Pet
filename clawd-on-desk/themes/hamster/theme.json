@@ -191,7 +191,7 @@
       "hamster-idle-to-dozing.svg": 3400,
       "hamster-idle-to-sleeping.svg": 3400,
       "hamster-idle.svg": 5000,
-      "hamster-mini-alert.svg": 2600,
+      "hamster-mini-alert.svg": 6700,
       "hamster-mini-enter-sleep.svg": 1100,
       "hamster-mini-enter.svg": 1100,
       "hamster-mini-happy.svg": 3600,
@@ -415,12 +415,12 @@
     },
     "timings": {
       "minDisplay": {
-        "mini-alert": 2600,
+        "mini-alert": 6700,
         "mini-happy": 3600,
         "mini-peek": 1500
       },
       "autoReturn": {
-        "mini-alert": 2600,
+        "mini-alert": 6700,
         "mini-happy": 3600,
         "mini-peek": 1500
       }
