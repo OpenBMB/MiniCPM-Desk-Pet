@@ -7,6 +7,7 @@ const path = require("node:path");
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
 const _defaultTheme = themeLoader.loadTheme("cybercat");
+const SEAM_CROP_GUARD_PX = 3;
 
 function cloneTheme(theme) {
   return JSON.parse(JSON.stringify(theme));
@@ -235,7 +236,7 @@ describe("mini mode entry timing", () => {
     mini.enterMiniMode({ x: 0, y: 0, width: 800, height: 600 }, false, "right");
     mock.timers.tick(120);
 
-    const visibleWidth = Math.round(120 * (1 - theme.miniMode.offsetRatio));
+    const visibleWidth = Math.round(120 * (1 - theme.miniMode.offsetRatio)) - SEAM_CROP_GUARD_PX;
     assert.deepStrictEqual(mini.getMiniRenderCrop(), {
       x: 0,
       y: 0,
@@ -268,7 +269,7 @@ describe("mini mode entry timing", () => {
     mini.enterMiniMode({ x: 800, y: 0, width: 800, height: 600 }, false, "left");
     mock.timers.tick(120);
 
-    const hiddenWidth = Math.round(120 * theme.miniMode.offsetRatio);
+    const hiddenWidth = Math.round(120 * theme.miniMode.offsetRatio) + SEAM_CROP_GUARD_PX;
     assert.deepStrictEqual(mini.getMiniRenderCrop(), {
       x: hiddenWidth,
       y: 0,
@@ -345,7 +346,7 @@ describe("mini mode entry timing", () => {
     mini.miniPeekIn();
     mock.timers.tick(220);
 
-    const visibleWidth = Math.round(120 * (1 - theme.miniMode.offsetRatio));
+    const visibleWidth = Math.round(120 * (1 - theme.miniMode.offsetRatio)) - SEAM_CROP_GUARD_PX;
     assert.deepStrictEqual(mini.getMiniRenderCrop(), {
       x: 0,
       y: 0,
@@ -389,7 +390,7 @@ describe("mini mode entry timing", () => {
     mini.miniPeekIn();
     mock.timers.tick(220);
 
-    const hiddenWidth = Math.round(120 * theme.miniMode.offsetRatio);
+    const hiddenWidth = Math.round(120 * theme.miniMode.offsetRatio) + SEAM_CROP_GUARD_PX;
     assert.deepStrictEqual(mini.getMiniRenderCrop(), {
       x: hiddenWidth - mini.PEEK_OFFSET,
       y: 0,

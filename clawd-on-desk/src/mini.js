@@ -13,6 +13,7 @@ const MINI_ENTER_FALLBACK_MS = 3200;
 const MINI_ENTER_PRELOAD_MS = 300;
 const CRABWALK_SPEED = 0.12;  // px/ms
 const DISPLAY_EDGE_EPSILON = 2;
+const MINI_SEAM_CROP_GUARD_PX = 3;
 let MINI_OFFSET_RATIO = ctx.theme.miniMode.offsetRatio;
 
 let miniMode = false;
@@ -133,7 +134,7 @@ function buildMiniRenderCrop(wa, size, bounds) {
   if (miniEdge === "left") {
     const hiddenWidth = Math.round(edgeX - renderBounds.x);
     if (hiddenWidth <= 0) return null;
-    const x = Math.max(0, Math.min(fullWidth - 1, hiddenWidth));
+    const x = Math.max(0, Math.min(fullWidth - 1, hiddenWidth + MINI_SEAM_CROP_GUARD_PX));
     return {
       x,
       y: 0,
@@ -142,7 +143,7 @@ function buildMiniRenderCrop(wa, size, bounds) {
     };
   }
 
-  const visibleWidth = Math.round(edgeX - renderBounds.x);
+  const visibleWidth = Math.round(edgeX - renderBounds.x) - MINI_SEAM_CROP_GUARD_PX;
   if (visibleWidth >= fullWidth) return null;
   return {
     x: 0,
