@@ -1,6 +1,6 @@
-<svg id="mini-stage" xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="-150 -60 580 580" role="img" aria-labelledby="title desc" style="pointer-events:none">
+<svg id="mini-stage" xmlns="http://www.w3.org/2000/svg" width="580" height="480" viewBox="-150 -40 580 480" role="img" aria-labelledby="title desc" style="pointer-events:none">
   <title id="title">Hamster mini-peek v1 (scripted)</title>
-  <desc id="desc">Mini-mode peek state for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Triggered when the cursor is over the pet (mouseOverPet): the host pushes the window ~25px into the screen (200ms easeOutQuad) and the hamster reacts curiously — head-tilt about the neck (187,252) via the peek-head-tilt wrapper, raised brows (表情板 surprised path), a small happy open-mouth (attention/happy door-rig, doorInset tuned smaller so the mouth corners stay rounded at low opening), tuft perk from the gravity rest (-32° -> -14°), and a damped sunglasses inertia bob — while both paws stay clamped to the screen edge and slide along it (peek-hands-ext, screen x+ = master y+, paw transforms untouched) with a palm motion-trail (#d8a686, appears during the slide, fades after settle), and the tie blade swings from the push inertia about the knot. NO head turn — the cursor sits on the face so gaze-tracking is meaningless (this is the difference from mini-idle). Self-contained: loops the rest→push→hold→pull cycle for demo (reuses the mini-sleep-peek push framework); in host integration the push/pull IS the real window animation and the paw slide can be driven by the host push progress. svg root keeps pointer-events:none. Exposes window.__miniPeek. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
+  <desc id="desc">Mini-mode peek state for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Triggered when the cursor is over the pet (mouseOverPet): the host pushes the window ~25px into the screen (200ms easeOutQuad) and the hamster reacts curiously — head-tilt about the neck (187,252) via the peek-head-tilt wrapper, raised brows (表情板 surprised path), a small happy open-mouth (attention/happy door-rig, doorInset tuned smaller so the mouth corners stay rounded at low opening), tuft perk from the gravity rest (-32° -> -14°), and a damped sunglasses inertia bob — while both paws stay clamped to the screen edge and slide along it (peek-hands-ext, screen x+ = master y+, paw transforms untouched) with a palm motion-trail (#d8a686, appears during the slide, fades after settle), and the tie blade swings from the push inertia about the knot. NO head turn — the cursor sits on the face so gaze-tracking is meaningless (this is the difference from mini-idle). Default host mode holds the post-peek pose because the real window push/pull is handled by the app; add ?loop=1 for the self-contained showcase/demo rest→push→hold→pull cycle. svg root keeps pointer-events:none. Exposes window.__miniPeek. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
   <defs>
       <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
         <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
@@ -204,6 +204,8 @@
   // 推出时间线（sleep-peek 同款）：贴边 1.2s → 推出 0.2s → 保持 2s → 缩回 0.2s
   const T_REST = 1.2, T_PUSH = 0.2, T_HOLD = 2.0, T_PULL = 0.2;
   const T_TOTAL = T_REST + T_PUSH + T_HOLD + T_PULL;
+  const LOOP_MODE = /[?&]loop=1\b/.test(location.search);
+  const HOST_HOLD_PHASE = T_REST + T_PUSH + T_HOLD / 2;
   const EDGE_BASE = 235;
   const hostEase = EASES[0].fn;
 
@@ -379,8 +381,8 @@
   // ── 推出时间线（sleep-peek 同款）：返回 edgeP / handP（0=贴边,1=推出 ext）+ phase + pushSince ──
   function peekAt(tSec) {
     const fz = document.getElementById("freeze-hold");
-    const freeze = fz ? fz.checked : false;
-    const p = freeze ? T_REST + T_PUSH + T_HOLD / 2 : (tSec % T_TOTAL);
+    const freeze = !LOOP_MODE || (fz ? fz.checked : false);
+    const p = freeze ? HOST_HOLD_PHASE : (tSec % T_TOTAL);
     const handEase = EASES[state.handEase].fn;
     const dly = state.handDelay / 1000, dur = Math.max(.01, state.handDur / 1000);
     let edgeP, handP, pushSince = -1;

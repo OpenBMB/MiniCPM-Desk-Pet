@@ -1,6 +1,6 @@
-<svg id="mini-stage" xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="-53 -10 480 480" role="img" aria-labelledby="title desc">
+<svg id="mini-stage" xmlns="http://www.w3.org/2000/svg" width="580" height="480" viewBox="-150 -40 580 480" role="img" aria-labelledby="title desc">
   <title id="title">Hamster mini-idle v1 (scripted)</title>
-  <desc id="desc">Mini-mode idle for clawd-on-desk / MiniCPM-Desk-Pet: the hamster lies sideways (whole master rotated -90deg about 187,230) grabbing the screen edge with both paws (rigid-posed V18 capsule hands, tip-clipped), tie knot follows the body while the blade dangles by gravity, tufts droop. Head look = verbatim machine-ported engine from confirmed hamster-idle-follow-v2.svg (anchor-catmull cheek model, blush clip contract, sunglasses spring, 150ms segment interpolator) with 3 mini patches: pointer coords are converted screen-to-master via rotate(+90 187 230) at the two entry points. Continuous single cheek model (P4): rest pose = anchor-catmull 0-pose (nose bridge differs from raw master by ~2.16px) so crossing/returning to center never switches curve models. Exposes window.__cloudlingSetPointer({x,y,inside}) in THIS svg's viewBox coords (host feeds global cursor, left-edge mirroring handled by host) and window.__clawdSetLowPowerPaused(paused). Asset is the right-edge variant; host applies scaleX(-1) for the left edge. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
+  <desc id="desc">Mini-mode idle for clawd-on-desk / MiniCPM-Desk-Pet: the hamster lies sideways (whole master rotated -90deg about 187,230) grabbing the screen edge with both paws (rigid-posed V18 capsule hands, tip-clipped), tie knot follows the body while the blade dangles by gravity, tufts droop. Head look = verbatim machine-ported engine from confirmed hamster-idle-follow-v2.svg (anchor-catmull cheek model, blush clip contract, sunglasses locked to the same-frame face pose, 150ms segment interpolator) with 3 mini patches: pointer coords are converted screen-to-master via rotate(+90 187 230) at the two entry points. Continuous single cheek model (P4): rest pose = anchor-catmull 0-pose (nose bridge differs from raw master by ~2.16px) so crossing/returning to center never switches curve models. Exposes window.__cloudlingSetPointer({x,y,inside}) in THIS svg's viewBox coords (host feeds global cursor, left-edge mirroring handled by host) and window.__clawdSetLowPowerPaused(paused). Asset is the right-edge variant; host applies scaleX(-1) for the left edge. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
   <defs>
       <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
         <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
@@ -658,12 +658,10 @@
     return { value: value, velocity: velocity };
   }
   function updateSunglassesEase(dt) {
-    var yaw = springValue(sunglassesPose.yaw, state.yaw, sunglassesPose.yawV, dt);
-    var pitch = springValue(sunglassesPose.pitch, state.pitch, sunglassesPose.pitchV, dt);
-    sunglassesPose.yaw = yaw.value;
-    sunglassesPose.yawV = yaw.velocity;
-    sunglassesPose.pitch = pitch.value;
-    sunglassesPose.pitchV = pitch.velocity;
+    sunglassesPose.yaw = state.yaw;
+    sunglassesPose.pitch = state.pitch;
+    sunglassesPose.yawV = 0;
+    sunglassesPose.pitchV = 0;
   }
   function sunglassesEaseTransform() {
     var lagYaw = sunglassesPose.yaw - state.yaw;
