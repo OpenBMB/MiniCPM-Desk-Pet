@@ -72,18 +72,24 @@
 
 
   <defs>
-    <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"></feGaussianBlur>
-      <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"></feFlood>
-      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"></feComposite>
-      <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"></feOffset>
-      <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"></feGaussianBlur>
-      <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"></feFlood>
-      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"></feComposite>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
       <feMerge>
-        <feMergeNode in="ambient-shadow"></feMergeNode>
-        <feMergeNode in="halo"></feMergeNode>
-        <feMergeNode in="SourceGraphic"></feMergeNode>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
   <clipPath id="task-complete-blush-clip" clipPathUnits="userSpaceOnUse"><path id="task-complete-blush-clip-path" d="M65 158.05 C73.658 159.197 124.475 167.488 137.15 167.61 C148.016 167.715 165.304 160.604 170.631 159.07 C175.958 157.536 184.918 152.344 188.938 152.7 C192.957 153.056 204.449 160.989 209.708 162.53 C214.967 164.071 229.851 168.141 240.065 167.68 C251.98 167.142 300.728 159.206 309 158.05 C330.823 182.232 335.771 222.073 303.033 245.546 C270.16 267.536 103.84 267.536 70.967 245.546 C37.953 222.114 42.961 182.191 65 158.05Z"></path></clipPath><clipPath id="task-complete-mouth-opening-clip" clipPathUnits="userSpaceOnUse"><path id="mouth-opening-clip-path" d="M 163 192.18 C 163 195.18 166 198.18 171 198.18 C 180 198.18 187 190.18 187 177.18 C 187 190.18 194 198.18 203 198.18 C 208 198.18 211 195.18 211 192.18 C 211 216.58 193 219.5 187 219.5 C 181 219.5 163 216.58 163 192.18 Z"></path></clipPath><clipPath id="task-complete-mouth-door-clip" clipPathUnits="userSpaceOnUse"><path id="mouth-door-clip-path" d="M 171.5 166 L 202.5 166 L 202.5 206.5 C 202.5 215.86 193 217.55 193 219.5 L 193 292 L 181 292 L 181 219.5 C 181 217.55 171.5 215.86 171.5 206.5 L 171.5 166 Z"></path></clipPath></defs>

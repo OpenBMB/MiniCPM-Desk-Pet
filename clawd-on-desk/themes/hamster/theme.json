@@ -204,7 +204,7 @@
       "hamster-sleeping.svg": 5600,
       "hamster-thinking.svg": 6000,
       "hamster-working-2session.svg": 10400,
-      "hamster-working-3session-idle-half.svg": 12000,
+      "hamster-working-3session-idle-half.svg": 6600,
       "hamster-working-3session.svg": 12000,
       "hamster-working.svg": 4200
     }
@@ -297,7 +297,7 @@
     },
     {
       "file": "hamster-working-3session-idle-half.svg",
-      "duration": 4660
+      "duration": 6600
     }
   ],
   "displayHintMap": {

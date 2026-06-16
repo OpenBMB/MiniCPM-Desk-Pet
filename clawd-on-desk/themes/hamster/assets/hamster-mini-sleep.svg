@@ -2,20 +2,26 @@
   <title id="title">Hamster mini-sleep v1 (scripted)</title>
   <desc id="desc">Mini-mode sleep for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Host semantics: this is the Do-Not-Disturb resting state — applied on DND enable in mini mode and auto-returned to from other mini states while DND is on; hovering the sleeping pet pushes the window out 25px (host PEEK_OFFSET window animation) while this SVG keeps sleeping, so the pose must (and does) hold up with more body revealed. Confirmed by 鹿鹿 2026-06-15 (three review rounds — round 3 客户「too stiff/喜欢大幅度」feedback): paws stay clamped on the screen edge (transforms byte-frozen to the base-pose strings), no entrance — pure sleep loop. Round-3 amplified breath: 4s cycle (was 5.6s main-line, sped up to pair with bigger amplitude), body swell about (187,322) ×5 amp = sx ±12% / sy ±9% / by ±8px (was ±2.4%/±1.8%/±1.6px), far-edge pixel excursion ≈17px after the -90deg pose rotation it reads as a lying belly clearly rising and falling. Three Zzz with stagger delays 0/0.23/0.46 and easeOutCubic appear/drift/fade. Round-2 look kept: Zzz anchored to an emergence point by the upper ear drifting up-left away from the head (never covering the head cap — verified per-frame via elementsFromPoint), closed eyes (verbatim main-line sleeping arcs behind the .97 lenses, open-eye ellipses hidden), relaxed symmetric sleep brows (verbatim main-line) lifted 4px away from the sunglasses. Head droops -7deg about the neck (187,252) via the sleep-head-tilt wrapper with a 7.1deg inhale lift (peak reaches +0.1° = essentially horizontal, reads as a deep-breath neck stretch, not a backwards overshoot — verified); tufts float ±1.5° offset-phase on top of the baked 32° gravity angle; tie micro-sways ±0.4° about the knot center via the sleep-tie-sway wrapper (baked tie strings untouched); mouth is the confirmed thinking dasharray inset breathing 16→18. Self-driven infinite loop, no pointer feed, no engine; svg root keeps pointer-events:none for embedding pages. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
   <defs>
-      <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-        <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
-        <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"/>
-        <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
-        <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"/>
-        <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"/>
-        <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"/>
-        <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
-        <feMerge>
-          <feMergeNode in="ambient-shadow"/>
-          <feMergeNode in="halo"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
       <clipPath id="mini-paw-clip-right" clipPathUnits="userSpaceOnUse">
         <rect x="340" y="236" width="78" height="64"/>
       </clipPath>

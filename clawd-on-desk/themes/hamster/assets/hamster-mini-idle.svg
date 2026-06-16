@@ -2,20 +2,26 @@
   <title id="title">Hamster mini-idle v1 (scripted)</title>
   <desc id="desc">Mini-mode idle for clawd-on-desk / MiniCPM-Desk-Pet: the hamster lies sideways (whole master rotated -90deg about 187,230) grabbing the screen edge with both paws (rigid-posed V18 capsule hands, tip-clipped), tie knot follows the body while the blade dangles by gravity, tufts droop. Head look = verbatim machine-ported engine from confirmed hamster-idle-follow-v2.svg (anchor-catmull cheek model, blush clip contract, sunglasses locked to the same-frame face pose, 150ms segment interpolator) with 3 mini patches: pointer coords are converted screen-to-master via rotate(+90 187 230) at the two entry points. Continuous single cheek model (P4): rest pose = anchor-catmull 0-pose (nose bridge differs from raw master by ~2.16px) so crossing/returning to center never switches curve models. Exposes window.__cloudlingSetPointer({x,y,inside}) in THIS svg's viewBox coords (host feeds global cursor, left-edge mirroring handled by host) and window.__clawdSetLowPowerPaused(paused). Asset is the right-edge variant; host applies scaleX(-1) for the left edge. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
   <defs>
-      <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-        <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
-        <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"/>
-        <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
-        <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"/>
-        <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"/>
-        <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"/>
-        <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
-        <feMerge>
-          <feMergeNode in="ambient-shadow"/>
-          <feMergeNode in="halo"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
       <clipPath id="mini-paw-clip-right" clipPathUnits="userSpaceOnUse">
         <rect x="340" y="236" width="78" height="64"/>
       </clipPath>

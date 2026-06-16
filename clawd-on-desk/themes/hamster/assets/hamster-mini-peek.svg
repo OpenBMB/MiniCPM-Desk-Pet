@@ -2,20 +2,26 @@
   <title id="title">Hamster mini-peek v1 (scripted)</title>
   <desc id="desc">Mini-mode peek state for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Triggered when the cursor is over the pet (mouseOverPet): the host pushes the window ~25px into the screen (200ms easeOutQuad) and the hamster reacts curiously — head-tilt about the neck (187,252) via the peek-head-tilt wrapper, raised brows (表情板 surprised path), a small happy open-mouth (attention/happy door-rig, doorInset tuned smaller so the mouth corners stay rounded at low opening), tuft perk from the gravity rest (-32° -> -14°), and a damped sunglasses inertia bob — while both paws stay clamped to the screen edge and slide along it (peek-hands-ext, screen x+ = master y+, paw transforms untouched) with a palm motion-trail (#d8a686, appears during the slide, fades after settle), and the tie blade swings from the push inertia about the knot. NO head turn — the cursor sits on the face so gaze-tracking is meaningless (this is the difference from mini-idle). Default host mode holds the post-peek pose because the real window push/pull is handled by the app; add ?loop=1 for the self-contained showcase/demo rest→push→hold→pull cycle. svg root keeps pointer-events:none. Exposes window.__miniPeek. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
   <defs>
-      <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-        <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
-        <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"/>
-        <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
-        <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"/>
-        <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"/>
-        <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"/>
-        <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
-        <feMerge>
-          <feMergeNode in="ambient-shadow"/>
-          <feMergeNode in="halo"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
       <!-- 手 clip = mini-sleep 定稿原 rect 不动不补偿（sleep-peek 同款）-->
       <clipPath id="mini-paw-clip-right" clipPathUnits="userSpaceOnUse">
         <rect x="340" y="236" width="78" height="64"/>

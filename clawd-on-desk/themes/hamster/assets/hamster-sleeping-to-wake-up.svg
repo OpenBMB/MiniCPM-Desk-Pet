@@ -23,18 +23,24 @@
 
 
   <defs>
-    <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"></feGaussianBlur>
-      <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"></feFlood>
-      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"></feComposite>
-      <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"></feOffset>
-      <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"></feGaussianBlur>
-      <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"></feFlood>
-      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"></feComposite>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
       <feMerge>
-        <feMergeNode in="ambient-shadow"></feMergeNode>
-        <feMergeNode in="halo"></feMergeNode>
-        <feMergeNode in="SourceGraphic"></feMergeNode>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
       </feMerge>
     </filter>
     <clipPath id="idle-body-belly-clip" clipPathUnits="userSpaceOnUse">

@@ -2,20 +2,26 @@
   <title id="title">Hamster mini-alert v1 (scripted)</title>
   <desc id="desc">Mini-mode alert (notification) for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Storyboard confirmed by 鹿鹿 2026-06-12: golden exclamation pops up from below (0.45s easeOutBack overshoot) -> hamster snaps its head toward it (~150ms, step-fed look target into the verbatim mini-idle engine; feeding a continuous trajectory would be damped by the 150ms segment interpolator) -> after arriving: quick surprise-mouth open 0.16s, beat, quick close 0.18s while the mouth shrinks to the confirmed thinking small mouth (stroke-dasharray inset 7.5) and brows morph to the notification focus brows (BROW_POSES, kept for the rest of the state) -> turns back to the viewer as the exclamation fades out -> alarm-clock hold loop with zero pause: cyan-blue ripple arcs from both ears (#4fb8d8 on #2a7a96, every 1.7s), head sway ±3° at 4.4Hz about the neck (187,252) via the alert-head-sway wrapper, tuft float ±2.5° at 0.8Hz with offset phases, mouth-corner micro motion (inset 7.5±2.5, 4s). Engine drives breathing/look layers itself; alert writes only wrapper groups (alert-glasses-jump, alert-head-sway), per-tuft/per-brow nodes and screen-coordinate layers (ripples, exclamation), so the two never fight. Total entrance ≈2.2s then loops the hold forever; host auto-returns to idle after ~4s. Self-driven: needs no pointer feed; svg root keeps pointer-events:none so the engine's hover fallback can never steal the gaze in embedding pages. Exposes window.__miniAlert.replay() for demos. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
   <defs>
-      <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-        <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
-        <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"/>
-        <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
-        <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"/>
-        <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"/>
-        <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"/>
-        <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
-        <feMerge>
-          <feMergeNode in="ambient-shadow"/>
-          <feMergeNode in="halo"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
       <clipPath id="mini-paw-clip-right" clipPathUnits="userSpaceOnUse">
         <rect x="340" y="236" width="78" height="64"/>
       </clipPath>

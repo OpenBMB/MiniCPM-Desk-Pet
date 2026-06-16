@@ -29,7 +29,7 @@ const LOW_POWER_MINI_IDLE_TICK_MS = 2000;
 const REACTION_TICK_MS = 500;
 const BACKGROUND_TICK_MS = 750;
 const RECENT_MOUSE_MS = 2000;
-const RENDER_CANVAS_RESIZE_SETTLE_MS = 50;
+const RENDER_CANVAS_RESIZE_SETTLE_MS = 0;
 const POINTER_BRIDGE_STATES = new Set(["idle", "mini-idle", "mini-peek"]);
 const LOW_POWER_PAUSE_STATES = new Set(["idle", "mini-idle", "dozing"]);
 const POINTER_BRIDGE_EPSILON = 0.001;
@@ -128,7 +128,7 @@ function sendIdleSvg(svg, shouldSend = () => true) {
     ctx.sendToRenderer("state-change", "idle", svg);
     ctx.sendToHitWin("hit-state-sync", { currentSvg: svg });
   };
-  if (renderCanvasChanged) setTimeout(send, RENDER_CANVAS_RESIZE_SETTLE_MS);
+  if (renderCanvasChanged && RENDER_CANVAS_RESIZE_SETTLE_MS > 0) setTimeout(send, RENDER_CANVAS_RESIZE_SETTLE_MS);
   else send();
 }
 

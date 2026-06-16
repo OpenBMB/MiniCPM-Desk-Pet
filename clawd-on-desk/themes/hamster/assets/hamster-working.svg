@@ -4,20 +4,26 @@
   <desc id="desc">Confirmed working hamster animation: fast typing, screen scan, look-person hold, blinking eyes, sliding sunglasses highlights, lifted brows, white code mark laptop, and subtle screen glow.</desc>
   <metadata>{&quot;state&quot;:&quot;working&quot;,&quot;version&quot;:&quot;working-typing-v1&quot;,&quot;source&quot;:&quot;drafts/working-motion-v1/working-atmosphere-v1/hamster-working-atmosphere-v1.html&quot;,&quot;finalized&quot;:&quot;2026-06-10&quot;,&quot;head&quot;:{&quot;durationMs&quot;:4200,&quot;sequence&quot;:[&quot;screen-left&quot;,&quot;screen-right&quot;,&quot;screen-left&quot;,&quot;screen-right&quot;,&quot;look-person-hold&quot;,&quot;screen-left&quot;],&quot;keys&quot;:{&quot;screenLeft&quot;:{&quot;yaw&quot;:-78,&quot;pitch&quot;:70,&quot;angle&quot;:-3},&quot;screenRight&quot;:{&quot;yaw&quot;:-46,&quot;pitch&quot;:70,&quot;angle&quot;:-3},&quot;lookPerson&quot;:{&quot;yaw&quot;:-50,&quot;pitch&quot;:42,&quot;angle&quot;:-3}}},&quot;hands&quot;:{&quot;normalMs&quot;:120,&quot;lookPersonMs&quot;:220,&quot;pose1&quot;:{&quot;leftAngle&quot;:3.5,&quot;rightAngle&quot;:7,&quot;leftPivot&quot;:[119,259],&quot;rightPivot&quot;:[280.5,262]},&quot;pose2&quot;:{&quot;leftAngle&quot;:17,&quot;rightAngle&quot;:-8,&quot;leftPivot&quot;:[119,259],&quot;rightPivot&quot;:[280.5,262]}},&quot;laptop&quot;:{&quot;x&quot;:-61,&quot;y&quot;:129.5,&quot;scale&quot;:0.31,&quot;mark&quot;:&quot;white code &lt;/&gt;&quot;},&quot;atmosphere&quot;:{&quot;screenGlow&quot;:true,&quot;particles&quot;:false,&quot;glowPower&quot;:0.9}}</metadata>
   <defs>
-    <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
-          <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
-          <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"/>
-          <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
-          <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"/>
-          <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"/>
-          <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"/>
-          <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
-          <feMerge>
-            <feMergeNode in="ambient-shadow"/>
-            <feMergeNode in="halo"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
       <clipPath id="body-left-blush-clip" clipPathUnits="userSpaceOnUse"><path id="body-left-blush-clip-path" d="M65 153 C71.44 154.15 108.6 162.44 118.63 162.56 C127.22 162.66 143.62 155.55 148.54 154.02 C153.46 152.49 162.38 147.29 166.45 147.65 C170.52 148.01 182.39 155.94 188.13 157.48 C193.87 159.02 209.84 163.09 222.27 162.63 C236.77 162.09 298.59 154.16 309 153 C325.53 179.37 328.94 219.63 303 246 C270 268 104 268 71 246 C36.56 221 41.8 178 65 153Z"/></clipPath>
     <filter id="underPatchShadow" x="-25%" y="-25%" width="150%" height="160%">
                     <feDropShadow dx="0" dy="1.4" stdDeviation="1.15" flood-color="#6c4c35" flood-opacity=".14"/>
