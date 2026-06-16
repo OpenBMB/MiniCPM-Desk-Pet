@@ -453,6 +453,41 @@ describe("tick adaptive polling", () => {
     assert.deepStrictEqual(statesSeen, ["sleeping"]);
   });
 
+  it("syncs render canvas when idle random animation swaps SVGs", () => {
+    const theme = cloneTheme(_defaultTheme);
+    theme.timings.mouseIdleTimeout = 50;
+    theme.timings.mouseSleepTimeout = 120000;
+    theme.idleAnimations = [{ file: "wide-idle.svg", duration: 1000 }];
+    const calls = [];
+
+    ctx = makeCtx(theme, statesSeen);
+    ctx.syncRenderCanvasForState = (state, svg) => calls.push(["sync", state, svg]);
+    ctx.sendToRenderer = (channel, state, svg) => {
+      if (channel === "state-change") calls.push(["render", state, svg]);
+    };
+    ctx.sendToHitWin = (channel, payload) => {
+      if (channel === "hit-state-sync") calls.push(["hit", payload.currentSvg]);
+    };
+    tickApi = loader.initTick(ctx);
+    tickApi.startMainTick();
+
+    mock.timers.tick(1);
+    mock.timers.tick(100);
+    mock.timers.tick(250);
+    assert.deepStrictEqual(calls.slice(0, 3), [
+      ["sync", "idle", "wide-idle.svg"],
+      ["render", "idle", "wide-idle.svg"],
+      ["hit", "wide-idle.svg"],
+    ]);
+
+    mock.timers.tick(1000);
+    assert.deepStrictEqual(calls.slice(3, 6), [
+      ["sync", "idle", theme.states.idle[0]],
+      ["render", "idle", theme.states.idle[0]],
+      ["hit", theme.states.idle[0]],
+    ]);
+  });
+
   it("uses the ctx setter path to pull a pending tick forward for force eye resend boost", () => {
     const theme = cloneTheme(_defaultTheme);
     const eyeMoves = [];

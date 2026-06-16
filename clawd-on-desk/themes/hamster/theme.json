@@ -280,6 +280,10 @@
     {
       "file": "hamster-idle-glasses-push.svg",
       "duration": 5200
+    },
+    {
+      "file": "hamster-working-3session-idle-half.svg",
+      "duration": 4660
     }
   ],
   "displayHintMap": {
@@ -439,6 +443,12 @@
       "hamster-error.svg": 0.964,
       "hamster-sleeping-to-wake-up.svg": 0.947,
       "hamster-notification.svg": 0.92
+    },
+    "fileOffsets": {
+      "hamster-idle-glasses-push.svg": {
+        "x": 10,
+        "y": -14
+      }
     }
   }
 }

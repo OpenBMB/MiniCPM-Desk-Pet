@@ -117,6 +117,14 @@ function pointerBridgePayloadChanged(key, payload) {
     || Math.abs(payload.y - lastPointerBridgePayload.y) > POINTER_BRIDGE_EPSILON;
 }
 
+function sendIdleSvg(svg) {
+  if (typeof ctx.syncRenderCanvasForState === "function") {
+    ctx.syncRenderCanvasForState("idle", svg);
+  }
+  ctx.sendToRenderer("state-change", "idle", svg);
+  ctx.sendToHitWin("hit-state-sync", { currentSvg: svg });
+}
+
 function sendPointerBridge(cursor, bounds) {
   if (typeof ctx.getAssetPointerPayload !== "function") return;
   if (shouldSuppressPassiveIpc()) return;
@@ -246,7 +254,7 @@ function runMainTickOnce() {
         if (yawnDelayTimer) { clearTimeout(yawnDelayTimer); yawnDelayTimer = null; }
         if (isMouseIdle) {
           isMouseIdle = false;
-          ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
+          sendIdleSvg(SVG_IDLE_FOLLOW);
         }
       }
 
@@ -281,16 +289,14 @@ function runMainTickOnce() {
         if (!shouldSuppressPassiveIpc()) ctx.sendToRenderer("eye-move", 0, 0);
         setTimeout(() => {
           if (isMouseIdle && ctx.currentState === "idle") {
-            ctx.sendToRenderer("state-change", "idle", pick.svg);
-            ctx.sendToHitWin("hit-state-sync", { currentSvg: pick.svg });
+            sendIdleSvg(pick.svg);
           }
         }, 250);
         idleLookReturnTimer = setTimeout(() => {
           idleLookReturnTimer = null;
           if (isMouseIdle && ctx.currentState === "idle") {
             isMouseIdle = false;
-            ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
-            ctx.sendToHitWin("hit-state-sync", { currentSvg: SVG_IDLE_FOLLOW });
+            sendIdleSvg(SVG_IDLE_FOLLOW);
             setTimeout(() => { ctx.forceEyeResend = true; }, 200);
           }
         }, 250 + pick.duration);

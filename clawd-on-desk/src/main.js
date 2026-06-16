@@ -1014,6 +1014,7 @@ const _tickCtx = {
   get startupRecoveryActive() { return _state.getStartupRecoveryActive(); },
   sendToRenderer,
   sendToHitWin,
+  syncRenderCanvasForState,
   setState,
   applyState,
   miniPeekIn: () => miniPeekIn(),
