@@ -380,6 +380,9 @@ function applyState(state, svgOverride) {
 
   currentHitBox = resolveHitBoxForSvg(svg);
 
+  if (typeof ctx.syncRenderCanvasForState === "function") {
+    ctx.syncRenderCanvasForState(state, svg);
+  }
   ctx.sendToRenderer("state-change", state, svg);
   ctx.syncHitWin();
   ctx.sendToHitWin("hit-state-sync", { currentSvg: svg, currentState: state });

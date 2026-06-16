@@ -29,6 +29,7 @@ const LOW_POWER_MINI_IDLE_TICK_MS = 2000;
 const REACTION_TICK_MS = 500;
 const BACKGROUND_TICK_MS = 750;
 const RECENT_MOUSE_MS = 2000;
+const RENDER_CANVAS_RESIZE_SETTLE_MS = 0;
 const POINTER_BRIDGE_STATES = new Set(["idle", "mini-idle", "mini-peek"]);
 const LOW_POWER_PAUSE_STATES = new Set(["idle", "mini-idle", "dozing"]);
 const POINTER_BRIDGE_EPSILON = 0.001;
@@ -115,6 +116,20 @@ function pointerBridgePayloadChanged(key, payload) {
   return payload.inside !== lastPointerBridgePayload.inside
     || Math.abs(payload.x - lastPointerBridgePayload.x) > POINTER_BRIDGE_EPSILON
     || Math.abs(payload.y - lastPointerBridgePayload.y) > POINTER_BRIDGE_EPSILON;
+}
+
+function sendIdleSvg(svg, shouldSend = () => true) {
+  let renderCanvasChanged = false;
+  if (typeof ctx.syncRenderCanvasForState === "function") {
+    renderCanvasChanged = ctx.syncRenderCanvasForState("idle", svg) === true;
+  }
+  const send = () => {
+    if (!shouldSend()) return;
+    ctx.sendToRenderer("state-change", "idle", svg);
+    ctx.sendToHitWin("hit-state-sync", { currentSvg: svg });
+  };
+  if (renderCanvasChanged && RENDER_CANVAS_RESIZE_SETTLE_MS > 0) setTimeout(send, RENDER_CANVAS_RESIZE_SETTLE_MS);
+  else send();
 }
 
 function sendPointerBridge(cursor, bounds) {
@@ -212,15 +227,17 @@ function runMainTickOnce() {
     // ── Mini mode peek hover ──
     if (ctx.miniMode && !ctx.miniTransitioning && !ctx.dragLocked && !ctx.menuOpen) {
       const canPeek = ctx.currentState === "mini-idle" || ctx.currentState === "mini-peek"
-        || ctx.currentState === "mini-sleep";
+        || ctx.currentState === "mini-sleep" || ctx.currentState === "mini-sleep-peek";
       if (!ctx.isAnimating && canPeek) {
         if (ctx.mouseOverPet && ctx.currentState === "mini-sleep" && !ctx.miniSleepPeeked) {
           ctx.miniPeekIn();
           ctx.miniSleepPeeked = true;
-        } else if (!ctx.mouseOverPet && ctx.currentState === "mini-sleep" && ctx.miniSleepPeeked) {
+          ctx.applyState("mini-sleep-peek");
+        } else if (!ctx.mouseOverPet && (ctx.currentState === "mini-sleep-peek" || (ctx.currentState === "mini-sleep" && ctx.miniSleepPeeked))) {
           ctx.miniPeekOut();
           ctx.miniSleepPeeked = false;
-        } else if (ctx.mouseOverPet && ctx.currentState !== "mini-peek" && ctx.currentState !== "mini-sleep" && !ctx.miniPeeked) {
+          if (ctx.currentState !== "mini-sleep") ctx.applyState("mini-sleep");
+        } else if (ctx.mouseOverPet && ctx.currentState !== "mini-peek" && ctx.currentState !== "mini-sleep" && ctx.currentState !== "mini-sleep-peek" && !ctx.miniPeeked) {
           ctx.miniPeekIn();
           ctx.applyState("mini-peek");
         } else if (!ctx.mouseOverPet && (ctx.currentState === "mini-peek" || ctx.miniPeeked)) {
@@ -246,7 +263,7 @@ function runMainTickOnce() {
         if (yawnDelayTimer) { clearTimeout(yawnDelayTimer); yawnDelayTimer = null; }
         if (isMouseIdle) {
           isMouseIdle = false;
-          ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
+          sendIdleSvg(SVG_IDLE_FOLLOW, () => ctx.currentState === "idle");
         }
       }
 
@@ -281,16 +298,14 @@ function runMainTickOnce() {
         if (!shouldSuppressPassiveIpc()) ctx.sendToRenderer("eye-move", 0, 0);
         setTimeout(() => {
           if (isMouseIdle && ctx.currentState === "idle") {
-            ctx.sendToRenderer("state-change", "idle", pick.svg);
-            ctx.sendToHitWin("hit-state-sync", { currentSvg: pick.svg });
+            sendIdleSvg(pick.svg, () => isMouseIdle && ctx.currentState === "idle");
           }
         }, 250);
         idleLookReturnTimer = setTimeout(() => {
           idleLookReturnTimer = null;
           if (isMouseIdle && ctx.currentState === "idle") {
             isMouseIdle = false;
-            ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
-            ctx.sendToHitWin("hit-state-sync", { currentSvg: SVG_IDLE_FOLLOW });
+            sendIdleSvg(SVG_IDLE_FOLLOW, () => ctx.currentState === "idle");
             setTimeout(() => { ctx.forceEyeResend = true; }, 200);
           }
         }, 250 + pick.duration);

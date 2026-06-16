@@ -491,6 +491,7 @@ const petWindowRuntime = createPetWindowRuntime({
   getMiniMode: () => _mini.getMiniMode(),
   getMiniTransitioning: () => _mini.getMiniTransitioning(),
   getMiniPeekOffset: () => _mini.PEEK_OFFSET,
+  getMiniRenderCrop: () => _mini.getMiniRenderCrop(),
   getCurrentPixelSize: () => getCurrentPixelSize(),
   getEffectiveCurrentPixelSize: (workArea) => getEffectiveCurrentPixelSize(workArea),
   getKeepSizeAcrossDisplays: () => keepSizeAcrossDisplaysCached,
@@ -622,6 +623,7 @@ function setViewportOffsetY(offsetY) { return petWindowRuntime.setViewportOffset
 function getPetWindowBounds() { return petWindowRuntime.getPetWindowBounds(); }
 function applyPetWindowBounds(bounds) { return petWindowRuntime.applyPetWindowBounds(bounds); }
 function applyPetWindowPosition(x, y) { return petWindowRuntime.applyPetWindowPosition(x, y); }
+function syncRenderCanvasForState(state, svg) { return petWindowRuntime.syncRenderCanvasForState(state, svg); }
 
 function syncHitStateAfterLoad() {
   sendToHitWin("hit-state-sync", {
@@ -635,7 +637,9 @@ function syncHitStateAfterLoad() {
 function syncRendererStateAfterLoad({ includeStartupRecovery = true } = {}) {
   sendToRenderer("low-power-idle-mode-change", lowPowerIdleMode);
   if (_mini.getMiniMode()) {
-    sendToRenderer("mini-mode-change", true, _mini.getMiniEdge());
+    const options = _mini.getMiniModeChangeOptions();
+    if (options) sendToRenderer("mini-mode-change", true, _mini.getMiniEdge(), options);
+    else sendToRenderer("mini-mode-change", true, _mini.getMiniEdge());
   }
   if (doNotDisturb) {
     sendToRenderer("dnd-change", true);
@@ -914,6 +918,7 @@ const _stateCtx = {
   get pendingPermissions() { return pendingPermissions; },
   sendToRenderer,
   sendToHitWin,
+  syncRenderCanvasForState,
   syncHitWin,
   playSound,
   t: (key) => t(key),
@@ -1012,6 +1017,7 @@ const _tickCtx = {
   get startupRecoveryActive() { return _state.getStartupRecoveryActive(); },
   sendToRenderer,
   sendToHitWin,
+  syncRenderCanvasForState,
   setState,
   applyState,
   miniPeekIn: () => miniPeekIn(),
@@ -1697,6 +1703,7 @@ function createWindow() {
     isQuitting: () => isQuitting,
     applyDockVisibility,
   });
+  _mini.applyMiniRenderCropShape();
 
   buildContextMenu();
   if (!isMac || showTray) createTray();

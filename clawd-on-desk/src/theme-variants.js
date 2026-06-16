@@ -18,7 +18,7 @@ const VARIANT_ALLOWED_KEYS = new Set([
   "workingTiers", "jugglingTiers", "idleAnimations",
   "wideHitboxFiles", "sleepingHitboxFiles",
   "hitBoxes", "fileHitBoxes", "timings", "transitions",
-  "objectScale", "displayHintMap",
+  "objectScale", "renderCanvas", "displayHintMap",
 ]);
 
 // Fields that replace wholesale instead of deep-merge. Arrays always replace;

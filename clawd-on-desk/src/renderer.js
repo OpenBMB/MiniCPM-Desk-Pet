@@ -32,8 +32,12 @@ function initWithConfig(cfg) {
   _eyeTrackingStates = (tc.eyeTrackingStates) || ["idle", "dozing", "mini-idle"];
   _trustedScriptedSvgFiles = new Set(Array.isArray(tc.trustedScriptedSvgFiles) ? tc.trustedScriptedSvgFiles : []);
   _forceSvgObjectChannel = !!(tc.rendering && tc.rendering.svgChannel === "object");
+  _renderCanvas = tc.renderCanvas || { fileRatios: {} };
   _imgCacheBustSeq = 0;
   _miniViewBox = tc.miniModeViewBox || null;
+  _miniScale = Number.isFinite(Number(tc.miniModeScale)) && Number(tc.miniModeScale) > 0
+    ? Number(tc.miniModeScale)
+    : 1;
   _fileViewBoxes = tc.fileViewBoxes || {};
   _dragSvg = tc.dragSvg || null;
   _idleFollowSvg = tc.idleFollowSvg || "clawd-idle-follow.svg";
@@ -70,6 +74,7 @@ function applyObjectScaleStyle(el, file, state) {
   if (!el || !_objectScaleCSS) return;
   if (shouldUseNormalizedLayout(file, state)) {
     applyNormalizedLayoutStyle(el, file, state);
+    applyPetElementTransform(el, state);
     return;
   }
   const fo = (file && _fileOffsets[file]) || null;
@@ -90,6 +95,31 @@ function applyObjectScaleStyle(el, file, state) {
     el.style.left = `calc(${_objectScaleCSS.left} + ${ox}px)`;
     el.style.top = "auto";
     el.style.bottom = `calc(${_objectScaleCSS.objBottom} + ${oy + _viewportOffsetY}px)`;
+  }
+  applyPetElementTransform(el, state);
+}
+
+function shouldApplyMiniVisualScale(state) {
+  return !!(_inMiniMode && state && state.startsWith("mini-"));
+}
+
+function getMiniVisualScale(state = currentState) {
+  return shouldApplyMiniVisualScale(state) ? _miniScale : 1;
+}
+
+function applyPetElementTransform(el, state = currentState) {
+  if (!el) return;
+  const transforms = [];
+  const miniScale = getMiniVisualScale(state);
+  if (miniScale !== 1) transforms.push(`scale(${miniScale})`);
+  if (el.tagName === "IMG" && shouldApplyMiniAssetFlip(state)) transforms.push("scaleX(-1)");
+
+  if (transforms.length) {
+    el.style.transformOrigin = miniScale !== 1 ? "right center" : "";
+    el.style.transform = transforms.join(" ");
+  } else {
+    el.style.transformOrigin = "";
+    el.style.transform = "";
   }
 }
 
@@ -302,6 +332,25 @@ function applyNormalizedLayoutStyle(el, file, state) {
     - ((centerX - viewBox.x) * unitRatio);
   const bottomRatio = (_layout.baselineBottomRatio != null ? _layout.baselineBottomRatio : 0.05)
     - ((viewBox.y + viewBox.height - baselineY) * unitRatio);
+  const stage = getRenderStageMetrics(file);
+
+  if (stage.widthRatio > 1) {
+    const widthPx = widthRatio * stage.logicalWidth;
+    const heightPx = heightRatio * stage.logicalHeight;
+    const leftPx = stage.left + leftRatio * stage.logicalWidth + ox;
+    const bottomPx = bottomRatio * stage.logicalHeight + oy + _viewportOffsetY;
+    if (el.tagName === "IMG") {
+      el.style.width = `${widthPx}px`;
+      el.style.height = "auto";
+    } else {
+      el.style.width = `${widthPx}px`;
+      el.style.height = `${heightPx}px`;
+    }
+    el.style.left = `${leftPx}px`;
+    el.style.top = "auto";
+    el.style.bottom = `${bottomPx}px`;
+    return;
+  }
 
   if (el.tagName === "IMG") {
     el.style.width = `${widthRatio * 100}%`;
@@ -318,6 +367,40 @@ function applyNormalizedLayoutStyle(el, file, state) {
   }
 }
 
+function getRenderCanvasForFile(file) {
+  const entry = file
+    && _renderCanvas
+    && _renderCanvas.fileRatios
+    && _renderCanvas.fileRatios[file];
+  const widthRatio = entry && Number.isFinite(entry.widthRatio)
+    ? Math.max(1, entry.widthRatio)
+    : 1;
+  const anchorX = entry && Number.isFinite(entry.anchorX)
+    ? Math.max(0, Math.min(1, entry.anchorX))
+    : 0.5;
+  return { widthRatio, anchorX };
+}
+
+function getRenderStageMetrics(file) {
+  const canvas = getRenderCanvasForFile(file);
+  const viewportWidth = Math.max(1, window.innerWidth || 1);
+  const viewportHeight = Math.max(1, window.innerHeight || 1);
+  const logicalWidth = viewportWidth / canvas.widthRatio;
+  return {
+    widthRatio: canvas.widthRatio,
+    logicalWidth,
+    logicalHeight: viewportHeight,
+    left: (viewportWidth - logicalWidth) * canvas.anchorX,
+  };
+}
+
+function refreshObjectLayout() {
+  applyObjectScaleStyle(clawdEl, currentDisplayedSvg, currentState);
+  if (pendingNext) {
+    applyObjectScaleStyle(pendingNext, getObjectSvgName(pendingNext), currentState);
+  }
+}
+
 let _assetsPath;
 let _sourceAssetsPath;
 let _viewBox;
@@ -331,7 +414,9 @@ let _trustedScriptedSvgFiles = new Set();
 let _forceSvgObjectChannel = false;
 let _imgCacheBustSeq = 0;
 let _miniViewBox = null;
+let _miniScale = 1;
 let _fileViewBoxes = {};
+let _renderCanvas = { fileRatios: {} };
 let _dragSvg;
 let _idleFollowSvg;
 let _glyphFlipDefs;
@@ -359,8 +444,22 @@ function shouldApplyMiniAssetFlip(state) {
 }
 
 function applyMiniFlip(el, state = currentState) {
-  if (!el || el.tagName !== "IMG") return;
-  el.style.transform = shouldApplyMiniAssetFlip(state) ? "scaleX(-1)" : "";
+  applyPetElementTransform(el, state);
+}
+
+function applyMiniWindowCrop(crop) {
+  if (!document.body) return;
+  if (!crop
+    || !Number.isFinite(crop.x)
+    || !Number.isFinite(crop.width)
+    || crop.width <= 0) {
+    document.body.style.clipPath = "";
+    return;
+  }
+  const viewportWidth = Math.max(0, Math.round(window.innerWidth || 0));
+  const left = Math.max(0, Math.round(crop.x));
+  const right = Math.max(0, viewportWidth - left - Math.round(crop.width));
+  document.body.style.clipPath = `inset(0px ${right}px 0px ${left}px)`;
 }
 
 // ── Layered tracking state (multi-layer eye/head/body tracking) ──
@@ -375,6 +474,8 @@ let _layeredTrackingObj = null;    // the <object> element currently tracked (gu
 const LAYER_SETTLE_EPSILON = 0.02;
 
 initWithConfig(tc);
+
+window.addEventListener("resize", refreshObjectLayout);
 
 // Theme switch: reload + IPC push overrides additionalArguments
 window.electronAPI.onThemeConfig((newConfig) => {
@@ -423,6 +524,7 @@ window.electronAPI.onMiniModeChange((enabled, edge, options) => {
   _miniPreEntryMode = !!enabled && preEntry;
   _inMiniMode = !!enabled && !preEntry;
   miniLeftFlip = !!enabled && edge === "left";
+  applyMiniWindowCrop(enabled && !preEntry ? (options && options.crop) : null);
   container.classList.toggle("mini-left", miniLeftFlip);
   applyMiniFlip(clawdEl, currentState);
   if (miniLeftFlip) {
@@ -779,7 +881,8 @@ function swapToFile(file, state, useObjectChannel, options = {}) {
     };
 
     next.addEventListener("load", swap, { once: true });
-    next.data = url;
+    const cacheBust = `${Date.now()}-${++_imgCacheBustSeq}`;
+    next.data = `${url}${url.includes("?") ? "&" : "?"}_t=${cacheBust}`;
     container.appendChild(next);
     pendingNext = next;
     scheduleSwapVisibilityRescue(swapToken, file, state);

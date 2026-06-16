@@ -200,4 +200,28 @@ describe("hit geometry", () => {
     assert.strictEqual(payload.inside, true);
     assert.strictEqual(outside.inside, false);
   });
+
+  it("applies mini visual scale around the edge anchor for object-channel geometry", () => {
+    const theme = {
+      _builtin: true,
+      viewBox: { x: -32, y: -24, width: 88, height: 72 },
+      miniMode: { viewBox: { x: -12, y: -12, width: 48, height: 48 }, scale: 0.84 },
+      fileViewBoxes: {},
+      objectScale: { widthRatio: 1, heightRatio: 1, offsetX: 0, offsetY: 0, objBottom: 0 },
+      eyeTracking: { enabled: false, states: [] },
+      trustedRuntime: { scriptedSvgFiles: ["cloudling-mini-idle.svg"] },
+    };
+
+    const rect = hitGeometry.getAssetRectScreen(
+      theme,
+      bounds,
+      "mini-idle",
+      "cloudling-mini-idle.svg"
+    );
+
+    approx(rect.x, 32);
+    approx(rect.y, 16);
+    approx(rect.w, 168);
+    approx(rect.h, 168);
+  });
 });

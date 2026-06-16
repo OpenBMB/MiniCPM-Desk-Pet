@@ -1,0 +1,969 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="554" height="548" viewBox="-90 -125 554 548" role="img" aria-labelledby="error-loop-v1-title error-loop-v1-desc" id="hamster-error-loop-v1" data-export="error-loop-v1">
+<title id="error-loop-v1-title">Hamster error loop v1</title>
+<desc id="error-loop-v1-desc">Error state hamster with fixed red chopstick marks and chest ERROR text fading with the body rhythm.</desc>
+<metadata id="error-loop-v1-metadata"><![CDATA[
+{
+  "mode": "error-loop-v1",
+  "source": "drafts/error-motion-v1/error-decor-tuner-v1/hamster-error-decor-tuner-v1.html",
+  "exportDate": "2026-06-11",
+  "viewBox": "-90 -125 554 548",
+  "font": "Source Han Sans SC / 思源黑体, fallback sans-serif",
+  "animation": "fixed decor opacity follows accepted body error rhythm"
+}
+]]></metadata>
+<style id="error-loop-v1-export-style"><![CDATA[
+:root { width: 100%; height: 100%; }
+#hamster-error-loop-v1 { overflow: visible; }
+#error-chest-text text {
+  font-family: "Source Han Sans SC", "Source Han Sans", "Noto Sans CJK SC", Arial, sans-serif;
+  font-weight: 900;
+  paint-order: normal;
+}
+]]></style>
+
+
+
+
+  <defs>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  <clipPath id="error-look-blush-clip" clipPathUnits="userSpaceOnUse"><path id="error-look-blush-clip-path" d="M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z"></path></clipPath><filter id="error-decor-soft-shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2.2" flood-color="#9d2d2f" flood-opacity=".18"></feDropShadow></filter></defs>
+
+  <style>
+    #hamster-flat-master-v11 {
+      transform-box: view-box;
+      transform-origin: 187px 230px;
+    }
+
+    #left-foot { transform-box: view-box; transform-origin: 104px 405px; }
+    #right-foot { transform-box: view-box; transform-origin: 270px 405px; }
+    #left-hand { transform-box: view-box; transform-origin: 118px 257px; }
+    #right-hand { transform-box: view-box; transform-origin: 256px 257px; }
+    #left-ear { transform-box: view-box; transform-origin: 101px 73px; }
+    #right-ear { transform-box: view-box; transform-origin: 286px 73px; }
+    #body-belly { transform-box: view-box; transform-origin: 187px 322px; }
+    #head-cap { transform-box: view-box; transform-origin: 187px 153px; }
+    #cheek-muzzle { transform-box: view-box; transform-origin: 187px 208px; }
+    #head-tufts { transform-box: view-box; transform-origin: 198px 48px; }
+    #left-eye { transform-box: view-box; transform-origin: 138px 157px; }
+    #right-eye { transform-box: view-box; transform-origin: 237px 157px; }
+    #left-brow { transform-box: view-box; transform-origin: 140px 116px; }
+    #right-brow { transform-box: view-box; transform-origin: 234px 116px; }
+    #left-blush { transform-box: view-box; transform-origin: 92px 185px; }
+    #right-blush { transform-box: view-box; transform-origin: 281px 185px; }
+    #nose-mouth { transform-box: view-box; transform-origin: 187px 177px; }
+    #tie { transform-box: view-box; transform-origin: 187px 263px; }
+    #sunglasses { transform-box: view-box; transform-origin: 187px 157px; }
+  </style>
+
+  <g id="hamster-flat-master-v11" data-source="hamster-flat-layered-v10-soft-lift.svg" data-effect="soft-lift" data-adjustment="centered-face-and-tie" filter="url(#soft-lift)" fill-rule="evenodd" clip-rule="evenodd">
+    <g id="tail" data-part="tail" data-layer="behind-body" data-desc="hamster short tail, circle; resting at body center (behind belly), revealed by turn pages sliding sideways" style="transform-box: view-box; transform-origin: 0px 0px;">
+      <circle id="tail-fill" cx="187" cy="356" r="22" fill="#d8a686"></circle>
+    </g>
+    <g id="feet-layer" data-layer="behind-body">
+      <g id="left-foot" data-part="left-foot" data-origin="104 405">
+        <path id="left-foot-fill" data-part="foot-with-hidden-leg" d="M109 392 C101 389 93 391 87 396 C80 402 84 410 94 414 C105 418 118 414 125 405 C131 397 123 394 109 392 Z" fill="#d8a686"></path>
+      </g>
+      <g id="right-foot" data-part="right-foot" data-origin="270 405">
+        <path id="right-foot-fill" data-part="foot-with-hidden-leg" d="M265 392 C273 389 281 391 287 396 C294 402 290 410 280 414 C269 418 256 414 249 405 C243 397 251 394 265 392 Z" fill="#d8a686"></path>
+      </g>
+    </g>
+
+    <g id="body-layer" data-layer="body" style="transform-box: view-box; transform-origin: 0px 0px;">
+      <g id="body-belly" data-part="body-belly" data-origin="187 322">
+        <path id="body-belly-fill" d="M187 200 C113 200 60 251 60 322 C60 380 101 412 187 412 C273 412 314 380 314 322 C314 251 261 200 187 200Z" fill="#fff8f0"></path>
+      </g>
+    </g>
+
+    <g id="tie" data-part="tie" data-origin="187 263" transform="translate(153 260)" style="transform-box: view-box; transform-origin: 0px 0px;"><g id="error-tie-blade-motion" data-layer="error-tie-blade-motion" style="transform-box: view-box; transform-origin: 0px 0px;"><path id="tie-shadow" d="M24 27 L44 27 L54 68 C55 72.5 53 76 49 80 L38 93 C35.5 96 31 96 28.5 93 L17.5 80 C14 76 13 72.5 14.5 68 Z" fill="#000000" opacity=".08" transform="translate(2 2)"></path><path id="tie-blade" d="M24 24 L44 24 L54 66 C55 70.5 53 74 49 78 L38 91 C35.5 94 31 94 28.5 91 L17.5 78 C14 74 13 70.5 14.5 66 Z" fill="#21201e" stroke="#151515" stroke-width="2" stroke-linejoin="round"></path><path id="tie-center-fold" d="M34 28 L34 84" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".07"></path><path id="tie-left-fold" d="M27 28 L21 64" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" opacity=".18"></path></g>
+
+      <path id="tie-knot" d="M23 3 L44 3 L51 14 L44 25 L23 25 L16 14 Z" fill="#2d2c29" stroke="#151515" stroke-width="2" stroke-linejoin="round"></path>
+
+      <path id="tie-knot-highlight" d="M26 8 L40 8" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".12"></path>
+
+
+    </g>
+
+
+
+    <g id="ears-layer" data-layer="ears">
+      <g id="left-ear" data-part="left-ear" data-origin="101 73">
+        <circle id="left-ear-outer" cx="101" cy="73" r="34" fill="#d8a686"></circle>
+        <circle id="left-ear-inner" cx="101" cy="73" r="18" fill="#f8b2aa"></circle>
+      </g>
+      <g id="right-ear" data-part="right-ear" data-origin="286 73">
+        <circle id="right-ear-outer" cx="286" cy="73" r="34" fill="#d8a686"></circle>
+        <circle id="right-ear-inner" cx="286" cy="73" r="18" fill="#f8b2aa"></circle>
+      </g>
+    </g>
+
+    <g id="head-tufts" data-part="head-tufts" data-origin="198 48">
+      <path id="left-tuft" d="M182 49 C184 35 187 24 192 15" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round"></path>
+      <path id="right-tuft" d="M200 50 C203 34 208 24 214 16" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round"></path>
+    </g>
+
+    <g id="head-layer" data-layer="head">
+      <g id="head-cap" data-part="head-cap" data-origin="187 153">
+        <path id="head-cap-fill" d="M64 153 C64 88 116 48 187 48 C258 48 310 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z" fill="#edc8a5"></path>
+      </g>
+      <g id="cheek-muzzle" data-part="cheek-muzzle" data-origin="187 208">
+        <path id="cheek-muzzle-fill" d="M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z" fill="#fff8f0"></path>
+      </g>
+      <g id="cheek-creases" data-part="cheek-creases" opacity=".35">
+        <path id="left-cheek-crease" d="M62 238 C70 250 84 256 100 256" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"></path>
+        <path id="right-cheek-crease" d="M312 238 C304 250 290 256 274 256" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"></path>
+      </g>
+    <g id="error-look-blush-clip-wrapper" data-layer="error-blush-clip-host" clip-path="url(#error-look-blush-clip)"><g id="error-look-blush-transform"><g id="blushes" data-part="blushes">
+        <ellipse id="left-blush" cx="92" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9" data-origin="92 185"></ellipse>
+        <ellipse id="right-blush" cx="281" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9" data-origin="281 185"></ellipse>
+      </g></g></g></g>
+
+    <g id="error-hold-head-hands-layer" data-layer="error-hold-head-hands"><g id="error-left-hold-head-hand" data-role="left-hold-head-hand"><path id="error-left-hand-base" d="M 95.92 258.105 L 95.348 256.759 L 94.397 255.527 L 93.387 254.397 L 92.414 253.344 L 91.469 252.349 L 90.55 251.4 L 89.652 250.486 L 88.772 249.601 L 87.909 248.739 L 87.061 247.897 L 86.228 247.071 L 85.407 246.258 L 84.599 245.455 L 83.803 244.662 L 83.018 243.876 L 82.245 243.097 L 81.484 242.324 L 80.734 241.555 L 79.995 240.789 L 79.267 240.028 L 78.552 239.268 L 77.847 238.511 L 77.155 237.756 L 76.475 237.002 L 75.786 236.226 L 74.998 235.329 L 73.982 234.177 L 72.72 232.773 L 71.324 231.265 L 69.905 229.781 L 68.501 228.358 L 67.13 226.999 L 65.809 225.711 L 64.558 224.497 L 63.392 223.359 L 62.327 222.3 L 61.371 221.319 L 60.53 220.414 L 59.8 219.579 L 59.171 218.803 L 58.627 218.069 L 58.15 217.356 L 57.723 216.642 L 57.332 215.903 L 56.966 215.12 L 56.621 214.284 L 56.308 213.423 L 56.051 212.609 L 55.861 211.864 L 55.72 211.112 L 55.613 210.271 L 55.538 209.327 L 55.502 208.291 L 55.507 207.173 L 55.555 205.984 L 55.646 204.732 L 55.772 203.431 L 55.893 202.106 L 55.938 200.776 L 55.842 199.433 L 55.577 198.064 L 55.144 196.669 L 54.549 195.257 L 53.797 193.837 L 52.893 192.423 L 51.838 191.03 L 50.638 189.675 L 49.292 188.382 L 47.802 187.191 L 46.169 186.153 L 44.399 185.332 L 42.513 184.775 L 40.551 184.469 L 38.569 184.339 L 36.618 184.299 L 34.722 184.321 L 32.889 184.429 L 31.119 184.667 L 29.415 185.068 L 27.787 185.652 L 26.245 186.426 L 24.807 187.392 L 23.49 188.548 L 22.313 189.891 L 21.296 191.414 L 20.461 193.11 L 19.821 194.974 L 19.363 197.015 L 19.039 199.22 L 18.8 201.542 L 18.631 203.94 L 18.539 206.408 L 18.538 208.948 L 18.644 211.567 L 18.876 214.267 L 19.258 217.05 L 19.805 219.879 L 20.492 222.638 L 21.282 225.223 L 22.165 227.666 L 23.161 230.061 L 24.283 232.441 L 25.532 234.789 L 26.897 237.077 L 28.357 239.275 L 29.884 241.358 L 31.445 243.308 L 33.007 245.115 L 34.541 246.781 L 36.022 248.312 L 37.435 249.723 L 38.773 251.032 L 40.034 252.255 L 41.22 253.411 L 42.336 254.515 L 43.391 255.583 L 44.392 256.627 L 45.346 257.657 L 46.262 258.679 L 47.152 259.692 L 48.032 260.694 L 48.909 261.681 L 49.788 262.655 L 50.668 263.615 L 51.548 264.562 L 52.429 265.496 L 53.308 266.417 L 54.186 267.326 L 55.06 268.223 L 55.931 269.107 L 56.797 269.98 L 57.657 270.841 L 58.509 271.69 L 59.352 272.527 L 60.184 273.352 L 61.003 274.164 L 61.806 274.962 L 62.59 275.744 L 63.351 276.509 L 64.084 277.255 L 64.784 277.976 L 65.443 278.669 L 66.05 279.323 L 66.592 279.926 L 67.112 280.403 L 67.789 280.565 L 68.804 280.292 L 70.147 279.699 L 71.695 278.953 L 73.375 278.107 L 75.158 277.162 L 77.014 276.122 L 78.918 274.993 L 80.846 273.785 L 82.772 272.509 L 84.673 271.173 L 86.524 269.79 L 88.3 268.369 L 89.978 266.921 L 91.531 265.454 L 92.932 263.979 L 94.152 262.499 L 95.156 261.018 L 95.827 259.542Z" fill="#fff8f0"></path><path id="error-left-paw-tip" d="M 55.394 211.285 L 55.629 210.549 L 55.549 209.716 L 55.502 208.802 L 55.487 207.817 L 55.507 206.771 L 55.562 205.669 L 55.654 204.516 L 55.782 203.318 L 55.916 202.074 L 55.977 200.779 L 55.885 199.441 L 55.619 198.07 L 55.185 196.674 L 54.589 195.259 L 53.836 193.835 L 52.93 192.418 L 51.875 191.021 L 50.674 189.66 L 49.328 188.358 L 47.838 187.153 L 46.203 186.098 L 44.43 185.262 L 42.534 184.706 L 40.555 184.425 L 38.559 184.321 L 36.602 184.288 L 34.707 184.3 L 32.874 184.396 L 31.103 184.625 L 29.397 185.021 L 27.765 185.603 L 26.22 186.378 L 24.777 187.345 L 23.455 188.501 L 22.273 189.845 L 21.251 191.371 L 20.41 193.069 L 19.772 194.929 L 19.337 196.918 L 19.043 198.983 L 18.819 201.097 L 18.648 203.264 L 18.538 205.488 L 18.499 207.772 L 18.539 210.117 L 18.673 212.528 L 18.92 215.008 L 19.557 217.186 L 20.861 218.612 L 22.575 219.504 L 24.413 220.158 L 26.346 220.575 L 28.341 220.75 L 30.372 220.689 L 32.427 220.437 L 34.495 220.04 L 36.563 219.523 L 38.616 218.903 L 40.642 218.197 L 42.628 217.424 L 44.559 216.601 L 46.424 215.748 L 48.219 214.898 L 49.936 214.088 L 51.559 213.327 L 53.071 212.614 L 54.453 211.949Z" fill="#d8a686"></path><path id="error-left-hand-face-contact-line" d="M 88.038 249.289 L 85.508 246.781 L 83.095 244.38 L 80.785 242.041 L 78.576 239.738 L 76.472 237.455 L 74.444 235.147 L 71.613 231.986 L 68.766 229.03 L 66.021 226.328 L 63.524 223.917 L 61.408 221.813 L 59.751 220.016 L 58.52 218.472 L 57.581 217.041 L 56.798 215.539 L 56.105 213.804" fill="none" stroke="#d8c9b9" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" opacity=".9"></path></g><g id="error-right-hold-head-hand" data-role="right-hold-head-hand"><path id="error-right-hand-base" d="M 278.08 258.105 L 278.652 256.759 L 279.603 255.527 L 280.613 254.397 L 281.586 253.344 L 282.531 252.349 L 283.45 251.4 L 284.348 250.486 L 285.228 249.601 L 286.091 248.739 L 286.939 247.897 L 287.772 247.071 L 288.593 246.258 L 289.401 245.455 L 290.197 244.662 L 290.982 243.876 L 291.755 243.097 L 292.516 242.324 L 293.266 241.555 L 294.005 240.789 L 294.733 240.028 L 295.448 239.268 L 296.153 238.511 L 296.845 237.756 L 297.525 237.002 L 298.214 236.226 L 299.002 235.329 L 300.018 234.177 L 301.28 232.773 L 302.676 231.265 L 304.095 229.781 L 305.499 228.358 L 306.87 226.999 L 308.191 225.711 L 309.442 224.497 L 310.608 223.359 L 311.673 222.3 L 312.629 221.319 L 313.47 220.414 L 314.2 219.579 L 314.829 218.803 L 315.373 218.069 L 315.85 217.356 L 316.277 216.642 L 316.668 215.903 L 317.034 215.12 L 317.379 214.284 L 317.692 213.423 L 317.949 212.609 L 318.139 211.864 L 318.28 211.112 L 318.387 210.271 L 318.462 209.327 L 318.498 208.291 L 318.493 207.173 L 318.445 205.984 L 318.354 204.732 L 318.228 203.431 L 318.107 202.106 L 318.062 200.776 L 318.158 199.433 L 318.423 198.064 L 318.856 196.669 L 319.451 195.257 L 320.203 193.837 L 321.107 192.423 L 322.162 191.03 L 323.362 189.675 L 324.708 188.382 L 326.198 187.191 L 327.831 186.153 L 329.601 185.332 L 331.487 184.775 L 333.449 184.469 L 335.431 184.339 L 337.382 184.299 L 339.278 184.321 L 341.111 184.429 L 342.881 184.667 L 344.585 185.068 L 346.213 185.652 L 347.755 186.426 L 349.193 187.392 L 350.51 188.548 L 351.687 189.891 L 352.704 191.414 L 353.539 193.11 L 354.179 194.974 L 354.637 197.015 L 354.961 199.22 L 355.2 201.542 L 355.369 203.94 L 355.461 206.408 L 355.462 208.948 L 355.356 211.567 L 355.124 214.267 L 354.742 217.05 L 354.195 219.879 L 353.508 222.638 L 352.718 225.223 L 351.835 227.666 L 350.839 230.061 L 349.717 232.441 L 348.468 234.789 L 347.103 237.077 L 345.643 239.275 L 344.116 241.358 L 342.555 243.308 L 340.993 245.115 L 339.459 246.781 L 337.978 248.312 L 336.565 249.723 L 335.227 251.032 L 333.966 252.255 L 332.78 253.411 L 331.664 254.515 L 330.609 255.583 L 329.608 256.627 L 328.654 257.657 L 327.738 258.679 L 326.848 259.692 L 325.968 260.694 L 325.091 261.681 L 324.212 262.655 L 323.332 263.615 L 322.452 264.562 L 321.571 265.496 L 320.692 266.417 L 319.814 267.326 L 318.94 268.223 L 318.069 269.107 L 317.203 269.98 L 316.343 270.841 L 315.491 271.69 L 314.648 272.527 L 313.816 273.352 L 312.997 274.164 L 312.194 274.962 L 311.41 275.744 L 310.649 276.509 L 309.916 277.255 L 309.216 277.976 L 308.557 278.669 L 307.95 279.323 L 307.408 279.926 L 306.888 280.403 L 306.211 280.565 L 305.196 280.292 L 303.853 279.699 L 302.305 278.953 L 300.625 278.107 L 298.842 277.162 L 296.986 276.122 L 295.082 274.993 L 293.154 273.785 L 291.228 272.509 L 289.327 271.173 L 287.476 269.79 L 285.7 268.369 L 284.022 266.921 L 282.469 265.454 L 281.068 263.979 L 279.848 262.499 L 278.844 261.018 L 278.173 259.542Z" fill="#fff8f0"></path><path id="error-right-paw-tip" d="M 318.606 211.285 L 318.371 210.549 L 318.451 209.716 L 318.498 208.802 L 318.513 207.817 L 318.493 206.771 L 318.438 205.669 L 318.346 204.516 L 318.218 203.318 L 318.084 202.074 L 318.023 200.779 L 318.115 199.441 L 318.381 198.07 L 318.815 196.674 L 319.411 195.259 L 320.164 193.835 L 321.07 192.418 L 322.125 191.021 L 323.326 189.66 L 324.672 188.358 L 326.162 187.153 L 327.797 186.098 L 329.57 185.262 L 331.466 184.706 L 333.445 184.425 L 335.441 184.321 L 337.398 184.288 L 339.293 184.3 L 341.126 184.396 L 342.897 184.625 L 344.603 185.021 L 346.235 185.603 L 347.78 186.378 L 349.223 187.345 L 350.545 188.501 L 351.727 189.845 L 352.749 191.371 L 353.59 193.069 L 354.228 194.929 L 354.663 196.918 L 354.957 198.983 L 355.181 201.097 L 355.352 203.264 L 355.462 205.488 L 355.501 207.772 L 355.461 210.117 L 355.327 212.528 L 355.08 215.008 L 354.443 217.186 L 353.139 218.612 L 351.425 219.504 L 349.587 220.158 L 347.654 220.575 L 345.659 220.75 L 343.628 220.689 L 341.573 220.437 L 339.505 220.04 L 337.437 219.523 L 335.384 218.903 L 333.358 218.197 L 331.372 217.424 L 329.441 216.601 L 327.576 215.748 L 325.781 214.898 L 324.064 214.088 L 322.441 213.327 L 320.929 212.614 L 319.547 211.949Z" fill="#d8a686"></path><path id="error-right-hand-face-contact-line" d="M 285.962 249.289 L 288.492 246.781 L 290.905 244.38 L 293.215 242.041 L 295.424 239.738 L 297.528 237.455 L 299.556 235.147 L 302.387 231.986 L 305.234 229.03 L 307.979 226.328 L 310.476 223.917 L 312.592 221.813 L 314.249 220.016 L 315.48 218.472 L 316.419 217.041 L 317.202 215.539 L 317.895 213.804" fill="none" stroke="#d8c9b9" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" opacity=".9"></path></g></g><g id="face-layer" data-layer="face">
+      <g id="brows" data-part="brows">
+        <path id="left-brow" d="M132 116 C140 121 149 118 154 109" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round" data-origin="140 116"></path>
+        <path id="right-brow" d="M220 109 C225 118 234 121 242 116" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round" data-origin="234 116"></path>
+      </g>
+      <g id="eyes" data-part="eyes">
+        <ellipse id="left-eye" cx="138" cy="157" rx="12.5" ry="17" fill="#5a300f" data-origin="138 157"></ellipse>
+        <ellipse id="right-eye" cx="237" cy="157" rx="12.5" ry="17" fill="#5a300f" data-origin="237 157"></ellipse>
+      </g>
+      <g id="sunglasses" data-part="sunglasses" data-origin="187 157">
+        <g id="left-sunglass" data-part="left-sunglass">
+          <path id="left-sunglass-frame" d="M99.22 132 C114.76 125.7 144.16 126.96 166 131.58 C171.46 132.84 174.82 136.62 174.4 143.34 C171.88 170.22 152.98 187.44 129.46 187.44 C109.72 187.44 96.7 170.64 96.28 146.7 C96.28 139.56 94.18 134.52 99.22 132 Z M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"></path>
+          <path id="left-sunglass-lens" d="M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#16140f" opacity=".97"></path>
+          <path id="left-lens-main-shine" d="M151.96 135.36 L124.24 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"></path>
+          <path id="left-lens-small-shine" d="M161.62 140.82 L146.08 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"></path>
+        </g>
+        <g id="right-sunglass" data-part="right-sunglass">
+          <path id="right-sunglass-frame" d="M275.62 132 C260.08 125.7 230.68 126.96 208.84 131.58 C203.38 132.84 200.02 136.62 200.44 143.34 C202.96 170.22 221.86 187.44 245.38 187.44 C265.12 187.44 278.14 170.64 278.56 146.7 C278.56 139.56 280.66 134.52 275.62 132 Z M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"></path>
+          <path id="right-sunglass-lens" d="M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#16140f" opacity=".97"></path>
+          <path id="right-lens-main-shine" d="M255.64 135.36 L227.92 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"></path>
+          <path id="right-lens-small-shine" d="M265.3 140.82 L249.76 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"></path>
+        </g>
+        <path id="sunglasses-bridge" d="M173.98 144.18 C182.38 138.3 192.46 138.3 200.86 144.18" fill="none" stroke="#111111" stroke-width="4.2" stroke-linecap="round"></path>
+      </g>
+      <g id="nose-mouth" data-part="nose-mouth" data-origin="187 177">
+        <ellipse id="nose-fill" cx="187" cy="170" rx="10" ry="7.5" fill="#7b4a23"></ellipse>
+        <path id="mouth-left" d="M187 177 C185 188 178 193 172 190 C168 188 165 190 163 194" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round"></path>
+        <path id="mouth-right" d="M187 177 C189 188 196 193 202 190 C206 188 209 190 211 194" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round"></path>
+      </g>
+    </g>
+
+  <g id="error-decor-layer" data-layer="error-decor-symbols"><g id="error-panic-lines" data-role="error-panic-lines" opacity="0.46"><path d="M -2.6 -2.73 C -2.6 1.256 -1.196 2.867 0 3.003 C 1.196 2.867 2.6 1.256 2.6 -2.73 L 4.6 -25.664 C 4.6 -29.239 2.576 -31 0 -31 C -2.576 -31 -4.6 -29.239 -4.6 -25.664 L -2.6 -2.73 Z" transform="translate(57.5 45.5) rotate(-43.5) scale(0.94)" fill="#f04a4e" filter="url(#error-decor-soft-shadow)"></path><path d="M -2.6 -2.73 C -2.6 1.256 -1.196 2.867 0 3.003 C 1.196 2.867 2.6 1.256 2.6 -2.73 L 4.6 -25.664 C 4.6 -29.239 2.576 -31 0 -31 C -2.576 -31 -4.6 -29.239 -4.6 -25.664 L -2.6 -2.73 Z" transform="translate(79 30.5) rotate(-21) scale(1)" fill="#f04a4e" filter="url(#error-decor-soft-shadow)"></path><path d="M -2.6 -2.73 C -2.6 1.256 -1.196 2.867 0 3.003 C 1.196 2.867 2.6 1.256 2.6 -2.73 L 4.6 -25.664 C 4.6 -29.239 2.576 -31 0 -31 C -2.576 -31 -4.6 -29.239 -4.6 -25.664 L -2.6 -2.73 Z" transform="translate(310 35.5) rotate(17) scale(1)" fill="#f04a4e" filter="url(#error-decor-soft-shadow)"></path><path d="M -2.6 -2.73 C -2.6 1.256 -1.196 2.867 0 3.003 C 1.196 2.867 2.6 1.256 2.6 -2.73 L 4.6 -25.664 C 4.6 -29.239 2.576 -31 0 -31 C -2.576 -31 -4.6 -29.239 -4.6 -25.664 L -2.6 -2.73 Z" transform="translate(332 50) rotate(45.5) scale(0.94)" fill="#f04a4e" filter="url(#error-decor-soft-shadow)"></path></g><g id="error-chest-text" data-role="error-chest-text" transform="translate(187 316) rotate(0) scale(1.08 1.015)" opacity="0.46"><text x="1.4" y="2.2" text-anchor="middle" dominant-baseline="middle" font-family="&quot;Source Han Sans SC&quot;, &quot;Source Han Sans&quot;, &quot;Noto Sans CJK SC&quot;, sans-serif" font-size="38" font-weight="900" letter-spacing="5" fill="#9d2d2f" opacity=".26" data-role="error-chest-text-shadow">ERROR</text><text x="0" y="0" text-anchor="middle" dominant-baseline="middle" font-family="&quot;Source Han Sans SC&quot;, &quot;Source Han Sans&quot;, &quot;Noto Sans CJK SC&quot;, sans-serif" font-size="38" font-weight="900" letter-spacing="5" fill="#ef444a">ERROR</text></g></g></g>
+
+<script><![CDATA[
+(() => {
+  const VIEW_W = 374;
+const TOP_CHAIN = ["A", "L", "C", "D", "E", "R", "G"];
+const RAW_ANCHORS = {
+    A: { x: 65, y: 153 }, L: { x: 137.77, y: 162.56 },
+    C: { x: 171.37, y: 154.02 }, D: { x: 189.69, y: 147.65 },
+    E: { x: 210.43, y: 157.48 }, R: { x: 240.66, y: 162.63 },
+    G: { x: 309, y: 153 }
+  };
+const FACE_BASE = {
+    cheekD: "M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z",
+    headCapD: "M64 153 C64 88 116 48 187 48 C258 48 310 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z",
+    leftCreaseD: "M62 238 C70 250 84 256 100 256",
+    rightCreaseD: "M312 238 C304 250 290 256 274 256"
+  };
+const RIGHT_HEAD_CAP_D = "M64 153 C66.12 89.55 117.55 49.81 187 48 C267.24 48 328.48 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z";
+const LEFT_HEAD_CAP_D = "M64 153 C45.52 88 106.76 48 187 48 C256.45 49.81 307.88 89.55 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z";
+const FRONT_TAIL = [
+    [331, 178, 336, 221, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [38, 221, 43, 178, 65, 153]
+  ];
+const LEFT_TAIL = [
+    [320.06, 180.73, 321.87, 218.27, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [35.12, 221, 40.60, 178, 65, 153]
+  ];
+const RIGHT_TAIL = [
+    [333.40, 178.00, 338.88, 221.00, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [52.13, 218.27, 53.94, 180.73, 65, 153]
+  ];
+const PITCH_UP = { axis: -25.5, lower: 3.6, faceDy: -21.5, faceSy: .93, blushDy: -22.41, earDy: 12, tuftDy: 12 };
+const PITCH_DOWN = { axis: 26, lower: -7.9, faceDy: 24.5, faceSy: 1, blushDy: 24.5, earDy: -10, tuftDy: -2 };
+const BODY_ORIGIN = { x: 187, y: 322 };
+const TAIL_ORIGIN = { x: 187, y: 356 };
+const TIE_BLADE_PIVOT = { x: 34, y: 24 };
+const DEFAULTS = {
+    showReference: true,
+    showOriginalHands: false,
+    showBones: false,
+    bodyTransparent: false,
+    darkStage: true,
+    applyErrorFace: true,
+    applyFaceLook: true,
+    playWobble: false,
+    decorEnabled: true,
+    panicLinesEnabled: true,
+    chestErrorEnabled: true,
+    decorPulseEnabled: true,
+    layerMode: "under-face",
+    faceYaw: 0,
+    wobbleAngle: 55,
+    facePitch: 0,
+    wobbleSeconds: 1.8,
+    wobbleSpeed: 6.5,
+    faceSmoothing: .025,
+    referenceOpacity: 1,
+    bodyMotionEnabled: true,
+    tieMotionEnabled: true,
+    handMotionEnabled: true,
+    bodyFollowX: 2,
+    bodyLean: .8,
+    bodySink: 1.2,
+    bodySquash: .012,
+    tieSwing: 16,
+    tieLag: .18,
+    tieFlutter: 4,
+    handRootSwing: .9,
+    handTremble: 0,
+    decorPulseMinOpacity: .46,
+    decorPulseMaxOpacity: 1,
+    decorPulseCurve: .9,
+    lineLength: 31,
+    lineTopWidth: 9.2,
+    lineBottomWidth: 5.2,
+    leftOuterX: 57.5,
+    leftOuterY: 45.5,
+    leftOuterAngle: -43.5,
+    leftInnerX: 79,
+    leftInnerY: 30.5,
+    leftInnerAngle: -21,
+    rightInnerX: 310,
+    rightInnerY: 35.5,
+    rightInnerAngle: 17,
+    rightOuterX: 332,
+    rightOuterY: 50,
+    rightOuterAngle: 45.5,
+    chestErrorX: 187,
+    chestErrorY: 316,
+    chestErrorScale: 1.08,
+    chestErrorScaleY: .94,
+    chestErrorLetterSpacing: 5,
+    chestErrorRotate: 0,
+    leftHandX: -50,
+    leftHandY: 39.5,
+    leftHandRotate: 0,
+    leftHandScale: 1.12,
+    rightHandX: 50,
+    rightHandY: 39.5,
+    rightHandRotate: 0,
+    rightHandScale: 1.12,
+    leftRoundness: .86,
+    rightRoundness: .86,
+    leftSx: 145, leftSy: 250,
+    leftRx: 132, leftRy: 230,
+    leftEx: 113, leftEy: 210,
+    leftWx: 93, leftWy: 184,
+    leftTx: 95, leftTy: 154,
+    rightSx: 229, rightSy: 250,
+    rightRx: 242, rightRy: 230,
+    rightEx: 261, rightEy: 210,
+    rightWx: 281, rightWy: 184,
+    rightTx: 279, rightTy: 154
+  };
+
+  const state = {
+    ...DEFAULTS,
+    showReference: false,
+    showOriginalHands: false,
+    showBones: false,
+    bodyTransparent: false,
+    darkStage: false,
+    applyErrorFace: true,
+    applyFaceLook: true,
+    playWobble: true,
+    decorEnabled: true,
+    panicLinesEnabled: true,
+    chestErrorEnabled: true,
+    decorPulseEnabled: true
+  };
+  const baseTransforms = {};
+  let baseSvg = document.currentScript && document.currentScript.ownerSVGElement;
+  let loopPhase = 0;
+  let faceTargetYaw = -state.wobbleAngle;
+  let loopStartTime = performance.now();
+  let lastTickTime = 0;
+  let rafId = null;
+  let paused = false;
+
+  if (!baseSvg) return;
+  rememberBaseTransforms(baseSvg);
+  setPhase(0);
+
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduceMotion) play();
+
+  window.__cloudlingErrorLoop = { play, pause, setPhase, snapshot };
+  window.__cloudlingSetErrorPhase = setPhase;
+  window.__clawdSetLowPowerPaused = (value) => {
+    paused = Boolean(value);
+    if (!paused && !reduceMotion) play();
+  };
+
+  function play() {
+    paused = false;
+    if (rafId !== null) return;
+    loopStartTime = performance.now() - loopPhase / Math.max(state.wobbleSpeed, .001) * state.wobbleSeconds * 1000;
+    lastTickTime = 0;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function pause() {
+    paused = true;
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+  }
+
+  function tick(now) {
+    rafId = null;
+    if (paused) return;
+    const dt = lastTickTime ? now - lastTickTime : 16.7;
+    lastTickTime = now;
+    const phase = (now - loopStartTime) / (state.wobbleSeconds * 1000) * state.wobbleSpeed;
+    applyFrame(phase, false, dt);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function setPhase(phase) {
+    const normalized = ((Number(phase) || 0) % 1 + 1) % 1;
+    loopPhase = normalized;
+    faceTargetYaw = pingPongWave(loopPhase) * state.wobbleAngle;
+    state.faceYaw = faceTargetYaw;
+    applyFrame(loopPhase, true, 16.7);
+    loopStartTime = performance.now() - loopPhase / Math.max(state.wobbleSpeed, .001) * state.wobbleSeconds * 1000;
+    lastTickTime = 0;
+  }
+
+  function applyFrame(phase, exact, dt) {
+    loopPhase = ((phase % 1) + 1) % 1;
+    faceTargetYaw = pingPongWave(loopPhase) * state.wobbleAngle;
+    state.faceYaw = exact
+      ? faceTargetYaw
+      : followValue(state.faceYaw, faceTargetYaw, dt, state.faceSmoothing * 1000);
+    applyFaceLook();
+    applyMotionPose(loopPhase);
+    applyDecorPose();
+  }
+
+  function snapshot() {
+    return {
+      mode: "error-loop-v1",
+      phase: Number(fmt(loopPhase)),
+      faceYaw: Number(fmt(state.faceYaw)),
+      faceTargetYaw: Number(fmt(faceTargetYaw)),
+      decorOpacity: Number(fmt(decorPulseOpacity()))
+    };
+  }
+
+  function rememberBaseTransforms(svg) {
+    for (const id of [
+      "tail",
+      "body-layer",
+      "tie",
+      "error-tie-blade-motion",
+      "ears-layer",
+      "head-layer",
+      "head-tufts",
+      "face-layer",
+      "sunglasses",
+      "error-look-blush-clip-wrapper",
+      "error-look-blush-transform"
+    ]) {
+      const node = svg.querySelector(`#${id}`);
+      if (node) {
+        if (["tail", "body-layer", "tie", "error-tie-blade-motion"].includes(id)) setStableTransformOrigin(node);
+        baseTransforms[id] = node.getAttribute("transform") || "";
+      }
+    }
+  }
+
+function setStableTransformOrigin(node) {
+    node.style.transformBox = "view-box";
+    node.style.transformOrigin = "0px 0px";
+  }
+
+function applyFaceLook() {
+    const cheek = cheekPath();
+    const active = headLookActive();
+    const elem = elementOffsets();
+    const ears = earState();
+
+    setSvgAttr("head-cap-fill", "d", headCapPath());
+    setSvgAttr("cheek-muzzle-fill", "d", cheek);
+    setSvgAttr("error-look-blush-clip-path", "d", cheek);
+    setSvgAttr("left-cheek-crease", "d", creasePath("left"));
+    setSvgAttr("right-cheek-crease", "d", creasePath("right"));
+    setSvgAttr("left-cheek-crease", "stroke-width", active ? "2.6" : "3");
+    setSvgAttr("right-cheek-crease", "stroke-width", active ? "2.6" : "3");
+
+    setLayerTransform("head-layer", "");
+    setLayerTransform("face-layer", active ? facePlaneTransform(true) : "");
+    setLayerTransform("error-look-blush-clip-wrapper", "");
+    setElementTransform("error-look-blush-transform", active ? blushPlaneTransform() : "");
+    setLayerTransform("ears-layer", "");
+    setLayerTransform("head-tufts", active ? tuftLookTransform() : "");
+    setElementTransform("sunglasses", "");
+
+    setSvgAttr("left-ear", "transform", active ? translate(ears.left.x, ears.left.y) : "");
+    setSvgAttr("right-ear", "transform", active ? translate(ears.right.x, ears.right.y) : "");
+    setSvgAttr("left-ear-outer", "r", fmt(lerp(34, 37.4, ears.left.grow)));
+    setSvgAttr("left-ear-inner", "r", fmt(lerp(18, 19.8, ears.left.grow)));
+    setSvgAttr("right-ear-outer", "r", fmt(lerp(34, 37.4, ears.right.grow)));
+    setSvgAttr("right-ear-inner", "r", fmt(lerp(18, 19.8, ears.right.grow)));
+
+    setSvgAttr("left-eye", "transform", centeredTransform({ x: 138, y: 157 }, elem.leftEye.dx, elem.leftEye.dy));
+    setSvgAttr("right-eye", "transform", centeredTransform({ x: 237, y: 157 }, elem.rightEye.dx, elem.rightEye.dy));
+    setSvgAttr("left-blush", "transform", centeredTransform({ x: 92, y: 185 }, elem.leftBlush.dx, elem.leftBlush.dy, elem.leftBlush.sx, elem.leftBlush.sy));
+    setSvgAttr("right-blush", "transform", centeredTransform({ x: 281, y: 185 }, elem.rightBlush.dx, elem.rightBlush.dy, elem.rightBlush.sx, elem.rightBlush.sy));
+    setSvgAttr("nose-mouth", "transform", "");
+  }
+
+function setSvgAttr(id, name, value) {
+    const node = baseSvg?.querySelector(`#${id}`);
+    if (!node) return;
+    if (value === null || value === undefined || value === "") node.removeAttribute(name);
+    else node.setAttribute(name, String(value));
+  }
+
+function setLayerTransform(id, extraTransform) {
+    const node = baseSvg?.querySelector(`#${id}`);
+    if (!node) return;
+    const transform = [baseTransforms[id] || "", extraTransform].filter(Boolean).join(" ");
+    if (transform) node.setAttribute("transform", transform);
+    else node.removeAttribute("transform");
+  }
+
+function setElementTransform(id, extraTransform) {
+    setLayerTransform(id, extraTransform);
+  }
+
+function applyMotionPose(phase = 0) {
+    if (!baseSvg) return;
+    const pose = motionPose(phase);
+
+    setLayerTransform("body-layer", pose.bodyTransform);
+    setLayerTransform("tail", pose.tailTransform);
+    setLayerTransform("tie", pose.tieFollowTransform);
+    setElementTransform("error-tie-blade-motion", pose.tieBladeTransform);
+    setDirectTransform("error-left-hold-head-hand", pose.leftHandTransform);
+    setDirectTransform("error-right-hold-head-hand", pose.rightHandTransform);
+  }
+
+function motionPose(phase) {
+    const theta = phase * Math.PI * 2;
+    const manualWave = state.wobbleAngle > .001 ? clamp(state.faceYaw / state.wobbleAngle, -1, 1) : 0;
+    const renderedWave = state.wobbleAngle > .001 ? clamp(state.faceYaw / state.wobbleAngle, -1, 1) : 0;
+    const faceWave = state.playWobble ? renderedWave : manualWave;
+    const bodyWave = -faceWave;
+    const pressure = Math.abs(faceWave);
+
+    const bodyDx = state.bodyMotionEnabled ? bodyWave * state.bodyFollowX : 0;
+    const bodyDy = state.bodyMotionEnabled ? pressure * state.bodySink : 0;
+    const bodyRot = state.bodyMotionEnabled ? bodyWave * state.bodyLean : 0;
+    const squash = state.bodyMotionEnabled ? pressure * state.bodySquash : 0;
+
+    const tieBaseWave = state.playWobble ? -pingPongWave(phase - state.tieLag) : -faceWave;
+    const tieFlutterWave = state.playWobble ? Math.sin(theta * 2.35 + .4) * (.35 + pressure * .65) : 0;
+    const tieAngle = state.tieMotionEnabled ? tieBaseWave * state.tieSwing + tieFlutterWave * state.tieFlutter : 0;
+
+    const handBaseWave = state.playWobble ? faceWave : manualWave;
+    const handTrembleWave = state.playWobble ? Math.sin(theta * 2 + .45) : 0;
+    const handAngle = state.handMotionEnabled
+      ? handBaseWave * state.handRootSwing + handTrembleWave * state.handTremble
+      : 0;
+
+    return {
+      bodyTransform: state.bodyMotionEnabled ? bodyPoseTransform(bodyDx, bodyDy, bodyRot, squash) : "",
+      tailTransform: state.bodyMotionEnabled ? tailPoseTransform(bodyDx, bodyDy, bodyRot) : "",
+      tieFollowTransform: state.bodyMotionEnabled ? translate(bodyDx * .74, bodyDy * .82) : "",
+      tieBladeTransform: state.tieMotionEnabled ? tieBladeTransform(tieAngle, pressure) : "",
+      leftHandTransform: state.handMotionEnabled ? handRootSwingTransform("left", handAngle) : "",
+      rightHandTransform: state.handMotionEnabled ? handRootSwingTransform("right", handAngle) : ""
+    };
+  }
+
+function applyDecorPose() {
+    if (!baseSvg || !state.decorEnabled) return;
+    const opacity = fmt(decorPulseOpacity());
+    setSvgAttr("error-panic-lines", "opacity", opacity);
+    setSvgAttr("error-chest-text", "opacity", opacity);
+  }
+
+function decorPulseOpacity() {
+    if (!state.decorPulseEnabled) return 1;
+    const min = Math.min(state.decorPulseMinOpacity, state.decorPulseMaxOpacity);
+    const max = Math.max(state.decorPulseMinOpacity, state.decorPulseMaxOpacity);
+    const faceWave = state.wobbleAngle > .001 ? clamp(state.faceYaw / state.wobbleAngle, -1, 1) : 0;
+    const pressure = Math.abs(faceWave);
+    const shaped = smooth01(Math.pow(pressure, Math.max(.05, state.decorPulseCurve)));
+    return lerp(min, max, shaped);
+  }
+
+function pingPongWave(phase) {
+    const p = ((phase % 1) + 1) % 1;
+    if (p < .5) return -1 + p * 4;
+    return 3 - p * 4;
+  }
+
+function bodyPoseTransform(dx, dy, rotateDeg, squash) {
+    if (nearZero(dx) && nearZero(dy) && nearZero(rotateDeg) && nearZero(squash)) return "";
+    const sx = 1 + squash * .58;
+    const sy = 1 - squash;
+    return [
+      translate(dx, dy),
+      `rotate(${fmt(rotateDeg)} ${BODY_ORIGIN.x} ${BODY_ORIGIN.y})`,
+      `translate(${BODY_ORIGIN.x} ${BODY_ORIGIN.y})`,
+      `scale(${fmt(sx)} ${fmt(sy)})`,
+      `translate(${-BODY_ORIGIN.x} ${-BODY_ORIGIN.y})`
+    ].join(" ");
+  }
+
+function tailPoseTransform(dx, dy, rotateDeg) {
+    if (nearZero(dx) && nearZero(dy) && nearZero(rotateDeg)) return "";
+    return [
+      translate(dx * .34, dy * .26),
+      `rotate(${fmt(rotateDeg * .18)} ${TAIL_ORIGIN.x} ${TAIL_ORIGIN.y})`
+    ].join(" ");
+  }
+
+function tieBladeTransform(angle, pressure) {
+    if (nearZero(angle) && nearZero(pressure)) return "";
+    const stretchY = 1 + pressure * .018;
+    return [
+      `rotate(${fmt(angle)} ${TIE_BLADE_PIVOT.x} ${TIE_BLADE_PIVOT.y})`,
+      `translate(${fmt(angle * .018)} ${fmt(pressure * .65)})`,
+      `translate(${TIE_BLADE_PIVOT.x} ${TIE_BLADE_PIVOT.y})`,
+      `scale(1 ${fmt(stretchY)})`,
+      `translate(${-TIE_BLADE_PIVOT.x} ${-TIE_BLADE_PIVOT.y})`
+    ].join(" ");
+  }
+
+function handRootSwingTransform(side, angle) {
+    if (nearZero(angle)) return "";
+    const sign = side === "left" ? 1 : -1;
+    const pivot = point(side, "S");
+    return `rotate(${fmt(sign * angle)} ${fmt(pivot.x)} ${fmt(pivot.y)})`;
+  }
+
+function setDirectTransform(id, transform) {
+    const node = baseSvg?.querySelector(`#${id}`);
+    if (!node) return;
+    if (transform) node.setAttribute("transform", transform);
+    else node.removeAttribute("transform");
+  }
+
+function lookYaw() {
+    return state.applyFaceLook ? state.faceYaw : 0;
+  }
+
+function lookPitch() {
+    return state.applyFaceLook ? state.facePitch : 0;
+  }
+
+function headLookActive() {
+    return Math.abs(lookYaw()) > .001 || Math.abs(lookPitch()) > .001;
+  }
+
+function axisT(value) {
+    return smooth01(Math.abs(value) / 100);
+  }
+
+function yawAxisT(value) {
+    const t = clamp(Math.abs(value) / 100, 0, 1);
+    return state.playWobble ? t : smooth01(t);
+  }
+
+function diagonalFactor() {
+    return Math.abs(lookYaw()) / 100 * Math.abs(lookPitch()) / 100;
+  }
+
+function trimmed(value, trimScale = 1) {
+    const trim = 1 - diagonalFactor() * 15 / 100 * trimScale;
+    return value * trim;
+  }
+
+function smoothRange(start, end, value) {
+    return smooth01(clamp((value - start) / (end - start), 0, 1));
+  }
+
+function mixPoint(a, b, t) {
+    return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+  }
+
+function interpolateNumberString(from, to, t) {
+    const a = numbers(from);
+    const b = numbers(to);
+    let index = 0;
+    if (!from || !to || a.length !== b.length) return t < 1 ? from : to;
+    return from.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, () => {
+      const val = lerp(a[index], b[index] !== undefined ? b[index] : a[index - 1], t);
+      index += 1;
+      return fmt(val);
+    });
+  }
+
+function transformTopPoint(point, dir) {
+    const axisX = dir < 0 ? 125 : 249;
+    const axisTravel = (axisX - VIEW_W / 2) * .75;
+    const localX = point.x - axisX;
+    const next = { x: axisTravel + axisX + localX, y: point.y };
+    const a = RAW_ANCHORS.A || { x: 65 };
+    const g = RAW_ANCHORS.G || { x: 309 };
+    const weightT = clamp((point.x - a.x) / (g.x - a.x), 0, 1);
+    const weight = Math.pow(Math.sin(Math.PI * weightT), .9);
+    return {
+      x: point.x + (next.x - point.x) * weight,
+      y: point.y
+    };
+  }
+
+function catmullPath(points, tension = .72, sharpness = .34) {
+    const segs = [`M${fmt(points[0].x)} ${fmt(points[0].y)}`];
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      const nearBridge = ["C", "D", "E"].includes(p1.id) || ["C", "D", "E"].includes(p2.id);
+      const localTension = tension * (nearBridge ? (1 - sharpness * .42) : 1);
+      const c1 = {
+        x: p1.x + (p2.x - p0.x) * localTension / 6,
+        y: p1.y + (p2.y - p0.y) * localTension / 6
+      };
+      const c2 = {
+        x: p2.x - (p3.x - p1.x) * localTension / 6,
+        y: p2.y - (p3.y - p1.y) * localTension / 6
+      };
+      segs.push(`C${fmt(c1.x)} ${fmt(c1.y)} ${fmt(c2.x)} ${fmt(c2.y)} ${fmt(p2.x)} ${fmt(p2.y)}`);
+    }
+    return segs.join(" ");
+  }
+
+function continuousYawFaceBasePath() {
+    const top = TOP_CHAIN.map((id) => {
+      const point = RAW_ANCHORS[id];
+      return { id, x: point.x, y: point.y };
+    });
+    const tail = FRONT_TAIL.map((seg) => `C${fmt(seg[0])} ${fmt(seg[1])} ${fmt(seg[2])} ${fmt(seg[3])} ${fmt(seg[4])} ${fmt(seg[5])}`).join(" ");
+    return `${catmullPath(top)} ${tail}Z`;
+  }
+
+function yawFacePath() {
+    const yaw = lookYaw();
+    const dir = Math.sign(yaw);
+    const t = yawAxisT(yaw);
+    if (TOP_CHAIN.some((id) => !RAW_ANCHORS[id])) return FACE_BASE.cheekD;
+    if (!dir || t <= .001) {
+      const keepContinuous = state.playWobble || Math.abs(lookPitch()) > .001;
+      return keepContinuous ? continuousYawFaceBasePath() : FACE_BASE.cheekD;
+    }
+    const top = TOP_CHAIN.map((id) => {
+      const start = RAW_ANCHORS[id];
+      const end = transformTopPoint(start, dir);
+      const mixed = mixPoint(start, end, t);
+      return { id, x: mixed.x, y: mixed.y };
+    });
+    const sideTail = dir < 0 ? LEFT_TAIL : RIGHT_TAIL;
+    const tail = FRONT_TAIL.map((seg, index) => {
+      const mixed = seg.map((value, numberIndex) => lerp(value, sideTail[index][numberIndex], t));
+      return `C${fmt(mixed[0])} ${fmt(mixed[1])} ${fmt(mixed[2])} ${fmt(mixed[3])} ${fmt(mixed[4])} ${fmt(mixed[5])}`;
+    }).join(" ");
+    return `${catmullPath(top)} ${tail}Z`;
+  }
+
+function faceLowerEffect() {
+    const pitch = lookPitch();
+    if (pitch <= 0) return 0;
+    return axisT(pitch) * lerp(.45, 1, yawAxisT(lookYaw()));
+  }
+
+function faceLowerWrappedPoint(point) {
+    const effect = faceLowerEffect();
+    if (effect <= .001) return point;
+    const lower = smoothRange(238, 263, point.y);
+    if (lower <= .001) return point;
+    const side = Math.sign(point.x - 187);
+    return {
+      x: point.x + side * 6 * effect * lower * .3,
+      y: point.y + 12 * effect * lower
+    };
+  }
+
+function faceLowerWrappedPath(path) {
+    return transformPathPairs(path, faceLowerWrappedPoint);
+  }
+
+function pitchDeltaY(y) {
+    const pitch = lookPitch();
+    if (pitch === 0) return 0;
+    const sign = Math.sign(pitch);
+    const t = axisT(pitch);
+    const lowerWeight = clamp((y - 166) / 92, 0, 1);
+    if (sign < 0) return lerp(PITCH_UP.axis, PITCH_UP.lower, lowerWeight) * t;
+    return lerp(PITCH_DOWN.axis, PITCH_DOWN.lower, lowerWeight) * t;
+  }
+
+function warpPathForPitch(path) {
+    let index = 0;
+    return path.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (value) => {
+      const n = Number(value);
+      const next = index % 2 === 1 ? n + pitchDeltaY(n) : n;
+      index += 1;
+      return fmt(next);
+    });
+  }
+
+function cheekPath() {
+    return faceLowerWrappedPath(warpPathForPitch(yawFacePath()));
+  }
+
+function headCapPath() {
+    const yaw = lookYaw();
+    const pitch = lookPitch();
+    const yawT = yawAxisT(yaw);
+    const dir = Math.sign(yaw);
+    const yawTarget = dir > 0 ? RIGHT_HEAD_CAP_D : LEFT_HEAD_CAP_D;
+    const yawPath = dir ? interpolateNumberString(FACE_BASE.headCapD, yawTarget, yawT) : FACE_BASE.headCapD;
+    let index = 0;
+    return yawPath.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (value) => {
+      const n = Number(value);
+      if (index % 2 === 0) {
+        index += 1;
+        return fmt(n);
+      }
+      const topWeight = clamp((120 - n) / 80, 0, 1);
+      const sideWeight = clamp((n - 120) / 70, 0, 1);
+      const sign = Math.sign(pitch);
+      const t = axisT(pitch);
+      const delta = sign < 0
+        ? (2 * topWeight - 5.61 * sideWeight) * t
+        : (-1.87 * topWeight + 7.28 * sideWeight) * t;
+      index += 1;
+      return fmt(n + delta);
+    });
+  }
+
+function creasePath(side) {
+    const isLeft = side === "left";
+    const base = FACE_BASE[isLeft ? "leftCreaseD" : "rightCreaseD"];
+    const sideSign = isLeft ? 1 : -1;
+    const startX = isLeft ? 62 : 312;
+    const baseLength = 38;
+    const yawT = yawAxisT(lookYaw());
+    const yawPull = Math.sign(lookYaw()) * yawT;
+    const pitchT = axisT(lookPitch());
+    return transformPathPairs(base, (point) => {
+      const along = isLeft
+        ? clamp((point.x - 62) / baseLength, 0, 1)
+        : clamp((312 - point.x) / baseLength, 0, 1);
+      const next = {
+        x: startX + (point.x - startX),
+        y: point.y
+      };
+      next.x += yawPull * (isLeft ? 1 : -1) * lerp(3, 6, along);
+      next.x += sideSign * lerp(1.8, 2.4, along) * pitchT;
+      next.y += pitchDeltaY(point.y);
+      return faceLowerWrappedPoint(next);
+    });
+  }
+
+function facePlaneTransform(withPitchScale) {
+    const yaw = lookYaw();
+    const pitch = lookPitch();
+    const dir = Math.sign(yaw);
+    const yawT = yawAxisT(yaw);
+    const axis = 187 + dir * 62 * yawT;
+    const dx = dir * 46.5 * yawT;
+    const pitchSign = Math.sign(pitch);
+    const pitchT = axisT(pitch);
+    const pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    const dy = trimmed(pitchData.faceDy * pitchT, .45);
+    const sy = withPitchScale ? lerp(1, pitchData.faceSy, pitchT) : 1;
+    return `translate(${fmt(dx)} ${fmt(dy)}) translate(${fmt(axis)} 172) skewX(0) scale(1 ${fmt(sy)}) translate(${fmt(-axis)} -172)`;
+  }
+
+function blushPlaneTransform() {
+    const yaw = lookYaw();
+    const pitch = lookPitch();
+    const dir = Math.sign(yaw);
+    const yawT = yawAxisT(yaw);
+    const axis = 187 + dir * 62 * yawT;
+    const dx = dir * 46.5 * yawT;
+    const pitchSign = Math.sign(pitch);
+    const pitchT = axisT(pitch);
+    const pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    const dy = trimmed(pitchData.blushDy * pitchT, .35);
+    return `translate(${fmt(dx)} ${fmt(dy)}) translate(${fmt(axis)} 172) skewX(0) scale(1 1) translate(${fmt(-axis)} -172)`;
+  }
+
+function centeredTransform(origin, dx, dy, sx = 1, sy = 1) {
+    if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6 && Math.abs(sx - 1) < 1e-6 && Math.abs(sy - 1) < 1e-6) return "";
+    return `translate(${fmt(origin.x + dx)} ${fmt(origin.y + dy)}) scale(${fmt(sx)} ${fmt(sy)}) translate(${fmt(-origin.x)} ${fmt(-origin.y)})`;
+  }
+
+function elementOffsets() {
+    const yaw = lookYaw();
+    const pitch = lookPitch();
+    const dir = Math.sign(yaw);
+    const yawT = yawAxisT(yaw);
+    const pitchSign = Math.sign(pitch);
+    const pitchT = axisT(pitch);
+    const pitchUp = pitchSign < 0;
+    const pitchEye = pitchUp ? -.56 * pitchT : 0;
+    const pitchBlushDx = pitchUp ? 3.5 * pitchT : -1.8 * pitchT;
+    const yawLeftEye = dir < 0 ? -2 * yawT : 0;
+    const yawRightEye = dir > 0 ? 2 * yawT : 0;
+    const leftBlushYaw = dir < 0
+      ? { dx: 6.5 * yawT, dy: 0, sx: 1, sy: 1 }
+      : { dx: -24 * yawT, dy: 20.5 * yawT, sx: lerp(1, 1.09, yawT), sy: lerp(1, 1.1, yawT) };
+    const rightBlushYaw = dir < 0
+      ? { dx: 25 * yawT, dy: 20.5 * yawT, sx: lerp(1, 1.09, yawT), sy: lerp(1, 1.1, yawT) }
+      : { dx: -5.5 * yawT, dy: 0, sx: 1, sy: 1 };
+    return {
+      leftEye: { dx: yawLeftEye, dy: pitchEye },
+      rightEye: { dx: yawRightEye, dy: pitchEye },
+      leftBlush: {
+        dx: leftBlushYaw.dx + pitchBlushDx,
+        dy: leftBlushYaw.dy,
+        sx: leftBlushYaw.sx,
+        sy: leftBlushYaw.sy
+      },
+      rightBlush: {
+        dx: rightBlushYaw.dx - pitchBlushDx,
+        dy: rightBlushYaw.dy,
+        sx: rightBlushYaw.sx,
+        sy: rightBlushYaw.sy
+      }
+    };
+  }
+
+function earState() {
+    const yaw = lookYaw();
+    const pitch = lookPitch();
+    const dir = Math.sign(yaw);
+    const yawT = yawAxisT(yaw);
+    const pitchSign = Math.sign(pitch);
+    const pitchT = axisT(pitch);
+    const pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    const pitchDy = pitchData.earDy * pitchT;
+    const left = { x: 0, y: pitchDy, grow: 0 };
+    const right = { x: 0, y: pitchDy, grow: 0 };
+    if (dir < 0) {
+      left.x += -3.5 * yawT;
+      left.y += 3.5 * yawT;
+      right.grow = smoothRange(.12, 1, yawT);
+    } else if (dir > 0) {
+      right.x += -9.5 * yawT;
+      right.y += 3.5 * yawT;
+      left.grow = smoothRange(.12, 1, yawT);
+    }
+    return { left, right };
+  }
+
+function tuftLookTransform() {
+    const yaw = lookYaw();
+    const pitch = lookPitch();
+    const dir = Math.sign(yaw);
+    const yawT = yawAxisT(yaw);
+    const pitchSign = Math.sign(pitch);
+    const pitchT = axisT(pitch);
+    const pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    const yawDx = dir < 0 ? -21.7 * yawT : dir > 0 ? -10.3 * yawT : 0;
+    const pitchDy = pitchData.tuftDy * pitchT;
+    return translate(yawDx, pitchDy);
+  }
+
+function point(side, key) {
+    const raw = { x: state[`${side}${key}x`], y: state[`${side}${key}y`] };
+    const pivot = { x: state[`${side}Rx`], y: state[`${side}Ry`] };
+    const scaled = {
+      x: pivot.x + (raw.x - pivot.x) * state[`${side}HandScale`],
+      y: pivot.y + (raw.y - pivot.y) * state[`${side}HandScale`]
+    };
+    const rotated = rotateAround(scaled, pivot, state[`${side}HandRotate`] * Math.PI / 180);
+    return {
+      x: rotated.x + state[`${side}HandX`],
+      y: rotated.y + state[`${side}HandY`]
+    };
+  }
+
+function rotateAround(point, center, angle) {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    return {
+      x: center.x + dx * cos - dy * sin,
+      y: center.y + dx * sin + dy * cos
+    };
+  }
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function nearZero(value) { return Math.abs(value) < 1e-6; }
+
+function numbers(value) {
+    return (String(value).match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+  }
+
+function transformPathPairs(path, fn) {
+    const values = numbers(path);
+    const output = [];
+    for (let i = 0; i < values.length; i += 2) {
+      const point = fn({ x: values[i], y: values[i + 1] });
+      output.push(point.x, point.y);
+    }
+    let index = 0;
+    return path.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, () => fmt(output[index++]));
+  }
+
+function translate(x, y) {
+    return Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6 ? "" : `translate(${fmt(x)} ${fmt(y)})`;
+  }
+
+function smooth01(v) {
+    const t = clamp(v, 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+
+function fmt(value) {
+    return Number(value).toFixed(3).replace(/\.?0+$/, "");
+  }
+
+function followValue(current, target, dtMs, smoothingMs) {
+    if (smoothingMs <= 0 || !Number.isFinite(current)) return target;
+    const alpha = 1 - Math.exp(-dtMs / Math.max(1, smoothingMs));
+    return current + (target - current) * clamp(alpha, 0, 1);
+  }
+})();
+]]></script>
+</svg>

@@ -90,6 +90,7 @@ function createRuntime(overrides = {}) {
     getMiniMode: () => overrides.miniMode || false,
     getMiniTransitioning: () => overrides.miniTransitioning || false,
     getMiniPeekOffset: () => 0,
+    getMiniRenderCrop: () => overrides.miniRenderCrop || null,
     getCurrentPixelSize: () => overrides.currentPixelSize || { width: 100, height: 100 },
     getEffectiveCurrentPixelSize: () => overrides.effectivePixelSize || { width: 100, height: 100 },
     getKeepSizeAcrossDisplays: () => overrides.keepSizeAcrossDisplays || false,
@@ -233,6 +234,54 @@ describe("pet-window-runtime", () => {
     ]);
     assert.deepStrictEqual(harness.hitWin.calls.filter((call) => call[0] === "setShape"), [
       ["setShape", [{ x: 0, y: 0, width: 120, height: 120 }]],
+    ]);
+  });
+
+  it("clips the mini hit window to the render crop", () => {
+    const harness = createRuntime({
+      renderWin: makeWindow({ x: 730, y: 180, width: 120, height: 120 }),
+      miniMode: true,
+      miniRenderCrop: { x: 0, y: 0, width: 70, height: 120 },
+    });
+
+    harness.runtime.syncHitWin();
+
+    assert.deepStrictEqual(harness.hitWin.calls.find((call) => call[0] === "setBounds"), [
+      "setBounds",
+      { x: 730, y: 180, width: 70, height: 120 },
+    ]);
+    assert.deepStrictEqual(harness.hitWin.calls.find((call) => call[0] === "setShape"), [
+      "setShape",
+      [{ x: 0, y: 0, width: 70, height: 120 }],
+    ]);
+  });
+
+  it("widens the render window for file render canvas while preserving logical pet bounds", () => {
+    const harness = createRuntime({
+      renderWin: makeWindow({ x: 10, y: 20, width: 100, height: 100 }),
+      theme: {
+        renderCanvas: {
+          fileRatios: {
+            "idle.svg": { widthRatio: 2, anchorX: 0.5 },
+          },
+        },
+      },
+    });
+
+    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "idle.svg"), true);
+    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "idle.svg"), false);
+
+    assert.deepStrictEqual(harness.renderWin.calls.filter((call) => call[0] === "setBounds"), [
+      ["setBounds", { x: -40, y: 20, width: 200, height: 100 }],
+    ]);
+    assert.deepStrictEqual(harness.runtime.getPetWindowBounds(), { x: 10, y: 20, width: 100, height: 100 });
+
+    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "plain.svg"), true);
+
+    const setBoundsCalls = harness.renderWin.calls.filter((call) => call[0] === "setBounds");
+    assert.deepStrictEqual(setBoundsCalls[setBoundsCalls.length - 1], [
+      "setBounds",
+      { x: 10, y: 20, width: 100, height: 100 },
     ]);
   });
 

@@ -1,0 +1,1472 @@
+<svg id="mini-stage" xmlns="http://www.w3.org/2000/svg" width="580" height="480" viewBox="-150 -40 580 480" role="img" aria-labelledby="title desc" style="pointer-events:none">
+  <title id="title">Hamster mini-happy v1 (scripted)</title>
+  <desc id="desc">Mini-mode happy (attention / task-complete celebration) for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Storyboard confirmed by 鹿鹿 2026-06-12 and refreshed 2026-06-15 for the "too stiff" board note: the empty task-list clipboard is already present from the first frame and starts with an obvious short damped wobble, then gently floats/rotates in screen coordinates (warm-brown board + cream paper + abstract dash rows, all character palette) -> three checkboxes get ticked in quick succession (stroke-draw, staggered 0.3s, each landing gives the board a tiny damped nudge plus a small rotational click) -> after all three ticks land, the board does a deliberately obvious left-right sway before settling, even if the host crop trims the wider motion -> the hamster snaps its head toward the board (~150ms, step-fed look target into the verbatim mini-idle engine; never feed a continuous trajectory, the 150ms segment interpolator would damp it) -> once all three land, the list "settles": rows and small ticks fade out and one big soft-green check (#7fb069, draw + pop) appears on the paper -> after the green check finishes, the board gains a subtle scale-breath and slow rotational drift so the hold no longer freezes -> seeing it, the face blooms: happy open-mouth smile (verbatim task-complete-loop-v1 mask rig: opening clip > door clip > shade/cavity/tongue fills, sideY 200 bottomY 219.5 halfW 6 doorInset 8.5 doorRound 13) + smile brows (0,-3) + white sunglass star + two golden four-point stars + 8 deterministic confetti chips (one-shot, no randomness) -> turns back smiling -> hold loop: mouth pulse, tuft float, tie micro-sway via wrapper (verbatim base-pose tie transforms untouched), board bobbing/breathing/rotating, star twinkle. Pose contract: paws stay clipped to the screen edge and the body never translates (mini no-jump rule); emotion is told through the prop and the face only. Engine drives breathing/look layers itself; happy writes only screen-coordinate prop layers, per-tuft/brow/mouth nodes and the happy-tie-sway wrapper, so the two never fight. Total entrance ≈2.6s then holds forever; host auto-returns after ~4s. Self-driven, no pointer feed needed; svg root keeps pointer-events:none so the engine hover fallback can never steal the gaze in embedding pages. ?loop=1 replays the full theater (showcase/preview). Exposes window.__happyDebug.replay() for demos. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
+  <defs>
+    <filter id="soft-lift" x="-14%" y="-14%" width="128%" height="128%" color-interpolation-filters="sRGB">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="1.45" result="edge-spread"/>
+      <feComposite in="edge-spread" in2="SourceAlpha" operator="out" result="edge-ring"/>
+      <feGaussianBlur in="edge-ring" stdDeviation="0.42" result="edge-soft"/>
+      <feFlood flood-color="#7a604d" flood-opacity=".13" result="edge-color"/>
+      <feComposite in="edge-color" in2="edge-soft" operator="in" result="edge-rim"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3.0" result="soft-edge"/>
+      <feFlood flood-color="#8b735e" flood-opacity=".07" result="halo-color"/>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+      <feOffset in="SourceAlpha" dx="0" dy="7" result="shadow-offset"/>
+      <feGaussianBlur in="shadow-offset" stdDeviation="7" result="shadow-blur"/>
+      <feFlood flood-color="#3a2d23" flood-opacity=".105" result="shadow-color"/>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="halo"/>
+        <feMergeNode in="edge-rim"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+      <clipPath id="mini-paw-clip-right" clipPathUnits="userSpaceOnUse">
+        <rect x="340" y="236" width="78" height="64"/>
+      </clipPath>
+      <clipPath id="mini-paw-clip-left" clipPathUnits="userSpaceOnUse">
+        <rect x="-44" y="236" width="78" height="64"/>
+      </clipPath>
+    </defs>
+
+  <g id="mini-rotate" style="transform-origin:0 0" transform="rotate(-90 187 230)">
+      <g id="hamster-flat-master-v11" style="transform-origin:0 0" filter="url(#soft-lift)" fill-rule="evenodd" clip-rule="evenodd">
+        <g id="tail" data-part="tail">
+          <circle id="tail-fill" cx="187" cy="356" r="22" fill="#d8a686"/>
+        </g>
+        <g id="feet-layer" data-layer="behind-body">
+          <g id="left-foot" data-part="left-foot">
+            <path id="left-foot-fill" d="M109 392 C101 389 93 391 87 396 C80 402 84 410 94 414 C105 418 118 414 125 405 C131 397 123 394 109 392 Z" fill="#d8a686"/>
+          </g>
+          <g id="right-foot" data-part="right-foot">
+            <path id="right-foot-fill" d="M265 392 C273 389 281 391 287 396 C294 402 290 410 280 414 C269 418 256 414 249 405 C243 397 251 394 265 392 Z" fill="#d8a686"/>
+          </g>
+        </g>
+
+        <g id="body-layer" data-layer="body">
+          <g id="body-belly" data-part="body-belly">
+            <path id="body-belly-fill" d="M187 200 C113 200 60 251 60 322 C60 380 101 412 187 412 C273 412 314 380 314 322 C314 251 261 200 187 200Z" fill="#fff8f0"/>
+          </g>
+        </g>
+
+        <g id="ears-layer" data-layer="ears">
+          <g id="left-ear" data-part="left-ear">
+            <circle id="left-ear-outer" cx="101" cy="73" r="34" fill="#d8a686"/>
+            <circle id="left-ear-inner" cx="101" cy="73" r="18" fill="#f8b2aa"/>
+          </g>
+          <g id="right-ear" data-part="right-ear">
+            <circle id="right-ear-outer" cx="286" cy="73" r="34" fill="#d8a686"/>
+            <circle id="right-ear-inner" cx="286" cy="73" r="18" fill="#f8b2aa"/>
+          </g>
+        </g>
+
+        <g id="head-tufts" data-part="head-tufts">
+          <path id="left-tuft" d="M182 49 C184 35 187 24 192 15" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round" transform="rotate(-32 182 49)"/>
+          <path id="right-tuft" d="M200 50 C203 34 208 24 214 16" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round" transform="rotate(-32 200 50)"/>
+        </g>
+
+        <g id="head-layer" data-layer="head">
+          <g id="head-cap" data-part="head-cap">
+            <path id="head-cap-fill" d="M64 153 C64 88 116 48 187 48 C258 48 310 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z" fill="#edc8a5"/>
+          </g>
+          <g id="cheek-muzzle" data-part="cheek-muzzle">
+            <path id="cheek-muzzle-fill" d="M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z" fill="#fff8f0"/>
+          </g>
+          <g id="cheek-creases" data-part="cheek-creases" opacity=".35">
+            <path id="left-cheek-crease" d="M62 238 C70 250 84 256 100 256" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"/>
+            <path id="right-cheek-crease" d="M312 238 C304 250 290 256 274 256" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"/>
+          </g>
+        </g>
+
+        <g id="face-layer" data-layer="face">
+          <g id="brows" data-part="brows">
+            <path id="left-brow" d="M127 116 C137 108 148 110 154 118" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round"/>
+            <path id="right-brow" d="M247 116 C237 108 226 110 220 118" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round"/>
+          </g>
+          <g id="eyes" data-part="eyes">
+            <ellipse id="left-eye" cx="138" cy="157" rx="12.5" ry="17" fill="#5a300f"/>
+            <ellipse id="right-eye" cx="237" cy="157" rx="12.5" ry="17" fill="#5a300f"/>
+          </g>
+          <g id="sunglasses" data-part="sunglasses">
+            <g id="left-sunglass" data-part="left-sunglass">
+              <path id="left-sunglass-frame" d="M99.22 132 C114.76 125.7 144.16 126.96 166 131.58 C171.46 132.84 174.82 136.62 174.4 143.34 C171.88 170.22 152.98 187.44 129.46 187.44 C109.72 187.44 96.7 170.64 96.28 146.7 C96.28 139.56 94.18 134.52 99.22 132 Z M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"/>
+              <path id="left-sunglass-lens" d="M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#16140f" opacity=".97"/>
+              <path id="left-lens-main-shine" d="M151.96 135.36 L124.24 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"/>
+              <path id="left-lens-small-shine" d="M161.62 140.82 L146.08 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"/>
+            </g>
+            <g id="right-sunglass" data-part="right-sunglass">
+              <path id="right-sunglass-frame" d="M275.62 132 C260.08 125.7 230.68 126.96 208.84 131.58 C203.38 132.84 200.02 136.62 200.44 143.34 C202.96 170.22 221.86 187.44 245.38 187.44 C265.12 187.44 278.14 170.64 278.56 146.7 C278.56 139.56 280.66 134.52 275.62 132 Z M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"/>
+              <path id="right-sunglass-lens" d="M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#16140f" opacity=".97"/>
+              <path id="right-lens-main-shine" d="M255.64 135.36 L227.92 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"/>
+              <path id="right-lens-small-shine" d="M265.3 140.82 L249.76 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"/>
+            </g>
+            <path id="sunglasses-bridge" d="M173.98 144.18 C182.38 138.3 192.46 138.3 200.86 144.18" fill="none" stroke="#111111" stroke-width="4.2" stroke-linecap="round"/>
+            <!-- 墨镜星光（主线 glasses-star-left 同款规格白星；锚镜片、随墨镜组+引擎弹簧一起动；绽放后 twinkle） -->
+            <g id="happy-glasses-star" data-role="glasses-sparkle" opacity="0" transform="translate(112 151)">
+              <path data-role="sparkle-glow" d="M 0 -10.76 L 2.58 -2.58 L 10.76 0 L 2.58 2.58 L 0 10.76 L -2.58 2.58 L -10.76 0 L -2.58 -2.58 Z" fill="#ffffff" opacity=".42"/>
+              <path data-role="sparkle-fill" d="M 0 -7.8 L 1.87 -1.87 L 7.8 0 L 1.87 1.87 L 0 7.8 L -1.87 1.87 L -7.8 0 L -1.87 -1.87 Z" fill="#ffffff" stroke="#ffffff" stroke-width="1.25" stroke-linejoin="round"/>
+            </g>
+          </g>
+          <g id="blushes" data-part="blushes">
+            <ellipse id="left-blush" cx="92" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9"/>
+            <ellipse id="right-blush" cx="281" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9"/>
+          </g>
+          <g id="nose-mouth" data-part="nose-mouth">
+            <ellipse id="nose-fill" cx="187" cy="170" rx="10" ry="7.5" fill="#7b4a23"/>
+            <path id="mouth-left" d="M187 177 C187 190 180 198 171 198 C166 198 163 195 163 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round"/>
+            <path id="mouth-right" d="M187 177 C187 190 194 198 203 198 C208 198 211 195 211 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round"/>
+          </g>
+        </g>
+
+        <!-- mini 专用 z 序：爪层在脸之上（鹿鹿定稿）；mini-happy 口径：爪扒边断言级冻结 -->
+        <g id="hands-layer" data-layer="hands-above-face">
+          <g id="left-hand" data-part="left-hand" clip-path="url(#mini-paw-clip-left)"
+             transform="translate(122.5 7) rotate(90 -9.5 268) translate(-9.5 268) scale(1.25) translate(9.5 -268)">
+            <path id="left-hand-base" d="M118 249.5 L-9.5 249.5 C-19.7 249.5 -28 257.8 -28 268 C-28 278.2 -19.7 286.5 -9.5 286.5 L118 286.5 C123 279.1 123 256.9 118 249.5 Z" fill="#fff8f0"/>
+            <path id="left-paw-tip" d="M8.5 249.5 L-9.5 249.5 C-19.7 249.5 -28 257.8 -28 268 C-28 278.2 -19.7 286.5 -9.5 286.5 L8.5 286.5 C16 278.2 16 257.8 8.5 249.5 Z" fill="#d8a686"/>
+          </g>
+          <g id="right-hand" data-part="right-hand" clip-path="url(#mini-paw-clip-right)"
+             transform="translate(-122.5 7) rotate(270 383.5 268) translate(383.5 268) scale(1.25) translate(-383.5 -268)">
+            <path id="right-hand-base" d="M256 249.5 L383.5 249.5 C393.7 249.5 402 257.8 402 268 C402 278.2 393.7 286.5 383.5 286.5 L256 286.5 C251 279.1 251 256.9 256 249.5 Z" fill="#fff8f0"/>
+            <path id="right-paw-tip" d="M365.5 249.5 L383.5 249.5 C393.7 249.5 402 257.8 402 268 C402 278.2 393.7 286.5 383.5 286.5 L365.5 286.5 C358 278.2 358 257.8 365.5 249.5 Z" fill="#d8a686"/>
+          </g>
+        </g>
+
+        <!-- 领带定稿串不碰；保持段微摆写外层 wrapper（sleep 先例 ±0.4°） -->
+        <g id="happy-tie-sway">
+          <g id="tie" data-part="tie" transform="translate(153 260)">
+            <path id="tie-shadow" d="M24 27 L44 27 L54 68 C55 72.5 53 76 49 80 L38 93 C35.5 96 31 96 28.5 93 L17.5 80 C14 76 13 72.5 14.5 68 Z" fill="#000000" opacity=".08" transform="translate(7 6.5) rotate(59.5 33.5 14) translate(2 2)"/>
+            <path id="tie-blade" d="M24 24 L44 24 L54 66 C55 70.5 53 74 49 78 L38 91 C35.5 94 31 94 28.5 91 L17.5 78 C14 74 13 70.5 14.5 66 Z" fill="#21201e" stroke="#151515" stroke-width="2" stroke-linejoin="round" transform="translate(7 6.5) rotate(59.5 33.5 14)"/>
+            <path id="tie-center-fold" d="M34 28 L34 84" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".07" transform="translate(7 6.5) rotate(59.5 33.5 14)"/>
+            <path id="tie-left-fold" d="M27 28 L21 64" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" opacity=".18" transform="translate(7 6.5) rotate(59.5 33.5 14)"/>
+            <path id="tie-knot" d="M23 3 L44 3 L51 14 L44 25 L23 25 L16 14 Z" fill="#2d2c29" stroke="#151515" stroke-width="2" stroke-linejoin="round" transform="translate(0 5) rotate(24 33.5 14)"/>
+            <path id="tie-knot-highlight" d="M26 8 L40 8" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".12" transform="translate(0 5) rotate(24 33.5 14)"/>
+          </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- ===== 屏幕系道具层（#mini-rotate 外；Zzz/感叹号先例） ===== -->
+    <!-- 任务清单剪贴板：板背+夹子+纸+三行条目；勾 stroke 描画。局部坐标原点=板中心 -->
+    <g id="happy-board-layer" pointer-events="none">
+      <g id="happy-board">
+        <g id="happy-board-face">
+        <rect id="board-back" x="-45" y="-58" width="90" height="116" rx="9" fill="#d8a686" stroke="#b98c6e" stroke-width="2.5"/>
+        <rect id="board-paper" x="-37" y="-46" width="74" height="96" rx="5" fill="#fff8f0" stroke="#ecdcc8" stroke-width="1.5"/>
+        <path id="board-clip-arch" d="M -8 -58 C -8 -67 8 -67 8 -58" fill="none" stroke="#8a5a3f" stroke-width="4.5" stroke-linecap="round"/>
+        <rect id="board-clip-bar" x="-13" y="-62" width="26" height="9" rx="3.5" fill="#8a5a3f"/>
+        <!-- 三行条目（行心 y=-22/4/30）：勾选框 + 抽象文字线（长中短有节奏） -->
+        <g id="board-rows" fill="none">
+          <rect class="row-box" x="-29" y="-28.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"/>
+          <line class="row-text" x1="-10" y1="-22" x2="28" y2="-22" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"/>
+          <rect class="row-box" x="-29" y="-2.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"/>
+          <line class="row-text" x1="-10" y1="4" x2="20" y2="4" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"/>
+          <rect class="row-box" x="-29" y="23.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"/>
+          <line class="row-text" x1="-10" y1="30" x2="25" y2="30" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"/>
+        </g>
+        <!-- 三个勾（描画动画：dasharray/dashoffset 驱动；颜色=色票） -->
+        <g id="board-ticks" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path id="board-tick-1" d="M -26.6 -22.2 L -23.6 -18.8 L -17.6 -26.4" stroke-width="3"/>
+          <path id="board-tick-2" d="M -26.6 3.8 L -23.6 7.2 L -17.6 -0.4" stroke-width="3"/>
+          <path id="board-tick-3" d="M -26.6 29.8 L -23.6 33.2 L -17.6 25.6" stroke-width="3"/>
+        </g>
+        <!-- 结算大绿勾（鹿鹿口径：三勾全落后清单内容消失，纸上变一个绿色大勾；under 同色加宽淡底提质感） -->
+        <g id="board-done" opacity="0">
+          <path id="board-done-under" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".25"/>
+          <path id="board-done-main" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </g>
+        </g>
+      </g>
+    </g>
+
+    <!-- 彩屑（绽放一次性，JS 每帧渲染；确定性 SPECS 无 random） -->
+    <g id="happy-confetti-layer" pointer-events="none"></g>
+
+    <!-- 金黄四角星 ×2（主线 bg-star 同款双层结构；绽放后 twinkle） -->
+    <g id="happy-stars-layer" pointer-events="none">
+      <g id="happy-star-a" data-role="background-sparkle" opacity="0" transform="translate(36 24)">
+        <path data-role="sparkle-glow" d="M 0 -16.56 L 3.97 -3.97 L 16.56 0 L 3.97 3.97 L 0 16.56 L -3.97 3.97 L -16.56 0 L -3.97 -3.97 Z" fill="#fff7c6" opacity=".3"/>
+        <path data-role="sparkle-fill" d="M 0 -12 L 2.88 -2.88 L 12 0 L 2.88 2.88 L 0 12 L -2.88 2.88 L -12 0 L -2.88 -2.88 Z" fill="#f6bd3b" stroke="#fff0a8" stroke-width="1.92" stroke-linejoin="round"/>
+      </g>
+      <g id="happy-star-b" data-role="background-sparkle" opacity="0" transform="translate(176 64)">
+        <path data-role="sparkle-glow" d="M 0 -8.97 L 2.15 -2.15 L 8.97 0 L 2.15 2.15 L 0 8.97 L -2.15 2.15 L -8.97 0 L -2.15 -2.15 Z" fill="#fff7c6" opacity=".3"/>
+        <path data-role="sparkle-fill" d="M 0 -6.5 L 1.56 -1.56 L 6.5 0 L 1.56 1.56 L 0 6.5 L -1.56 1.56 L -6.5 0 L -1.56 -1.56 Z" fill="#f6bd3b" stroke="#fff0a8" stroke-width="1.04" stroke-linejoin="round"/>
+      </g>
+    </g>
+
+  <script type="application/ecmascript"><![CDATA[
+// mini-idle-engine-v1.js — 机器生成, 勿手改; 改动走 _build-mini-idle-engine-v1.py
+// 来源: confirmed hamster-idle-follow-v2.svg 的内嵌引擎(逐字提取) + 3 处 mini patch(见生成器)。
+// 引擎所有几何在母版坐标系内工作; mini 的整体 rotate(-90 187 230) 是外层 wrapper,
+// 因此 cheek 锚点公式 / facePlane / 腮红 clip 合同 / 墨镜弹簧全部零改动复用。
+
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+
+  // ── inlined head-anchor data ──────────────────────────────────────────────
+  // Result of flattenAnchors() over the confirmed V15 bf-eye-decoupled anchor
+  // JSON (drafts/side-45/face-anchor-v1/confirmed-v15-bf-eye-decoupled-anchors/
+  // hamster-face-anchor-v1-settings.confirmed.json). Hard-coded so the file has
+  // no fetch / external dependency. Only A/L/C/D/E/R/G are read by the look
+  // geometry, but the full flattened set is inlined verbatim for fidelity.
+  var rawAnchors = {
+    A:  { x: 65,     y: 153,    label: "左边界" },
+    L:  { x: 137.77, y: 162.56, label: "左弧低点" },
+    C:  { x: 171.37, y: 154.02, label: "鼻梁左" },
+    D:  { x: 189.69, y: 147.65, label: "鼻梁峰" },
+    E:  { x: 210.43, y: 157.48, label: "鼻梁右" },
+    R:  { x: 240.66, y: 162.63, label: "右弧低点" },
+    G:  { x: 309,    y: 153,    label: "右边界" },
+    B:  { x: 138,    y: 157,    label: "左眼中心" },
+    F:  { x: 237,    y: 157,    label: "右眼中心" },
+    N:  { x: 187,    y: 170,    label: "鼻中心" },
+    J:  { x: 187,    y: 177,    label: "鼻下" },
+    ML: { x: 163,    y: 192,    label: "嘴左端" },
+    MR: { x: 211,    y: 192,    label: "嘴右端" },
+    BL: { x: 92,     y: 185,    label: "左腮红" },
+    BR: { x: 281,    y: 185,    label: "右腮红" },
+    H:  { x: 187,    y: 48,     label: "头顶" },
+    T:  { x: 203,    y: 16,     label: "呆毛" },
+    EL: { x: 101,    y: 73,     label: "左耳" },
+    ER: { x: 286,    y: 73,     label: "右耳" }
+  };
+
+  // ── look-geometry constants (verbatim from idle-look-v2) ──────────────────
+  var VIEW_W = 374;
+  var TOP_CHAIN = ["A", "L", "C", "D", "E", "R", "G"];
+  var BASE = {
+    cheekD: "M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z",
+    headCapD: "M64 153 C64 88 116 48 187 48 C258 48 310 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z",
+    leftCreaseD: "M62 238 C70 250 84 256 100 256",
+    rightCreaseD: "M312 238 C304 250 290 256 274 256"
+  };
+  var RIGHT_HEAD_CAP_D = "M64 153 C66.12 89.55 117.55 49.81 187 48 C267.24 48 328.48 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z";
+  var LEFT_HEAD_CAP_D = "M64 153 C45.52 88 106.76 48 187 48 C256.45 49.81 307.88 89.55 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z";
+  var FRONT_TAIL = [
+    [331, 178, 336, 221, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [38, 221, 43, 178, 65, 153]
+  ];
+  var LEFT_TAIL = [
+    [320.06, 180.73, 321.87, 218.27, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [35.12, 221, 40.60, 178, 65, 153]
+  ];
+  var RIGHT_TAIL = [
+    [333.40, 178.00, 338.88, 221.00, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [52.13, 218.27, 53.94, 180.73, 65, 153]
+  ];
+  var PITCH_UP = {
+    axis: -25.5, lower: 3.6, faceDy: -21.5, faceSy: 0.93,
+    blushDy: -22.41, earDy: 12, tuftDy: 12
+  };
+  var PITCH_DOWN = {
+    axis: 26, lower: -7.9, faceDy: 24.5, faceSy: 1,
+    blushDy: 24.5, earDy: -10, tuftDy: -2
+  };
+
+  // ── breathing DEFAULTS (verbatim from idle-look-v2 DEFAULTS) ──────────────
+  var BREATH = {
+    bodyExpand: 3.2,
+    bodyTopLift: 1.2,
+    bodyBottomDrop: 0.8,
+    headFloat: 1.1,
+    headNod: -0.25,
+    faceLag: 0.25,
+    earLag: 0.35,
+    tuftFloat: 0.5,
+    tieKnotShift: 0.4,
+    tieSwing: -1.1
+  };
+  var BREATH_PERIOD = 4.0; // seconds, sin-driven (matches tuner: breathAmount peaks mid-cycle)
+
+  // ── cursor look mapping (per task spec; v2 defaults for max angles) ───────
+  var FACE_CENTER = { x: 187, y: 157 };
+  var HALF_W = 150;          // viewBox units; tune for sensitivity
+  var HALF_H = 120;
+  var mouseYawMax = 55;      // v2 DEFAULTS.mouseYawMax
+  var mousePitchMax = 38;    // v2 DEFAULTS.mousePitchMax
+  // Host pointer samples are discrete (clawd-on-desk boosts idle polling to
+  // about 10Hz while the cursor moves). Render a finite short segment between
+  // samples so the whole face moves continuously, then land exactly on the
+  // target and freeze. This avoids both moving-time steps and stop-time easing
+  // drift.
+  var LOOK_INTERP_MS = 150;
+  var LOOK_MIN_INTERP_MS = 70;
+  var LOOK_TARGET_EPS = 0.0005;
+  var SUNGLASSES_EASE = {
+    stiffness: 62,
+    damping: 11.5,
+    dxPerYaw: 0.17,
+    dyPerPitch: 0.095,
+    rotPerYaw: 0.082,
+    rotPerPitch: -0.024,
+    maxDx: 4.2,
+    maxDy: 2.8,
+    maxRot: 2.1
+  };
+
+  // ── live look state (replaces the tuner's `state`) ────────────────────────
+  // breathProgress is implied by the time-driven sin loop; only yaw/pitch are
+  // pointer-driven. We keep a tiny `state`-shaped object so the ported geometry
+  // functions read state.yaw / state.pitch unchanged.
+  // ── mini patch: mini viewBox(screen) coords -> master coords ──
+  // 整体 wrapper = rotate(-90 187 230); 逆变换 = rotate(+90 187 230)。
+  // 入口处换算后, 引擎内部 pointerVB / FACE_CENTER / HALF_W/H 全部保持母版系语义。
+  var MINI_PIVOT = { x: 187, y: 230 };
+  function miniToMasterPoint(p) {
+    var dx = p.x - MINI_PIVOT.x;
+    var dy = p.y - MINI_PIVOT.y;
+    return { x: MINI_PIVOT.x - dy, y: MINI_PIVOT.y + dx };
+  }
+
+  var state = { yaw: 0, pitch: 0, breathProgress: 0 };
+  var sunglassesPose = { yaw: 0, pitch: 0, yawV: 0, pitchV: 0 };
+
+  var svg = document.getElementById("mini-stage");
+  var baseTransform = {};
+  var ready = false;
+
+  // ── small math/util helpers (verbatim from idle-look-v2) ──────────────────
+  function smooth01(value) {
+    var t = clamp(value, 0, 1);
+    return t * t * (3 - 2 * t);
+  }
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+  function fmt(value) {
+    return String(parseFloat(Number(value).toFixed(3)));
+  }
+  function numbers(value) {
+    return (value.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+  }
+  function el(tag, attrs) {
+    var node = document.createElementNS(NS, tag);
+    attrs = attrs || {};
+    for (var key in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, key)) {
+        var value = attrs[key];
+        if (value !== null && value !== undefined) node.setAttribute(key, String(value));
+      }
+    }
+    return node;
+  }
+  function transformPathPairs(path, fn) {
+    var values = numbers(path);
+    var output = [];
+    for (var i = 0; i < values.length; i += 2) {
+      var point = fn({ x: values[i], y: values[i + 1] });
+      output.push(point.x, point.y);
+    }
+    var index = 0;
+    return path.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, function () {
+      return fmt(output[index++]);
+    });
+  }
+
+  // ── DOM access helpers (ported, svg-scoped) ───────────────────────────────
+  function ensureDefs() {
+    var defs = svg.querySelector("defs");
+    if (!defs) {
+      defs = document.createElementNS(NS, "defs");
+      svg.insertBefore(defs, svg.firstElementChild);
+    }
+    return defs;
+  }
+  function setAttr(id, name, value) {
+    var node = svg.querySelector("#" + id);
+    if (!node) return;
+    if (value === null || value === undefined || value === "") node.removeAttribute(name);
+    else node.setAttribute(name, value);
+  }
+  function setLayerTransform(id, extraTransform) {
+    var node = svg.querySelector("#" + id);
+    if (!node) return;
+    var transform = [baseTransform[id] || "", extraTransform].filter(Boolean).join(" ");
+    if (transform) node.setAttribute("transform", transform);
+    else node.removeAttribute("transform");
+  }
+  function setElementTransform(id, extraTransform) {
+    var node = svg.querySelector("#" + id);
+    if (!node) return;
+    var transform = [baseTransform[id] || "", extraTransform].filter(Boolean).join(" ");
+    if (transform) node.setAttribute("transform", transform);
+    else node.removeAttribute("transform");
+  }
+
+  // ── v2 blush clip contract (verbatim port of prepareBlushClip) ────────────
+  // The fix that killed blush jitter in v2: wrapper (carries clip, NO transform
+  // of its own) > transformGroup (carries blushPlaneTransform look-slide) >
+  // blushes; the wrapper is a child of #head-layer so breathing headMotion is
+  // applied exactly once by the parent for both clip and content. Clip path is
+  // only ever given d (= same-frame cheek in local coords), never a transform.
+  function prepareBlushClip() {
+    var blushes = svg.querySelector("#blushes");
+    var headLayer = svg.querySelector("#head-layer");
+    if (!blushes || !headLayer || svg.querySelector("#idle-look-blush-clip-wrapper")) return;
+
+    var clip = document.createElementNS(NS, "clipPath");
+    clip.setAttribute("id", "idle-look-blush-clip");
+    clip.setAttribute("clipPathUnits", "userSpaceOnUse");
+    var clipPath = document.createElementNS(NS, "path");
+    clipPath.setAttribute("id", "idle-look-blush-clip-path");
+    clipPath.setAttribute("d", BASE.cheekD);
+    clip.appendChild(clipPath);
+    ensureDefs().appendChild(clip);
+
+    // wrapper: owns the clip and inherits head-layer breathing only.
+    var wrapper = document.createElementNS(NS, "g");
+    wrapper.setAttribute("id", "idle-look-blush-clip-wrapper");
+    wrapper.setAttribute("data-layer", "idle-blush-clip-host");
+    wrapper.setAttribute("clip-path", "url(#idle-look-blush-clip)");
+
+    // transformGroup: moves blush content inside the clip for look-follow.
+    var transformGroup = document.createElementNS(NS, "g");
+    transformGroup.setAttribute("id", "idle-look-blush-transform");
+    transformGroup.appendChild(blushes);
+    wrapper.appendChild(transformGroup);
+
+    headLayer.appendChild(wrapper);
+  }
+
+  function rememberBaseTransforms() {
+    [
+      "ears-layer", "head-layer", "head-tufts", "face-layer", "sunglasses",
+      "idle-look-blush-clip-wrapper", "idle-look-blush-transform", "tie",
+      "tie-shadow", "tie-knot", "tie-blade", "tie-knot-highlight", "tie-center-fold", "tie-left-fold"
+    ].forEach(function (id) {
+      var node = svg.querySelector("#" + id);
+      if (node) baseTransform[id] = node.getAttribute("transform") || "";
+    });
+  }
+
+  // ── breathing (verbatim ports) ────────────────────────────────────────────
+  // breathAmount uses an external phase (0..1 ramp) instead of the tuner slider:
+  // sin(PI * phase) so phase 0/1 = rest, 0.5 = inhale peak — identical shape.
+  var breathPhase = 0;
+  function breathAmount() {
+    return Math.sin(Math.PI * clamp(breathPhase, 0, 1));
+  }
+  function bodyBreathPath(b) {
+    var expand = BREATH.bodyExpand * b;
+    var topLift = BREATH.bodyTopLift * b;
+    var bottomDrop = BREATH.bodyBottomDrop * b;
+    var leftX = 60 - expand;
+    var rightX = 314 + expand;
+    var topY = 200 - topLift;
+    var bottomY = 412 + bottomDrop * .35;
+    var lowerCtrlY = 380 + bottomDrop;
+    return [
+      "M187 " + fmt(topY),
+      "C " + fmt(113 - expand * .58) + " " + fmt(topY) + " " + fmt(leftX) + " 251 " + fmt(leftX) + " 322",
+      "C " + fmt(leftX) + " " + fmt(lowerCtrlY) + " 101 " + fmt(bottomY) + " 187 " + fmt(bottomY),
+      "C 273 " + fmt(bottomY) + " " + fmt(rightX) + " " + fmt(lowerCtrlY) + " " + fmt(rightX) + " 322",
+      "C " + fmt(rightX) + " 251 " + fmt(261 + expand * .58) + " " + fmt(topY) + " 187 " + fmt(topY) + "Z"
+    ].join(" ");
+  }
+  function translateY(y) {
+    return Math.abs(y) < 1e-6 ? "" : "translate(0 " + fmt(y) + ")";
+  }
+  function translate(x, y) {
+    return Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6 ? "" : "translate(" + fmt(x) + " " + fmt(y) + ")";
+  }
+  function rotateAroundHead(angle) {
+    return Math.abs(angle) < 1e-6 ? "" : "rotate(" + fmt(angle) + " 187 205)";
+  }
+  function rotateAroundTuft(angle) {
+    return Math.abs(angle) < 1e-6 ? "" : "rotate(" + fmt(angle) + " 198 48)";
+  }
+  function composeBreathTransforms() {
+    var parts = Array.prototype.slice.call(arguments);
+    return parts.filter(Boolean).join(" ");
+  }
+  function applyTieBreathMotion(b) {
+    var knotDx = BREATH.tieKnotShift * b;
+    var swing = BREATH.tieSwing * b;
+    var knotMove = Math.abs(knotDx) < 1e-6 ? "" : "translate(" + fmt(knotDx) + " 0)";
+    var bladeSwing = Math.abs(knotDx) < 1e-6 && Math.abs(swing) < 1e-6
+      ? ""
+      : (knotMove + " rotate(" + fmt(swing) + " 34 14)").trim();
+    ["tie-knot", "tie-knot-highlight"].forEach(function (id) { setElementTransform(id, knotMove); });
+    ["tie-shadow", "tie-blade", "tie-center-fold", "tie-left-fold"].forEach(function (id) { setElementTransform(id, bladeSwing); });
+  }
+
+  // ── look geometry (verbatim ports) ────────────────────────────────────────
+  function headLookActive() {
+    return Math.abs(state.yaw) > .001 || Math.abs(state.pitch) > .001;
+  }
+  function axisT(value) {
+    return smooth01(Math.abs(value) / 100);
+  }
+  function diagonalFactor() {
+    return Math.abs(state.yaw) / 100 * Math.abs(state.pitch) / 100;
+  }
+  function trimmed(value, trimScale) {
+    if (trimScale === undefined) trimScale = 1;
+    var trim = 1 - diagonalFactor() * 15 / 100 * trimScale;
+    return value * trim;
+  }
+  function smoothRange(start, end, value) {
+    return smooth01(clamp((value - start) / (end - start), 0, 1));
+  }
+  function mixPoint(a, b, t) {
+    return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+  }
+  function interpolateNumberString(from, to, t) {
+    var a = numbers(from);
+    var b = numbers(to);
+    var index = 0;
+    if (!from || !to || a.length !== b.length) return t < 1 ? from : to;
+    return from.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, function () {
+      var val = lerp(a[index], b[index] !== undefined ? b[index] : a[index - 1], t);
+      index += 1;
+      return fmt(val);
+    });
+  }
+  function transformTopPoint(point, dir) {
+    var axisX = dir < 0 ? 125 : 249;
+    var axisTravel = (axisX - VIEW_W / 2) * .75;
+    var localX = point.x - axisX;
+    var next = { x: axisTravel + axisX + localX, y: point.y };
+    var a = rawAnchors.A || { x: 65 };
+    var g = rawAnchors.G || { x: 309 };
+    var weightT = clamp((point.x - a.x) / (g.x - a.x), 0, 1);
+    var weight = Math.pow(Math.sin(Math.PI * weightT), .9);
+    return {
+      x: point.x + (next.x - point.x) * weight,
+      y: point.y
+    };
+  }
+  function catmullPath(points, tension, sharpness) {
+    if (tension === undefined) tension = .72;
+    if (sharpness === undefined) sharpness = .34;
+    var segs = ["M" + fmt(points[0].x) + " " + fmt(points[0].y)];
+    for (var i = 0; i < points.length - 1; i += 1) {
+      var p0 = points[Math.max(0, i - 1)];
+      var p1 = points[i];
+      var p2 = points[i + 1];
+      var p3 = points[Math.min(points.length - 1, i + 2)];
+      var nearBridge = ["C", "D", "E"].indexOf(p1.id) !== -1 || ["C", "D", "E"].indexOf(p2.id) !== -1;
+      var localTension = tension * (nearBridge ? (1 - sharpness * .42) : 1);
+      var c1 = {
+        x: p1.x + (p2.x - p0.x) * localTension / 6,
+        y: p1.y + (p2.y - p0.y) * localTension / 6
+      };
+      var c2 = {
+        x: p2.x - (p3.x - p1.x) * localTension / 6,
+        y: p2.y - (p3.y - p1.y) * localTension / 6
+      };
+      segs.push("C" + fmt(c1.x) + " " + fmt(c1.y) + " " + fmt(c2.x) + " " + fmt(c2.y) + " " + fmt(p2.x) + " " + fmt(p2.y));
+    }
+    return segs.join(" ");
+  }
+  function continuousYawFaceBasePath() {
+    var top = TOP_CHAIN.map(function (id) {
+      var point = rawAnchors[id];
+      return { id: id, x: point.x, y: point.y };
+    });
+    var tail = FRONT_TAIL.map(function (seg) {
+      return "C" + fmt(seg[0]) + " " + fmt(seg[1]) + " " + fmt(seg[2]) + " " + fmt(seg[3]) + " " + fmt(seg[4]) + " " + fmt(seg[5]);
+    }).join(" ");
+    return catmullPath(top) + " " + tail + "Z";
+  }
+  function yawFacePath() {
+    var dir = Math.sign(state.yaw);
+    var t = axisT(state.yaw);
+    if (TOP_CHAIN.some(function (id) { return !rawAnchors[id]; })) return BASE.cheekD;
+    if (!dir || t <= .001) return continuousYawFaceBasePath();
+    var top = TOP_CHAIN.map(function (id) {
+      var start = rawAnchors[id];
+      var end = transformTopPoint(start, dir);
+      var m = mixPoint(start, end, t);
+      return { id: id, x: m.x, y: m.y };
+    });
+    var sideTail = dir < 0 ? LEFT_TAIL : RIGHT_TAIL;
+    var tail = FRONT_TAIL.map(function (seg, index) {
+      var mixed = seg.map(function (value, numberIndex) { return lerp(value, sideTail[index][numberIndex], t); });
+      return "C" + fmt(mixed[0]) + " " + fmt(mixed[1]) + " " + fmt(mixed[2]) + " " + fmt(mixed[3]) + " " + fmt(mixed[4]) + " " + fmt(mixed[5]);
+    }).join(" ");
+    return catmullPath(top) + " " + tail + "Z";
+  }
+  function faceLowerEffect() {
+    if (state.pitch <= 0) return 0;
+    return axisT(state.pitch) * lerp(.45, 1, axisT(state.yaw));
+  }
+  function faceLowerWrappedPoint(point) {
+    var effect = faceLowerEffect();
+    if (effect <= .001) return point;
+    var lower = smoothRange(238, 263, point.y);
+    if (lower <= .001) return point;
+    var side = Math.sign(point.x - 187);
+    return {
+      x: point.x + side * 6 * effect * lower * .3,
+      y: point.y + 12 * effect * lower
+    };
+  }
+  function faceLowerWrappedPath(path) {
+    return transformPathPairs(path, faceLowerWrappedPoint);
+  }
+  function pitchDeltaY(y) {
+    if (state.pitch === 0) return 0;
+    var sign = Math.sign(state.pitch);
+    var t = axisT(state.pitch);
+    var lowerWeight = clamp((y - 166) / 92, 0, 1);
+    if (sign < 0) return lerp(PITCH_UP.axis, PITCH_UP.lower, lowerWeight) * t;
+    return lerp(PITCH_DOWN.axis, PITCH_DOWN.lower, lowerWeight) * t;
+  }
+  function warpPathForPitch(path) {
+    var index = 0;
+    return path.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, function (value) {
+      var n = Number(value);
+      var next = index % 2 === 1 ? n + pitchDeltaY(n) : n;
+      index += 1;
+      return fmt(next);
+    });
+  }
+  function cheekPath() {
+    return faceLowerWrappedPath(warpPathForPitch(yawFacePath()));
+  }
+  function headCapPath() {
+    var yawT = axisT(state.yaw);
+    var dir = Math.sign(state.yaw);
+    var yawTarget = dir > 0 ? RIGHT_HEAD_CAP_D : LEFT_HEAD_CAP_D;
+    var yawPath = dir ? interpolateNumberString(BASE.headCapD, yawTarget, yawT) : BASE.headCapD;
+    var index = 0;
+    return yawPath.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, function (value) {
+      var n = Number(value);
+      if (index % 2 === 0) {
+        index += 1;
+        return fmt(n);
+      }
+      var topWeight = clamp((120 - n) / 80, 0, 1);
+      var sideWeight = clamp((n - 120) / 70, 0, 1);
+      var sign = Math.sign(state.pitch);
+      var t = axisT(state.pitch);
+      var delta = sign < 0
+        ? (2 * topWeight - 5.61 * sideWeight) * t
+        : (-1.87 * topWeight + 7.28 * sideWeight) * t;
+      index += 1;
+      return fmt(n + delta);
+    });
+  }
+  function creasePath(side) {
+    var isLeft = side === "left";
+    var base = BASE[isLeft ? "leftCreaseD" : "rightCreaseD"];
+    var sideSign = isLeft ? 1 : -1;
+    var startX = isLeft ? 62 : 312;
+    var baseLength = 38;
+    var yawT = axisT(state.yaw);
+    var yawPull = Math.sign(state.yaw) * yawT;
+    var pitchT = axisT(state.pitch);
+    return transformPathPairs(base, function (point) {
+      var along = isLeft
+        ? clamp((point.x - 62) / baseLength, 0, 1)
+        : clamp((312 - point.x) / baseLength, 0, 1);
+      var next = {
+        x: startX + (point.x - startX),
+        y: point.y
+      };
+      next.x += yawPull * (isLeft ? 1 : -1) * lerp(3, 6, along);
+      next.x += sideSign * lerp(1.8, 2.4, along) * pitchT;
+      next.y += pitchDeltaY(point.y);
+      return faceLowerWrappedPoint(next);
+    });
+  }
+  function facePlaneTransform(withPitchScale) {
+    var dir = Math.sign(state.yaw);
+    var yawT = axisT(state.yaw);
+    var axis = 187 + dir * 62 * yawT;
+    var dx = dir * 46.5 * yawT;
+    var pitchSign = Math.sign(state.pitch);
+    var pitchT = axisT(state.pitch);
+    var pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    var dy = trimmed(pitchData.faceDy * pitchT, .45);
+    var sy = withPitchScale ? lerp(1, pitchData.faceSy, pitchT) : 1;
+    return "translate(" + fmt(dx) + " " + fmt(dy) + ") translate(" + fmt(axis) + " 172) skewX(0) scale(1 " + fmt(sy) + ") translate(" + fmt(-axis) + " -172)";
+  }
+  function blushPlaneTransform() {
+    var dir = Math.sign(state.yaw);
+    var yawT = axisT(state.yaw);
+    var axis = 187 + dir * 62 * yawT;
+    var dx = dir * 46.5 * yawT;
+    var pitchSign = Math.sign(state.pitch);
+    var pitchT = axisT(state.pitch);
+    var pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    var dy = trimmed(pitchData.blushDy * pitchT, .35);
+    return "translate(" + fmt(dx) + " " + fmt(dy) + ") translate(" + fmt(axis) + " 172) skewX(0) scale(1 1) translate(" + fmt(-axis) + " -172)";
+  }
+  function centeredTransform(origin, dx, dy, sx, sy) {
+    if (sx === undefined) sx = 1;
+    if (sy === undefined) sy = 1;
+    if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6 && Math.abs(sx - 1) < 1e-6 && Math.abs(sy - 1) < 1e-6) return "";
+    return "translate(" + fmt(origin.x + dx) + " " + fmt(origin.y + dy) + ") scale(" + fmt(sx) + " " + fmt(sy) + ") translate(" + fmt(-origin.x) + " " + fmt(-origin.y) + ")";
+  }
+  function springValue(value, target, velocity, dt) {
+    var accel = (target - value) * SUNGLASSES_EASE.stiffness - velocity * SUNGLASSES_EASE.damping;
+    velocity += accel * dt;
+    value += velocity * dt;
+    if (Math.abs(target - value) < 0.0008 && Math.abs(velocity) < 0.0008) {
+      value = target;
+      velocity = 0;
+    }
+    return { value: value, velocity: velocity };
+  }
+  function updateSunglassesEase(dt) {
+    var yaw = springValue(sunglassesPose.yaw, state.yaw, sunglassesPose.yawV, dt);
+    var pitch = springValue(sunglassesPose.pitch, state.pitch, sunglassesPose.pitchV, dt);
+    sunglassesPose.yaw = yaw.value;
+    sunglassesPose.yawV = yaw.velocity;
+    sunglassesPose.pitch = pitch.value;
+    sunglassesPose.pitchV = pitch.velocity;
+  }
+  function sunglassesEaseTransform() {
+    var lagYaw = sunglassesPose.yaw - state.yaw;
+    var lagPitch = sunglassesPose.pitch - state.pitch;
+    var dx = clamp(lagYaw * SUNGLASSES_EASE.dxPerYaw, -SUNGLASSES_EASE.maxDx, SUNGLASSES_EASE.maxDx);
+    var dy = clamp(lagPitch * SUNGLASSES_EASE.dyPerPitch, -SUNGLASSES_EASE.maxDy, SUNGLASSES_EASE.maxDy);
+    var rot = clamp(
+      lagYaw * SUNGLASSES_EASE.rotPerYaw + lagPitch * SUNGLASSES_EASE.rotPerPitch,
+      -SUNGLASSES_EASE.maxRot,
+      SUNGLASSES_EASE.maxRot
+    );
+    var pulse = clamp((Math.abs(lagYaw) + Math.abs(lagPitch)) * 0.00055, 0, 0.012);
+    if (Math.abs(dx) < 0.002 && Math.abs(dy) < 0.002 && Math.abs(rot) < 0.002 && pulse < 0.0005) return "";
+    return "translate(" + fmt(187 + dx) + " " + fmt(157 + dy) + ") rotate(" + fmt(rot) + ") scale(" + fmt(1 + pulse) + " " + fmt(1 - pulse * 0.35) + ") translate(-187 -157)";
+  }
+  function elementOffsets() {
+    var dir = Math.sign(state.yaw);
+    var yawT = axisT(state.yaw);
+    var pitchSign = Math.sign(state.pitch);
+    var pitchT = axisT(state.pitch);
+    var pitchUp = pitchSign < 0;
+    var pitchEye = pitchUp ? -.56 * pitchT : 0;
+    var pitchBlushDx = pitchUp ? 3.5 * pitchT : -1.8 * pitchT;
+    var yawLeftEye = dir < 0 ? -2 * yawT : 0;
+    var yawRightEye = dir > 0 ? 2 * yawT : 0;
+    var leftBlushYaw = dir < 0
+      ? { dx: 6.5 * yawT, dy: 0, sx: 1, sy: 1 }
+      : { dx: -24 * yawT, dy: 20.5 * yawT, sx: lerp(1, 1.09, yawT), sy: lerp(1, 1.1, yawT) };
+    var rightBlushYaw = dir < 0
+      ? { dx: 25 * yawT, dy: 20.5 * yawT, sx: lerp(1, 1.09, yawT), sy: lerp(1, 1.1, yawT) }
+      : { dx: -5.5 * yawT, dy: 0, sx: 1, sy: 1 };
+    return {
+      leftEye: { dx: yawLeftEye, dy: pitchEye },
+      rightEye: { dx: yawRightEye, dy: pitchEye },
+      leftBlush: {
+        dx: leftBlushYaw.dx + pitchBlushDx,
+        dy: leftBlushYaw.dy,
+        sx: leftBlushYaw.sx,
+        sy: leftBlushYaw.sy
+      },
+      rightBlush: {
+        dx: rightBlushYaw.dx - pitchBlushDx,
+        dy: rightBlushYaw.dy,
+        sx: rightBlushYaw.sx,
+        sy: rightBlushYaw.sy
+      }
+    };
+  }
+  function earState() {
+    var dir = Math.sign(state.yaw);
+    var yawT = axisT(state.yaw);
+    var pitchSign = Math.sign(state.pitch);
+    var pitchT = axisT(state.pitch);
+    var pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    var pitchDy = pitchData.earDy * pitchT;
+    var left = { x: 0, y: pitchDy, grow: 0 };
+    var right = { x: 0, y: pitchDy, grow: 0 };
+    if (dir < 0) {
+      left.x += -3.5 * yawT;
+      left.y += 3.5 * yawT;
+      right.grow = smoothRange(.12, 1, yawT);
+    } else if (dir > 0) {
+      right.x += -9.5 * yawT;
+      right.y += 3.5 * yawT;
+      left.grow = smoothRange(.12, 1, yawT);
+    }
+    return { left: left, right: right };
+  }
+  function tuftLookTransform() {
+    var dir = Math.sign(state.yaw);
+    var yawT = axisT(state.yaw);
+    var pitchSign = Math.sign(state.pitch);
+    var pitchT = axisT(state.pitch);
+    var pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    var yawDx = dir < 0 ? -21.7 * yawT : dir > 0 ? -10.3 * yawT : 0;
+    var pitchDy = pitchData.tuftDy * pitchT;
+    return translate(yawDx, pitchDy);
+  }
+
+  // ── combined per-frame application (port of applyBreathPose + applyHeadBreathMotion,
+  //    hand-redraw section removed per task spec) ────────────────────────────
+  function applyHeadBreathMotion(b) {
+    var headY = -BREATH.headFloat * b;
+    var nod = BREATH.headNod * b;
+    var faceLagY = BREATH.faceLag * b;
+    var earLagY = BREATH.earLag * b;
+    var tuftY = headY - BREATH.tuftFloat * b;
+    var headMotion = composeBreathTransforms(
+      translateY(headY),
+      rotateAroundHead(nod)
+    );
+    var faceMotion = composeBreathTransforms(
+      translateY(headY + faceLagY),
+      rotateAroundHead(nod * .82)
+    );
+    var earMotion = composeBreathTransforms(
+      translateY(headY + earLagY),
+      rotateAroundHead(nod * .35)
+    );
+    var tuftBreathMotion = composeBreathTransforms(
+      translateY(tuftY),
+      rotateAroundTuft(nod * -.9)
+    );
+    var lookActive = headLookActive();
+    var cheek = cheekPath();
+    var elem = elementOffsets();
+    var ears = earState();
+
+    setAttr("head-cap-fill", "d", headCapPath());
+    setAttr("cheek-muzzle-fill", "d", cheek);
+    // v2: clip path tracks the same-frame cheek in local coords, but never takes
+    // its own transform. The look slide stays on the blush content only.
+    setAttr("idle-look-blush-clip-path", "d", cheek);
+    setAttr("left-cheek-crease", "d", creasePath("left"));
+    setAttr("right-cheek-crease", "d", creasePath("right"));
+    setAttr("left-cheek-crease", "stroke-width", lookActive ? "2.6" : "3");
+    setAttr("right-cheek-crease", "stroke-width", lookActive ? "2.6" : "3");
+
+    setLayerTransform("head-layer", headMotion);
+    setLayerTransform("face-layer", composeBreathTransforms(lookActive ? facePlaneTransform(true) : "", faceMotion));
+    // wrapper inherits breathing from head-layer; keep it transform-free.
+    setLayerTransform("idle-look-blush-clip-wrapper", "");
+    setElementTransform("idle-look-blush-transform", lookActive ? blushPlaneTransform() : "");
+    setLayerTransform("ears-layer", earMotion);
+    setLayerTransform("head-tufts", composeBreathTransforms(lookActive ? tuftLookTransform() : "", tuftBreathMotion));
+
+    setAttr("left-ear", "transform", lookActive ? translate(ears.left.x, ears.left.y) : "");
+    setAttr("right-ear", "transform", lookActive ? translate(ears.right.x, ears.right.y) : "");
+    setAttr("left-ear-outer", "r", fmt(lerp(34, 37.4, ears.left.grow)));
+    setAttr("left-ear-inner", "r", fmt(lerp(18, 19.8, ears.left.grow)));
+    setAttr("right-ear-outer", "r", fmt(lerp(34, 37.4, ears.right.grow)));
+    setAttr("right-ear-inner", "r", fmt(lerp(18, 19.8, ears.right.grow)));
+
+    setAttr("left-eye", "rx", "12.5");
+    setAttr("right-eye", "rx", "12.5");
+    setAttr("left-eye", "ry", "17");
+    setAttr("right-eye", "ry", "17");
+    setAttr("left-eye", "transform", centeredTransform({ x: 138, y: 157 }, elem.leftEye.dx, elem.leftEye.dy));
+    setAttr("right-eye", "transform", centeredTransform({ x: 237, y: 157 }, elem.rightEye.dx, elem.rightEye.dy));
+    setAttr("left-blush", "transform", centeredTransform({ x: 92, y: 185 }, elem.leftBlush.dx, elem.leftBlush.dy, elem.leftBlush.sx, elem.leftBlush.sy));
+    setAttr("right-blush", "transform", centeredTransform({ x: 281, y: 185 }, elem.rightBlush.dx, elem.rightBlush.dy, elem.rightBlush.sx, elem.rightBlush.sy));
+    setAttr("nose-mouth", "transform", "");
+    setElementTransform("sunglasses", sunglassesEaseTransform());
+  }
+  function applyBreathPose() {
+    var b = breathAmount();
+    var body = svg.querySelector("#body-belly-fill");
+    if (body) body.setAttribute("d", Math.abs(b) < 1e-6 ? bodyBreathPath(0) : bodyBreathPath(b));
+    applyHeadBreathMotion(b);
+    setLayerTransform("tie", "");
+    applyTieBreathMotion(b);
+  }
+  // render(): the tuner's render() minus all diagnostics + hand re-draw.
+  function render() {
+    if (!svg || !ready) return;
+    applyBreathPose();
+  }
+
+  // ── pointer → yaw/pitch target (per task spec; viewBox coords) ────────────
+  var pointerInside = false;
+  var pointerVB = { x: FACE_CENTER.x, y: FACE_CENTER.y };
+  var targetYaw = 0;
+  var targetPitch = 0;
+  var lookFromYaw = 0;
+  var lookFromPitch = 0;
+  var lookToYaw = 0;
+  var lookToPitch = 0;
+  var lookStartMs = 0;
+  var lookDurationMs = 0;
+
+  function nowMs() {
+    return window.performance && typeof window.performance.now === "function"
+      ? window.performance.now()
+      : Date.now();
+  }
+
+  function currentLookAt(now) {
+    if (!lookDurationMs) return { yaw: lookToYaw, pitch: lookToPitch };
+    var t = clamp((now - lookStartMs) / lookDurationMs, 0, 1);
+    var eased = smooth01(t);
+    return {
+      yaw: lerp(lookFromYaw, lookToYaw, eased),
+      pitch: lerp(lookFromPitch, lookToPitch, eased)
+    };
+  }
+
+  function setLookTarget(yaw, pitch) {
+    targetYaw = yaw;
+    targetPitch = pitch;
+    if (Math.abs(yaw - lookToYaw) < LOOK_TARGET_EPS && Math.abs(pitch - lookToPitch) < LOOK_TARGET_EPS) return;
+
+    var now = nowMs();
+    var current = currentLookAt(now);
+    var distance = Math.sqrt(Math.pow(yaw - current.yaw, 2) + Math.pow(pitch - current.pitch, 2));
+    lookFromYaw = current.yaw;
+    lookFromPitch = current.pitch;
+    lookToYaw = yaw;
+    lookToPitch = pitch;
+    lookStartMs = now;
+    lookDurationMs = distance < 1 ? LOOK_MIN_INTERP_MS : LOOK_INTERP_MS;
+  }
+
+  function updateLookTarget() {
+    if (!pointerInside) {
+      setLookTarget(0, 0);
+      return;
+    }
+    var xRatio = clamp((pointerVB.x - FACE_CENTER.x) / HALF_W, -1, 1);
+    var yRatio = clamp((pointerVB.y - FACE_CENTER.y) / HALF_H, -1, 1);
+    setLookTarget(xRatio * mouseYawMax, yRatio * mousePitchMax);
+  }
+
+  // ── host interface contract (mirrors cloudling-idle.svg) ──────────────────
+  window.__cloudlingSetPointer = function (payload) {
+    if (!payload || !Number.isFinite(payload.x) || !Number.isFinite(payload.y)) return;
+    var mp = miniToMasterPoint(payload);
+    pointerVB.x = mp.x;
+    pointerVB.y = mp.y;
+    pointerInside = !!payload.inside;
+    updateLookTarget();
+  };
+
+  // svg-self hover fallback (when the svg element itself is hovered).
+  svg.addEventListener("mousemove", function (e) {
+    var r = svg.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    var vb = svg.viewBox && svg.viewBox.baseVal ? svg.viewBox.baseVal : { x: -53, y: -10, width: 480, height: 480 };
+    var fp = miniToMasterPoint({
+      x: vb.x + (e.clientX - r.left) * (vb.width / r.width),
+      y: vb.y + (e.clientY - r.top) * (vb.height / r.height)
+    });
+    pointerVB.x = fp.x;
+    pointerVB.y = fp.y;
+    pointerInside = true;
+    updateLookTarget();
+  });
+  svg.addEventListener("mouseenter", function () { pointerInside = true; updateLookTarget(); });
+  svg.addEventListener("mouseleave", function () { pointerInside = false; updateLookTarget(); });
+
+  // ── rAF loop (low-power pause aware, mirrors cloudling) ───────────────────
+  var lowPowerPaused = false;
+  var rafId = 0;
+  var lastT = 0;
+  var startT = 0;
+  var lowPowerPausedAt = 0;
+  var lowPowerPausedTotal = 0;
+
+  function scheduleLoop() {
+    if (!lowPowerPaused && !rafId) rafId = requestAnimationFrame(loop);
+  }
+
+  window.__clawdSetLowPowerPaused = function (paused) {
+    var next = !!paused;
+    if (lowPowerPaused === next) return;
+    lowPowerPaused = next;
+    if (next) {
+      lowPowerPausedAt = performance.now();
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      return;
+    }
+    if (lowPowerPausedAt) lowPowerPausedTotal += performance.now() - lowPowerPausedAt;
+    lowPowerPausedAt = 0;
+    lastT = performance.now();
+    scheduleLoop();
+  };
+
+  function loop(now) {
+    rafId = 0;
+    if (lowPowerPaused) return;
+    var dt = (now - lastT) / 1000;
+    if (!(dt >= 0)) dt = 0;
+    if (dt > 0.1) dt = 0.1; // clamp big gaps (tab refocus) so easing stays sane
+    lastT = now;
+    var t = (now - startT - lowPowerPausedTotal) / 1000;
+
+    // breathing phase: 0..1 ramp from a sin time base; sin(PI*phase) inside
+    // breathAmount yields rest→inhale→rest over BREATH_PERIOD seconds.
+    breathPhase = (Math.cos(2 * Math.PI * t / BREATH_PERIOD) + 1) / 2; // 0..1, 0 at t=0
+
+    // The bridge target can update at 10Hz or 60Hz depending on host/preview. The
+    // rendered look always advances on SVG rAF, so path geometry, face transform,
+    // blush transform, and creases stay in one same-frame pose.
+    var look = currentLookAt(now);
+    state.yaw = look.yaw;
+    state.pitch = look.pitch;
+    updateSunglassesEase(dt);
+
+    render();
+    scheduleLoop();
+  }
+
+  // ── boot ──────────────────────────────────────────────────────────────────
+  function boot() {
+    prepareBlushClip();
+    rememberBaseTransforms();
+    ready = true;
+    startT = performance.now();
+    lastT = startT;
+    render();
+    scheduleLoop();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+  
+  ]]></script>
+  <script type="application/ecmascript"><![CDATA[
+(() => {
+  "use strict";
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("mini-stage");
+  let glyphFlipCompensation = false;
+
+  function applyGlyphFlipCompensation() {
+    const boardFace = svg.querySelector("#happy-board-face");
+    if (!boardFace) return;
+    if (glyphFlipCompensation) boardFace.setAttribute("transform", "scale(-1 1)");
+    else boardFace.removeAttribute("transform");
+  }
+
+  window.__clawdSetGlyphFlipCompensation = function(enabled) {
+    const next = !!enabled;
+    if (next === glyphFlipCompensation) return;
+    glyphFlipCompensation = next;
+    applyGlyphFlipCompensation();
+  };
+
+  // ── 可调参数（tuner state；定稿后烘焙抄 JSON）──
+  const state = {
+    speed: 1,
+    boardX: -58, boardY: 92, boardScale: 1.15, boardRot: -6, boardFloat: 2.6, boardSwing: 1.45, boardIntroShake: 5.6, boardPostSway: 12.5, boardBreathScale: 0.025,
+    tickGap: 0.30, tickDur: 0.18, tickKick: 0.65, tickRotKick: 0.95, checkPalette: 0,
+    donePalette: 0, doneStroke: 7,
+    lookYaw: 0.85, lookPitch: 0.6, stareDur: 0.6,
+    bloomDur: 0.22, bloomHold: 0.7, mouthOpenMax: 100, browLift: 3, tuftPerk: -20,
+    mouthPulse: 0.5, tuftFloat: 2, tieSway: 0.4
+  };
+  let autoLoop = /[?&]loop=1/.test((typeof location !== "undefined" && location.search) || ""); // 默认播一次; ?loop=1 循环重播(showcase 先例)
+
+  // 勾色票（鹿鹿参考图正红 / 人物深棕 / 低饱和柔绿）
+  const CHECK_PALETTES = [
+    { name: "正红", color: "#e25555" },
+    { name: "深棕", color: "#7b4a23" },
+    { name: "柔绿", color: "#7fb069" }
+  ];
+  // 结算大勾色票（鹿鹿口径：绿色；三档绿给鹿鹿点）
+  const DONE_PALETTES = [
+    { name: "柔绿", color: "#7fb069" },
+    { name: "草绿", color: "#5cb85c" },
+    { name: "翠绿", color: "#3da568" }
+  ];
+
+  // ── 分镜时间线（依滑块动态算）──
+  function timeline() {
+    const t1 = 0.45;                                  // 卡片首帧已在场；留 0.45s 给空清单先被看见
+    const tick1 = t1 + 0.12;                          // 勾1 开始描画
+    const tick2 = tick1 + state.tickGap;
+    const tick3 = tick1 + state.tickGap * 2;
+    const tLook = tick1 + 0.10;                       // 勾1 画一半被吸引 → 阶跃回头（引擎 150ms 快转）
+    const tSee = tick3 + state.tickDur;               // 三勾全落定
+    const tMorph = tSee + 0.10;                       // 清单结算变身：条目+三勾淡出，大绿勾描画（鹿鹿口径）
+    const tBloom = tSee + state.stareDur;             // 凝视（含看到变身）→ 绽放笑脸（看着卡片笑）
+    const tBack = tBloom + state.bloomHold;           // 带笑回正
+    const holdStart = tBack + 0.45;                   // 回正到位 → 保持循环
+    return { t1, tick1, tick2, tick3, tLook, tSee, tMorph, tBloom, tBack, holdStart };
+  }
+
+  // ── 工具（confirmed 风格；fmt 防 200→20 坑）──
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smooth01(v) { const t = clamp(v, 0, 1); return t * t * (3 - 2 * t); }
+  function smoothRange(a, b, v) { return smooth01(clamp((v - a) / (b - a), 0, 1)); }
+  function easeOutBack(v) { const t = clamp(v, 0, 1) - 1; return 1 + t * t * (2.70158 * t + 1.70158); }
+  function easeOutCubic(x) { return 1 - Math.pow(1 - clamp(x, 0, 1), 3); }
+  function fmt(v) { return String(parseFloat(Number(v).toFixed(2))); }
+  function el(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) node.setAttribute(k, String(attrs[k]));
+    return node;
+  }
+  function setT(id, transform) {
+    const node = svg.querySelector(`#${id}`);
+    if (!node) return;
+    if (transform) node.setAttribute("transform", transform);
+    else node.removeAttribute("transform");
+  }
+
+  // ── 开心嘴 rig（主线 attention 定稿 task-complete-loop-v1 逐字搬运：opening clip > door clip > 三层 fill；W 线最上）──
+  const MOUTH = {
+    cx: 187, cavityY: 205, lowerCavityY: 218,
+    sideY: 200, bottomY: 219.5, halfW: 6, doorInset: 8.5, doorRound: 13,
+    cavityW: 25, cavityH: 45, lowerCavityW: 13, lowerCavityH: 8,
+    // 保持段脉动（主线 LOOP_MOTION 同名参数）
+    bottomPulse: 1.25, insetPulse: 1.1, halfPulse: 0.45, roundPulse: 0.75
+  };
+  let mouthProgress = 0;   // 0..100（mouthOpenMax 封顶）
+  let mouthPulseT = 0;     // 0..1 保持段脉动
+  function installMouthRig() {
+    const noseMouth = svg.querySelector("#nose-mouth");
+    const nose = svg.querySelector("#nose-fill");
+    const left = svg.querySelector("#mouth-left");
+    const right = svg.querySelector("#mouth-right");
+    if (!noseMouth || svg.querySelector("#mouth-interior-clipped")) return;
+    let defs = svg.querySelector("defs");
+    const openingClip = el("clipPath", { id: "happy-mouth-opening-clip", clipPathUnits: "userSpaceOnUse" });
+    openingClip.appendChild(el("path", { id: "mouth-opening-clip-path" }));
+    const doorClip = el("clipPath", { id: "happy-mouth-door-clip", clipPathUnits: "userSpaceOnUse" });
+    doorClip.appendChild(el("path", { id: "mouth-door-clip-path" }));
+    defs.appendChild(openingClip);
+    defs.appendChild(doorClip);
+    const interior = el("g", { id: "mouth-interior-clipped", "clip-path": "url(#happy-mouth-opening-clip)" });
+    const door = el("g", { id: "mouth-door-clipped", "clip-path": "url(#happy-mouth-door-clip)" });
+    door.appendChild(el("path", { id: "mouth-inner-shade", fill: "#5b221f", opacity: ".36" }));
+    door.appendChild(el("path", { id: "mouth-cavity-fill", fill: "#8c2f2a" }));
+    door.appendChild(el("path", { id: "mouth-lower-cavity-fill", fill: "#f58d86" }));
+    interior.appendChild(door);
+    const strokes = el("g", { id: "mouth-visible-strokes" });
+    strokes.appendChild(left);
+    strokes.appendChild(right);
+    noseMouth.insertBefore(interior, nose.nextSibling);
+    noseMouth.appendChild(strokes);
+  }
+  function mouthClipParams() {
+    const pulse = clamp(mouthPulseT, 0, 1) * state.mouthPulse;
+    return {
+      sideY: MOUTH.sideY,
+      bottomY: MOUTH.bottomY + MOUTH.bottomPulse * pulse,
+      halfW: MOUTH.halfW + MOUTH.halfPulse * pulse,
+      doorInset: MOUTH.doorInset - MOUTH.insetPulse * pulse,
+      doorRound: MOUTH.doorRound + MOUTH.roundPulse * pulse
+    };
+  }
+  function mouthOpeningClipD() {
+    const p = clamp(mouthProgress / 100, 0, 1);
+    const cx = MOUTH.cx;
+    const mouth = mouthClipParams();
+    const sideY = mouth.sideY;
+    if (p <= 0.01) {
+      return [
+        `M ${fmt(cx - 0.35)} ${fmt(sideY)}`,
+        `C ${fmt(cx - 0.35)} ${fmt(sideY)} ${fmt(cx - 0.15)} ${fmt(sideY)} ${fmt(cx)} ${fmt(sideY)}`,
+        `C ${fmt(cx + 0.15)} ${fmt(sideY)} ${fmt(cx + 0.35)} ${fmt(sideY)} ${fmt(cx + 0.35)} ${fmt(sideY)}`,
+        `C ${fmt(cx + 0.35)} ${fmt(sideY + 0.15)} ${fmt(cx + 0.18)} ${fmt(sideY + 0.2)} ${fmt(cx)} ${fmt(sideY + 0.2)}`,
+        `C ${fmt(cx - 0.18)} ${fmt(sideY + 0.2)} ${fmt(cx - 0.35)} ${fmt(sideY + 0.15)} ${fmt(cx - 0.35)} ${fmt(sideY)} Z`
+      ].join(" ");
+    }
+    const dx = cx - 187;
+    const topYShift = (sideY - 199) * 0.18;
+    const tx = (x) => x + dx;
+    const ty = (y) => y + topYShift;
+    const fullBottomDrop = Math.max(0.15, mouth.bottomY - sideY);
+    const bottomDrop = fullBottomDrop * p;
+    const bottomY = sideY + bottomDrop;
+    const bottomW = Math.max(6, mouth.halfW);
+    return [
+      `M ${fmt(tx(163))} ${fmt(ty(192))}`,
+      `C ${fmt(tx(163))} ${fmt(ty(195))} ${fmt(tx(166))} ${fmt(ty(198))} ${fmt(tx(171))} ${fmt(ty(198))}`,
+      `C ${fmt(tx(180))} ${fmt(ty(198))} ${fmt(tx(187))} ${fmt(ty(190))} ${fmt(tx(187))} ${fmt(ty(177))}`,
+      `C ${fmt(tx(187))} ${fmt(ty(190))} ${fmt(tx(194))} ${fmt(ty(198))} ${fmt(tx(203))} ${fmt(ty(198))}`,
+      `C ${fmt(tx(208))} ${fmt(ty(198))} ${fmt(tx(211))} ${fmt(ty(195))} ${fmt(tx(211))} ${fmt(ty(192))}`,
+      `C ${fmt(tx(211))} ${fmt(bottomY - bottomDrop * 0.15)} ${fmt(cx + bottomW)} ${fmt(bottomY)} ${fmt(cx)} ${fmt(bottomY)}`,
+      `C ${fmt(cx - bottomW)} ${fmt(bottomY)} ${fmt(tx(163))} ${fmt(bottomY - bottomDrop * 0.15)} ${fmt(tx(163))} ${fmt(ty(192))} Z`
+    ].join(" ");
+  }
+  function mouthDoorClipD() {
+    const mouth = mouthClipParams();
+    const inset = clamp(mouth.doorInset, 0, 22);
+    const cx = MOUTH.cx;
+    const topY = 166;
+    const tailY = 292;
+    const sideY = mouth.sideY;
+    const bottomY = mouth.bottomY;
+    const left = 163 + inset;
+    const right = 211 - inset;
+    const lowerLeft = Math.max(left, cx - Math.max(0.1, mouth.halfW));
+    const lowerRight = Math.min(right, cx + Math.max(0.1, mouth.halfW));
+    const round = clamp(mouth.doorRound || 0, 0, Math.max(0.1, bottomY - sideY));
+    const curveStartY = clamp(bottomY - round, sideY, bottomY - 0.1);
+    const sideHandleY = lerp(curveStartY, bottomY, 0.72);
+    const bottomHandleY = bottomY - round * 0.15;
+    if (round <= 0.01) {
+      return [
+        `M ${fmt(left)} ${fmt(topY)}`, `L ${fmt(right)} ${fmt(topY)}`,
+        `L ${fmt(right)} ${fmt(tailY)}`, `L ${fmt(left)} ${fmt(tailY)} Z`
+      ].join(" ");
+    }
+    return [
+      `M ${fmt(left)} ${fmt(topY)}`,
+      `L ${fmt(right)} ${fmt(topY)}`,
+      `L ${fmt(right)} ${fmt(curveStartY)}`,
+      `C ${fmt(right)} ${fmt(sideHandleY)} ${fmt(lowerRight)} ${fmt(bottomHandleY)} ${fmt(lowerRight)} ${fmt(bottomY)}`,
+      `L ${fmt(lowerRight)} ${fmt(tailY)}`,
+      `L ${fmt(lowerLeft)} ${fmt(tailY)}`,
+      `L ${fmt(lowerLeft)} ${fmt(bottomY)}`,
+      `C ${fmt(lowerLeft)} ${fmt(bottomHandleY)} ${fmt(left)} ${fmt(sideHandleY)} ${fmt(left)} ${fmt(curveStartY)}`,
+      `L ${fmt(left)} ${fmt(topY)} Z`
+    ].join(" ");
+  }
+  function mouthCavityD() {
+    const cx = MOUTH.cx;
+    const cy = MOUTH.cavityY;
+    const w = MOUTH.cavityW;
+    const h = MOUTH.cavityH;
+    return [
+      `M ${fmt(cx - w)} ${fmt(cy)}`,
+      `C ${fmt(cx - w)} ${fmt(cy - h * 0.55)} ${fmt(cx + w)} ${fmt(cy - h * 0.55)} ${fmt(cx + w)} ${fmt(cy)}`,
+      `C ${fmt(cx + w)} ${fmt(cy + h * 0.66)} ${fmt(cx - w)} ${fmt(cy + h * 0.66)} ${fmt(cx - w)} ${fmt(cy)} Z`
+    ].join(" ");
+  }
+  function mouthLowerCavityD() {
+    const p = clamp((mouthProgress - 18) / 82, 0, 1);
+    const cx = MOUTH.cx;
+    const cy = MOUTH.lowerCavityY;
+    const w = Math.max(0.1, MOUTH.lowerCavityW * p);
+    const h = Math.max(0.1, MOUTH.lowerCavityH * p);
+    const tail = 46 + Math.max(0.15, MOUTH.bottomY - MOUTH.sideY);
+    return [
+      `M ${fmt(cx - w)} ${fmt(cy)}`,
+      `C ${fmt(cx - w * 0.82)} ${fmt(cy - h)} ${fmt(cx + w * 0.82)} ${fmt(cy - h)} ${fmt(cx + w)} ${fmt(cy)}`,
+      `L ${fmt(cx + w * 1.28)} ${fmt(cy + tail)}`,
+      `L ${fmt(cx - w * 1.28)} ${fmt(cy + tail)} Z`
+    ].join(" ");
+  }
+  function applyMouthPose() {
+    const interior = svg.querySelector("#mouth-interior-clipped");
+    const lower = svg.querySelector("#mouth-lower-cavity-fill");
+    const setAttr = (id, k, v) => { const n = svg.querySelector(`#${id}`); if (n) n.setAttribute(k, v); };
+    setAttr("mouth-opening-clip-path", "d", mouthOpeningClipD());
+    setAttr("mouth-door-clip-path", "d", mouthDoorClipD());
+    setAttr("mouth-inner-shade", "d", mouthCavityD());
+    setAttr("mouth-cavity-fill", "d", mouthCavityD());
+    setAttr("mouth-lower-cavity-fill", "d", mouthLowerCavityD());
+    if (interior) {
+      interior.style.display = mouthProgress > 1 ? "" : "none";
+      interior.setAttribute("opacity", fmt(0.72 + 0.28 * clamp(mouthProgress / 100, 0, 1)));
+    }
+    if (lower) lower.style.display = mouthProgress > 18 ? "" : "none";
+  }
+
+  // ── 视线喂点（alert 同款：阶跃喂终点，禁连续轨迹——连续喂=每帧重置插值=指数阻尼实测踩坑）──
+  // 卡片在屏幕系头左上 = master 系 yaw+ / pitch-（与 alert 感叹号同象限，mini-idle 真机验证语义）
+  const LOOK = { centerX: 187, centerY: 157, halfW: 150, halfH: 120 };
+  function feedLook(lookAmount) {
+    if (typeof window.__cloudlingSetPointer !== "function") return;
+    const masterX = LOOK.centerX + state.lookYaw * lookAmount * LOOK.halfW;
+    const masterY = LOOK.centerY - state.lookPitch * lookAmount * LOOK.halfH;
+    const miniX = masterY - 43;
+    const miniY = 417 - masterX;
+    window.__cloudlingSetPointer({ x: miniX, y: miniY, inside: true });
+  }
+
+  // ── 彩屑（确定性 SPECS，无 random；绽放一次性，保持段不循环）──
+  // 起点散布在头(107,230)与卡片之间的屏幕内区域，向外飘+旋转+淡出
+  const CONFETTI_SPECS = [
+    { x: 30,  y: 90,  dx: -26, dy: -30, rot: -12, drot: -70, c: "#f8aaa2", w: 7,   h: 4,   delay: 0    },
+    { x: 150, y: 110, dx: 24,  dy: -34, rot: 18,  drot: 80,  c: "#a8cfe8", w: 6,   h: 3.6, delay: 0.04 },
+    { x: 75,  y: 60,  dx: -8,  dy: -38, rot: 30,  drot: 55,  c: "#f6d98b", w: 7.5, h: 4,   delay: 0.08 },
+    { x: 185, y: 170, dx: 30,  dy: -16, rot: -24, drot: -60, c: "#b5d9a8", w: 6,   h: 3.6, delay: 0.12 },
+    { x: 12,  y: 170, dx: -28, dy: -10, rot: 8,   drot: 65,  c: "#a8cfe8", w: 6.5, h: 3.8, delay: 0.06 },
+    { x: 120, y: 40,  dx: 12,  dy: -30, rot: -30, drot: -75, c: "#f8aaa2", w: 6,   h: 3.5, delay: 0.14 },
+    { x: 165, y: 240, dx: 30,  dy: 10,  rot: 14,  drot: 58,  c: "#f6d98b", w: 7,   h: 4,   delay: 0.1  },
+    { x: 48,  y: 250, dx: -24, dy: 16,  rot: -8,  drot: -52, c: "#b5d9a8", w: 6,   h: 3.5, delay: 0.16 }
+  ];
+  const CONFETTI_LIFE = 1.15;
+  const confettiLayer = document.getElementById("happy-confetti-layer");
+  function renderConfetti(t, tBloom) {
+    if (t < tBloom || t > tBloom + CONFETTI_LIFE + 0.3) { confettiLayer.innerHTML = ""; return; }
+    let html = "";
+    for (const s of CONFETTI_SPECS) {
+      const lt = clamp((t - tBloom - s.delay) / CONFETTI_LIFE, 0, 1);
+      if (lt <= 0 || lt >= 1) continue;
+      const e = easeOutCubic(lt);
+      const x = s.x + s.dx * e;
+      const y = s.y + s.dy * e;
+      const rot = s.rot + s.drot * lt;
+      const op = smoothRange(0, 0.12, lt) * (1 - smoothRange(0.62, 1, lt));
+      if (op < 0.02) continue;
+      html += `<rect x="${fmt(-s.w / 2)}" y="${fmt(-s.h / 2)}" width="${fmt(s.w)}" height="${fmt(s.h)}" rx="1.6" fill="${s.c}" opacity="${fmt(op)}" transform="translate(${fmt(x)} ${fmt(y)}) rotate(${fmt(rot)})"/>`;
+    }
+    confettiLayer.innerHTML = html;
+  }
+
+  // ── 星星 twinkle（主线 bg-star/glasses-star 参数：base+alpha*sin(speed)）──
+  const STAR_SPECS = [
+    { id: "happy-star-a", x: 36, y: 24, scale: 0.95, offset: 0.08, speed: 0.62, base: 0.32, alpha: 0.5 },
+    { id: "happy-star-b", x: 176, y: 64, scale: 1.0, offset: 0.42, speed: 0.58, base: 0.26, alpha: 0.46 },
+    { id: "happy-glasses-star", x: 112, y: 151, scale: 1.2, offset: 0.14, speed: 1.15, base: 0.62, alpha: 0.38 }
+  ];
+  function renderStars(t, tBloom) {
+    for (const s of STAR_SPECS) {
+      const node = svg.querySelector(`#${s.id}`);
+      if (!node) continue;
+      const ramp = smoothRange(tBloom + 0.05, tBloom + 0.45, t);
+      if (ramp <= 0.01) { node.setAttribute("opacity", "0"); continue; }
+      const tw = s.base + s.alpha * (0.5 + 0.5 * Math.sin(2 * Math.PI * s.speed * (t - tBloom) + s.offset * 6.283));
+      const popScale = lerp(0.55, 1, easeOutBack(ramp));
+      node.setAttribute("opacity", fmt(clamp(tw, 0, 1) * ramp));
+      node.setAttribute("transform", `translate(${fmt(s.x)} ${fmt(s.y)}) scale(${fmt(s.scale * popScale)})`);
+    }
+  }
+
+  // ── 勾描画（dasharray/dashoffset；落定时卡片轻点头「咔哒」）──
+  const tickEls = [1, 2, 3].map((i) => svg.querySelector(`#board-tick-${i}`));
+  const tickLens = tickEls.map((p) => p.getTotalLength());
+  const doneLen = svg.querySelector("#board-done-main").getTotalLength();
+  function applyTicks(t, tl) {
+    const starts = [tl.tick1, tl.tick2, tl.tick3];
+    let kick = 0;
+    for (let i = 0; i < 3; i += 1) {
+      const p = clamp((t - starts[i]) / state.tickDur, 0, 1);
+      const len = tickLens[i];
+      tickEls[i].setAttribute("stroke", CHECK_PALETTES[state.checkPalette].color);
+      if (p <= 0) {
+        tickEls[i].setAttribute("stroke-dasharray", `0 ${fmt(len + 4)}`);
+        continue;
+      }
+      tickEls[i].setAttribute("stroke-dasharray", `${fmt(len * p)} ${fmt(len + 4)}`);
+      // 落定瞬间「咔哒」：小而短的 sin 脉冲，避免板子像被硬拽一下。
+      const age = t - (starts[i] + state.tickDur);
+      if (p >= 1 && age >= 0 && age <= 0.22) {
+        const q = age / 0.22;
+        const k = Math.sin(Math.PI * q) * (1 - q * 0.35);
+        kick = Math.max(kick, k);
+      }
+    }
+    return {
+      dy: kick * state.tickKick,
+      rot: -kick * state.tickRotKick
+    };
+  }
+
+  // ── 每帧 ──
+  let t0 = performance.now();
+  let bloomedOnce = false;
+  function frame(now) {
+    const t = (now - t0) / 1000 * state.speed;
+    const tl = timeline();
+
+    // 卡片：首帧完整在场，轻浮动贯穿；大绿勾完成后才加入微呼吸。
+    const floatDy = state.boardFloat * Math.sin(2 * Math.PI * t / 3.2);
+    const floatRot = state.boardSwing * Math.sin(2 * Math.PI * t / 3.7 + 0.55);
+    const introShakeRamp = 1 - smoothRange(0, 0.96, t);
+    const introShake = state.boardIntroShake * introShakeRamp * Math.sin(2 * Math.PI * t / 0.34 + 1.15);
+    const introDy = state.boardIntroShake * introShakeRamp * 0.24 * Math.sin(2 * Math.PI * t / 0.21 + 0.25);
+    const tickMotion = applyTicks(t, tl);
+    const postCheckAge = t - tl.tSee;
+    const postCheckRamp = postCheckAge > 0 ? 1 - smoothRange(0, 1.35, postCheckAge) : 0;
+    const postCheckWave = Math.sin(2 * Math.PI * postCheckAge / 0.34 + 0.3);
+    const postCheckX = state.boardPostSway * postCheckRamp * postCheckWave;
+    const postCheckRot = state.boardPostSway * 0.18 * postCheckRamp * Math.sin(2 * Math.PI * postCheckAge / 0.34 + 1.2);
+    const breathStart = tl.tMorph + 0.34;
+    const breathRamp = smoothRange(breathStart, breathStart + 0.5, t);
+    const breathWave = Math.sin(2 * Math.PI * (t - breathStart) / 2.7);
+    const boardBreath = 1 + breathRamp * state.boardBreathScale * breathWave;
+    const breathRot = breathRamp * 0.45 * Math.sin(2 * Math.PI * (t - breathStart) / 2.7 + 1.2);
+    const bx = state.boardX + postCheckX;
+    const by = state.boardY + floatDy + introDy + tickMotion.dy;
+    const bRot = state.boardRot + introShake + floatRot + tickMotion.rot + postCheckRot + breathRot;
+    setT("happy-board", `translate(${fmt(bx)} ${fmt(by)}) rotate(${fmt(bRot)}) scale(${fmt(state.boardScale * boardBreath)})`);
+    const boardNode = svg.querySelector("#happy-board");
+    boardNode.setAttribute("opacity", "1");
+
+    // 清单结算变身（鹿鹿口径，只动板）：tMorph 起条目+三勾淡出，纸上大绿勾描画+微弹
+    const morphFade = 1 - smoothRange(tl.tMorph, tl.tMorph + 0.12, t);
+    svg.querySelector("#board-rows").setAttribute("opacity", fmt(morphFade));
+    svg.querySelector("#board-ticks").setAttribute("opacity", fmt(morphFade));
+    const doneNode = svg.querySelector("#board-done");
+    const doneDraw = smoothRange(tl.tMorph + 0.06, tl.tMorph + 0.28, t);
+    const doneColor = DONE_PALETTES[state.donePalette].color;
+    const donePop = lerp(0.7, 1, easeOutBack(smoothRange(tl.tMorph + 0.06, tl.tMorph + 0.34, t)));
+    doneNode.setAttribute("opacity", fmt(doneDraw > 0 ? 1 : 0));
+    doneNode.setAttribute("transform", `scale(${fmt(donePop)})`);
+    ["board-done-under", "board-done-main"].forEach((id, i) => {
+      const p = svg.querySelector(`#${id}`);
+      p.setAttribute("stroke", doneColor);
+      p.setAttribute("stroke-width", fmt(state.doneStroke + (i === 0 ? 5 : 0)));
+      p.setAttribute("stroke-dasharray", `${fmt(doneLen * doneDraw)} ${fmt(doneLen + 4)}`);
+    });
+
+    // 视线：tLook 阶跃看卡片，tBack 阶跃回正（恒定目标不重置插值，EPS 守卫在引擎里）
+    const lookAmount = (t >= tl.tLook && t < tl.tBack) ? 1 : 0;
+    feedLook(lookAmount);
+
+    // 绽放：开心嘴 0→mouthOpenMax（主线定稿几何）；保持段叠脉动
+    const bloomT = smoothRange(tl.tBloom, tl.tBloom + state.bloomDur, t);
+    mouthProgress = state.mouthOpenMax * bloomT;
+    mouthPulseT = 0.5 + 0.5 * Math.sin(2 * Math.PI * (t - tl.holdStart) / 3.6 - Math.PI / 2);
+    if (t < tl.holdStart) mouthPulseT *= smoothRange(tl.tBack, tl.holdStart, t);
+    applyMouthPose();
+
+    // 笑拱眉：主线 BROW_OFFSET (0,-3) 渐进切入（browLift 滑块）
+    const browDy = -state.browLift * bloomT;
+    const browT = Math.abs(browDy) > 0.02 ? `translate(0 ${fmt(browDy)})` : "";
+    setT("brows", browT);
+
+    // 呆毛：重力 -32 → 绽放雀跃至 tuftPerk；保持段错相轻飘
+    const perk = smoothRange(tl.tBloom, tl.tBloom + 0.25, t);
+    const floatRamp = smoothRange(tl.holdStart, tl.holdStart + 0.3, t);
+    const fl = Math.sin(2 * Math.PI * 0.8 * (t - tl.holdStart)) * state.tuftFloat * floatRamp;
+    const fr = Math.sin(2 * Math.PI * 0.8 * (t - tl.holdStart) + 0.9) * state.tuftFloat * floatRamp;
+    const tuftBase = lerp(-32, state.tuftPerk, perk);
+    setT("left-tuft", `rotate(${fmt(tuftBase + fl)} 182 49)`);
+    setT("right-tuft", `rotate(${fmt(tuftBase + fr)} 200 50)`);
+
+    // 领带微摆 wrapper（定稿串不碰；sleep 先例口径，绕领结中心母版系 (186.5,279)）
+    const tieRamp = smoothRange(tl.holdStart, tl.holdStart + 0.5, t);
+    const tieA = state.tieSway * Math.sin(2 * Math.PI * (t - tl.holdStart) / 4) * tieRamp;
+    setT("happy-tie-sway", Math.abs(tieA) > 0.02 ? `rotate(${fmt(tieA)} 186.5 279)` : "");
+
+    // 彩屑 + 星星
+    renderConfetti(t, tl.tBloom);
+    renderStars(t, tl.tBloom);
+
+    if (t >= tl.tBloom && !bloomedOnce) bloomedOnce = true;
+
+    // tuner 看片便利：保持段播够 4.5s 重播（导出资产不带）
+    if (autoLoop && t >= tl.holdStart + 4.5) resetPlayback();
+
+    refreshJson(t, tl);
+    requestAnimationFrame(frame);
+  }
+
+  function resetPlayback() {
+    t0 = performance.now();
+    bloomedOnce = false;
+    confettiLayer.innerHTML = "";
+    feedLook(0);
+  }
+
+  function refreshJson() {} // 面板已剥离(导出无 tuner)
+
+  // 验证钩子（headless 断言用）+ demo 重播接口（alert __miniAlert.replay 先例）
+  window.__happyDebug = { state, timeline, replay: resetPlayback, get mouthProgress() { return mouthProgress; } };
+
+  installMouthRig();
+  applyTicks(-1, timeline());
+  requestAnimationFrame(frame);
+})();
+  ]]></script>
+</svg>

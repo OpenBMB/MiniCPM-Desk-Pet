@@ -67,6 +67,7 @@ function createThemeContext(theme, options = {}) {
     return {
       viewBox: theme.viewBox,
       miniModeViewBox: theme.miniMode ? theme.miniMode.viewBox : null,
+      miniModeScale: theme.miniMode ? theme.miniMode.scale : 1,
       fileViewBoxes: { ...(theme.fileViewBoxes || {}) },
       layout: theme.layout,
       assetsPath: getRendererAssetsPath(),
@@ -79,6 +80,7 @@ function createThemeContext(theme, options = {}) {
       eyeTrackingStates: theme.eyeTracking.enabled ? theme.eyeTracking.states : [],
       trustedScriptedSvgFiles: [...trustedScriptedSvgFiles],
       rendering: theme.rendering || { svgChannel: "auto" },
+      renderCanvas: theme.renderCanvas || { fileRatios: {} },
       objectScale: theme.objectScale,
       transitions: theme.transitions || {},
     };

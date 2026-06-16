@@ -61,6 +61,7 @@ function makeCtx(theme, statesSeen) {
     isAnimating: false,
     mouseOverPet: false,
     miniPeeked: false,
+    miniSleepPeeked: false,
     forceEyeResend: false,
     forceEyeResendBoostUntil: 0,
     startupRecoveryActive: false,
@@ -189,6 +190,45 @@ describe("tick mini hover", () => {
     assert.equal(peekOutCalls, 1);
     assert.equal(ctx.miniPeeked, false);
     assert.deepStrictEqual(statesSeen, ["mini-idle"]);
+  });
+
+  it("enters mini-sleep-peek from mini-sleep when the cursor moves over the pet", () => {
+    const theme = cloneTheme(_defaultTheme);
+    let peekInCalls = 0;
+
+    ctx = makeCtx(theme, statesSeen);
+    ctx.miniMode = true;
+    ctx.currentState = "mini-sleep";
+    ctx.miniPeekIn = () => { peekInCalls++; };
+
+    tickApi = loader.initTick(ctx);
+    tickApi.startMainTick();
+    mock.timers.tick(60);
+
+    assert.equal(peekInCalls, 1);
+    assert.equal(ctx.miniSleepPeeked, true);
+    assert.deepStrictEqual(statesSeen, ["mini-sleep-peek"]);
+  });
+
+  it("returns to mini-sleep when the cursor leaves mini-sleep-peek", () => {
+    const theme = cloneTheme(_defaultTheme);
+    let peekOutCalls = 0;
+
+    cursor = { x: 400, y: 400 };
+    ctx = makeCtx(theme, statesSeen);
+    ctx.miniMode = true;
+    ctx.currentState = "mini-sleep-peek";
+    ctx.miniSleepPeeked = true;
+    ctx.mouseOverPet = true;
+    ctx.miniPeekOut = () => { peekOutCalls++; };
+
+    tickApi = loader.initTick(ctx);
+    tickApi.startMainTick();
+    mock.timers.tick(60);
+
+    assert.equal(peekOutCalls, 1);
+    assert.equal(ctx.miniSleepPeeked, false);
+    assert.deepStrictEqual(statesSeen, ["mini-sleep"]);
   });
 });
 
@@ -451,6 +491,59 @@ describe("tick adaptive polling", () => {
 
     for (const step of [100, 100, 100, 100, 100, 100, 100]) mock.timers.tick(step);
     assert.deepStrictEqual(statesSeen, ["sleeping"]);
+  });
+
+  it("syncs render canvas when idle random animation swaps SVGs", () => {
+    const theme = cloneTheme(_defaultTheme);
+    theme.timings.mouseIdleTimeout = 50;
+    theme.timings.mouseSleepTimeout = 120000;
+    theme.idleAnimations = [{ file: "wide-idle.svg", duration: 1000 }];
+    const calls = [];
+
+    ctx = makeCtx(theme, statesSeen);
+    ctx.syncRenderCanvasForState = (state, svg) => {
+      calls.push(["sync", state, svg]);
+      return true;
+    };
+    ctx.sendToRenderer = (channel, state, svg) => {
+      if (channel === "state-change") calls.push(["render", state, svg]);
+    };
+    ctx.sendToHitWin = (channel, payload) => {
+      if (channel === "hit-state-sync") calls.push(["hit", payload.currentSvg]);
+    };
+    tickApi = loader.initTick(ctx);
+    tickApi.startMainTick();
+
+    mock.timers.tick(1);
+    mock.timers.tick(100);
+    mock.timers.tick(250);
+    assert.deepStrictEqual(calls, [
+      ["sync", "idle", "wide-idle.svg"],
+    ]);
+
+    mock.timers.tick(49);
+    assert.deepStrictEqual(calls, [
+      ["sync", "idle", "wide-idle.svg"],
+    ]);
+
+    mock.timers.tick(1);
+    assert.deepStrictEqual(calls, [
+      ["sync", "idle", "wide-idle.svg"],
+      ["render", "idle", "wide-idle.svg"],
+      ["hit", "wide-idle.svg"],
+    ]);
+
+    mock.timers.tick(950);
+    assert.deepStrictEqual(calls.slice(3), [
+      ["sync", "idle", theme.states.idle[0]],
+    ]);
+
+    mock.timers.tick(50);
+    assert.deepStrictEqual(calls.slice(3), [
+      ["sync", "idle", theme.states.idle[0]],
+      ["render", "idle", theme.states.idle[0]],
+      ["hit", theme.states.idle[0]],
+    ]);
   });
 
   it("uses the ctx setter path to pull a pending tick forward for force eye resend boost", () => {

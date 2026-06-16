@@ -12,6 +12,8 @@ const JUMP_DURATION = 350;
 const MINI_ENTER_FALLBACK_MS = 3200;
 const MINI_ENTER_PRELOAD_MS = 300;
 const CRABWALK_SPEED = 0.12;  // px/ms
+const DISPLAY_EDGE_EPSILON = 2;
+const MINI_SEAM_CROP_GUARD_PX = 3;
 let MINI_OFFSET_RATIO = ctx.theme.miniMode.offsetRatio;
 
 let miniMode = false;
@@ -26,6 +28,7 @@ let lastMiniWorkArea = null;  // workArea of the display the mini pet is on
 let miniTransitionTimer = null;
 let peekAnimTimer = null;
 let isAnimating = false;
+let miniRenderCrop = null;
 
 function syncSessionHudVisibility() {
   if (typeof ctx.syncSessionHudVisibility === "function") ctx.syncSessionHudVisibility();
@@ -37,10 +40,169 @@ function repositionSessionHud() {
 
 function refreshTheme() {
   MINI_OFFSET_RATIO = ctx.theme.miniMode.offsetRatio;
+  if (miniMode && lastMiniWorkArea) {
+    updateMiniRenderCrop(lastMiniWorkArea, _getSize());
+    sendMiniModeChange(true, miniEdge);
+  }
 }
 
 function themeSupportsMini() {
   return !!(ctx.theme && ctx.theme.miniMode && ctx.theme.miniMode.supported !== false);
+}
+
+function shouldPreventCrossDisplayCrop() {
+  return !!(ctx.theme && ctx.theme.miniMode && ctx.theme.miniMode.preventCrossDisplayCrop);
+}
+
+function rangesOverlap(a1, a2, b1, b2) {
+  return a1 < b2 && b1 < a2;
+}
+
+function sameRect(a, b) {
+  return !!(a && b
+    && a.x === b.x
+    && a.y === b.y
+    && a.width === b.width
+    && a.height === b.height);
+}
+
+function isFiniteRect(rect) {
+  return !!(rect
+    && Number.isFinite(rect.x)
+    && Number.isFinite(rect.y)
+    && Number.isFinite(rect.width)
+    && Number.isFinite(rect.height)
+    && rect.width > 0
+    && rect.height > 0);
+}
+
+function cropRectsEqual(a, b) {
+  if (!a && !b) return true;
+  return sameRect(a, b);
+}
+
+function hasDisplayAcrossMiniEdge(wa) {
+  if (!shouldPreventCrossDisplayCrop() || !isFiniteRect(wa)) return false;
+  const displays = screen.getAllDisplays();
+  if (!Array.isArray(displays) || displays.length <= 1) return false;
+
+  const edgeX = miniEdge === "left" ? wa.x : wa.x + wa.width;
+  const probeX = miniEdge === "left" ? edgeX - 1 : edgeX + 1;
+  const waTop = wa.y;
+  const waBottom = wa.y + wa.height;
+
+  return displays.some((display) => {
+    const other = display && display.workArea;
+    if (!isFiniteRect(other) || sameRect(other, wa)) return false;
+    if (!rangesOverlap(waTop, waBottom, other.y, other.y + other.height)) return false;
+    const edgeGap = miniEdge === "left"
+      ? Math.abs((other.x + other.width) - edgeX)
+      : Math.abs(other.x - edgeX);
+    const probeInsideOther = probeX >= other.x && probeX <= other.x + other.width;
+    return edgeGap <= DISPLAY_EDGE_EPSILON || probeInsideOther;
+  });
+}
+
+function getCropBounds(size, bounds) {
+  const fullWidth = Math.max(1, Math.round(size.width));
+  const fullHeight = Math.max(1, Math.round(size.height));
+  if (isFiniteRect(bounds)) {
+    return {
+      x: bounds.x,
+      y: bounds.y,
+      width: Math.max(1, Math.round(bounds.width)),
+      height: Math.max(1, Math.round(bounds.height)),
+    };
+  }
+  const winBounds = ctx.win && typeof ctx.win.getBounds === "function" ? ctx.win.getBounds() : null;
+  if (isFiniteRect(winBounds)) return winBounds;
+  return {
+    x: currentMiniX,
+    y: miniSnap ? miniSnap.y : 0,
+    width: fullWidth,
+    height: fullHeight,
+  };
+}
+
+function buildMiniRenderCrop(wa, size, bounds) {
+  if (!hasDisplayAcrossMiniEdge(wa) || !size) return null;
+  const fullWidth = Math.max(1, Math.round(size.width));
+  const fullHeight = Math.max(1, Math.round(size.height));
+  const renderBounds = getCropBounds(size, bounds);
+  const edgeX = miniEdge === "left" ? wa.x : wa.x + wa.width;
+
+  if (miniEdge === "left") {
+    const hiddenWidth = Math.round(edgeX - renderBounds.x);
+    if (hiddenWidth <= 0) return null;
+    const x = Math.max(0, Math.min(fullWidth - 1, hiddenWidth + MINI_SEAM_CROP_GUARD_PX));
+    return {
+      x,
+      y: 0,
+      width: fullWidth - x,
+      height: fullHeight,
+    };
+  }
+
+  const visibleWidth = Math.round(edgeX - renderBounds.x) - MINI_SEAM_CROP_GUARD_PX;
+  if (visibleWidth >= fullWidth) return null;
+  return {
+    x: 0,
+    y: 0,
+    width: Math.max(1, Math.min(fullWidth, visibleWidth)),
+    height: fullHeight,
+  };
+}
+
+function applyMiniRenderCropShape() {
+  const win = ctx.win;
+  if (!win || (typeof win.isDestroyed === "function" && win.isDestroyed())) return;
+  if (typeof win.setShape !== "function" || typeof win.getBounds !== "function") return;
+  const bounds = win.getBounds();
+  const shape = miniRenderCrop
+    ? [{
+        x: miniRenderCrop.x,
+        y: miniRenderCrop.y,
+        width: miniRenderCrop.width,
+        height: miniRenderCrop.height,
+      }]
+    : [{ x: 0, y: 0, width: bounds.width, height: bounds.height }];
+  try {
+    win.setShape(shape);
+  } catch {}
+}
+
+function updateMiniRenderCrop(wa, size, bounds) {
+  const nextCrop = buildMiniRenderCrop(wa, size, bounds);
+  const changed = !cropRectsEqual(miniRenderCrop, nextCrop);
+  miniRenderCrop = nextCrop;
+  applyMiniRenderCropShape();
+  return changed;
+}
+
+function syncMiniRenderCropForBounds(bounds) {
+  if (!miniMode || !lastMiniWorkArea || !bounds) return false;
+  const changed = updateMiniRenderCrop(lastMiniWorkArea, {
+    width: bounds.width,
+    height: bounds.height,
+  }, bounds);
+  if (changed) sendMiniModeChange(true, miniEdge);
+  return changed;
+}
+
+function getMiniModeChangeOptions(extra = {}) {
+  const options = { ...extra };
+  if (miniRenderCrop) options.crop = { ...miniRenderCrop };
+  return Object.keys(options).length > 0 ? options : undefined;
+}
+
+function sendMiniModeChange(enabled, edge, extra) {
+  if (!enabled) {
+    ctx.sendToRenderer("mini-mode-change", false);
+    return;
+  }
+  const options = getMiniModeChangeOptions(extra);
+  if (options) ctx.sendToRenderer("mini-mode-change", true, edge, options);
+  else ctx.sendToRenderer("mini-mode-change", true, edge);
 }
 
 // ── Window animation ──
@@ -81,7 +243,9 @@ function animateWindowX(targetX, durationMs, onDone) {
       return;
     }
     try {
-      ctx.win.setBounds({ x, y: snapY, width: snapW, height: snapH });
+      const nextBounds = { x, y: snapY, width: snapW, height: snapH };
+      ctx.win.setBounds(nextBounds);
+      syncMiniRenderCropForBounds(nextBounds);
     } catch {
       peekAnimTimer = null;
       isAnimating = false;
@@ -263,10 +427,11 @@ function enterMiniMode(wa, viaMenu, edge) {
   currentMiniX = calcMiniX(wa, size);
   lastMiniWorkArea = wa;
   miniSnap = { y: bounds.y, width: size.width, height: size.height };
+  updateMiniRenderCrop(wa, size, bounds);
 
   ctx.stopWakePoll();
 
-  ctx.sendToRenderer("mini-mode-change", true, miniEdge);
+  sendMiniModeChange(true, miniEdge);
   ctx.sendToHitWin("hit-state-sync", { miniMode: true });
   miniTransitioning = true;
   ctx.buildContextMenu();
@@ -292,7 +457,10 @@ function enterMiniMode(wa, viaMenu, edge) {
       ctx.applyState(enterSvgState);
       if (MINI_ENTER_PRELOAD_MS <= 0) {
         miniSnap = { y: bounds.y, width: size.width, height: size.height };
-        ctx.win.setBounds({ x: currentMiniX, y: miniSnap.y, width: miniSnap.width, height: miniSnap.height });
+        const nextBounds = { x: currentMiniX, y: miniSnap.y, width: miniSnap.width, height: miniSnap.height };
+        ctx.win.setBounds(nextBounds);
+        updateMiniRenderCrop(wa, size, nextBounds);
+        sendMiniModeChange(true, miniEdge);
         ctx.syncHitWin();
         syncSessionHudVisibility();
         finishMiniEntry(enterDurationMs);
@@ -300,7 +468,10 @@ function enterMiniMode(wa, viaMenu, edge) {
       }
       miniTransitionTimer = setTimeout(() => {
         miniSnap = { y: bounds.y, width: size.width, height: size.height };
-        ctx.win.setBounds({ x: currentMiniX, y: miniSnap.y, width: miniSnap.width, height: miniSnap.height });
+        const nextBounds = { x: currentMiniX, y: miniSnap.y, width: miniSnap.width, height: miniSnap.height };
+        ctx.win.setBounds(nextBounds);
+        updateMiniRenderCrop(wa, size, nextBounds);
+        sendMiniModeChange(true, miniEdge);
         miniTransitionTimer = null;
         ctx.syncHitWin();
         syncSessionHudVisibility();
@@ -333,6 +504,9 @@ function exitMiniMode() {
   miniSnap = null;
   miniSleepPeeked = false;
   miniPeeked = false;
+  miniRenderCrop = null;
+  applyMiniRenderCropShape();
+  sendMiniModeChange(true, miniEdge);
 
   const size = _getSize();
   const visualState = ctx.doNotDisturb ? "idle" : ctx.resolveDisplayState();
@@ -355,7 +529,7 @@ function exitMiniMode() {
   animateWindowParabola(clamped.x, clamped.y, JUMP_DURATION, () => {
     miniMode = false;
     miniTransitioning = false;
-    ctx.sendToRenderer("mini-mode-change", false);
+    sendMiniModeChange(false);
     ctx.sendToHitWin("hit-state-sync", { miniMode: false });
     ctx.buildContextMenu();
     ctx.buildTrayMenu();
@@ -431,7 +605,10 @@ function handleDisplayChange() {
   // mini 的 y 必须在工作区内(real 坐标),加回两端 clamp
   const clampedY = Math.max(wa.y, Math.min(snapY, wa.y + wa.height - size.height));
   miniSnap = { y: clampedY, width: size.width, height: size.height };
-  ctx.win.setBounds({ x: currentMiniX, y: clampedY, width: size.width, height: size.height });
+  const nextBounds = { x: currentMiniX, y: clampedY, width: size.width, height: size.height };
+  ctx.win.setBounds(nextBounds);
+  updateMiniRenderCrop(wa, size, nextBounds);
+  sendMiniModeChange(true, miniEdge);
   syncSessionHudVisibility();
 }
 
@@ -445,7 +622,10 @@ function handleResize(sizeKey) {
   currentMiniX = calcMiniX(wa, size);
   const clampedY = Math.max(wa.y, Math.min(curY, wa.y + wa.height - size.height));
   miniSnap = { y: clampedY, width: size.width, height: size.height };
-  ctx.win.setBounds({ x: currentMiniX, y: clampedY, width: size.width, height: size.height });
+  const nextBounds = { x: currentMiniX, y: clampedY, width: size.width, height: size.height };
+  ctx.win.setBounds(nextBounds);
+  updateMiniRenderCrop(wa, size, nextBounds);
+  sendMiniModeChange(true, miniEdge);
   syncSessionHudVisibility();
   return true;
 }
@@ -460,6 +640,12 @@ function restoreFromPrefs(prefs, size) {
   // 启动恢复 mini 时 y 必须在工作区内(保证 offset = 0,符合 mini 语义)
   const startY = Math.max(wa.y, Math.min(prefs.y, wa.y + wa.height - size.height));
   miniSnap = { y: startY, width: size.width, height: size.height };
+  miniRenderCrop = buildMiniRenderCrop(wa, size, {
+    x: currentMiniX,
+    y: startY,
+    width: size.width,
+    height: size.height,
+  });
   miniMode = true;
   miniTransitioning = false;
   miniSleepPeeked = false;
@@ -479,6 +665,7 @@ function getPreMiniX() { return preMiniX; }
 function getPreMiniY() { return preMiniY; }
 function getCurrentMiniX() { return currentMiniX; }
 function getMiniSnap() { return miniSnap; }
+function getMiniRenderCrop() { return miniRenderCrop ? { ...miniRenderCrop } : null; }
 
 function cleanup() {
   if (miniTransitionTimer) { clearTimeout(miniTransitionTimer); miniTransitionTimer = null; }
@@ -492,7 +679,8 @@ return {
   refreshTheme,
   handleDisplayChange, handleResize, restoreFromPrefs,
   getMiniMode, getMiniEdge, getMiniTransitioning, getMiniSleepPeeked, setMiniSleepPeeked, getMiniPeeked, setMiniPeeked,
-  getIsAnimating, getPreMiniX, getPreMiniY, getCurrentMiniX, getMiniSnap,
+  getIsAnimating, getPreMiniX, getPreMiniY, getCurrentMiniX, getMiniSnap, getMiniRenderCrop,
+  applyMiniRenderCropShape, getMiniModeChangeOptions,
   get MINI_OFFSET_RATIO() { return MINI_OFFSET_RATIO; },
   PEEK_OFFSET,
   cleanup,

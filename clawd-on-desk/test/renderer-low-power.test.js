@@ -35,6 +35,18 @@ class FakeElement {
     this.contentDocument = null;
     this.contentWindow = {};
     this.listeners = new Map();
+    const classes = new Set();
+    this.classList = {
+      toggle(name, force) {
+        const enabled = force === undefined ? !classes.has(name) : !!force;
+        if (enabled) classes.add(name);
+        else classes.delete(name);
+        return enabled;
+      },
+      contains(name) {
+        return classes.has(name);
+      },
+    };
   }
 
   get offsetHeight() {
@@ -83,6 +95,7 @@ class FakeElement {
 function createRendererHarness() {
   const timers = [];
   const container = new FakeElement("div");
+  const body = new FakeElement("body");
   container.id = "pet-container";
   container.isConnected = true;
   const clawd = new FakeElement("object");
@@ -92,6 +105,7 @@ function createRendererHarness() {
   container.appendChild(clawd);
 
   const document = {
+    body,
     getElementById(id) {
       if (id === "pet-container") return container;
       if (id === "clawd") return clawd;
@@ -101,9 +115,14 @@ function createRendererHarness() {
       return new FakeElement(tagName);
     },
   };
+  const listeners = {};
   const electronAPI = new Proxy({}, {
-    get() {
-      return () => {};
+    get(_, prop) {
+      return (...args) => {
+        if (String(prop).startsWith("on") && typeof args[0] === "function") {
+          listeners[prop] = args[0];
+        }
+      };
     },
   });
   const context = {
@@ -112,8 +131,10 @@ function createRendererHarness() {
       themeConfig: {
         assetsPath: "../assets/svg",
         eyeTracking: { states: ["idle"] },
+        miniModeScale: 0.84,
       },
       electronAPI,
+      addEventListener() {},
       getComputedStyle: (el) => ({ opacity: el.style.opacity || "1" }),
     },
     console: { warn() {} },
@@ -152,6 +173,7 @@ globalThis.__rendererTest = {
     context,
     container,
     clawd,
+    listeners,
     timers,
     api: context.__rendererTest,
     activeTimers: () => timers.filter((timer) => !timer.cleared),
@@ -305,6 +327,22 @@ describe("renderer object-channel selection", () => {
 
     assert.strictEqual(harness.api.pendingNext.tagName, "OBJECT");
     assert.strictEqual(harness.api.pendingSvgFile, "next.svg");
+  });
+});
+
+describe("renderer mini visual scale", () => {
+  it("waits for a mini visual state before applying mini scale", () => {
+    const harness = createRendererHarness();
+
+    harness.listeners.onMiniModeChange(true, "right");
+    assert.strictEqual(harness.clawd.style.transform || "", "");
+
+    harness.listeners.onStateChange("idle", "idle.svg");
+    assert.strictEqual(harness.api.pendingNext.style.transform || "", "");
+
+    harness.listeners.onStateChange("mini-enter", "mini-enter.svg");
+    assert.strictEqual(harness.api.pendingNext.style.transform, "scale(0.84)");
+    assert.strictEqual(harness.api.pendingNext.style.transformOrigin, "right center");
   });
 });
 

@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeRenderCanvas } = require("./render-canvas");
+
 // Defaults used when theme.json omits optional fields.
 
 const DEFAULT_SOUNDS = {
@@ -33,6 +35,7 @@ const DEFAULT_OBJECT_SCALE = {
   widthRatio: 1.9, heightRatio: 1.3,
   offsetX: -0.45, offsetY: -0.25,
 };
+const DEFAULT_MINI_MODE_SCALE = 1;
 const DEFAULT_LAYOUT = {
   centerXRatio: 0.5,
   baselineBottomRatio: 0.05,
@@ -545,6 +548,7 @@ function mergeDefaults(raw, themeId, isBuiltin) {
   // trustedRuntime grants script execution capability, so it requires loader-derived built-in trust.
   theme.trustedRuntime = normalizeTrustedRuntime(raw.trustedRuntime, isBuiltin, themeId);
   theme.rendering = normalizeRendering(raw.rendering);
+  theme.renderCanvas = normalizeRenderCanvas(raw.renderCanvas);
 
   // objectScale
   theme.objectScale = { ...DEFAULT_OBJECT_SCALE, ...(raw.objectScale || {}) };
@@ -592,10 +596,12 @@ function mergeDefaults(raw, themeId, isBuiltin) {
 
   // miniMode
   if (raw.miniMode) {
+    const miniScale = Number(raw.miniMode.scale);
     theme.miniMode = {
       supported: true,
       offsetRatio: 0.486,
       ...raw.miniMode,
+      scale: Number.isFinite(miniScale) && miniScale > 0 ? Math.min(2, miniScale) : DEFAULT_MINI_MODE_SCALE,
       viewBox: normalizeViewBox(raw.miniMode.viewBox),
       timings: {
         minDisplay: {},
@@ -603,9 +609,10 @@ function mergeDefaults(raw, themeId, isBuiltin) {
         ...(raw.miniMode.timings || {}),
       },
       glyphFlips: raw.miniMode.glyphFlips || {},
+      preventCrossDisplayCrop: !!raw.miniMode.preventCrossDisplayCrop,
     };
   } else {
-    theme.miniMode = { supported: false, states: {}, viewBox: null, timings: { minDisplay: {}, autoReturn: {} }, glyphFlips: {} };
+    theme.miniMode = { supported: false, states: {}, viewBox: null, scale: DEFAULT_MINI_MODE_SCALE, timings: { minDisplay: {}, autoReturn: {} }, glyphFlips: {} };
   }
 
   // Merge mini timings into main timings for state.js convenience
@@ -723,6 +730,7 @@ module.exports = {
   normalizeViewBox,
   normalizeTrustedRuntime,
   normalizeRendering,
+  normalizeRenderCanvas,
   normalizeFileViewBoxes,
   normalizeFileHitBoxes,
   mergeFileHitBoxes,

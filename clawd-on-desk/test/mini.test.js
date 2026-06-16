@@ -7,6 +7,7 @@ const path = require("node:path");
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
 const _defaultTheme = themeLoader.loadTheme("cybercat");
+const SEAM_CROP_GUARD_PX = 3;
 
 function cloneTheme(theme) {
   return JSON.parse(JSON.stringify(theme));
@@ -45,6 +46,7 @@ function loadMiniWithElectron(screenExports) {
 
 function makeCtx(theme, stateLog, initialX = 160) {
   const bounds = { x: initialX, y: 180, width: 120, height: 120 };
+  const shapeLog = [];
   return {
     theme,
     currentState: "idle",
@@ -59,6 +61,9 @@ function makeCtx(theme, stateLog, initialX = 160) {
       setPosition(x, y) {
         bounds.x = x;
         bounds.y = y;
+      },
+      setShape(shape) {
+        shapeLog.push(JSON.parse(JSON.stringify(shape)));
       },
       isDestroyed() { return false; },
     },
@@ -75,6 +80,7 @@ function makeCtx(theme, stateLog, initialX = 160) {
       return null;
     },
     getBoundsSnapshot() { return { ...bounds }; },
+    getShapeLog() { return [...shapeLog]; },
     setViewportOffsetY() {},
     stopWakePoll() {},
     sendToRenderer() {},
@@ -210,5 +216,199 @@ describe("mini mode entry timing", () => {
     assert.deepStrictEqual(stateLog, ["mini-enter", "mini-idle"]);
     assert.equal(mini.getMiniTransitioning(), false);
     assert.equal(mini.getMiniMode(), true);
+  });
+
+  it("clips right-edge mini rendering at an internal display seam when the theme opts in", () => {
+    loader = loadMiniWithElectron({
+      getAllDisplays() {
+        return [
+          { bounds: { x: 0, y: 0, width: 800, height: 600 }, workArea: { x: 0, y: 0, width: 800, height: 600 } },
+          { bounds: { x: 800, y: 0, width: 800, height: 600 }, workArea: { x: 800, y: 0, width: 800, height: 600 } },
+        ];
+      },
+    });
+    const stateLog = [];
+    const theme = cloneTheme(_defaultTheme);
+    theme.miniMode.preventCrossDisplayCrop = true;
+    const ctx = makeCtx(theme, stateLog, 600);
+    const mini = loader.initMini(ctx);
+
+    mini.enterMiniMode({ x: 0, y: 0, width: 800, height: 600 }, false, "right");
+    mock.timers.tick(120);
+
+    const visibleWidth = Math.round(120 * (1 - theme.miniMode.offsetRatio)) - SEAM_CROP_GUARD_PX;
+    assert.deepStrictEqual(mini.getMiniRenderCrop(), {
+      x: 0,
+      y: 0,
+      width: visibleWidth,
+      height: 120,
+    });
+    assert.deepStrictEqual(ctx.getShapeLog().at(-1), [{
+      x: 0,
+      y: 0,
+      width: visibleWidth,
+      height: 120,
+    }]);
+  });
+
+  it("clips left-edge mini rendering at an internal display seam when the theme opts in", () => {
+    loader = loadMiniWithElectron({
+      getAllDisplays() {
+        return [
+          { bounds: { x: 0, y: 0, width: 800, height: 600 }, workArea: { x: 0, y: 0, width: 800, height: 600 } },
+          { bounds: { x: 800, y: 0, width: 800, height: 600 }, workArea: { x: 800, y: 0, width: 800, height: 600 } },
+        ];
+      },
+    });
+    const stateLog = [];
+    const theme = cloneTheme(_defaultTheme);
+    theme.miniMode.preventCrossDisplayCrop = true;
+    const ctx = makeCtx(theme, stateLog, 900);
+    const mini = loader.initMini(ctx);
+
+    mini.enterMiniMode({ x: 800, y: 0, width: 800, height: 600 }, false, "left");
+    mock.timers.tick(120);
+
+    const hiddenWidth = Math.round(120 * theme.miniMode.offsetRatio) + SEAM_CROP_GUARD_PX;
+    assert.deepStrictEqual(mini.getMiniRenderCrop(), {
+      x: hiddenWidth,
+      y: 0,
+      width: 120 - hiddenWidth,
+      height: 120,
+    });
+    assert.deepStrictEqual(ctx.getShapeLog().at(-1), [{
+      x: hiddenWidth,
+      y: 0,
+      width: 120 - hiddenWidth,
+      height: 120,
+    }]);
+  });
+
+  it("does not crop mini rendering at an outer display edge", () => {
+    loader = loadMiniWithElectron({
+      getAllDisplays() {
+        return [{ bounds: { x: 0, y: 0, width: 800, height: 600 }, workArea: { x: 0, y: 0, width: 800, height: 600 } }];
+      },
+    });
+    const stateLog = [];
+    const theme = cloneTheme(_defaultTheme);
+    theme.miniMode.preventCrossDisplayCrop = true;
+    const ctx = makeCtx(theme, stateLog, 600);
+    const mini = loader.initMini(ctx);
+
+    mini.enterMiniMode({ x: 0, y: 0, width: 800, height: 600 }, false, "right");
+    mock.timers.tick(120);
+
+    assert.equal(mini.getMiniRenderCrop(), null);
+    assert.deepStrictEqual(ctx.getShapeLog().at(-1), [{ x: 0, y: 0, width: 120, height: 120 }]);
+  });
+
+  it("keeps legacy cross-display mini placement for themes that do not opt in", () => {
+    loader = loadMiniWithElectron({
+      getAllDisplays() {
+        return [
+          { bounds: { x: 0, y: 0, width: 800, height: 600 }, workArea: { x: 0, y: 0, width: 800, height: 600 } },
+          { bounds: { x: 800, y: 0, width: 800, height: 600 }, workArea: { x: 800, y: 0, width: 800, height: 600 } },
+        ];
+      },
+    });
+    const stateLog = [];
+    const theme = cloneTheme(_defaultTheme);
+    const ctx = makeCtx(theme, stateLog, 600);
+    const mini = loader.initMini(ctx);
+
+    mini.enterMiniMode({ x: 0, y: 0, width: 800, height: 600 }, false, "right");
+    mock.timers.tick(120);
+
+    assert.equal(mini.getMiniRenderCrop(), null);
+    assert.deepStrictEqual(ctx.getShapeLog().at(-1), [{ x: 0, y: 0, width: 120, height: 120 }]);
+  });
+
+  it("moves the right-edge render crop as hover peek pushes the mini window inward", () => {
+    loader = loadMiniWithElectron({
+      getAllDisplays() {
+        return [
+          { bounds: { x: 0, y: 0, width: 800, height: 600 }, workArea: { x: 0, y: 0, width: 800, height: 600 } },
+          { bounds: { x: 800, y: 0, width: 800, height: 600 }, workArea: { x: 800, y: 0, width: 800, height: 600 } },
+        ];
+      },
+    });
+    const stateLog = [];
+    const rendererEvents = [];
+    const theme = cloneTheme(_defaultTheme);
+    theme.miniMode.preventCrossDisplayCrop = true;
+    const ctx = makeCtx(theme, stateLog, 600);
+    ctx.sendToRenderer = (...args) => rendererEvents.push(args);
+    const mini = loader.initMini(ctx);
+
+    mini.enterMiniMode({ x: 0, y: 0, width: 800, height: 600 }, false, "right");
+    mock.timers.tick(120);
+    mini.miniPeekIn();
+    mock.timers.tick(220);
+
+    const visibleWidth = Math.round(120 * (1 - theme.miniMode.offsetRatio)) - SEAM_CROP_GUARD_PX;
+    assert.deepStrictEqual(mini.getMiniRenderCrop(), {
+      x: 0,
+      y: 0,
+      width: visibleWidth + mini.PEEK_OFFSET,
+      height: 120,
+    });
+    assert.deepStrictEqual(rendererEvents.at(-1), [
+      "mini-mode-change",
+      true,
+      "right",
+      {
+        crop: {
+          x: 0,
+          y: 0,
+          width: visibleWidth + mini.PEEK_OFFSET,
+          height: 120,
+        },
+      },
+    ]);
+  });
+
+  it("moves the left-edge render crop as hover peek pushes the mini window inward", () => {
+    loader = loadMiniWithElectron({
+      getAllDisplays() {
+        return [
+          { bounds: { x: 0, y: 0, width: 800, height: 600 }, workArea: { x: 0, y: 0, width: 800, height: 600 } },
+          { bounds: { x: 800, y: 0, width: 800, height: 600 }, workArea: { x: 800, y: 0, width: 800, height: 600 } },
+        ];
+      },
+    });
+    const stateLog = [];
+    const rendererEvents = [];
+    const theme = cloneTheme(_defaultTheme);
+    theme.miniMode.preventCrossDisplayCrop = true;
+    const ctx = makeCtx(theme, stateLog, 900);
+    ctx.sendToRenderer = (...args) => rendererEvents.push(args);
+    const mini = loader.initMini(ctx);
+
+    mini.enterMiniMode({ x: 800, y: 0, width: 800, height: 600 }, false, "left");
+    mock.timers.tick(120);
+    mini.miniPeekIn();
+    mock.timers.tick(220);
+
+    const hiddenWidth = Math.round(120 * theme.miniMode.offsetRatio) + SEAM_CROP_GUARD_PX;
+    assert.deepStrictEqual(mini.getMiniRenderCrop(), {
+      x: hiddenWidth - mini.PEEK_OFFSET,
+      y: 0,
+      width: 120 - hiddenWidth + mini.PEEK_OFFSET,
+      height: 120,
+    });
+    assert.deepStrictEqual(rendererEvents.at(-1), [
+      "mini-mode-change",
+      true,
+      "left",
+      {
+        crop: {
+          x: hiddenWidth - mini.PEEK_OFFSET,
+          y: 0,
+          width: 120 - hiddenWidth + mini.PEEK_OFFSET,
+          height: 120,
+        },
+      },
+    ]);
   });
 });
