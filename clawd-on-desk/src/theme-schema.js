@@ -606,6 +606,7 @@ function mergeDefaults(raw, themeId, isBuiltin) {
         ...(raw.miniMode.timings || {}),
       },
       glyphFlips: raw.miniMode.glyphFlips || {},
+      preventCrossDisplayCrop: !!raw.miniMode.preventCrossDisplayCrop,
     };
   } else {
     theme.miniMode = { supported: false, states: {}, viewBox: null, timings: { minDisplay: {}, autoReturn: {} }, glyphFlips: {} };

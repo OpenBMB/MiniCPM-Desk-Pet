@@ -418,6 +418,21 @@ function applyMiniFlip(el, state = currentState) {
   el.style.transform = shouldApplyMiniAssetFlip(state) ? "scaleX(-1)" : "";
 }
 
+function applyMiniWindowCrop(crop) {
+  if (!document.body) return;
+  if (!crop
+    || !Number.isFinite(crop.x)
+    || !Number.isFinite(crop.width)
+    || crop.width <= 0) {
+    document.body.style.clipPath = "";
+    return;
+  }
+  const viewportWidth = Math.max(0, Math.round(window.innerWidth || 0));
+  const left = Math.max(0, Math.round(crop.x));
+  const right = Math.max(0, viewportWidth - left - Math.round(crop.width));
+  document.body.style.clipPath = `inset(0px ${right}px 0px ${left}px)`;
+}
+
 // ── Layered tracking state (multi-layer eye/head/body tracking) ──
 let _useLayeredTracking = false;
 let _trackingLayersConfig = null;  // raw config from theme.json
@@ -480,6 +495,7 @@ window.electronAPI.onMiniModeChange((enabled, edge, options) => {
   _miniPreEntryMode = !!enabled && preEntry;
   _inMiniMode = !!enabled && !preEntry;
   miniLeftFlip = !!enabled && edge === "left";
+  applyMiniWindowCrop(enabled && !preEntry ? (options && options.crop) : null);
   container.classList.toggle("mini-left", miniLeftFlip);
   applyMiniFlip(clawdEl, currentState);
   if (miniLeftFlip) {

@@ -54,6 +54,7 @@ function createPetWindowRuntime(options = {}) {
   const getMiniMode = options.getMiniMode || (() => false);
   const getMiniTransitioning = options.getMiniTransitioning || (() => false);
   const getMiniPeekOffset = options.getMiniPeekOffset || (() => 0);
+  const getMiniRenderCrop = options.getMiniRenderCrop || (() => null);
   const getCurrentPixelSize = options.getCurrentPixelSize || (() => null);
   const getEffectiveCurrentPixelSize = options.getEffectiveCurrentPixelSize || getCurrentPixelSize;
   const getKeepSizeAcrossDisplays = options.getKeepSizeAcrossDisplays || (() => false);
@@ -368,7 +369,7 @@ function createPetWindowRuntime(options = {}) {
     // window mid-drag can break pointer capture on Windows.
     if (dragLocked) return;
     const bounds = getPetWindowBounds();
-    const hit = getHitRectScreen(bounds);
+    const hit = constrainHitToMiniRenderCrop(getHitRectScreen(bounds), bounds);
     if (!hit) return;
     const x = Math.round(hit.left);
     const y = Math.round(hit.top);
@@ -386,7 +387,7 @@ function createPetWindowRuntime(options = {}) {
   }
 
   function getInitialHitWindowBounds(renderBounds = getPetWindowBounds()) {
-    const hit = getHitRectScreen(renderBounds);
+    const hit = constrainHitToMiniRenderCrop(getHitRectScreen(renderBounds), renderBounds);
     if (!hit) return null;
     return {
       x: Math.round(hit.left),
@@ -394,6 +395,40 @@ function createPetWindowRuntime(options = {}) {
       width: Math.round(hit.right - hit.left),
       height: Math.round(hit.bottom - hit.top),
     };
+  }
+
+  function getMiniRenderCropScreenRect(bounds) {
+    if (!getMiniMode() || !bounds) return null;
+    const crop = getMiniRenderCrop();
+    if (!crop
+      || !Number.isFinite(crop.x)
+      || !Number.isFinite(crop.y)
+      || !Number.isFinite(crop.width)
+      || !Number.isFinite(crop.height)
+      || crop.width <= 0
+      || crop.height <= 0) {
+      return null;
+    }
+    return {
+      left: bounds.x + crop.x,
+      top: bounds.y + crop.y,
+      right: bounds.x + crop.x + crop.width,
+      bottom: bounds.y + crop.y + crop.height,
+    };
+  }
+
+  function constrainHitToMiniRenderCrop(hit, bounds) {
+    if (!hit) return null;
+    const crop = getMiniRenderCropScreenRect(bounds);
+    if (!crop) return hit;
+    const next = {
+      left: Math.max(hit.left, crop.left),
+      top: Math.max(hit.top, crop.top),
+      right: Math.min(hit.right, crop.right),
+      bottom: Math.min(hit.bottom, crop.bottom),
+    };
+    if (next.right <= next.left || next.bottom <= next.top) return null;
+    return next;
   }
 
   function createRenderWindow(optionsArg = {}) {

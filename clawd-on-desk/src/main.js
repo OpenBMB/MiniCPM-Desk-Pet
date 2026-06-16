@@ -491,6 +491,7 @@ const petWindowRuntime = createPetWindowRuntime({
   getMiniMode: () => _mini.getMiniMode(),
   getMiniTransitioning: () => _mini.getMiniTransitioning(),
   getMiniPeekOffset: () => _mini.PEEK_OFFSET,
+  getMiniRenderCrop: () => _mini.getMiniRenderCrop(),
   getCurrentPixelSize: () => getCurrentPixelSize(),
   getEffectiveCurrentPixelSize: (workArea) => getEffectiveCurrentPixelSize(workArea),
   getKeepSizeAcrossDisplays: () => keepSizeAcrossDisplaysCached,
@@ -636,7 +637,9 @@ function syncHitStateAfterLoad() {
 function syncRendererStateAfterLoad({ includeStartupRecovery = true } = {}) {
   sendToRenderer("low-power-idle-mode-change", lowPowerIdleMode);
   if (_mini.getMiniMode()) {
-    sendToRenderer("mini-mode-change", true, _mini.getMiniEdge());
+    const options = _mini.getMiniModeChangeOptions();
+    if (options) sendToRenderer("mini-mode-change", true, _mini.getMiniEdge(), options);
+    else sendToRenderer("mini-mode-change", true, _mini.getMiniEdge());
   }
   if (doNotDisturb) {
     sendToRenderer("dnd-change", true);
@@ -1700,6 +1703,7 @@ function createWindow() {
     isQuitting: () => isQuitting,
     applyDockVisibility,
   });
+  _mini.applyMiniRenderCropShape();
 
   buildContextMenu();
   if (!isMac || showTray) createTray();

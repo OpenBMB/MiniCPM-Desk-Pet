@@ -90,6 +90,7 @@ function createRuntime(overrides = {}) {
     getMiniMode: () => overrides.miniMode || false,
     getMiniTransitioning: () => overrides.miniTransitioning || false,
     getMiniPeekOffset: () => 0,
+    getMiniRenderCrop: () => overrides.miniRenderCrop || null,
     getCurrentPixelSize: () => overrides.currentPixelSize || { width: 100, height: 100 },
     getEffectiveCurrentPixelSize: () => overrides.effectivePixelSize || { width: 100, height: 100 },
     getKeepSizeAcrossDisplays: () => overrides.keepSizeAcrossDisplays || false,
@@ -233,6 +234,25 @@ describe("pet-window-runtime", () => {
     ]);
     assert.deepStrictEqual(harness.hitWin.calls.filter((call) => call[0] === "setShape"), [
       ["setShape", [{ x: 0, y: 0, width: 120, height: 120 }]],
+    ]);
+  });
+
+  it("clips the mini hit window to the render crop", () => {
+    const harness = createRuntime({
+      renderWin: makeWindow({ x: 730, y: 180, width: 120, height: 120 }),
+      miniMode: true,
+      miniRenderCrop: { x: 0, y: 0, width: 70, height: 120 },
+    });
+
+    harness.runtime.syncHitWin();
+
+    assert.deepStrictEqual(harness.hitWin.calls.find((call) => call[0] === "setBounds"), [
+      "setBounds",
+      { x: 730, y: 180, width: 70, height: 120 },
+    ]);
+    assert.deepStrictEqual(harness.hitWin.calls.find((call) => call[0] === "setShape"), [
+      "setShape",
+      [{ x: 0, y: 0, width: 70, height: 120 }],
     ]);
   });
 
