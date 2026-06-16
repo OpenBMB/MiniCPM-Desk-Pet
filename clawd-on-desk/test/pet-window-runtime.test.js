@@ -248,14 +248,15 @@ describe("pet-window-runtime", () => {
       },
     });
 
-    harness.runtime.syncRenderCanvasForState("idle", "idle.svg");
+    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "idle.svg"), true);
+    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "idle.svg"), false);
 
     assert.deepStrictEqual(harness.renderWin.calls.filter((call) => call[0] === "setBounds"), [
       ["setBounds", { x: -40, y: 20, width: 200, height: 100 }],
     ]);
     assert.deepStrictEqual(harness.runtime.getPetWindowBounds(), { x: 10, y: 20, width: 100, height: 100 });
 
-    harness.runtime.syncRenderCanvasForState("idle", "plain.svg");
+    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "plain.svg"), true);
 
     const setBoundsCalls = harness.renderWin.calls.filter((call) => call[0] === "setBounds");
     assert.deepStrictEqual(setBoundsCalls[setBoundsCalls.length - 1], [

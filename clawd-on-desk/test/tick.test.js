@@ -461,7 +461,10 @@ describe("tick adaptive polling", () => {
     const calls = [];
 
     ctx = makeCtx(theme, statesSeen);
-    ctx.syncRenderCanvasForState = (state, svg) => calls.push(["sync", state, svg]);
+    ctx.syncRenderCanvasForState = (state, svg) => {
+      calls.push(["sync", state, svg]);
+      return true;
+    };
     ctx.sendToRenderer = (channel, state, svg) => {
       if (channel === "state-change") calls.push(["render", state, svg]);
     };
@@ -474,14 +477,29 @@ describe("tick adaptive polling", () => {
     mock.timers.tick(1);
     mock.timers.tick(100);
     mock.timers.tick(250);
-    assert.deepStrictEqual(calls.slice(0, 3), [
+    assert.deepStrictEqual(calls, [
+      ["sync", "idle", "wide-idle.svg"],
+    ]);
+
+    mock.timers.tick(49);
+    assert.deepStrictEqual(calls, [
+      ["sync", "idle", "wide-idle.svg"],
+    ]);
+
+    mock.timers.tick(1);
+    assert.deepStrictEqual(calls, [
       ["sync", "idle", "wide-idle.svg"],
       ["render", "idle", "wide-idle.svg"],
       ["hit", "wide-idle.svg"],
     ]);
 
-    mock.timers.tick(1000);
-    assert.deepStrictEqual(calls.slice(3, 6), [
+    mock.timers.tick(950);
+    assert.deepStrictEqual(calls.slice(3), [
+      ["sync", "idle", theme.states.idle[0]],
+    ]);
+
+    mock.timers.tick(50);
+    assert.deepStrictEqual(calls.slice(3), [
       ["sync", "idle", theme.states.idle[0]],
       ["render", "idle", theme.states.idle[0]],
       ["hit", theme.states.idle[0]],

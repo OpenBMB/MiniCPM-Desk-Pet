@@ -174,10 +174,11 @@ function createPetWindowRuntime(options = {}) {
 
   function syncRenderCanvasForState(state, file) {
     const next = getRenderCanvasForFile(getActiveTheme(), file);
-    if (renderCanvasEquals(next, renderCanvas)) return;
+    if (renderCanvasEquals(next, renderCanvas)) return false;
     const logicalBounds = getPetWindowBounds();
     renderCanvas = next;
     if (logicalBounds) applyPetWindowBounds(logicalBounds);
+    return true;
   }
 
   function applyPetWindowPosition(x, y) {

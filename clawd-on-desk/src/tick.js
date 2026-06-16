@@ -29,6 +29,7 @@ const LOW_POWER_MINI_IDLE_TICK_MS = 2000;
 const REACTION_TICK_MS = 500;
 const BACKGROUND_TICK_MS = 750;
 const RECENT_MOUSE_MS = 2000;
+const RENDER_CANVAS_RESIZE_SETTLE_MS = 50;
 const POINTER_BRIDGE_STATES = new Set(["idle", "mini-idle", "mini-peek"]);
 const LOW_POWER_PAUSE_STATES = new Set(["idle", "mini-idle", "dozing"]);
 const POINTER_BRIDGE_EPSILON = 0.001;
@@ -117,12 +118,18 @@ function pointerBridgePayloadChanged(key, payload) {
     || Math.abs(payload.y - lastPointerBridgePayload.y) > POINTER_BRIDGE_EPSILON;
 }
 
-function sendIdleSvg(svg) {
+function sendIdleSvg(svg, shouldSend = () => true) {
+  let renderCanvasChanged = false;
   if (typeof ctx.syncRenderCanvasForState === "function") {
-    ctx.syncRenderCanvasForState("idle", svg);
+    renderCanvasChanged = ctx.syncRenderCanvasForState("idle", svg) === true;
   }
-  ctx.sendToRenderer("state-change", "idle", svg);
-  ctx.sendToHitWin("hit-state-sync", { currentSvg: svg });
+  const send = () => {
+    if (!shouldSend()) return;
+    ctx.sendToRenderer("state-change", "idle", svg);
+    ctx.sendToHitWin("hit-state-sync", { currentSvg: svg });
+  };
+  if (renderCanvasChanged) setTimeout(send, RENDER_CANVAS_RESIZE_SETTLE_MS);
+  else send();
 }
 
 function sendPointerBridge(cursor, bounds) {
@@ -254,7 +261,7 @@ function runMainTickOnce() {
         if (yawnDelayTimer) { clearTimeout(yawnDelayTimer); yawnDelayTimer = null; }
         if (isMouseIdle) {
           isMouseIdle = false;
-          sendIdleSvg(SVG_IDLE_FOLLOW);
+          sendIdleSvg(SVG_IDLE_FOLLOW, () => ctx.currentState === "idle");
         }
       }
 
@@ -289,14 +296,14 @@ function runMainTickOnce() {
         if (!shouldSuppressPassiveIpc()) ctx.sendToRenderer("eye-move", 0, 0);
         setTimeout(() => {
           if (isMouseIdle && ctx.currentState === "idle") {
-            sendIdleSvg(pick.svg);
+            sendIdleSvg(pick.svg, () => isMouseIdle && ctx.currentState === "idle");
           }
         }, 250);
         idleLookReturnTimer = setTimeout(() => {
           idleLookReturnTimer = null;
           if (isMouseIdle && ctx.currentState === "idle") {
             isMouseIdle = false;
-            sendIdleSvg(SVG_IDLE_FOLLOW);
+            sendIdleSvg(SVG_IDLE_FOLLOW, () => ctx.currentState === "idle");
             setTimeout(() => { ctx.forceEyeResend = true; }, 200);
           }
         }, 250 + pick.duration);

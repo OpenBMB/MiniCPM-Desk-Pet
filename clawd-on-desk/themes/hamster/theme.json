@@ -436,19 +436,12 @@
     "objBottom": 0.05,
     "imgBottom": 0.05,
     "fileScales": {
-      "hamster-idle-glasses-push.svg": 1.064,
       "hamster-attention.svg": 0.924,
       "hamster-sleeping.svg": 0.947,
       "hamster-dozing.svg": 0.947,
       "hamster-error.svg": 0.964,
       "hamster-sleeping-to-wake-up.svg": 0.947,
       "hamster-notification.svg": 0.92
-    },
-    "fileOffsets": {
-      "hamster-idle-glasses-push.svg": {
-        "x": 10,
-        "y": -14
-      }
     }
   }
 }
