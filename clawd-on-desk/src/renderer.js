@@ -99,14 +99,18 @@ function applyObjectScaleStyle(el, file, state) {
   applyPetElementTransform(el, state);
 }
 
-function getMiniVisualScale() {
-  return _inMiniMode ? _miniScale : 1;
+function shouldApplyMiniVisualScale(state) {
+  return !!(_inMiniMode && state && state.startsWith("mini-"));
+}
+
+function getMiniVisualScale(state = currentState) {
+  return shouldApplyMiniVisualScale(state) ? _miniScale : 1;
 }
 
 function applyPetElementTransform(el, state = currentState) {
   if (!el) return;
   const transforms = [];
-  const miniScale = getMiniVisualScale();
+  const miniScale = getMiniVisualScale(state);
   if (miniScale !== 1) transforms.push(`scale(${miniScale})`);
   if (el.tagName === "IMG" && shouldApplyMiniAssetFlip(state)) transforms.push("scaleX(-1)");
 
