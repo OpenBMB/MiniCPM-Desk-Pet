@@ -12,6 +12,7 @@
     "Self-contained scripted SVG: PNG hand patches are embedded as data URLs; no fetch is needed.",
     "The transition plays once and holds the sleeping lift frame by default.",
     "Add ?loop=1 when embedding for showcase-style repeated preview.",
+    "The transition scales and offsets from idle size to the sleeping theme scale around the baseline pivot so the next sleeping loop does not jump.",
     "Foot motion morphs the original idle foot paths through a rounded middle pose into the confirmed sleeping foot shapes.",
     "Final frame matches the sleeping-loop-v1 lift frame for body, feet, head cap, cheek/muzzle, face transform, tie, hands, and Zzz."
   ]
@@ -210,10 +211,26 @@ const state = {
   let loopTimeout = 0;
   const originals = {};
   const els = {};
+  const SLEEP_CHAIN_END_SCALE = 0.947;
+  const SLEEP_CHAIN_PIVOT = { x: 187, y: 416 };
+  const SLEEP_CHAIN_END_OFFSET = { x: -9.91, y: -12.26 };
   const urlParams = new URL(window.location.href).searchParams;
   const autoLoop = urlParams.get("loop") === "1" || (svg && svg.dataset.autoLoop === "true");
 
-  function $(id) {
+  function applySleepChainScale(t) {
+      if (!root) return;
+      const p = easeInOut(range(t, .62, 1));
+      const scale = lerp(1, SLEEP_CHAIN_END_SCALE, p);
+      const dx = SLEEP_CHAIN_END_OFFSET.x * p;
+      const dy = SLEEP_CHAIN_END_OFFSET.y * p;
+      if (Math.abs(scale - 1) < .001 && Math.abs(dx) < .001 && Math.abs(dy) < .001) {
+        root.removeAttribute("transform");
+        return;
+      }
+      root.setAttribute("transform", "translate(" + fmt(dx) + " " + fmt(dy) + ") translate(" + fmt(SLEEP_CHAIN_PIVOT.x) + " " + fmt(SLEEP_CHAIN_PIVOT.y) + ") scale(" + fmt(scale) + ") translate(" + fmt(-SLEEP_CHAIN_PIVOT.x) + " " + fmt(-SLEEP_CHAIN_PIVOT.y) + ")");
+    }
+
+function $(id) {
       return svg && svg.querySelector("#" + id);
     }
 
@@ -409,6 +426,7 @@ function rememberOriginals() {
 function render(tRaw) {
       if (!svg) return;
       const t = clamp(tRaw);
+      applySleepChainScale(t);
       const leftStep = range(t, .12, .42);
       const rightStep = range(t, .34, .64);
       const sit = easeInOut(range(t, .58, 1));
@@ -416,6 +434,7 @@ function render(tRaw) {
       const headSleep = range(t, .32, 1);
       const hand = range(t, state.handDelay / 100, .96);
       const zzz = range(t, state.zzzStart / 100, 1);
+      const zzzSeam = range(t, .86, 1);
 
       const leftLean = bump(t, .12, .28, .46);
       const rightLean = bump(t, .34, .50, .70);
@@ -514,20 +533,32 @@ function render(tRaw) {
       }
 
       els.zzz.setAttribute("opacity", fmt(zzz));
-      applyZzz("transition-zzz-large", zzz, 329, 96, 9, -16, .72);
-      applyZzz("transition-zzz-mid", Math.max(0, zzz - .14) / .86, 315, 151, 7, -13, .68);
-      applyZzz("transition-zzz-small", Math.max(0, zzz - .28) / .72, 362, 174, 5, -10, .62);
+      applyZzz("transition-zzz-large", zzz, 329, 96, 9, -16, .72, 0, zzzSeam);
+      applyZzz("transition-zzz-mid", Math.max(0, zzz - .14) / .86, 315, 151, 7, -13, .68, .77, zzzSeam);
+      applyZzz("transition-zzz-small", Math.max(0, zzz - .28) / .72, 362, 174, 5, -10, .62, .54, zzzSeam);
       svg.setAttribute("data-transition-progress", fmt(t * 100, 1));
     }
 
-function applyZzz(id, amount, x, y, dx, dy, startScale) {
+function applyZzz(id, amount, x, y, dx, dy, startScale, sleepPhase, seam) {
       const node = $(id);
       if (!node) return;
       const p = clamp(amount);
-      const alpha = .9 * range(p, 0, .34);
-      const scale = lerp(startScale, 1, easeOut(p));
+      const seamT = clamp(seam || 0);
+      const transitionAlpha = .9 * range(p, 0, .34);
+      const transitionScale = lerp(startScale, 1, easeOut(p));
+      const transitionX = dx * p;
+      const transitionY = dy * p;
+      const sleepAppear = easeOut((sleepPhase || 0) / .24);
+      const sleepFade = clamp(((sleepPhase || 0) - .64) / .24);
+      const sleepAlpha = .9 * sleepAppear * (1 - sleepFade);
+      const sleepRise = easeOut((sleepPhase || 0) / .9);
+      const sleepScale = lerp(startScale, 1, sleepAppear);
+      const alpha = lerp(transitionAlpha, sleepAlpha, seamT);
+      const scale = lerp(transitionScale, sleepScale, seamT);
+      const xOffset = lerp(transitionX, dx * sleepRise, seamT);
+      const yOffset = lerp(transitionY, dy * sleepRise, seamT);
       node.setAttribute("opacity", fmt(alpha));
-      node.setAttribute("transform", "translate(" + fmt(x) + " " + fmt(y) + ") translate(" + fmt(dx * p) + " " + fmt(dy * p) + ") scale(" + fmt(scale) + ") translate(" + fmt(-x) + " " + fmt(-y) + ")");
+      node.setAttribute("transform", "translate(" + fmt(x) + " " + fmt(y) + ") translate(" + fmt(xOffset) + " " + fmt(yOffset) + ") scale(" + fmt(scale) + ") translate(" + fmt(-x) + " " + fmt(-y) + ")");
     }
 
   function rememberExportElements() {

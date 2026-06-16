@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="-74 -82 536 530" role="img" aria-labelledby="task-complete-loop-v2-title task-complete-loop-v2-desc" preserveAspectRatio="xMidYMid meet" style="overflow: visible;" id="hamster-task-complete-loop-v2" data-export="task-complete-loop-v2">
 <title id="task-complete-loop-v2-title">Hamster task complete loop v1</title>
-<desc id="task-complete-loop-v2-desc">Task-complete hamster celebrates with a left-right happy hop while a task-list clipboard tells the story: empty list pops in, three checkboxes tick off fast, the list settles into one big soft-green check, confetti bursts once and golden stars ramp in then twinkle. Board and stars hold with the hop afterwards. v2 replaces the v1 standalone giant checkmark (鹿鹿 2026-06-12, reverse-port of mini-happy board theater).</desc>
+<desc id="task-complete-loop-v2-desc">Task-complete hamster celebrates with a left-right happy hop while a task-list clipboard tells the story: empty list pops in, three checkboxes tick off fast, the list settles into one big soft-green check, confetti bursts once and golden stars ramp in then twinkle. The board stays fixed near the upper right and swings gently around its own top clip instead of following the hamster body. v2 replaces the v1 standalone giant checkmark (鹿鹿 2026-06-12, reverse-port of mini-happy board theater).</desc>
 <metadata id="task-complete-loop-v2-metadata"><![CDATA[
 {
   "mode": "task-complete-loop-v2",
   "source": "drafts/task-complete-motion-v1/pose-tuner-v1/hamster-task-complete-board-tuner-v1.html",
   "exportDate": "2026-06-12",
   "viewBox": "-74 -82 536 530",
-  "animation": "two-frame left/right celebration hop; one-shot task-list board theater (empty list pops, three ticks draw fast, list settles into one big soft-green check, confetti bursts once, stars ramp in then twinkle); board holds with the hop afterwards",
+  "animation": "two-frame left/right celebration hop; one-shot task-list board theater (empty list pops, three ticks draw fast, list settles into one big soft-green check, confetti bursts once, stars ramp in then twinkle); board stays fixed near the upper right and gently swings around its own top clip",
   "accepted": {
     "faceLeftLanding": {
       "faceYaw": 32,
@@ -213,7 +213,7 @@
       <g id="nose-mouth" data-part="nose-mouth" data-origin="187 177" data-mouth-rig="task-complete-mask-opening"><ellipse id="nose-fill" cx="187" cy="170" rx="10" ry="7.5" fill="#7b4a23"></ellipse><g id="mouth-interior-clipped" data-role="task-complete-mouth-interior-clipped" clip-path="url(#task-complete-mouth-opening-clip)" opacity="1"><g id="mouth-door-clipped" data-role="task-complete-mouth-door-clipped" clip-path="url(#task-complete-mouth-door-clip)"><path id="mouth-inner-shade" fill="#5b221f" opacity=".36" d="M 162 205 C 162 180.25 212 180.25 212 205 C 212 234.7 162 234.7 162 205 Z"></path><path id="mouth-cavity-fill" fill="#8c2f2a" d="M 162 205 C 162 180.25 212 180.25 212 205 C 212 234.7 162 234.7 162 205 Z"></path><path id="mouth-lower-cavity-fill" fill="#f58d86" d="M 174 218 C 176.34 210 197.66 210 200 218 L 203.64 283.5 L 170.36 283.5 Z"></path></g></g><g id="mouth-visible-strokes" data-role="task-complete-mouth-visible-w-strokes"><path id="mouth-left" d="M187 177 C187 190 180 198 171 198 C166 198 163 195 163 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path><path id="mouth-right" d="M187 177 C187 190 194 198 203 198 C208 198 211 195 211 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path></g></g>
     </g>
 
-  <g id="task-complete-board" data-layer="task-complete-one-shot-board" data-layer-order="above-hamster" transform="translate(352 64) rotate(-5) scale(1.05)" opacity="1" style="pointer-events: none; transform-box: view-box; transform-origin: 0px 0px;">
+  <g id="task-complete-board" data-layer="task-complete-one-shot-board" data-layer-order="above-hamster" transform="translate(390 50) rotate(-5 0 -58) scale(1.05)" opacity="1" style="pointer-events: none; transform-box: view-box; transform-origin: 0px 0px;">
       <rect id="board-back" x="-45" y="-58" width="90" height="116" rx="9" fill="#d8a686" stroke="#b98c6e" stroke-width="2.5"></rect>
       <rect id="board-paper" x="-37" y="-46" width="74" height="96" rx="5" fill="#fff8f0" stroke="#ecdcc8" stroke-width="1.5"></rect>
       <path id="board-clip-arch" d="M -8 -58 C -8 -67 8 -67 8 -58" fill="none" stroke="#8a5a3f" stroke-width="4.5" stroke-linecap="round"></path>
@@ -414,8 +414,8 @@
     rightWristAlong: -6,
     rightWristBend: -8,
     showBoard: true,
-    boardX: 362,
-    boardY: 64,
+    boardX: 390,
+    boardY: 50,
     boardScale: 1.05,
     boardRot: -5,
     tickGap: 0.3,
@@ -424,19 +424,19 @@
     tickPalette: 0,
     donePalette: 0,
     doneStroke: 7,
-    boardHoldY: 3,
-    boardHoldRotate: 1.1,
-    boardHoldScale: 0.01,
+    boardHoldY: 0,
+    boardHoldRotate: 0,
+    boardHoldScale: 0,
     boardHoldLag: 0.08,
-    boardBreathScale: 0.025,
-    boardFollow: 1.0,
-    boardRotFollow: 1.0,
+    boardBreathScale: 0,
+    boardFollow: 0,
+    boardRotFollow: 0,
     boardLagPhase: 0.06,
-    boardSwayDeg: 3,
-    boardKickDeg: 2,
-    boardPivotX: -45,
-    boardPivotY: 58,
-    boardBounceY: 8,
+    boardSwayDeg: 6.5,
+    boardKickDeg: 0,
+    boardPivotX: 0,
+    boardPivotY: -58,
+    boardBounceY: 0,
     showArmAnchors: true,
     showAxis: true,
     showFootRef: true,
@@ -515,6 +515,7 @@
   let loopLastNow = 0;
   let renderingLoopPose = false;
   let boardStartNow = 0;
+  let boardSwayStartNow = 0;
   let boardRaf = 0;
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1448,7 +1449,13 @@
     layer.style.display = state.showBoard ? "" : "none";
     const t = Math.min(tb, bt.theaterEnd);
 
-    // 外层板从 0 秒就常驻在人物右上方并跟随人物；剧场只发生在板内清单内容上。
+    // 板子作为独立道具：从右上轻弹冒出，之后绕顶部夹子轻摆，不继承仓鼠主体位移/旋转。
+    const popRaw = clamp(t / bt.pop, 0, 1);
+    const popT = smooth01(popRaw);
+    const popScale = 0.72 + 0.28 * easeOutBackLocal(popRaw);
+    const popRise = (1 - popT) * 18;
+    const popDrift = (1 - popT) * 10;
+    const popRot = (1 - popT) * -8;
 
     // 三勾描画 + 落定咔哒
     const starts = [bt.tick1, bt.tick2, bt.tick3];
@@ -1483,7 +1490,7 @@
       p.setAttribute("stroke-dasharray", `${fmt(len * doneDraw)} ${fmt(len + 4)}`);
     });
 
-    // hold 跟随（checkmark hold 同款公式，剧场完后小幅浮动；现在 body 已绑死，hold 留一点点呼吸）
+    // hold 阶段只保留板子自己的轻摆，不跟随主体 hop。
     const loopPhase = Number.isFinite(state.loopPhase) ? state.loopPhase : 0;
     const holdPhase = ((loopPhase - state.boardHoldLag) % 1 + 1) % 1;
     const holdBlend = t >= bt.theaterEnd && state.playLoop ? 1 : 0;
@@ -1496,29 +1503,21 @@
     const breathWave = Math.sin((loopPhase - 0.12) * Math.PI * 2);
     const breathScale = 1 + breathWave * state.boardBreathScale * breathBlend;
 
-    // C 方案：身体跟随与板自身惯性分开，避免 slider 看起来在动但实际被 bodyTransformStr() 吃掉。
-    const p = bodyParams();
-    const follow = Number.isFinite(state.boardFollow) ? state.boardFollow : 1;
-    const rotFollow = Number.isFinite(state.boardRotFollow) ? state.boardRotFollow : 1;
-    const followTransform = [
-      `rotate(${fmt(p.td * rotFollow)} ${fmt(p.pivotX)} ${fmt(p.pivotY)})`,
-      `translate(${fmt(p.sx * follow)} ${fmt(-p.up * follow)})`
-    ].join(" ");
-    const hopWave = Math.sin(loopPhase * Math.PI * 2);
-    const hopLift = -(hopWave * hopWave) * state.boardBounceY;
-    const lagPhase = ((loopPhase - state.boardLagPhase) % 1 + 1) % 1;
-    const inertialSway = -Math.sin(lagPhase * Math.PI * 2) * state.boardSwayDeg;
-    const landingKick = (
-      phasePulse(loopPhase, 0.035, 0.12) -
-      phasePulse(loopPhase, 0.535, 0.12)
-    ) * state.boardKickDeg * 0.35;
-    const boardSelfRot = state.boardRot + holdRotate + inertialSway + landingKick;
-    const boardY = state.boardY + kick * state.tickKick + holdY + hopLift;
+    const elapsedSeconds = boardSwayStartNow
+      ? Math.max(0, (now - boardSwayStartNow) / 1000)
+      : 0;
+    const alarmPhase = ((elapsedSeconds / 1.65) % 1 + 1) % 1;
+    const alarmBlend = smooth01(clamp((t - bt.pop * 0.45) / 0.55, 0, 1));
+    const alarmSwing = Math.sin(alarmPhase * Math.PI * 2) * state.boardSwayDeg * alarmBlend;
+    const alarmEaseBack = Math.sin(alarmPhase * Math.PI * 4) * 0.45 * alarmBlend;
+    const boardSelfRot = state.boardRot + popRot + holdRotate + alarmSwing + alarmEaseBack;
+    const boardY = state.boardY + popRise + kick * state.tickKick + holdY;
+    const boardX = state.boardX + popDrift;
     layer.setAttribute(
       "transform",
-      `${followTransform} translate(${fmt(state.boardX)} ${fmt(boardY)}) rotate(${fmt(boardSelfRot)} ${fmt(state.boardPivotX)} ${fmt(state.boardPivotY)}) scale(${faceFmt(state.boardScale * holdScale * breathScale)})`
+      `translate(${fmt(boardX)} ${fmt(boardY)}) rotate(${fmt(boardSelfRot)} ${fmt(state.boardPivotX)} ${fmt(state.boardPivotY)}) scale(${faceFmt(state.boardScale * popScale * holdScale * breathScale)})`
     );
-    layer.setAttribute("opacity", "1");
+    layer.setAttribute("opacity", fmt(smooth01(clamp(t / 0.18, 0, 1))));
 
     // 彩屑（变身完成时 one-shot 撒花）
     renderBoardConfetti(t, bt);
@@ -1581,8 +1580,10 @@
   }
 
   function replayBoard(){
-    boardStartNow = performance.now();
-    applyBoardPose(boardStartNow);
+    const now = performance.now();
+    boardStartNow = now;
+    boardSwayStartNow = now + boardTimes().pop * 0.4 * 1000;
+    applyBoardPose(now);
     scheduleBoardFrame();
   }
 
@@ -2334,7 +2335,7 @@
           holdScale: state.boardHoldScale,
           holdLag: state.boardHoldLag,
           times: boardTimes(),
-          behavior: "empty list pops on state enter, three ticks draw fast, list settles into one big green check, confetti bursts once, stars ramp in then twinkle; board holds with the hop afterwards"
+          behavior: "empty list pops on state enter, three ticks draw fast, list settles into one big green check, confetti bursts once, stars ramp in then twinkle; board stays fixed near the upper right and gently swings around its own top clip"
         },
         params: Object.assign({}, state)
       };

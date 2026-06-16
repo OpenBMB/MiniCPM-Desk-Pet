@@ -56,6 +56,8 @@
     #face-layer  { transform-box: view-box; transform-origin: 187px 205px; }
     #ears-layer  { transform-box: view-box; transform-origin: 187px 205px; }
     #tie-breathe-wrap { transform-box: view-box; transform-origin: 187px 274px; }
+    #arm-back-split-layer,
+    #body-cast-shadow-on-hand-layer { transform-box: view-box; transform-origin: 187px 322px; }
   </style>
 
   <g id="hamster-flat-master-v11" data-source="hamster-flat-layered-v18-noodle-hands.svg" data-state="idle-follow-v2-scripted" filter="url(#soft-lift)" fill-rule="evenodd" clip-rule="evenodd">
@@ -226,18 +228,20 @@
 
   // ── breathing DEFAULTS (verbatim from idle-look-v2 DEFAULTS) ──────────────
   var BREATH = {
-    bodyExpand: 3.2,
-    bodyTopLift: 1.2,
-    bodyBottomDrop: 0.8,
-    headFloat: 1.1,
-    headNod: -0.25,
-    faceLag: 0.25,
-    earLag: 0.35,
-    tuftFloat: 0.5,
-    tieKnotShift: 0.4,
-    tieSwing: -1.1
+    bodyExpand: 7.0,
+    bodyTopLift: 2.6,
+    bodyBottomDrop: 1.0,
+    headFloat: 2.2,
+    headNod: -0.45,
+    faceLag: 0.45,
+    earLag: 0.65,
+    tuftFloat: 1.0,
+    tieKnotShift: 0.8,
+    tieSwing: -1.8,
+    handLift: 3.0,
+    handSpreadScale: 0.009
   };
-  var BREATH_PERIOD = 4.0; // seconds, sin-driven (matches tuner: breathAmount peaks mid-cycle)
+  var BREATH_PERIOD = 6.4; // seconds, sin-driven (matches tuner: breathAmount peaks mid-cycle)
 
   // ── cursor look mapping (per task spec; v2 defaults for max angles) ───────
   var FACE_CENTER = { x: 187, y: 157 };
@@ -442,6 +446,13 @@
       : (knotMove + " rotate(" + fmt(swing) + " 34 14)").trim();
     ["tie-knot", "tie-knot-highlight"].forEach(function (id) { setElementTransform(id, knotMove); });
     ["tie-shadow", "tie-blade", "tie-center-fold", "tie-left-fold"].forEach(function (id) { setElementTransform(id, bladeSwing); });
+  }
+  function applyHandBreathMotion(b) {
+    var liftY = -BREATH.handLift * b;
+    var sx = 1 + BREATH.handSpreadScale * b;
+    var motion = centeredTransform({ x: 187, y: 322 }, 0, liftY, sx, 1);
+    setLayerTransform("arm-back-split-layer", motion);
+    setLayerTransform("body-cast-shadow-on-hand-layer", motion);
   }
 
   // ── look geometry (verbatim ports) ────────────────────────────────────────
@@ -814,6 +825,7 @@
     var body = svg.querySelector("#body-belly-fill");
     if (body) body.setAttribute("d", Math.abs(b) < 1e-6 ? bodyBreathPath(0) : bodyBreathPath(b));
     applyHeadBreathMotion(b);
+    applyHandBreathMotion(b);
     setLayerTransform("tie", "");
     applyTieBreathMotion(b);
   }
