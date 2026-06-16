@@ -179,6 +179,11 @@
 (() => {
   "use strict";
   const svg = document.getElementById("mini-stage");
+  let glyphFlipCompensation = false;
+
+  window.__clawdSetGlyphFlipCompensation = function(enabled) {
+    glyphFlipCompensation = !!enabled;
+  };
 
   // ── mini-sleep 定稿参数(2026-06-12 鹿鹿二轮定稿,常量烘焙,不开放调参)──
   const SLEEP = {
@@ -189,9 +194,9 @@
   const TILT_PIVOT = { x: 187, y: 252 };
   // 领带甩动锚 = 领结中心 tie 局部 (33.5,19)(blade wrapper 在 tie 组内,直接用局部坐标)
   const ZZZ_PARTS = [
-    { id: "sleep-zzz-small", relX: 0,   relY: 0,   delay: 0,    dx: -5, dy: -10, scale0: 0.62 },
-    { id: "sleep-zzz-mid",   relX: -28, relY: -38, delay: 0.23, dx: -7, dy: -13, scale0: 0.68 },
-    { id: "sleep-zzz-large", relX: -52, relY: -85, delay: 0.46, dx: -9, dy: -16, scale0: 0.72 }
+    { id: "sleep-zzz-small", relX: 0,   relY: 0,   delay: 0,    dx: -5, dy: -10, scale0: 0.62, flipX: 14 },
+    { id: "sleep-zzz-mid",   relX: -28, relY: -38, delay: 0.23, dx: -7, dy: -13, scale0: 0.68, flipX: 22 },
+    { id: "sleep-zzz-large", relX: -52, relY: -85, delay: 0.46, dx: -9, dy: -16, scale0: 0.72, flipX: 26 }
   ];
 
   // ── peek 可调参数 ──
@@ -303,7 +308,8 @@
       const s = lerp(part.scale0, 1, appear) * SLEEP.zzzScale;
       const x = SLEEP.zzzX + part.relX * SLEEP.zzzScale + part.dx * rise;
       const y = SLEEP.zzzY + part.relY * SLEEP.zzzScale + part.dy * rise;
-      node.setAttribute("transform", `translate(${fmt(x)} ${fmt(y)}) scale(${fmt(s)})`);
+      const flip = glyphFlipCompensation ? ` translate(${fmt(part.flipX)} 0) scale(-1 1)` : "";
+      node.setAttribute("transform", `translate(${fmt(x)} ${fmt(y)}) scale(${fmt(s)})${flip}`);
       node.setAttribute("opacity", fmt(0.9 * appear * (1 - fade)));
     }
 

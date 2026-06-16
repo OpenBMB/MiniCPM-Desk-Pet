@@ -165,6 +165,11 @@
 (() => {
   "use strict";
   const svg = document.getElementById("mini-stage");
+  let glyphFlipCompensation = false;
+
+  window.__clawdSetGlyphFlipCompensation = function(enabled) {
+    glyphFlipCompensation = !!enabled;
+  };
 
   // ── 可调参数(tuner state)──
   const state = {
@@ -184,9 +189,9 @@
   // 鹿鹿二轮重排:锚(zzzX/zzzY)=冒出点贴上耳(屏幕系上耳(30,131)),小 Z 先冒(delay 0),
   // 中/大 Z 依次往左上逐级飘大——「一颗 z 从耳朵冒出来越飘越大」,默认全程不压头盖(head-cap y≥107)。
   const ZZZ_PARTS = [
-    { id: "sleep-zzz-small", relX: 0,   relY: 0,   delay: 0,    dx: -5, dy: -10, scale0: 0.62 },
-    { id: "sleep-zzz-mid",   relX: -28, relY: -38, delay: 0.23, dx: -7, dy: -13, scale0: 0.68 },
-    { id: "sleep-zzz-large", relX: -52, relY: -85, delay: 0.46, dx: -9, dy: -16, scale0: 0.72 }
+    { id: "sleep-zzz-small", relX: 0,   relY: 0,   delay: 0,    dx: -5, dy: -10, scale0: 0.62, flipX: 14 },
+    { id: "sleep-zzz-mid",   relX: -28, relY: -38, delay: 0.23, dx: -7, dy: -13, scale0: 0.68, flipX: 22 },
+    { id: "sleep-zzz-large", relX: -52, relY: -85, delay: 0.46, dx: -9, dy: -16, scale0: 0.72, flipX: 26 }
   ];
   const ZZZ_PALETTES = [
     { name: "暖棕", color: "#8a5a3f" },   // 主线 sleeping-loop 同款
@@ -282,7 +287,8 @@
       const s = lerp(part.scale0, 1, appear) * state.zzzScale;
       const x = state.zzzX + part.relX * state.zzzScale + part.dx * rise;
       const y = state.zzzY + part.relY * state.zzzScale + part.dy * rise;
-      node.setAttribute("transform", `translate(${fmt(x)} ${fmt(y)}) scale(${fmt(s)})`);
+      const flip = glyphFlipCompensation ? ` translate(${fmt(part.flipX)} 0) scale(-1 1)` : "";
+      node.setAttribute("transform", `translate(${fmt(x)} ${fmt(y)}) scale(${fmt(s)})${flip}`);
       node.setAttribute("opacity", fmt(alpha));
     }
     zzzLayer.setAttribute("stroke", ZZZ_PALETTES[state.zzzColor].color);
