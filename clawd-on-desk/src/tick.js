@@ -227,15 +227,17 @@ function runMainTickOnce() {
     // ── Mini mode peek hover ──
     if (ctx.miniMode && !ctx.miniTransitioning && !ctx.dragLocked && !ctx.menuOpen) {
       const canPeek = ctx.currentState === "mini-idle" || ctx.currentState === "mini-peek"
-        || ctx.currentState === "mini-sleep";
+        || ctx.currentState === "mini-sleep" || ctx.currentState === "mini-sleep-peek";
       if (!ctx.isAnimating && canPeek) {
         if (ctx.mouseOverPet && ctx.currentState === "mini-sleep" && !ctx.miniSleepPeeked) {
           ctx.miniPeekIn();
           ctx.miniSleepPeeked = true;
-        } else if (!ctx.mouseOverPet && ctx.currentState === "mini-sleep" && ctx.miniSleepPeeked) {
+          ctx.applyState("mini-sleep-peek");
+        } else if (!ctx.mouseOverPet && (ctx.currentState === "mini-sleep-peek" || (ctx.currentState === "mini-sleep" && ctx.miniSleepPeeked))) {
           ctx.miniPeekOut();
           ctx.miniSleepPeeked = false;
-        } else if (ctx.mouseOverPet && ctx.currentState !== "mini-peek" && ctx.currentState !== "mini-sleep" && !ctx.miniPeeked) {
+          if (ctx.currentState !== "mini-sleep") ctx.applyState("mini-sleep");
+        } else if (ctx.mouseOverPet && ctx.currentState !== "mini-peek" && ctx.currentState !== "mini-sleep" && ctx.currentState !== "mini-sleep-peek" && !ctx.miniPeeked) {
           ctx.miniPeekIn();
           ctx.applyState("mini-peek");
         } else if (!ctx.mouseOverPet && (ctx.currentState === "mini-peek" || ctx.miniPeeked)) {

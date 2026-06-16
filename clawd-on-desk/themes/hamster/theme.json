@@ -84,46 +84,58 @@
       "height": 455
     },
     "hamster-mini-idle.svg": {
-      "x": -53,
-      "y": -10,
-      "width": 480,
+      "x": -150,
+      "y": -40,
+      "width": 580,
       "height": 480
     },
     "hamster-mini-alert.svg": {
       "x": -150,
-      "y": -60,
+      "y": -40,
       "width": 580,
-      "height": 580
+      "height": 480
     },
     "hamster-mini-enter.svg": {
       "x": -150,
-      "y": -60,
+      "y": -40,
       "width": 580,
-      "height": 580
+      "height": 480
     },
     "hamster-mini-enter-sleep.svg": {
       "x": -150,
-      "y": -60,
+      "y": -40,
       "width": 580,
-      "height": 580
+      "height": 480
     },
     "hamster-mini-happy.svg": {
       "x": -150,
-      "y": -60,
+      "y": -40,
       "width": 580,
-      "height": 580
+      "height": 480
     },
     "hamster-mini-peek.svg": {
       "x": -150,
-      "y": -60,
+      "y": -40,
       "width": 580,
-      "height": 580
+      "height": 480
+    },
+    "hamster-mini-crabwalk.apng": {
+      "x": -30,
+      "y": 0,
+      "width": 434,
+      "height": 423
+    },
+    "hamster-mini-sleep-peek.svg": {
+      "x": -150,
+      "y": -40,
+      "width": 580,
+      "height": 480
     },
     "hamster-mini-sleep.svg": {
       "x": -150,
-      "y": -60,
+      "y": -40,
       "width": 580,
-      "height": 580
+      "height": 480
     }
   },
   "layout": {
@@ -160,6 +172,7 @@
       "hamster-mini-happy.svg",
       "hamster-mini-idle.svg",
       "hamster-mini-peek.svg",
+      "hamster-mini-sleep-peek.svg",
       "hamster-mini-sleep.svg",
       "hamster-notification.svg",
       "hamster-sleeping-to-wake-up.svg",
@@ -184,6 +197,7 @@
       "hamster-mini-happy.svg": 3600,
       "hamster-mini-idle.svg": 5000,
       "hamster-mini-peek.svg": 1500,
+      "hamster-mini-sleep-peek.svg": 5600,
       "hamster-mini-sleep.svg": 5600,
       "hamster-notification.svg": 3333,
       "hamster-sleeping-to-wake-up.svg": 3400,
@@ -360,11 +374,11 @@
   ],
   "miniMode": {
     "supported": true,
-    "offsetRatio": 0.486,
+    "offsetRatio": 0.336,
     "viewBox": {
-      "x": -53,
-      "y": -10,
-      "width": 480,
+      "x": -150,
+      "y": -40,
+      "width": 580,
       "height": 480
     },
     "states": {
@@ -387,10 +401,13 @@
         "hamster-mini-idle.svg"
       ],
       "mini-crabwalk": [
-        "hamster-mini-idle.svg"
+        "hamster-mini-crabwalk.apng"
       ],
       "mini-enter-sleep": [
         "hamster-mini-enter-sleep.svg"
+      ],
+      "mini-sleep-peek": [
+        "hamster-mini-sleep-peek.svg"
       ],
       "mini-sleep": [
         "hamster-mini-sleep.svg"

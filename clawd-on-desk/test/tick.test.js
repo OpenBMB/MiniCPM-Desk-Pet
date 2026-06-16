@@ -61,6 +61,7 @@ function makeCtx(theme, statesSeen) {
     isAnimating: false,
     mouseOverPet: false,
     miniPeeked: false,
+    miniSleepPeeked: false,
     forceEyeResend: false,
     forceEyeResendBoostUntil: 0,
     startupRecoveryActive: false,
@@ -189,6 +190,45 @@ describe("tick mini hover", () => {
     assert.equal(peekOutCalls, 1);
     assert.equal(ctx.miniPeeked, false);
     assert.deepStrictEqual(statesSeen, ["mini-idle"]);
+  });
+
+  it("enters mini-sleep-peek from mini-sleep when the cursor moves over the pet", () => {
+    const theme = cloneTheme(_defaultTheme);
+    let peekInCalls = 0;
+
+    ctx = makeCtx(theme, statesSeen);
+    ctx.miniMode = true;
+    ctx.currentState = "mini-sleep";
+    ctx.miniPeekIn = () => { peekInCalls++; };
+
+    tickApi = loader.initTick(ctx);
+    tickApi.startMainTick();
+    mock.timers.tick(60);
+
+    assert.equal(peekInCalls, 1);
+    assert.equal(ctx.miniSleepPeeked, true);
+    assert.deepStrictEqual(statesSeen, ["mini-sleep-peek"]);
+  });
+
+  it("returns to mini-sleep when the cursor leaves mini-sleep-peek", () => {
+    const theme = cloneTheme(_defaultTheme);
+    let peekOutCalls = 0;
+
+    cursor = { x: 400, y: 400 };
+    ctx = makeCtx(theme, statesSeen);
+    ctx.miniMode = true;
+    ctx.currentState = "mini-sleep-peek";
+    ctx.miniSleepPeeked = true;
+    ctx.mouseOverPet = true;
+    ctx.miniPeekOut = () => { peekOutCalls++; };
+
+    tickApi = loader.initTick(ctx);
+    tickApi.startMainTick();
+    mock.timers.tick(60);
+
+    assert.equal(peekOutCalls, 1);
+    assert.equal(ctx.miniSleepPeeked, false);
+    assert.deepStrictEqual(statesSeen, ["mini-sleep"]);
   });
 });
 
