@@ -236,6 +236,34 @@ describe("pet-window-runtime", () => {
     ]);
   });
 
+  it("widens the render window for file render canvas while preserving logical pet bounds", () => {
+    const harness = createRuntime({
+      renderWin: makeWindow({ x: 10, y: 20, width: 100, height: 100 }),
+      theme: {
+        renderCanvas: {
+          fileRatios: {
+            "idle.svg": { widthRatio: 2, anchorX: 0.5 },
+          },
+        },
+      },
+    });
+
+    harness.runtime.syncRenderCanvasForState("idle", "idle.svg");
+
+    assert.deepStrictEqual(harness.renderWin.calls.filter((call) => call[0] === "setBounds"), [
+      ["setBounds", { x: -40, y: 20, width: 200, height: 100 }],
+    ]);
+    assert.deepStrictEqual(harness.runtime.getPetWindowBounds(), { x: 10, y: 20, width: 100, height: 100 });
+
+    harness.runtime.syncRenderCanvasForState("idle", "plain.svg");
+
+    const setBoundsCalls = harness.renderWin.calls.filter((call) => call[0] === "setBounds");
+    assert.deepStrictEqual(setBoundsCalls[setBoundsCalls.length - 1], [
+      "setBounds",
+      { x: 10, y: 20, width: 100, height: 100 },
+    ]);
+  });
+
   it("does not move the hit window while drag owns pointer capture", () => {
     const harness = createRuntime();
 

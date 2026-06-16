@@ -1,5 +1,7 @@
 "use strict";
 
+const { normalizeRenderCanvas } = require("./render-canvas");
+
 // Defaults used when theme.json omits optional fields.
 
 const DEFAULT_SOUNDS = {
@@ -545,6 +547,7 @@ function mergeDefaults(raw, themeId, isBuiltin) {
   // trustedRuntime grants script execution capability, so it requires loader-derived built-in trust.
   theme.trustedRuntime = normalizeTrustedRuntime(raw.trustedRuntime, isBuiltin, themeId);
   theme.rendering = normalizeRendering(raw.rendering);
+  theme.renderCanvas = normalizeRenderCanvas(raw.renderCanvas);
 
   // objectScale
   theme.objectScale = { ...DEFAULT_OBJECT_SCALE, ...(raw.objectScale || {}) };
@@ -723,6 +726,7 @@ module.exports = {
   normalizeViewBox,
   normalizeTrustedRuntime,
   normalizeRendering,
+  normalizeRenderCanvas,
   normalizeFileViewBoxes,
   normalizeFileHitBoxes,
   mergeFileHitBoxes,

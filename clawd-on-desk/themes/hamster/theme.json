@@ -1,0 +1,444 @@
+{
+  "schemaVersion": 1,
+  "name": "Hamster",
+  "author": "rullerzhou-afk",
+  "version": "0.1.0",
+  "description": "Built-in Hamster theme using trusted scripted SVG assets for Clawd on Desk / MiniCPM Desk Pet",
+  "viewBox": {
+    "x": -30,
+    "y": 0,
+    "width": 434,
+    "height": 423
+  },
+  "fileViewBoxes": {
+    "hamster-idle-glasses-push.svg": {
+      "x": -70,
+      "y": -52,
+      "width": 514,
+      "height": 540
+    },
+    "hamster-working-3session-idle-half.svg": {
+      "x": -300,
+      "y": -210,
+      "width": 1120,
+      "height": 820
+    },
+    "hamster-working-2session.svg": {
+      "x": -230,
+      "y": -100,
+      "width": 820,
+      "height": 590
+    },
+    "hamster-working-3session.svg": {
+      "x": -300,
+      "y": -210,
+      "width": 1120,
+      "height": 820
+    },
+    "hamster-notification.svg": {
+      "x": -170,
+      "y": -50,
+      "width": 626,
+      "height": 488
+    },
+    "hamster-attention.svg": {
+      "x": -74,
+      "y": -82,
+      "width": 536,
+      "height": 530
+    },
+    "hamster-sleeping.svg": {
+      "x": -44,
+      "y": -18,
+      "width": 462,
+      "height": 455
+    },
+    "hamster-dozing.svg": {
+      "x": -44,
+      "y": -18,
+      "width": 462,
+      "height": 455
+    },
+    "hamster-error.svg": {
+      "x": -90,
+      "y": -125,
+      "width": 554,
+      "height": 548
+    },
+    "hamster-idle-to-sleeping.svg": {
+      "x": -44,
+      "y": -18,
+      "width": 462,
+      "height": 455
+    },
+    "hamster-sleeping-to-wake-up.svg": {
+      "x": -44,
+      "y": -18,
+      "width": 462,
+      "height": 455
+    },
+    "hamster-idle-to-dozing.svg": {
+      "x": -44,
+      "y": -18,
+      "width": 462,
+      "height": 455
+    },
+    "hamster-mini-idle.svg": {
+      "x": -53,
+      "y": -10,
+      "width": 480,
+      "height": 480
+    },
+    "hamster-mini-alert.svg": {
+      "x": -150,
+      "y": -60,
+      "width": 580,
+      "height": 580
+    },
+    "hamster-mini-enter.svg": {
+      "x": -150,
+      "y": -60,
+      "width": 580,
+      "height": 580
+    },
+    "hamster-mini-enter-sleep.svg": {
+      "x": -150,
+      "y": -60,
+      "width": 580,
+      "height": 580
+    },
+    "hamster-mini-happy.svg": {
+      "x": -150,
+      "y": -60,
+      "width": 580,
+      "height": 580
+    },
+    "hamster-mini-peek.svg": {
+      "x": -150,
+      "y": -60,
+      "width": 580,
+      "height": 580
+    },
+    "hamster-mini-sleep.svg": {
+      "x": -150,
+      "y": -60,
+      "width": 580,
+      "height": 580
+    }
+  },
+  "layout": {
+    "contentBox": {
+      "x": 39.5,
+      "y": 15,
+      "width": 295,
+      "height": 401
+    },
+    "marginBox": {
+      "x": 20,
+      "y": 0,
+      "width": 335,
+      "height": 423
+    },
+    "centerX": 187,
+    "baselineY": 416,
+    "centerXRatio": 0.5,
+    "visibleHeightRatio": 0.58,
+    "baselineBottomRatio": 0.05
+  },
+  "trustedRuntime": {
+    "scriptedSvgFiles": [
+      "hamster-attention.svg",
+      "hamster-dozing.svg",
+      "hamster-error.svg",
+      "hamster-idle-glasses-push.svg",
+      "hamster-idle-to-dozing.svg",
+      "hamster-idle-to-sleeping.svg",
+      "hamster-idle.svg",
+      "hamster-mini-alert.svg",
+      "hamster-mini-enter-sleep.svg",
+      "hamster-mini-enter.svg",
+      "hamster-mini-happy.svg",
+      "hamster-mini-idle.svg",
+      "hamster-mini-peek.svg",
+      "hamster-mini-sleep.svg",
+      "hamster-notification.svg",
+      "hamster-sleeping-to-wake-up.svg",
+      "hamster-sleeping.svg",
+      "hamster-thinking.svg",
+      "hamster-working-2session.svg",
+      "hamster-working-3session-idle-half.svg",
+      "hamster-working-3session.svg",
+      "hamster-working.svg"
+    ],
+    "scriptedSvgCycleMs": {
+      "hamster-attention.svg": 3660,
+      "hamster-dozing.svg": 5600,
+      "hamster-error.svg": 4000,
+      "hamster-idle-glasses-push.svg": 5200,
+      "hamster-idle-to-dozing.svg": 3400,
+      "hamster-idle-to-sleeping.svg": 3400,
+      "hamster-idle.svg": 5000,
+      "hamster-mini-alert.svg": 2600,
+      "hamster-mini-enter-sleep.svg": 1100,
+      "hamster-mini-enter.svg": 1100,
+      "hamster-mini-happy.svg": 3600,
+      "hamster-mini-idle.svg": 5000,
+      "hamster-mini-peek.svg": 1500,
+      "hamster-mini-sleep.svg": 5600,
+      "hamster-notification.svg": 3333,
+      "hamster-sleeping-to-wake-up.svg": 3400,
+      "hamster-sleeping.svg": 5600,
+      "hamster-thinking.svg": 6000,
+      "hamster-working-2session.svg": 10400,
+      "hamster-working-3session-idle-half.svg": 12000,
+      "hamster-working-3session.svg": 12000,
+      "hamster-working.svg": 4200
+    }
+  },
+  "rendering": {
+    "svgChannel": "auto"
+  },
+  "eyeTracking": {
+    "enabled": false,
+    "states": []
+  },
+  "states": {
+    "idle": [
+      "hamster-idle.svg"
+    ],
+    "yawning": [
+      "hamster-idle-to-dozing.svg"
+    ],
+    "dozing": [
+      "hamster-dozing.svg"
+    ],
+    "collapsing": [
+      "hamster-idle-to-sleeping.svg"
+    ],
+    "thinking": [
+      "hamster-thinking.svg"
+    ],
+    "working": [
+      "hamster-working.svg"
+    ],
+    "juggling": [
+      "hamster-working-2session.svg"
+    ],
+    "attention": [
+      "hamster-attention.svg"
+    ],
+    "notification": [
+      "hamster-notification.svg"
+    ],
+    "error": [
+      "hamster-error.svg"
+    ],
+    "sweeping": [
+      "hamster-working.svg"
+    ],
+    "carrying": [
+      "hamster-working.svg"
+    ],
+    "sleeping": [
+      "hamster-sleeping.svg"
+    ],
+    "waking": [
+      "hamster-sleeping-to-wake-up.svg"
+    ],
+    "working-3session-idle-half": [
+      "hamster-working-3session-idle-half.svg"
+    ]
+  },
+  "sleepSequence": {
+    "mode": "full"
+  },
+  "workingTiers": [
+    {
+      "minSessions": 3,
+      "file": "hamster-working-3session.svg"
+    },
+    {
+      "minSessions": 2,
+      "file": "hamster-working-2session.svg"
+    },
+    {
+      "minSessions": 1,
+      "file": "hamster-working.svg"
+    }
+  ],
+  "jugglingTiers": [
+    {
+      "minSessions": 2,
+      "file": "hamster-working-3session.svg"
+    },
+    {
+      "minSessions": 1,
+      "file": "hamster-working-2session.svg"
+    }
+  ],
+  "idleAnimations": [
+    {
+      "file": "hamster-idle-glasses-push.svg",
+      "duration": 5200
+    }
+  ],
+  "displayHintMap": {
+    "clawd-working-building.svg": "hamster-working-3session.svg",
+    "clawd-working-typing.svg": "hamster-working.svg",
+    "clawd-headphones-groove.svg": "hamster-working-2session.svg",
+    "clawd-working-juggling.svg": "hamster-working-2session.svg",
+    "clawd-working-conducting.svg": "hamster-working-3session.svg",
+    "clawd-working-thinking.svg": "hamster-thinking.svg"
+  },
+  "updateVisuals": {
+    "checking": "hamster-thinking.svg"
+  },
+  "timings": {
+    "minDisplay": {
+      "attention": 3660,
+      "error": 5000,
+      "sweeping": 5500,
+      "notification": 3333,
+      "carrying": 4200,
+      "working": 1000,
+      "thinking": 1000
+    },
+    "autoReturn": {
+      "attention": 3660,
+      "error": 5000,
+      "sweeping": 300000,
+      "notification": 3333,
+      "carrying": 4200
+    },
+    "yawnDuration": 3400,
+    "collapseDuration": 3400,
+    "wakeDuration": 3400,
+    "dndSleepTransitionSvg": "hamster-idle-to-sleeping.svg",
+    "dndSleepTransitionDuration": 3400,
+    "deepSleepTimeout": 600000,
+    "mouseIdleTimeout": 20000,
+    "mouseSleepTimeout": 60000
+  },
+  "hitBoxes": {
+    "default": {
+      "x": 20,
+      "y": 0,
+      "w": 335,
+      "h": 423
+    },
+    "sleeping": {
+      "x": 0,
+      "y": 20,
+      "w": 380,
+      "h": 390
+    },
+    "wide": {
+      "x": -170,
+      "y": -125,
+      "w": 710,
+      "h": 560
+    }
+  },
+  "wideHitboxFiles": [
+    "hamster-attention.svg",
+    "hamster-error.svg",
+    "hamster-notification.svg",
+    "hamster-working-2session.svg",
+    "hamster-working-3session.svg",
+    "hamster-working-3session-idle-half.svg"
+  ],
+  "sleepingHitboxFiles": [
+    "hamster-dozing.svg",
+    "hamster-idle-to-dozing.svg",
+    "hamster-idle-to-sleeping.svg",
+    "hamster-sleeping-to-wake-up.svg",
+    "hamster-sleeping.svg"
+  ],
+  "miniMode": {
+    "supported": true,
+    "offsetRatio": 0.486,
+    "viewBox": {
+      "x": -53,
+      "y": -10,
+      "width": 480,
+      "height": 480
+    },
+    "states": {
+      "mini-idle": [
+        "hamster-mini-idle.svg"
+      ],
+      "mini-alert": [
+        "hamster-mini-alert.svg"
+      ],
+      "mini-happy": [
+        "hamster-mini-happy.svg"
+      ],
+      "mini-enter": [
+        "hamster-mini-enter.svg"
+      ],
+      "mini-peek": [
+        "hamster-mini-peek.svg"
+      ],
+      "mini-working": [
+        "hamster-mini-idle.svg"
+      ],
+      "mini-crabwalk": [
+        "hamster-mini-idle.svg"
+      ],
+      "mini-enter-sleep": [
+        "hamster-mini-enter-sleep.svg"
+      ],
+      "mini-sleep": [
+        "hamster-mini-sleep.svg"
+      ]
+    },
+    "timings": {
+      "minDisplay": {
+        "mini-alert": 2600,
+        "mini-happy": 3600,
+        "mini-peek": 1500
+      },
+      "autoReturn": {
+        "mini-alert": 2600,
+        "mini-happy": 3600,
+        "mini-peek": 1500
+      }
+    },
+    "glyphFlips": {}
+  },
+  "renderCanvas": {
+    "fileRatios": {
+      "hamster-working-2session.svg": {
+        "widthRatio": 1.55,
+        "anchorX": 0.5
+      },
+      "hamster-working-3session.svg": {
+        "widthRatio": 1.55,
+        "anchorX": 0.5
+      },
+      "hamster-working-3session-idle-half.svg": {
+        "widthRatio": 1.55,
+        "anchorX": 0.5
+      }
+    }
+  },
+  "objectScale": {
+    "widthRatio": 1,
+    "heightRatio": 1,
+    "imgWidthRatio": 1,
+    "offsetX": 0,
+    "offsetY": 0,
+    "imgOffsetX": 0,
+    "objBottom": 0.05,
+    "imgBottom": 0.05,
+    "fileScales": {
+      "hamster-idle-glasses-push.svg": 1.064,
+      "hamster-attention.svg": 0.924,
+      "hamster-sleeping.svg": 0.947,
+      "hamster-dozing.svg": 0.947,
+      "hamster-error.svg": 0.964,
+      "hamster-sleeping-to-wake-up.svg": 0.947,
+      "hamster-notification.svg": 0.92
+    }
+  }
+}

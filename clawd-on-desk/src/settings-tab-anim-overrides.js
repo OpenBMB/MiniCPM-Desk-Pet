@@ -629,6 +629,14 @@
     return true;
   }
 
+  function applyPreviewCanvasWidth(parent, item, baseWidth) {
+    const ratio = item && Number.isFinite(item.previewCanvasWidthRatio)
+      ? Math.max(1, Math.min(3, item.previewCanvasWidthRatio))
+      : 1;
+    if (!parent || ratio <= 1) return;
+    parent.style.width = `${Math.round(baseWidth * ratio)}px`;
+  }
+
   function captureAssetPickerScrollState() {
     if (!runtime.assetPicker.state) return;
     const list = document.querySelector(".asset-picker-list");
@@ -1330,6 +1338,7 @@
     const thumb = document.createElement("div");
     thumb.className = "anim-override-thumb";
     thumb.title = t("animOverridesPreview");
+    applyPreviewCanvasWidth(thumb, card, 40);
     if (!appendAnimationPreviewMedia(thumb, getCardPreviewUrl(card)) && (card.previewPosterPending || card.needsScriptedPreviewPoster)) {
       appendAnimationPreviewPending(thumb);
     }
@@ -1585,6 +1594,7 @@
     const bigPreview = document.createElement("div");
     bigPreview.className = "anim-override-drawer-preview";
     bigPreview.title = t("animOverridesPreview");
+    applyPreviewCanvasWidth(bigPreview, card, 120);
     if (!appendAnimationPreviewMedia(bigPreview, getCardPreviewUrl(card)) && (card.previewPosterPending || card.needsScriptedPreviewPoster)) {
       appendAnimationPreviewPending(bigPreview);
     }

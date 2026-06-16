@@ -5,10 +5,14 @@ const defaultPath = require("path");
 const { pathToFileURL } = require("url");
 const defaultAnimationCycle = require("./animation-cycle");
 const { ANIMATION_OVERRIDES_EXPORT_VERSION } = require("./settings-actions");
+const {
+  getRenderCanvasForFile,
+  renderCanvasCacheSignature,
+} = require("./render-canvas");
 
 const ANIMATION_OVERRIDE_ASSET_EXTS = new Set([".svg", ".gif", ".apng", ".png", ".webp", ".jpg", ".jpeg"]);
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE = { width: 176, height: 144 };
-const ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION = 2;
+const ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION = 3;
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_CACHE_MAX = 192;
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_TIMEOUT_MS = 30000;
 const ASPECT_RATIO_WARN_THRESHOLD = 0.15;
@@ -113,15 +117,19 @@ function buildAnimationPreviewPosterDescriptor(filename, theme, absPath, { fs = 
     const stat = fs.statSync(absPath);
     const themeId = theme && theme._id ? theme._id : "theme";
     const safeFilename = path.basename(filename);
+    const renderCanvas = getRenderCanvasForFile(theme, safeFilename);
+    const canvasSignature = renderCanvasCacheSignature(theme, safeFilename);
     return {
       themeId,
       filename: safeFilename,
       absPath,
       fileUrl: buildFileUrl(absPath),
+      renderCanvas,
+      canvasSignature,
       posterVersion: ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION,
       size: stat.size,
       mtime: Math.round(stat.mtimeMs),
-      cacheKey: `${ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION}|${themeId}|${safeFilename}|${stat.size}|${Math.round(stat.mtimeMs)}`,
+      cacheKey: `${ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION}|${themeId}|${safeFilename}|${stat.size}|${Math.round(stat.mtimeMs)}|${canvasSignature}`,
     };
   } catch {
     return null;
@@ -332,6 +340,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
         needsScriptedPreviewPoster: false,
         previewPosterCacheKey: null,
         previewPosterPending: false,
+        previewRenderCanvas: null,
+        previewCanvasWidthRatio: 1,
       };
     }
 
@@ -343,6 +353,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
       needsScriptedPreviewPoster: true,
       previewPosterCacheKey: descriptor ? descriptor.cacheKey : null,
       previewPosterPending: !!(descriptor && !cachedPoster),
+      previewRenderCanvas: descriptor ? descriptor.renderCanvas : null,
+      previewCanvasWidthRatio: descriptor && descriptor.renderCanvas ? descriptor.renderCanvas.widthRatio : 1,
     };
   }
 
@@ -412,20 +424,37 @@ function createSettingsAnimationOverridesMain(options = {}) {
     animationOverridePreviewPosterReady = null;
   }
 
-  async function captureAnimationPreviewPosterDataUrl(fileUrl) {
+  function getAnimationPreviewPosterCaptureSize(renderCanvas = null) {
+    const widthRatio = renderCanvas && Number.isFinite(renderCanvas.widthRatio)
+      ? Math.max(1, Math.min(3, renderCanvas.widthRatio))
+      : 1;
+    return {
+      width: Math.round(ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.width * widthRatio),
+      height: ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.height,
+    };
+  }
+
+  async function captureAnimationPreviewPosterDataUrl(fileUrl, renderCanvas = null) {
     if (!fileUrl) return null;
     const capture = async () => {
       const posterWindow = await ensureAnimationPreviewPosterPage();
       if (!posterWindow || posterWindow.isDestroyed()) return null;
+      const captureSize = getAnimationPreviewPosterCaptureSize(renderCanvas);
+      if (typeof posterWindow.setContentSize === "function") {
+        posterWindow.setContentSize(captureSize.width, captureSize.height);
+      }
       const webContents = posterWindow.webContents;
       if (!webContents || webContents.isDestroyed()) return null;
-      await webContents.executeJavaScript(`window.renderAnimationPreviewPoster(${JSON.stringify(fileUrl)})`, true);
+      await webContents.executeJavaScript(
+        `window.renderAnimationPreviewPoster(${JSON.stringify(fileUrl)}, ${JSON.stringify(renderCanvas || null)})`,
+        true
+      );
       await animationPreviewDelay(20);
       const image = await webContents.capturePage({
         x: 0,
         y: 0,
-        width: ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.width,
-        height: ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.height,
+        width: captureSize.width,
+        height: captureSize.height,
       });
       return image && typeof image.toDataURL === "function" ? image.toDataURL() : null;
     };
@@ -488,7 +517,7 @@ function createSettingsAnimationOverridesMain(options = {}) {
         return;
       }
 
-      const previewImageUrl = await captureAnimationPreviewPosterDataUrl(job.fileUrl);
+      const previewImageUrl = await captureAnimationPreviewPosterDataUrl(job.fileUrl, job.renderCanvas);
       if (!previewImageUrl) return;
       rememberAnimationPreviewPosterCache(job.previewPosterCacheKey, previewImageUrl);
       sendAnimationPreviewPosterReady(job, previewImageUrl);
@@ -521,7 +550,7 @@ function createSettingsAnimationOverridesMain(options = {}) {
     if (!webContents || !data || !data.theme || !data.theme.id) return;
     const themeId = data.theme.id;
     const generationId = animationOverridePreviewPosterGenerationId;
-    const enqueue = (filename, fileUrl, previewPosterCacheKey, previewPosterPending) => {
+    const enqueue = (filename, fileUrl, previewPosterCacheKey, previewPosterPending, renderCanvas) => {
       if (previewPosterPending !== true) return;
       if (!filename || !fileUrl || !previewPosterCacheKey) return;
       enqueueAnimationPreviewPosterJob({
@@ -529,18 +558,26 @@ function createSettingsAnimationOverridesMain(options = {}) {
         filename: path.basename(filename),
         fileUrl,
         previewPosterCacheKey,
+        renderCanvas: renderCanvas || null,
         generationId,
       });
     };
     for (const asset of data.assets || []) {
-      enqueue(asset && asset.name, asset && asset.fileUrl, asset && asset.previewPosterCacheKey, asset && asset.previewPosterPending);
+      enqueue(
+        asset && asset.name,
+        asset && asset.fileUrl,
+        asset && asset.previewPosterCacheKey,
+        asset && asset.previewPosterPending,
+        asset && asset.previewRenderCanvas
+      );
     }
     for (const card of data.cards || []) {
       enqueue(
         card && card.currentFile,
         card && card.currentFileUrl,
         card && card.currentFilePreviewPosterCacheKey,
-        card && card.previewPosterPending
+        card && card.previewPosterPending,
+        card && card.previewRenderCanvas
       );
     }
   }
@@ -628,6 +665,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
           needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
           previewPosterCacheKey: preview.previewPosterCacheKey,
           previewPosterPending: preview.previewPosterPending,
+          previewRenderCanvas: preview.previewRenderCanvas,
+          previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
           ext,
           cycleMs: Number.isFinite(probe && probe.assetCycleMs) && probe.assetCycleMs > 0 ? probe.assetCycleMs : null,
           cycleStatus: (probe && probe.assetCycleStatus) || "unavailable",
@@ -709,6 +748,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
         needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
         currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
         previewPosterPending: preview.previewPosterPending,
+        previewRenderCanvas: preview.previewRenderCanvas,
+        previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
         bindingLabel: `${tierGroup}[${originalFile}]`,
         transition: readResolvedTransition(tier.file),
         transitionThemeDefault: readThemeDefaultTransition(tier.file),
@@ -799,6 +840,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
       needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
       currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
       previewPosterPending: preview.previewPosterPending,
+      previewRenderCanvas: preview.previewRenderCanvas,
+      previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
       bindingLabel: fallbackTargetState
         ? `${bindingPathPrefix}.${stateKey}.fallbackTo -> ${fallbackTargetState}`
         : `${bindingPathPrefix}.${stateKey}[0]`,
@@ -850,6 +893,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
           needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
           currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
           previewPosterPending: preview.previewPosterPending,
+          previewRenderCanvas: preview.previewRenderCanvas,
+          previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
           bindingLabel: `idleAnimations[${index}] (${originalFile})`,
           transition: readResolvedTransition(entry.file),
           transitionThemeDefault: readThemeDefaultTransition(entry.file),
@@ -903,6 +948,8 @@ function createSettingsAnimationOverridesMain(options = {}) {
         needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
         currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
         previewPosterPending: preview.previewPosterPending,
+        previewRenderCanvas: preview.previewRenderCanvas,
+        previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
         bindingLabel: `reactions.${spec.key}`,
         transition: readResolvedTransition(currentFile),
         transitionThemeDefault: readThemeDefaultTransition(currentFile),

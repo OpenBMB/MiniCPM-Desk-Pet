@@ -1,0 +1,2457 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-74 -82 536 530" role="img" aria-labelledby="task-complete-loop-v2-title task-complete-loop-v2-desc" preserveAspectRatio="xMidYMid meet" style="overflow: visible;" id="hamster-task-complete-loop-v2" data-export="task-complete-loop-v2">
+<title id="task-complete-loop-v2-title">Hamster task complete loop v1</title>
+<desc id="task-complete-loop-v2-desc">Task-complete hamster celebrates with a left-right happy hop while a task-list clipboard tells the story: empty list pops in, three checkboxes tick off fast, the list settles into one big soft-green check, confetti bursts once and golden stars ramp in then twinkle. Board and stars hold with the hop afterwards. v2 replaces the v1 standalone giant checkmark (鹿鹿 2026-06-12, reverse-port of mini-happy board theater).</desc>
+<metadata id="task-complete-loop-v2-metadata"><![CDATA[
+{
+  "mode": "task-complete-loop-v2",
+  "source": "drafts/task-complete-motion-v1/pose-tuner-v1/hamster-task-complete-board-tuner-v1.html",
+  "exportDate": "2026-06-12",
+  "viewBox": "-74 -82 536 530",
+  "animation": "two-frame left/right celebration hop; one-shot task-list board theater (empty list pops, three ticks draw fast, list settles into one big soft-green check, confetti bursts once, stars ramp in then twinkle); board holds with the hop afterwards",
+  "accepted": {
+    "faceLeftLanding": {
+      "faceYaw": 32,
+      "facePitch": 0
+    },
+    "faceRightLanding": {
+      "faceYaw": -10,
+      "facePitch": 30
+    },
+    "mouth": {
+      "mouthHalfW": 6,
+      "mouthDoorInset": 8.5,
+      "mouthDoorRound": 13,
+      "mouthBottomY": 219.5,
+      "mouthSideY": 200
+    },
+    "arms": {
+      "leftLanding": {
+        "leftArmAngle": 200,
+        "rightArmAngle": -28
+      },
+      "rightLanding": {
+        "leftArmAngle": 208,
+        "rightArmAngle": -19
+      },
+      "pawSeamCurve": 2.2
+    },
+    "tie": {
+      "tieGravity": 1,
+      "leftLandingSway": 3,
+      "rightLandingSway": -2
+    },
+    "board": {
+      "x": 352,
+      "y": 64,
+      "scale": 1.05,
+      "rotate": -5,
+      "tickGap": 0.3,
+      "tickDur": 0.18,
+      "tickKick": 1.6,
+      "tickColor": "#e25555",
+      "doneColor": "#7fb069",
+      "doneStroke": 7,
+      "holdY": 3,
+      "holdRotate": 1.1,
+      "holdScale": 0.01,
+      "holdLag": 0.08
+    },
+    "confetti": "8 deterministic chips burst once at list-settle (#f8aaa2/#a8cfe8/#f6d98b/#b5d9a8)",
+    "stars": "ramp in 0.45s after list settles (no longer always-on), then twinkle; repositioned to avoid the board",
+    "glassesStars": "left white star only, anchored to left sunglass lens"
+  }
+}
+]]></metadata>
+<style id="task-complete-loop-v2-export-style"><![CDATA[
+:root { width: 100%; height: 100%; }
+#hamster-task-complete-loop-v2 { overflow: visible; }
+]]></style>
+
+
+
+
+  <defs>
+    <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"></feGaussianBlur>
+      <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"></feFlood>
+      <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"></feComposite>
+      <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"></feOffset>
+      <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"></feGaussianBlur>
+      <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"></feFlood>
+      <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"></feComposite>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"></feMergeNode>
+        <feMergeNode in="halo"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  <clipPath id="task-complete-blush-clip" clipPathUnits="userSpaceOnUse"><path id="task-complete-blush-clip-path" d="M65 158.05 C73.658 159.197 124.475 167.488 137.15 167.61 C148.016 167.715 165.304 160.604 170.631 159.07 C175.958 157.536 184.918 152.344 188.938 152.7 C192.957 153.056 204.449 160.989 209.708 162.53 C214.967 164.071 229.851 168.141 240.065 167.68 C251.98 167.142 300.728 159.206 309 158.05 C330.823 182.232 335.771 222.073 303.033 245.546 C270.16 267.536 103.84 267.536 70.967 245.546 C37.953 222.114 42.961 182.191 65 158.05Z"></path></clipPath><clipPath id="task-complete-mouth-opening-clip" clipPathUnits="userSpaceOnUse"><path id="mouth-opening-clip-path" d="M 163 192.18 C 163 195.18 166 198.18 171 198.18 C 180 198.18 187 190.18 187 177.18 C 187 190.18 194 198.18 203 198.18 C 208 198.18 211 195.18 211 192.18 C 211 216.58 193 219.5 187 219.5 C 181 219.5 163 216.58 163 192.18 Z"></path></clipPath><clipPath id="task-complete-mouth-door-clip" clipPathUnits="userSpaceOnUse"><path id="mouth-door-clip-path" d="M 171.5 166 L 202.5 166 L 202.5 206.5 C 202.5 215.86 193 217.55 193 219.5 L 193 292 L 181 292 L 181 219.5 C 181 217.55 171.5 215.86 171.5 206.5 L 171.5 166 Z"></path></clipPath></defs>
+
+  <style>
+    #hamster-flat-master-v11 {
+      transform-box: view-box;
+      transform-origin: 187px 230px;
+    }
+
+    #left-foot { transform-box: view-box; transform-origin: 104px 405px; }
+    #right-foot { transform-box: view-box; transform-origin: 270px 405px; }
+    #left-hand { transform-box: view-box; transform-origin: 118px 257px; }
+    #right-hand { transform-box: view-box; transform-origin: 256px 257px; }
+    #left-ear { transform-box: view-box; transform-origin: 101px 73px; }
+    #right-ear { transform-box: view-box; transform-origin: 286px 73px; }
+    #body-belly { transform-box: view-box; transform-origin: 187px 322px; }
+    #head-cap { transform-box: view-box; transform-origin: 187px 153px; }
+    #cheek-muzzle { transform-box: view-box; transform-origin: 187px 208px; }
+    #head-tufts { transform-box: view-box; transform-origin: 198px 48px; }
+    #left-eye { transform-box: view-box; transform-origin: 138px 157px; }
+    #right-eye { transform-box: view-box; transform-origin: 237px 157px; }
+    #left-brow { transform-box: view-box; transform-origin: 140px 116px; }
+    #right-brow { transform-box: view-box; transform-origin: 234px 116px; }
+    #left-blush { transform-box: view-box; transform-origin: 92px 185px; }
+    #right-blush { transform-box: view-box; transform-origin: 281px 185px; }
+    #nose-mouth { transform-box: view-box; transform-origin: 187px 177px; }
+    #tie { transform-box: view-box; transform-origin: 187px 263px; }
+    #sunglasses { transform-box: view-box; transform-origin: 187px 157px; }
+  </style>
+
+  <g id="hamster-flat-master-v11" data-source="hamster-flat-layered-v10-soft-lift.svg" data-effect="soft-lift" data-adjustment="centered-face-and-tie" filter="url(#soft-lift)" fill-rule="evenodd" clip-rule="evenodd">
+    <g id="task-complete-bg-stars" data-layer="task-complete-background-stars" style="pointer-events: none;"><g id="bg-star-top" data-role="background-sparkle" data-offset="0.08" data-speed="0.62" data-base-opacity="0.32" data-alpha="0.5" data-x="240" data-y="-12" opacity="0" transform="translate(240 -12) scale(0.594)" style="transform-box: view-box; transform-origin: 0px 0px;"><path d="M 0 -16.56 L 3.97 -3.97 L 16.56 0 L 3.97 3.97 L 0 16.56 L -3.97 3.97 L -16.56 0 L -3.97 -3.97 Z" fill="#fff7c6" opacity=".3" data-role="sparkle-glow"></path><path d="M 0 -12 L 2.88 -2.88 L 12 0 L 2.88 2.88 L 0 12 L -2.88 2.88 L -12 0 L -2.88 -2.88 Z" fill="#f6bd3b" stroke="#fff0a8" stroke-width="1.92" stroke-linejoin="round" data-role="sparkle-fill"></path></g><g id="bg-star-right" data-role="background-sparkle" data-offset="0.42" data-speed="0.58" data-base-opacity="0.26" data-alpha="0.46" data-x="424" data-y="240" opacity="0" transform="translate(424 240) scale(0.544)" style="transform-box: view-box; transform-origin: 0px 0px;"><path d="M 0 -15.18 L 3.64 -3.64 L 15.18 0 L 3.64 3.64 L 0 15.18 L -3.64 3.64 L -15.18 0 L -3.64 -3.64 Z" fill="#fff7c6" opacity=".3" data-role="sparkle-glow"></path><path d="M 0 -11 L 2.64 -2.64 L 11 0 L 2.64 2.64 L 0 11 L -2.64 2.64 L -11 0 L -2.64 -2.64 Z" fill="#f6bd3b" stroke="#fff0a8" stroke-width="1.76" stroke-linejoin="round" data-role="sparkle-fill"></path></g><g id="bg-star-lower" data-role="background-sparkle" data-offset="0.72" data-speed="0.68" data-base-opacity="0.22" data-alpha="0.4" data-x="330" data-y="196" opacity="0" transform="translate(330 196) scale(0.429)" style="transform-box: view-box; transform-origin: 0px 0px;"><path d="M 0 -8.97 L 2.15 -2.15 L 8.97 0 L 2.15 2.15 L 0 8.97 L -2.15 2.15 L -8.97 0 L -2.15 -2.15 Z" fill="#fff7c6" opacity=".3" data-role="sparkle-glow"></path><path d="M 0 -6.5 L 1.56 -1.56 L 6.5 0 L 1.56 1.56 L 0 6.5 L -1.56 1.56 L -6.5 0 L -1.56 -1.56 Z" fill="#f6bd3b" stroke="#fff0a8" stroke-width="1.04" stroke-linejoin="round" data-role="sparkle-fill"></path></g></g><g id="tail" data-part="tail" data-layer="behind-body" data-desc="hamster short tail, circle; resting at body center (behind belly), revealed by turn pages sliding sideways" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px; display: none;" transform="rotate(6.62 257.18 328) translate(18.1 -26)">
+      <circle id="tail-fill" cx="187" cy="356" r="22" fill="#d8a686"></circle>
+    </g>
+    <g id="feet-layer" data-layer="behind-body">
+      <g id="left-foot" data-part="left-foot" data-origin="104 405">
+        <path id="left-foot-fill" data-part="foot-with-hidden-leg" d="M98.895 337.151 C92.845 331.144 84.803 330.047 77.376 332.641 C68.636 335.844 69.064 345.207 76.526 352.953 C84.955 360.841 98.258 362.15 108.196 356.009 C116.829 350.467 110.78 344.47 98.895 337.151 Z" fill="#d8a686"></path>
+      </g>
+      <g id="right-foot" data-part="right-foot" data-origin="270 405">
+        <path id="right-foot-fill" data-part="foot-with-hidden-leg" d="M263.007 367.129 C268.447 361.016 275.325 364.773 281.489 374.499 C288.728 386.176 287.877 402.063 281.148 410.197 C272.577 414.439 262.24 410.77 254.138 393.171 C247.112 377.523 252.552 371.41 263.007 367.129 Z" fill="#d8a686"></path>
+      </g>
+    </g>
+
+    <g id="body-layer" data-layer="body" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px;" transform="rotate(6.62 257.18 328) translate(18.1 -26)">
+      <g id="body-belly" data-part="body-belly" data-origin="187 322">
+        <path id="body-belly-fill" d="M187 200 C113 200 60 251 60 322 C60 380 101 412 187 412 C273 412 314 380 314 322 C314 251 261 200 187 200Z" fill="#fff8f0"></path>
+      </g>
+    </g>
+
+    <g id="tie" data-part="tie" data-origin="187 263" transform="rotate(6.62 257.18 328) translate(18.1 -26) translate(153 260)" data-pose-base="translate(153 260)" style="transform-box: view-box; transform-origin: 0px 0px; opacity: 1;">
+
+      <g id="tie-blade-gravity" data-role="task-complete-tie-blade-gravity" transform="rotate(-8.32 34 24)" data-world-sway="-1.71"><path id="tie-shadow" d="M24 27 L44 27 L54 68 C55 72.5 53 76 49 80 L38 93 C35.5 96 31 96 28.5 93 L17.5 80 C14 76 13 72.5 14.5 68 Z" fill="#000000" opacity=".08" transform="translate(2 2)"></path><path id="tie-blade" d="M24 24 L44 24 L54 66 C55 70.5 53 74 49 78 L38 91 C35.5 94 31 94 28.5 91 L17.5 78 C14 74 13 70.5 14.5 66 Z" fill="#21201e" stroke="#151515" stroke-width="2" stroke-linejoin="round"></path><path id="tie-center-fold" d="M34 28 L34 84" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".07"></path><path id="tie-left-fold" d="M27 28 L21 64" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" opacity=".18"></path></g><path id="tie-knot" d="M23 3 L44 3 L51 14 L44 25 L23 25 L16 14 Z" fill="#2d2c29" stroke="#151515" stroke-width="2" stroke-linejoin="round"></path>
+
+      <path id="tie-knot-highlight" d="M26 8 L40 8" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".12"></path>
+
+
+    </g>
+
+    <g id="hands-layer" data-layer="hands" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px;" transform="rotate(6.62 257.18 328) translate(18.1 -26)">
+      <g id="left-hand" data-part="left-hand" data-origin="118 257" style="transform-box: view-box; transform-origin: 0px 0px;"><path id="left-shoulder-inset" data-part="left-shoulder-inset" d="" style="display: none;"></path>
+        <path id="left-hand-base" d="M124.6 268.75 L97 257 L50.48 237.2 L18.92 213.55" fill="none" stroke="#fff8f0" stroke-width="43" stroke-linecap="round" stroke-linejoin="round" data-motion="fk-upper-forearm-round-stroke"></path>
+        <path id="left-paw-tip" d="M29.06 194.59 L14.71 186.91 C6.57 182.57 -4.59 187.53 -10.18 197.99 C-15.77 208.44 -13.7 220.49 -5.57 224.83 L8.78 232.51 C26.49 231.03 37.66 210.13 29.06 194.59 Z" fill="#d8a686" data-motion="rigid-v18-paw-tip-on-wrist"></path>
+      </g>
+      <g id="right-hand" data-part="right-hand" data-origin="256 257" style="transform-box: view-box; transform-origin: 0px 0px;"><path id="right-shoulder-inset" data-part="right-shoulder-inset" d="" style="display: none;"></path>
+        <path id="right-hand-base" d="M247.13 260.15 L276 252 L324.66 238.26 L361.63 221.87" fill="none" stroke="#fff8f0" stroke-width="43" stroke-linecap="round" stroke-linejoin="round" data-motion="fk-upper-forearm-round-stroke"></path>
+        <path id="right-paw-tip" d="M352.61 202.35 L367.39 195.53 C375.76 191.66 386.62 197.27 391.59 208.04 C396.56 218.8 393.79 230.7 385.42 234.57 L370.64 241.39 C353.06 238.89 343.11 217.37 352.61 202.35 Z" fill="#d8a686" data-motion="rigid-v18-paw-tip-on-wrist"></path>
+      </g>
+    </g>
+
+    <g id="ears-layer" data-layer="ears" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px;" transform="rotate(6.62 257.18 328) translate(18.1 -26)">
+      <g id="left-ear" data-part="left-ear" data-origin="101 73">
+        <circle id="left-ear-outer" cx="101" cy="73" r="34" fill="#d8a686"></circle>
+        <circle id="left-ear-inner" cx="101" cy="73" r="18" fill="#f8b2aa"></circle>
+      </g>
+      <g id="right-ear" data-part="right-ear" data-origin="286 73">
+        <circle id="right-ear-outer" cx="286" cy="73" r="34" fill="#d8a686"></circle>
+        <circle id="right-ear-inner" cx="286" cy="73" r="18" fill="#f8b2aa"></circle>
+      </g>
+    </g>
+
+    <g id="head-tufts" data-part="head-tufts" data-origin="198 48" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px;" transform="rotate(6.62 257.18 328) translate(18.1 -26)">
+      <path id="left-tuft" d="M182 49 C184 35 187 24 192 15" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round"></path>
+      <path id="right-tuft" d="M200 50 C203 34 208 24 214 16" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round"></path>
+    </g>
+
+    <g id="head-layer" data-layer="head" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px;" transform="rotate(6.62 257.18 328) translate(18.1 -26)">
+      <g id="head-cap" data-part="head-cap" data-origin="187 153">
+        <path id="head-cap-fill" d="M64 153.667 C63.701 87.855 115.85 47.673 187 47.673 C257.975 47.702 309.966 87.88 310 153.667 C310 215.414 257 254.414 187 254.414 C117 254.414 64 215.414 64 153.667Z" fill="#edc8a5"></path>
+      </g>
+      <g id="cheek-muzzle" data-part="cheek-muzzle" data-origin="187 208">
+        <path id="cheek-muzzle-fill" d="M65 158.05 C73.658 159.197 124.475 167.488 137.15 167.61 C148.016 167.715 165.304 160.604 170.631 159.07 C175.958 157.536 184.918 152.344 188.938 152.7 C192.957 153.056 204.449 160.989 209.708 162.53 C214.967 164.071 229.851 168.141 240.065 167.68 C251.98 167.142 300.728 159.206 309 158.05 C330.823 182.232 335.771 222.073 303.033 245.546 C270.16 267.536 103.84 267.536 70.967 245.546 C37.953 222.114 42.961 182.191 65 158.05Z" fill="#fff8f0"></path>
+      </g>
+      <g id="cheek-creases" data-part="cheek-creases" opacity=".35">
+        <path id="left-cheek-crease" d="M62.301 237.897 C70.249 249.48 84.222 255.398 100.251 255.398" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"></path>
+        <path id="right-cheek-crease" d="M311.699 237.897 C303.751 249.48 289.778 255.398 273.749 255.398" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"></path>
+      </g>
+    <g id="task-complete-blush-clip-wrapper" data-layer="task-complete-blush-clip-host" clip-path="url(#task-complete-blush-clip)"><g id="task-complete-blush-transform" transform="translate(-0.753 4.753) translate(185.996 172) skewX(0) scale(1 1) translate(-185.996 -172)"><g id="blushes" data-part="blushes">
+        <ellipse id="left-blush" cx="92" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9" data-origin="92 185"></ellipse>
+        <ellipse id="right-blush" cx="281" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9" data-origin="281 185"></ellipse>
+      </g></g></g></g>
+
+    <g id="face-layer" data-layer="face" data-pose-base="" style="transform-box: view-box; transform-origin: 0px 0px;" transform="rotate(6.62 257.18 328) translate(18.1 -26)  translate(-0.753 4.751) translate(185.996 172) skewX(0) scale(1 1) translate(-185.996 -172)">
+      <g id="brows" data-part="brows" transform="translate(0 -3)">
+        <path id="left-brow" d="M127 116 C137 108 148 110 154 118" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round" data-origin="140 116"></path>
+        <path id="right-brow" d="M247 116 C237 108 226 110 220 118" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round" data-origin="234 116"></path>
+      </g>
+      <g id="eyes" data-part="eyes">
+        <ellipse id="left-eye" cx="138" cy="157" rx="12.5" ry="17" fill="#5a300f" data-origin="138 157"></ellipse>
+        <ellipse id="right-eye" cx="237" cy="157" rx="12.5" ry="17" fill="#5a300f" data-origin="237 157"></ellipse>
+      </g>
+      <g id="sunglasses" data-part="sunglasses" data-origin="187 157">
+        <g id="left-sunglass" data-part="left-sunglass">
+          <path id="left-sunglass-frame" d="M99.22 132 C114.76 125.7 144.16 126.96 166 131.58 C171.46 132.84 174.82 136.62 174.4 143.34 C171.88 170.22 152.98 187.44 129.46 187.44 C109.72 187.44 96.7 170.64 96.28 146.7 C96.28 139.56 94.18 134.52 99.22 132 Z M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"></path>
+          <path id="left-sunglass-lens" d="M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#16140f" opacity=".97"></path>
+          <path id="left-lens-main-shine" d="M151.96 135.36 L124.24 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"></path>
+          <path id="left-lens-small-shine" d="M161.62 140.82 L146.08 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"></path>
+        </g>
+        <g id="right-sunglass" data-part="right-sunglass">
+          <path id="right-sunglass-frame" d="M275.62 132 C260.08 125.7 230.68 126.96 208.84 131.58 C203.38 132.84 200.02 136.62 200.44 143.34 C202.96 170.22 221.86 187.44 245.38 187.44 C265.12 187.44 278.14 170.64 278.56 146.7 C278.56 139.56 280.66 134.52 275.62 132 Z M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"></path>
+          <path id="right-sunglass-lens" d="M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#16140f" opacity=".97"></path>
+          <path id="right-lens-main-shine" d="M255.64 135.36 L227.92 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"></path>
+          <path id="right-lens-small-shine" d="M265.3 140.82 L249.76 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"></path>
+        </g>
+        <path id="sunglasses-bridge" d="M173.98 144.18 C182.38 138.3 192.46 138.3 200.86 144.18" fill="none" stroke="#111111" stroke-width="4.2" stroke-linecap="round"></path>
+      <g id="task-complete-glasses-sparkles" data-layer="task-complete-glasses-sparkles" style="pointer-events: none;"><g id="glasses-star-left" data-role="glasses-sparkle" data-offset="0.14" data-speed="1.15" data-base-opacity="0.62" data-alpha="0.38" data-x="112" data-y="151" opacity="0" transform="translate(97.19 132.6) scale(0.429)" style="transform-box: view-box; transform-origin: 0px 0px;"><path d="M 0 -10.76 L 2.58 -2.58 L 10.76 0 L 2.58 2.58 L 0 10.76 L -2.58 2.58 L -10.76 0 L -2.58 -2.58 Z" fill="#ffffff" opacity=".42" data-role="sparkle-glow"></path><path d="M 0 -7.8 L 1.87 -1.87 L 7.8 0 L 1.87 1.87 L 0 7.8 L -1.87 1.87 L -7.8 0 L -1.87 -1.87 Z" fill="#ffffff" stroke="#ffffff" stroke-width="1.25" stroke-linejoin="round" data-role="sparkle-fill"></path></g></g></g>
+      <g id="nose-mouth" data-part="nose-mouth" data-origin="187 177" data-mouth-rig="task-complete-mask-opening"><ellipse id="nose-fill" cx="187" cy="170" rx="10" ry="7.5" fill="#7b4a23"></ellipse><g id="mouth-interior-clipped" data-role="task-complete-mouth-interior-clipped" clip-path="url(#task-complete-mouth-opening-clip)" opacity="1"><g id="mouth-door-clipped" data-role="task-complete-mouth-door-clipped" clip-path="url(#task-complete-mouth-door-clip)"><path id="mouth-inner-shade" fill="#5b221f" opacity=".36" d="M 162 205 C 162 180.25 212 180.25 212 205 C 212 234.7 162 234.7 162 205 Z"></path><path id="mouth-cavity-fill" fill="#8c2f2a" d="M 162 205 C 162 180.25 212 180.25 212 205 C 212 234.7 162 234.7 162 205 Z"></path><path id="mouth-lower-cavity-fill" fill="#f58d86" d="M 174 218 C 176.34 210 197.66 210 200 218 L 203.64 283.5 L 170.36 283.5 Z"></path></g></g><g id="mouth-visible-strokes" data-role="task-complete-mouth-visible-w-strokes"><path id="mouth-left" d="M187 177 C187 190 180 198 171 198 C166 198 163 195 163 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path><path id="mouth-right" d="M187 177 C187 190 194 198 203 198 C208 198 211 195 211 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path></g></g>
+    </g>
+
+  <g id="task-complete-board" data-layer="task-complete-one-shot-board" data-layer-order="above-hamster" transform="translate(352 64) rotate(-5) scale(1.05)" opacity="1" style="pointer-events: none; transform-box: view-box; transform-origin: 0px 0px;">
+      <rect id="board-back" x="-45" y="-58" width="90" height="116" rx="9" fill="#d8a686" stroke="#b98c6e" stroke-width="2.5"></rect>
+      <rect id="board-paper" x="-37" y="-46" width="74" height="96" rx="5" fill="#fff8f0" stroke="#ecdcc8" stroke-width="1.5"></rect>
+      <path id="board-clip-arch" d="M -8 -58 C -8 -67 8 -67 8 -58" fill="none" stroke="#8a5a3f" stroke-width="4.5" stroke-linecap="round"></path>
+      <rect id="board-clip-bar" x="-13" y="-62" width="26" height="9" rx="3.5" fill="#8a5a3f"></rect>
+      <g id="board-rows" fill="none" opacity="1">
+        <rect class="row-box" x="-29" y="-28.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"></rect>
+        <line class="row-text" x1="-10" y1="-22" x2="28" y2="-22" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"></line>
+        <rect class="row-box" x="-29" y="-2.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"></rect>
+        <line class="row-text" x1="-10" y1="4" x2="20" y2="4" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"></line>
+        <rect class="row-box" x="-29" y="23.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"></rect>
+        <line class="row-text" x1="-10" y1="30" x2="25" y2="30" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"></line>
+      </g>
+      <g id="board-ticks" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="1">
+        <path id="board-tick-1" d="M -26.6 -22.2 L -23.6 -18.8 L -17.6 -26.4" stroke-width="3" stroke="#e25555" stroke-dasharray="0 18.22"></path>
+        <path id="board-tick-2" d="M -26.6 3.8 L -23.6 7.2 L -17.6 -0.4" stroke-width="3" stroke="#e25555" stroke-dasharray="0 18.22"></path>
+        <path id="board-tick-3" d="M -26.6 29.8 L -23.6 33.2 L -17.6 25.6" stroke-width="3" stroke="#e25555" stroke-dasharray="0 18.22"></path>
+      </g>
+      <g id="board-done" opacity="0" transform="scale(0.7)">
+        <path id="board-done-under" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".25" stroke="#7fb069" stroke-width="12" stroke-dasharray="0 57.85"></path>
+        <path id="board-done-main" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="#7fb069" stroke-width="7" stroke-dasharray="0 57.85"></path>
+      </g></g><g id="task-complete-confetti" data-layer="task-complete-one-shot-confetti" style="pointer-events: none;"></g></g>
+
+<script><![CDATA[
+(() => {
+"use strict";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const MASTER_URL = "../../master/hamster-flat-layered-v18-noodle-hands.svg";
+  const PAGE_VIEWBOX = "-74 -82 536 530";
+  const MID = 187;
+  const LOOP_MOTION = {
+    landHold: 0.1,
+    landWindow: 0.18,
+    maxFrameDelta: 96,
+    hiddenFrameMs: 96,
+    leanBoost: 3.5,
+    tiltBoost: 1.1,
+    landSink: 2.6,
+    squashX: 0.014,
+    squashY: 0.018,
+    armLagDeg: 5.8,
+    armDropDeg: 4.2,
+    elbowSoftDeg: 2.6,
+    wristLagDeg: 8.2,
+    wristDropDeg: 5.8,
+    mouthPulseDelay: 0.055,
+    mouthPulseWidth: 0.12,
+    mouthBottomPulse: 1.25,
+    mouthInsetPulse: 1.1,
+    mouthHalfPulse: 0.45,
+    mouthRoundPulse: 0.75
+  };
+  const RFP = { x: 270, y: 405 };
+  const LFP = { x: 104, y: 405 };
+  const HIP_X_R = 246;
+  const HIP_FOOT_OFFSET = RFP.x - HIP_X_R;
+  const FOOT_TOP_Y = 389;
+  const RIGHT_FOOT_BASE_D = "M265 392 C273 389 281 391 287 396 C294 402 290 410 280 414 C269 418 256 414 249 405 C243 397 251 394 265 392 Z";
+  const FACE_BASE = {
+    cheekD: "M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z",
+    headCapD: "M64 153 C64 88 116 48 187 48 C258 48 310 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z",
+    leftCreaseD: "M62 238 C70 250 84 256 100 256",
+    rightCreaseD: "M312 238 C304 250 290 256 274 256"
+  };
+  const FACE_ANCHORS = {
+    A: { x: 65, y: 153 },
+    L: { x: 137.77, y: 162.56 },
+    C: { x: 171.37, y: 154.02 },
+    D: { x: 189.69, y: 147.65 },
+    E: { x: 210.43, y: 157.48 },
+    R: { x: 240.66, y: 162.63 },
+    G: { x: 309, y: 153 }
+  };
+  const FACE_TOP_CHAIN = ["A", "L", "C", "D", "E", "R", "G"];
+  const RIGHT_HEAD_CAP_D = "M64 153 C66.12 89.55 117.55 49.81 187 48 C267.24 48 328.48 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z";
+  const LEFT_HEAD_CAP_D = "M64 153 C45.52 88 106.76 48 187 48 C256.45 49.81 307.88 89.55 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z";
+  const FACE_FRONT_TAIL = [
+    [331, 178, 336, 221, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [38, 221, 43, 178, 65, 153]
+  ];
+  const FACE_LEFT_TAIL = [
+    [320.06, 180.73, 321.87, 218.27, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [35.12, 221, 40.6, 178, 65, 153]
+  ];
+  const FACE_RIGHT_TAIL = [
+    [333.4, 178, 338.88, 221, 303, 246],
+    [270, 268, 104, 268, 71, 246],
+    [52.13, 218.27, 53.94, 180.73, 65, 153]
+  ];
+  const PITCH_UP = { axis: -25.5, lower: 3.6, faceDy: -21.5, faceSy: 0.93, blushDy: -22.41 };
+  const PITCH_DOWN = { axis: 26, lower: -7.9, faceDy: 24.5, faceSy: 1, blushDy: 24.5 };
+  const MOUTH_BASE = {
+    nose: { cx: 187, cy: 170, rx: 10, ry: 7.5 },
+    mouthLeft: "M187 177 C187 190 180 198 171 198 C166 198 163 195 163 192",
+    mouthRight: "M187 177 C187 190 194 198 203 198 C208 198 211 195 211 192"
+  };
+  const MOUTH_OPENING = {
+    cx: 187,
+    cavityY: 205,
+    lowerCavityY: 218
+  };
+  const BROW_OFFSET = { x: 0, y: -3 };
+  const HAND_IDS = {
+    left: ["left-hand-base", "left-paw-tip"],
+    right: ["right-hand-base", "right-paw-tip"]
+  };
+  const PAW_TIP_SOURCE = {
+    left: {
+      dPrefix: "M8.5 249.5 L-9.5 249.5 C-19.7 249.5 -28 257.8 -28 268 C-28 278.2 -19.7 286.5 -9.5 286.5 L8.5 286.5",
+      seam: { x: 8.5, y: 268 },
+      tip: { x: -28, y: 268 }
+    },
+    right: {
+      dPrefix: "M365.5 249.5 L383.5 249.5 C393.7 249.5 402 257.8 402 268 C402 278.2 393.7 286.5 383.5 286.5 L365.5 286.5",
+      seam: { x: 365.5, y: 268 },
+      tip: { x: 402, y: 268 }
+    }
+  };
+  // 星位避让右上清单卡片（原 top(308,66)/right(390,136) 被卡片占位）
+  const BG_STAR_SPECS = [
+    { id: "bg-star-top", x: 240, y: -12, r: 12, offset: 0.08, speed: 0.62, base: 0.32, alpha: 0.5, fill: "#f6bd3b", stroke: "#fff0a8", glow: "#fff7c6" },
+    { id: "bg-star-right", x: 424, y: 240, r: 11, offset: 0.42, speed: 0.58, base: 0.26, alpha: 0.46, fill: "#f6bd3b", stroke: "#fff0a8", glow: "#fff7c6" },
+    { id: "bg-star-lower", x: 330, y: 196, r: 6.5, offset: 0.72, speed: 0.68, base: 0.22, alpha: 0.4, fill: "#f6bd3b", stroke: "#fff0a8", glow: "#fff7c6" }
+  ];
+  const GLASSES_STAR_SPECS = [
+    { id: "glasses-star-left", x: 112, y: 151, r: 7.8, offset: 0.14, speed: 1.15, base: 0.62, alpha: 0.38, fill: "#ffffff", stroke: "#ffffff", glow: "#ffffff", anchor: { id: "left-sunglass-lens", x: -0.18, y: -0.06 } }
+  ];
+  // 任务清单道具（mini-happy 反向移植，板局部坐标原点=板中心；勾/大勾色票同 mini-happy）
+  const TICK_PALETTES = ["#e25555", "#7b4a23", "#7fb069"];
+  const DONE_PALETTES = ["#7fb069", "#5cb85c", "#3da568"];
+  // 彩屑（确定性 SPECS 无 random；母版系坐标，撒在头顶与卡片之间）
+  const CONFETTI_SPECS = [
+    { x: 150, y: 30,  dx: -26, dy: -30, rot: -12, drot: -70, c: "#f8aaa2", w: 7,   h: 4,   delay: 0    },
+    { x: 268, y: 44,  dx: 24,  dy: -34, rot: 18,  drot: 80,  c: "#a8cfe8", w: 6,   h: 3.6, delay: 0.04 },
+    { x: 196, y: -4,  dx: -8,  dy: -38, rot: 30,  drot: 55,  c: "#f6d98b", w: 7.5, h: 4,   delay: 0.08 },
+    { x: 318, y: 150, dx: 30,  dy: -16, rot: -24, drot: -60, c: "#b5d9a8", w: 6,   h: 3.6, delay: 0.12 },
+    { x: 96,  y: 96,  dx: -28, dy: -10, rot: 8,   drot: 65,  c: "#a8cfe8", w: 6.5, h: 3.8, delay: 0.06 },
+    { x: 236, y: 16,  dx: 12,  dy: -30, rot: -30, drot: -75, c: "#f8aaa2", w: 6,   h: 3.5, delay: 0.14 },
+    { x: 360, y: 180, dx: 30,  dy: 10,  rot: 14,  drot: 58,  c: "#f6d98b", w: 7,   h: 4,   delay: 0.1  },
+    { x: 120, y: 170, dx: -24, dy: 16,  rot: -8,  drot: -52, c: "#b5d9a8", w: 6,   h: 3.5, delay: 0.16 }
+  ];
+  const CONFETTI_LIFE = 1.15;
+
+  const DEFAULTS = {
+    motionFrame: "left-landing",
+    playLoop: true,
+    loopMs: 1350,
+    supportSide: "left",
+    riseY: 26,
+    shiftX: 17,
+    tiltDeg: 7,
+    tiltPivotY: 354,
+    headDx: 0,
+    headDy: 0,
+    headRotate: 0,
+    faceYaw: 32,
+    facePitch: 0,
+    mouthProgress: 100,
+    mouthSideY: 200,
+    mouthHalfW: 6,
+    mouthDoorInset: 8.5,
+    mouthDoorRound: 13,
+    mouthBottomY: 219.5,
+    mouthCavityW: 25,
+    mouthCavityH: 45,
+    mouthLowerCavityW: 13,
+    mouthLowerCavityH: 8,
+    tieGravity: 1,
+    tieBladeSway: 3,
+    groundY: 414,
+    tiptoeWide: 0.78,
+    legAttach: 0,
+    freeOut: 34,
+    freeUp: 34,
+    freeRotate: -24,
+    freeScale: 1,
+    freeLayer: "behind",
+    armWidth: 43,
+    shoulderInset: 30,
+    pawSeamCurve: 2.2,
+    pawLength: 33,
+    leftArmRootX: 97,
+    leftArmRootY: 257,
+    leftArmAngle: 200,
+    leftArmLength: 130,
+    leftElbowAlong: 4,
+    leftElbowBend: 14,
+    leftWristAlong: -7,
+    leftWristBend: 0,
+    rightArmRootX: 276,
+    rightArmRootY: 252,
+    rightArmAngle: -28,
+    rightArmLength: 130,
+    rightElbowAlong: 4,
+    rightElbowBend: -9,
+    rightWristAlong: -6,
+    rightWristBend: -8,
+    showBoard: true,
+    boardX: 362,
+    boardY: 64,
+    boardScale: 1.05,
+    boardRot: -5,
+    tickGap: 0.3,
+    tickDur: 0.18,
+    tickKick: 1.6,
+    tickPalette: 0,
+    donePalette: 0,
+    doneStroke: 7,
+    boardHoldY: 3,
+    boardHoldRotate: 1.1,
+    boardHoldScale: 0.01,
+    boardHoldLag: 0.08,
+    boardBreathScale: 0.025,
+    boardFollow: 1.0,
+    boardRotFollow: 1.0,
+    boardLagPhase: 0.06,
+    boardSwayDeg: 3,
+    boardKickDeg: 2,
+    boardPivotX: -45,
+    boardPivotY: 58,
+    boardBounceY: 8,
+    showArmAnchors: true,
+    showAxis: true,
+    showFootRef: true,
+    showTie: true,
+    showFace: true,
+    showHands: true,
+    showTail: false,
+    showStars: true,
+    showDemoOverlay: true,
+    demoOpacity: 0.22,
+    demoScale: 0.86,
+    demoX: 20,
+    demoY: 12
+  };
+
+  const FRAME_PRESETS = {
+    "left-landing": {
+      motionFrame: "left-landing",
+      supportSide: "left",
+      riseY: 26,
+      shiftX: 17,
+      tiltDeg: 7,
+      tiltPivotY: 354,
+      headDx: 0,
+      headDy: 0,
+      headRotate: 0,
+      faceYaw: 32,
+      facePitch: 0,
+      groundY: 414,
+      tiptoeWide: 0.78,
+      legAttach: 0,
+      freeOut: 34,
+      freeUp: 34,
+      freeRotate: -24,
+      freeScale: 1,
+      freeLayer: "behind",
+      tieBladeSway: 3
+    },
+    "right-landing": {
+      motionFrame: "right-landing",
+      supportSide: "right",
+      riseY: 26,
+      shiftX: 17,
+      tiltDeg: 7,
+      tiltPivotY: 354,
+      headDx: 0,
+      headDy: 0,
+      headRotate: 0,
+      faceYaw: -10,
+      facePitch: 30,
+      groundY: 414,
+      tiptoeWide: 0.78,
+      legAttach: 0,
+      freeOut: 34,
+      freeUp: 34,
+      freeRotate: -24,
+      freeScale: 1,
+      freeLayer: "behind",
+      tieBladeSway: -2,
+      leftArmAngle: 208,
+      rightArmAngle: -19
+    }
+  };
+
+  const FRAME_LABELS = {
+    "left-landing": "左脚落地",
+    "right-landing": "右脚落地",
+    "loop": "左右跳循环"
+  };
+
+  const state = Object.assign({}, DEFAULTS);
+  let activeSvg = null;
+  let loopRaf = 0;
+  let loopTimer = 0;
+  let loopElapsed = 0;
+  let loopLastNow = 0;
+  let renderingLoopPose = false;
+  let boardStartNow = 0;
+  let boardRaf = 0;
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fmt = (n) => {
+    if (!Number.isFinite(n)) return "0";
+    const v = Math.round(n * 100) / 100;
+    return String(Object.is(v, -0) ? 0 : v);
+  };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smooth01 = (value) => {
+    const t = clamp(value, 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+  const mirror = (d) => transformPathXY(d, (p) => ({ x: 2 * MID - p.x, y: p.y }));
+  const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+  const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+  const scale = (p, k) => ({ x: p.x * k, y: p.y * k });
+  const ANIMATED_NUMERIC_KEYS = [
+    "riseY", "shiftX", "tiltDeg", "tiltPivotY", "headDx", "headDy", "headRotate",
+    "faceYaw", "facePitch",
+    "mouthHalfW", "mouthDoorInset", "mouthDoorRound", "mouthBottomY", "mouthSideY",
+    "tieGravity", "tieBladeSway",
+    "groundY", "tiptoeWide", "legAttach", "freeOut", "freeUp", "freeRotate", "freeScale",
+    "armWidth", "shoulderInset", "pawSeamCurve", "pawLength",
+    "leftArmRootX", "leftArmRootY", "leftArmAngle", "leftArmLength", "leftElbowAlong",
+    "leftElbowBend", "leftWristAlong", "leftWristBend",
+    "rightArmRootX", "rightArmRootY", "rightArmAngle", "rightArmLength", "rightElbowAlong",
+    "rightElbowBend", "rightWristAlong", "rightWristBend"
+  ];
+
+  function normalize(v){
+    const len = Math.hypot(v.x, v.y);
+    if (len < 1e-6) return { x: 1, y: 0 };
+    return { x: v.x / len, y: v.y / len };
+  }
+
+  function withTemporaryState(patch, fn){
+    const previous = {};
+    const had = {};
+    Object.keys(patch).forEach((key) => {
+      had[key] = Object.prototype.hasOwnProperty.call(state, key);
+      previous[key] = state[key];
+      state[key] = patch[key];
+    });
+    try {
+      return fn();
+    } finally {
+      Object.keys(patch).forEach((key) => {
+        if (had[key]) state[key] = previous[key];
+        else delete state[key];
+      });
+    }
+  }
+
+  function transformPathXY(d, fn){
+    const tokens = d.match(/[MLCQZmlcqz]|-?\d*\.?\d+(?:e-?\d+)?/g) || [];
+    let out = "";
+    let pending = [];
+    for (const token of tokens){
+      if (/[A-Za-z]/.test(token)){
+        out += token;
+        pending = [];
+      } else {
+        pending.push(parseFloat(token));
+        if (pending.length === 2){
+          const p = fn({ x: pending[0], y: pending[1] });
+          out += `${fmt(p.x)} ${fmt(p.y)} `;
+          pending = [];
+        }
+      }
+    }
+    return out.trim();
+  }
+
+  function faceFmt(value){
+    return String(parseFloat(Number(value).toFixed(3)));
+  }
+
+  function pathNumbers(value){
+    return (value.match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) || []).map(Number);
+  }
+
+  function transformPathPairs(path, fn){
+    const values = pathNumbers(path);
+    const output = [];
+    for (let i = 0; i < values.length; i += 2){
+      const point = fn({ x: values[i], y: values[i + 1] });
+      output.push(point.x, point.y);
+    }
+    let index = 0;
+    return path.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, () => faceFmt(output[index++]));
+  }
+
+  function interpolateNumberString(from, to, t){
+    const a = pathNumbers(from);
+    const b = pathNumbers(to);
+    let index = 0;
+    if (!from || !to || a.length !== b.length) return t < 1 ? from : to;
+    return from.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, () => {
+      const val = lerp(a[index], b[index] !== undefined ? b[index] : a[index - 1], t);
+      index += 1;
+      return faceFmt(val);
+    });
+  }
+
+  function faceAxisT(value){
+    return smooth01(Math.abs(value) / 100);
+  }
+
+  function faceDiagonalFactor(){
+    return Math.abs(state.faceYaw) / 100 * Math.abs(state.facePitch) / 100;
+  }
+
+  function trimmedFace(value, trimScale = 1){
+    const trim = 1 - faceDiagonalFactor() * 0.15 * trimScale;
+    return value * trim;
+  }
+
+  function smoothRange(start, end, value){
+    return smooth01((value - start) / (end - start));
+  }
+
+  function mixPoint(a, b, t){
+    return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+  }
+
+  function transformTopPoint(point, dir){
+    const axisX = dir < 0 ? 125 : 249;
+    const axisTravel = (axisX - MID) * 0.75;
+    const localX = point.x - axisX;
+    const next = { x: axisTravel + axisX + localX, y: point.y };
+    const a = FACE_ANCHORS.A;
+    const g = FACE_ANCHORS.G;
+    const weightT = clamp((point.x - a.x) / (g.x - a.x), 0, 1);
+    const weight = Math.pow(Math.sin(Math.PI * weightT), 0.9);
+    return {
+      x: point.x + (next.x - point.x) * weight,
+      y: point.y
+    };
+  }
+
+  function catmullPath(points, tension = 0.72, sharpness = 0.34){
+    const segs = [`M${faceFmt(points[0].x)} ${faceFmt(points[0].y)}`];
+    for (let i = 0; i < points.length - 1; i += 1){
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+      const nearBridge = ["C", "D", "E"].includes(p1.id) || ["C", "D", "E"].includes(p2.id);
+      const localTension = tension * (nearBridge ? (1 - sharpness * 0.42) : 1);
+      const c1 = {
+        x: p1.x + (p2.x - p0.x) * localTension / 6,
+        y: p1.y + (p2.y - p0.y) * localTension / 6
+      };
+      const c2 = {
+        x: p2.x - (p3.x - p1.x) * localTension / 6,
+        y: p2.y - (p3.y - p1.y) * localTension / 6
+      };
+      segs.push(`C${faceFmt(c1.x)} ${faceFmt(c1.y)} ${faceFmt(c2.x)} ${faceFmt(c2.y)} ${faceFmt(p2.x)} ${faceFmt(p2.y)}`);
+    }
+    return segs.join(" ");
+  }
+
+  function continuousYawFaceBasePath(){
+    const top = FACE_TOP_CHAIN.map((id) => ({ id, x: FACE_ANCHORS[id].x, y: FACE_ANCHORS[id].y }));
+    const tail = FACE_FRONT_TAIL.map((seg) => `C${faceFmt(seg[0])} ${faceFmt(seg[1])} ${faceFmt(seg[2])} ${faceFmt(seg[3])} ${faceFmt(seg[4])} ${faceFmt(seg[5])}`).join(" ");
+    return `${catmullPath(top)} ${tail}Z`;
+  }
+
+  function yawFacePath(){
+    const yaw = state.faceYaw;
+    const dir = Math.sign(yaw);
+    const t = faceAxisT(yaw);
+    if (!dir || t <= 0.001){
+      return Math.abs(state.facePitch) > 0.001 ? continuousYawFaceBasePath() : FACE_BASE.cheekD;
+    }
+    const top = FACE_TOP_CHAIN.map((id) => {
+      const start = FACE_ANCHORS[id];
+      const end = transformTopPoint(start, dir);
+      const mixed = mixPoint(start, end, t);
+      return { id, x: mixed.x, y: mixed.y };
+    });
+    const sideTail = dir < 0 ? FACE_LEFT_TAIL : FACE_RIGHT_TAIL;
+    const tail = FACE_FRONT_TAIL.map((seg, index) => {
+      const mixed = seg.map((value, numberIndex) => lerp(value, sideTail[index][numberIndex], t));
+      return `C${faceFmt(mixed[0])} ${faceFmt(mixed[1])} ${faceFmt(mixed[2])} ${faceFmt(mixed[3])} ${faceFmt(mixed[4])} ${faceFmt(mixed[5])}`;
+    }).join(" ");
+    return `${catmullPath(top)} ${tail}Z`;
+  }
+
+  function faceLowerEffect(){
+    if (state.facePitch <= 0) return 0;
+    return faceAxisT(state.facePitch) * lerp(0.45, 1, faceAxisT(state.faceYaw));
+  }
+
+  function faceLowerWrappedPoint(point){
+    const effect = faceLowerEffect();
+    if (effect <= 0.001) return point;
+    const lower = smoothRange(238, 263, point.y);
+    if (lower <= 0.001) return point;
+    const side = Math.sign(point.x - MID);
+    return {
+      x: point.x + side * 6 * effect * lower * 0.3,
+      y: point.y + 12 * effect * lower
+    };
+  }
+
+  function faceLowerWrappedPath(path){
+    return transformPathPairs(path, faceLowerWrappedPoint);
+  }
+
+  function pitchDeltaY(y){
+    if (state.facePitch === 0) return 0;
+    const sign = Math.sign(state.facePitch);
+    const t = faceAxisT(state.facePitch);
+    const lowerWeight = clamp((y - 166) / 92, 0, 1);
+    if (sign < 0) return lerp(PITCH_UP.axis, PITCH_UP.lower, lowerWeight) * t;
+    return lerp(PITCH_DOWN.axis, PITCH_DOWN.lower, lowerWeight) * t;
+  }
+
+  function warpPathForPitch(path){
+    let index = 0;
+    return path.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (value) => {
+      const n = Number(value);
+      const next = index % 2 === 1 ? n + pitchDeltaY(n) : n;
+      index += 1;
+      return faceFmt(next);
+    });
+  }
+
+  function cheekPath(){
+    return faceLowerWrappedPath(warpPathForPitch(yawFacePath()));
+  }
+
+  function headCapPath(){
+    const yawT = faceAxisT(state.faceYaw);
+    const dir = Math.sign(state.faceYaw);
+    const yawTarget = dir > 0 ? RIGHT_HEAD_CAP_D : LEFT_HEAD_CAP_D;
+    const yawPath = dir ? interpolateNumberString(FACE_BASE.headCapD, yawTarget, yawT) : FACE_BASE.headCapD;
+    let index = 0;
+    return yawPath.replace(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi, (value) => {
+      const n = Number(value);
+      if (index % 2 === 0){
+        index += 1;
+        return faceFmt(n);
+      }
+      const topWeight = clamp((120 - n) / 80, 0, 1);
+      const sideWeight = clamp((n - 120) / 70, 0, 1);
+      const sign = Math.sign(state.facePitch);
+      const t = faceAxisT(state.facePitch);
+      const delta = sign < 0
+        ? (2 * topWeight - 5.61 * sideWeight) * t
+        : (-1.87 * topWeight + 7.28 * sideWeight) * t;
+      index += 1;
+      return faceFmt(n + delta);
+    });
+  }
+
+  function creasePath(side){
+    const isLeft = side === "left";
+    const base = FACE_BASE[isLeft ? "leftCreaseD" : "rightCreaseD"];
+    const sideSign = isLeft ? 1 : -1;
+    const startX = isLeft ? 62 : 312;
+    const baseLength = 38;
+    const yawT = faceAxisT(state.faceYaw);
+    const yawPull = Math.sign(state.faceYaw) * yawT;
+    const pitchT = faceAxisT(state.facePitch);
+    return transformPathPairs(base, (point) => {
+      const along = isLeft
+        ? clamp((point.x - 62) / baseLength, 0, 1)
+        : clamp((312 - point.x) / baseLength, 0, 1);
+      const next = {
+        x: startX + (point.x - startX),
+        y: point.y
+      };
+      next.x += yawPull * (isLeft ? 1 : -1) * lerp(3, 6, along);
+      next.x += sideSign * lerp(1.8, 2.4, along) * pitchT;
+      next.y += pitchDeltaY(point.y);
+      return faceLowerWrappedPoint(next);
+    });
+  }
+
+  function sideDir(){
+    if (Number.isFinite(state.motionDir)) return state.motionDir;
+    return state.supportSide === "right" ? 1 : -1;
+  }
+
+  function freeSide(){
+    return state.supportSide === "right" ? "left" : "right";
+  }
+
+  function applyFramePreset(frameId){
+    const preset = FRAME_PRESETS[frameId];
+    if (!preset) return;
+    Object.assign(state, DEFAULTS, preset);
+    state.playLoop = false;
+    syncInputs();
+    render();
+  }
+
+  function frameState(frameId){
+    const preset = FRAME_PRESETS[frameId] || {};
+    return Object.assign({}, DEFAULTS, preset);
+  }
+
+  function footPathsForFrame(frameId){
+    const patch = frameState(frameId);
+    return withTemporaryState(patch, () => ({
+      left: patch.supportSide === "left" ? supportLegPath("left") : freeFootPath("left"),
+      right: patch.supportSide === "right" ? supportLegPath("right") : freeFootPath("right")
+    }));
+  }
+
+  function landingEase(t){
+    const hold = LOOP_MOTION.landHold;
+    if (t <= hold) return 0;
+    if (t >= 1 - hold) return 1;
+    return smooth01((t - hold) / (1 - hold * 2));
+  }
+
+  function landingPressure(t){
+    const window = LOOP_MOTION.landWindow;
+    const start = 1 - smooth01(t / window);
+    const end = smooth01((t - (1 - window)) / window);
+    return clamp(Math.max(start, end), 0, 1);
+  }
+
+  function wrapPhaseDistance(a, b){
+    const d = Math.abs(a - b);
+    return Math.min(d, 1 - d);
+  }
+
+  function phasePulse(phase, center, width){
+    const distance = wrapPhaseDistance(phase, center);
+    return 1 - smooth01(distance / Math.max(0.001, width));
+  }
+
+  function loopPoseAt(elapsed){
+    const duration = Math.max(300, state.loopMs || DEFAULTS.loopMs);
+    const phase = ((elapsed % duration) + duration) % duration / duration;
+    const halfT = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+    const mix = landingEase(halfT);
+    const land = landingPressure(halfT);
+    const velocity = Math.sin(phase * Math.PI * 2);
+    const wristVelocity = Math.sin((phase - 0.08) * Math.PI * 2);
+    const travel = smooth01(Math.abs(velocity));
+    const softness = clamp(land * 0.72 + travel * 0.28, 0, 1);
+    const mouthPulse = Math.max(
+      phasePulse(phase, LOOP_MOTION.mouthPulseDelay, LOOP_MOTION.mouthPulseWidth),
+      phasePulse(phase, 0.5 + LOOP_MOTION.mouthPulseDelay, LOOP_MOTION.mouthPulseWidth)
+    );
+    const left = frameState("left-landing");
+    const right = frameState("right-landing");
+    const pose = {
+      motionFrame: "loop",
+      supportSide: mix < 0.5 ? "left" : "right",
+      freeLayer: "behind",
+      loopFootMix: mix,
+      motionDir: lerp(-1, 1, mix),
+      loopLeanBoost: LOOP_MOTION.leanBoost,
+      loopTiltBoost: LOOP_MOTION.tiltBoost * lerp(0.45, 1, land),
+      loopLandSink: LOOP_MOTION.landSink * land,
+      loopSquash: land,
+      loopPhase: phase,
+      loopMouthPulse: mouthPulse
+    };
+    ANIMATED_NUMERIC_KEYS.forEach((key) => {
+      if (Number.isFinite(left[key]) && Number.isFinite(right[key])) {
+        pose[key] = lerp(left[key], right[key], mix);
+      }
+    });
+    pose.leftArmAngle += -velocity * LOOP_MOTION.armLagDeg - softness * LOOP_MOTION.armDropDeg;
+    pose.rightArmAngle += velocity * LOOP_MOTION.armLagDeg * 0.82 + softness * LOOP_MOTION.armDropDeg * 0.92;
+    pose.leftElbowBend += softness * LOOP_MOTION.elbowSoftDeg - velocity * 1.1;
+    pose.rightElbowBend += softness * LOOP_MOTION.elbowSoftDeg * 0.72 + velocity * 0.8;
+    pose.leftWristBend += -wristVelocity * LOOP_MOTION.wristLagDeg - softness * LOOP_MOTION.wristDropDeg;
+    pose.rightWristBend += wristVelocity * LOOP_MOTION.wristLagDeg * 0.82 + softness * LOOP_MOTION.wristDropDeg * 0.78;
+    return pose;
+  }
+
+  function bodyParams(){
+    const dir = sideDir();
+    const sx = (state.shiftX + (state.loopLeanBoost || 0)) * dir;
+    const up = state.riseY - (state.loopLandSink || 0);
+    const td = (state.tiltDeg + (state.loopTiltBoost || 0)) * dir;
+    const pivotX = (MID + dir * (HIP_X_R - MID)) + sx;
+    const pivotY = state.tiltPivotY - up;
+    return { dir, sx, up, td, pivotX, pivotY };
+  }
+
+  function bodyTransformStr(){
+    const p = bodyParams();
+    const base = `rotate(${fmt(p.td)} ${fmt(p.pivotX)} ${fmt(p.pivotY)}) translate(${fmt(p.sx)} ${fmt(-p.up)})`;
+    const squash = clamp(state.loopSquash || 0, 0, 1);
+    if (squash <= 0.001) return base;
+    const sx = 1 + LOOP_MOTION.squashX * squash;
+    const sy = 1 - LOOP_MOTION.squashY * squash;
+    const anchorY = p.pivotY + 42;
+    return `${base} translate(${fmt(p.pivotX)} ${fmt(anchorY)}) scale(${faceFmt(sx)} ${faceFmt(sy)}) translate(${fmt(-p.pivotX)} ${fmt(-anchorY)})`;
+  }
+
+  function headTransformStr(){
+    if (Math.abs(state.headDx) < 0.01 && Math.abs(state.headDy) < 0.01 && Math.abs(state.headRotate) < 0.01) return "";
+    return `translate(${fmt(state.headDx)} ${fmt(state.headDy)}) rotate(${fmt(state.headRotate)} 187 153)`;
+  }
+
+  function faceLookTransformStr(){
+    const dir = Math.sign(state.faceYaw);
+    const yawT = faceAxisT(state.faceYaw);
+    const axis = MID + dir * 62 * yawT;
+    const dx = dir * 46.5 * yawT;
+    const pitchSign = Math.sign(state.facePitch);
+    const pitchT = faceAxisT(state.facePitch);
+    const pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    const dy = trimmedFace(pitchData.faceDy * pitchT, 0.45);
+    const sy = pitchSign < 0 ? lerp(1, pitchData.faceSy, pitchT) : 1;
+    if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001 && Math.abs(sy - 1) < 0.001) return "";
+    return `translate(${faceFmt(dx)} ${faceFmt(dy)}) translate(${faceFmt(axis)} 172) skewX(0) scale(1 ${faceFmt(sy)}) translate(${faceFmt(-axis)} -172)`;
+  }
+
+  function blushLookTransformStr(){
+    const dir = Math.sign(state.faceYaw);
+    const yawT = faceAxisT(state.faceYaw);
+    const axis = MID + dir * 62 * yawT;
+    const dx = dir * 46.5 * yawT;
+    const pitchSign = Math.sign(state.facePitch);
+    const pitchT = faceAxisT(state.facePitch);
+    const pitchData = pitchSign < 0 ? PITCH_UP : PITCH_DOWN;
+    const dy = trimmedFace(pitchData.blushDy * pitchT, 0.35);
+    if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return "";
+    return `translate(${faceFmt(dx)} ${faceFmt(dy)}) translate(${faceFmt(axis)} 172) skewX(0) scale(1 1) translate(${faceFmt(-axis)} -172)`;
+  }
+
+  function supportLegPath(side){
+    const wide = state.tiptoeWide;
+    const up = state.riseY;
+    const legShift = (state.shiftX - HIP_FOOT_OFFSET + state.legAttach) * 1;
+    const gx = RFP.x;
+    const gy = state.groundY;
+    let d = transformPathXY(RIGHT_FOOT_BASE_D, (p) => {
+      const h = clamp((gy - p.y) / (gy - FOOT_TOP_Y), 0, 1.4);
+      return {
+        x: gx + (p.x - gx) * wide + legShift * h,
+        y: p.y - up * h
+      };
+    });
+    if (side === "left") d = mirror(d);
+    return d;
+  }
+
+  function freeFootPath(side){
+    const base = side === "left" ? mirror(RIGHT_FOOT_BASE_D) : RIGHT_FOOT_BASE_D;
+    const pivot = side === "left" ? LFP : RFP;
+    const outward = side === "right" ? 1 : -1;
+    const p = bodyParams();
+    const angle = state.freeRotate * (side === "right" ? 1 : -1) * Math.PI / 180;
+    const ca = Math.cos(angle);
+    const sa = Math.sin(angle);
+    return transformPathXY(base, (pt) => {
+      let x = pivot.x + (pt.x - pivot.x) * state.freeScale;
+      let y = pivot.y + (pt.y - pivot.y) * state.freeScale;
+      const dx = x - pivot.x;
+      const dy = y - pivot.y;
+      x = pivot.x + dx * ca - dy * sa;
+      y = pivot.y + dx * sa + dy * ca;
+      return {
+        x: x + p.sx + outward * state.freeOut,
+        y: y - p.up - state.freeUp
+      };
+    });
+  }
+
+  function ensureBaseTransform(el){
+    if (!el || el.dataset.poseBase !== undefined) return;
+    el.dataset.poseBase = el.getAttribute("transform") || "";
+    el.style.transformBox = "view-box";
+    el.style.transformOrigin = "0px 0px";
+  }
+
+  function setTransform(id, value){
+    const el = activeSvg.querySelector(`#${id}`);
+    if (!el) return;
+    ensureBaseTransform(el);
+    el.setAttribute("transform", `${value} ${el.dataset.poseBase}`.trim());
+  }
+
+  function setAttr(id, name, value){
+    const el = activeSvg.querySelector(`#${id}`);
+    if (!el) return;
+    if (value === null || value === undefined || value === "") el.removeAttribute(name);
+    else el.setAttribute(name, value);
+  }
+
+  function setDirectTransform(id, value){
+    setAttr(id, "transform", value);
+  }
+
+  function svgEl(name, attrs = {}){
+    const node = document.createElementNS(SVG_NS, name);
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+    return node;
+  }
+
+  function sparklePath(cx, cy, r){
+    const k = r * 0.24;
+    return [
+      `M ${fmt(cx)} ${fmt(cy - r)}`,
+      `L ${fmt(cx + k)} ${fmt(cy - k)}`,
+      `L ${fmt(cx + r)} ${fmt(cy)}`,
+      `L ${fmt(cx + k)} ${fmt(cy + k)}`,
+      `L ${fmt(cx)} ${fmt(cy + r)}`,
+      `L ${fmt(cx - k)} ${fmt(cy + k)}`,
+      `L ${fmt(cx - r)} ${fmt(cy)}`,
+      `L ${fmt(cx - k)} ${fmt(cy - k)} Z`
+    ].join(" ");
+  }
+
+  function twinkleAt(phase, spec){
+    const cycle = ((phase * (spec.speed || 1) + spec.offset) % 1 + 1) % 1;
+    const close = Math.min(Math.abs(cycle - 0.12), Math.abs(cycle - 0.62));
+    return smooth01(clamp(1 - close / 0.18, 0, 1));
+  }
+
+  function makeSparkle(spec, kind){
+    const g = svgEl("g", {
+      id: spec.id,
+      "data-role": kind,
+      "data-offset": spec.offset,
+      "data-speed": spec.speed || 1,
+      "data-base-opacity": spec.base,
+      "data-alpha": spec.alpha,
+      "data-x": spec.x,
+      "data-y": spec.y
+    });
+    g.style.transformBox = "view-box";
+    g.style.transformOrigin = "0 0";
+
+    g.appendChild(svgEl("path", {
+      d: sparklePath(0, 0, spec.r * 1.38),
+      fill: spec.glow || "#fff7c6",
+      opacity: kind === "glasses-sparkle" ? ".42" : ".3",
+      "data-role": "sparkle-glow"
+    }));
+    g.appendChild(svgEl("path", {
+      d: sparklePath(0, 0, spec.r),
+      fill: spec.fill || "#f6bd3b",
+      stroke: spec.stroke || "#fff7c6",
+      "stroke-width": fmt(Math.max(0.9, spec.r * 0.16)),
+      "stroke-linejoin": "round",
+      "data-role": "sparkle-fill"
+    }));
+    return g;
+  }
+
+  function sparkleCenter(spec){
+    if (spec.anchor){
+      const anchor = activeSvg.querySelector(`#${spec.anchor.id}`);
+      if (anchor?.getBBox){
+        const box = anchor.getBBox();
+        if (box.width > 0 && box.height > 0){
+          return {
+            x: box.x + box.width * spec.anchor.x,
+            y: box.y + box.height * spec.anchor.y
+          };
+        }
+      }
+    }
+    return { x: spec.x, y: spec.y };
+  }
+
+  function ensureDefs(){
+    let defs = activeSvg.querySelector("defs");
+    if (!defs){
+      defs = document.createElementNS(SVG_NS, "defs");
+      activeSvg.insertBefore(defs, activeSvg.firstElementChild);
+    }
+    return defs;
+  }
+
+  function prepareFaceLookBlushClip(){
+    const blushes = activeSvg.querySelector("#blushes");
+    const headLayer = activeSvg.querySelector("#head-layer");
+    if (!blushes || !headLayer || activeSvg.querySelector("#task-complete-blush-clip-wrapper")) return;
+
+    const clip = document.createElementNS(SVG_NS, "clipPath");
+    clip.setAttribute("id", "task-complete-blush-clip");
+    clip.setAttribute("clipPathUnits", "userSpaceOnUse");
+    const clipPath = document.createElementNS(SVG_NS, "path");
+    clipPath.setAttribute("id", "task-complete-blush-clip-path");
+    clipPath.setAttribute("d", FACE_BASE.cheekD);
+    clip.appendChild(clipPath);
+    ensureDefs().appendChild(clip);
+
+    const wrapper = document.createElementNS(SVG_NS, "g");
+    wrapper.setAttribute("id", "task-complete-blush-clip-wrapper");
+    wrapper.setAttribute("data-layer", "task-complete-blush-clip-host");
+    wrapper.setAttribute("clip-path", "url(#task-complete-blush-clip)");
+
+    const transformGroup = document.createElementNS(SVG_NS, "g");
+    transformGroup.setAttribute("id", "task-complete-blush-transform");
+    transformGroup.appendChild(blushes);
+    wrapper.appendChild(transformGroup);
+    headLayer.appendChild(wrapper);
+  }
+
+  function installTaskCompleteMouthRig(){
+    const noseMouth = activeSvg.querySelector("#nose-mouth");
+    if (!noseMouth || activeSvg.querySelector("#task-complete-mouth-opening-clip")) return;
+
+    const clip = svgEl("clipPath", {
+      id: "task-complete-mouth-opening-clip",
+      clipPathUnits: "userSpaceOnUse"
+    });
+    clip.appendChild(svgEl("path", { id: "mouth-opening-clip-path" }));
+    ensureDefs().appendChild(clip);
+
+    const doorClip = svgEl("clipPath", {
+      id: "task-complete-mouth-door-clip",
+      clipPathUnits: "userSpaceOnUse"
+    });
+    doorClip.appendChild(svgEl("path", { id: "mouth-door-clip-path" }));
+    ensureDefs().appendChild(doorClip);
+
+    noseMouth.textContent = "";
+    noseMouth.setAttribute("data-mouth-rig", "task-complete-mask-opening");
+
+    const nose = svgEl("ellipse", {
+      id: "nose-fill",
+      cx: MOUTH_BASE.nose.cx,
+      cy: MOUTH_BASE.nose.cy,
+      rx: MOUTH_BASE.nose.rx,
+      ry: MOUTH_BASE.nose.ry,
+      fill: "#7b4a23"
+    });
+
+    const interior = svgEl("g", {
+      id: "mouth-interior-clipped",
+      "data-role": "task-complete-mouth-interior-clipped",
+      "clip-path": "url(#task-complete-mouth-opening-clip)"
+    });
+    const doorWindow = svgEl("g", {
+      id: "mouth-door-clipped",
+      "data-role": "task-complete-mouth-door-clipped",
+      "clip-path": "url(#task-complete-mouth-door-clip)"
+    });
+    doorWindow.appendChild(svgEl("path", {
+      id: "mouth-inner-shade",
+      fill: "#5b221f",
+      opacity: ".36"
+    }));
+    doorWindow.appendChild(svgEl("path", {
+      id: "mouth-cavity-fill",
+      fill: "#8c2f2a"
+    }));
+    doorWindow.appendChild(svgEl("path", {
+      id: "mouth-lower-cavity-fill",
+      fill: "#f58d86"
+    }));
+    interior.appendChild(doorWindow);
+
+    const strokes = svgEl("g", {
+      id: "mouth-visible-strokes",
+      "data-role": "task-complete-mouth-visible-w-strokes"
+    });
+    strokes.appendChild(svgEl("path", {
+      id: "mouth-left",
+      d: MOUTH_BASE.mouthLeft,
+      fill: "none",
+      stroke: "#7b4a23",
+      "stroke-width": "5",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round"
+    }));
+    strokes.appendChild(svgEl("path", {
+      id: "mouth-right",
+      d: MOUTH_BASE.mouthRight,
+      fill: "none",
+      stroke: "#7b4a23",
+      "stroke-width": "5",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round"
+    }));
+
+    noseMouth.append(nose, interior, strokes);
+  }
+
+  function mouthClipParams(){
+    const pulse = clamp(state.loopMouthPulse || 0, 0, 1);
+    return {
+      sideY: state.mouthSideY,
+      bottomY: state.mouthBottomY + LOOP_MOTION.mouthBottomPulse * pulse,
+      halfW: state.mouthHalfW + LOOP_MOTION.mouthHalfPulse * pulse,
+      doorInset: state.mouthDoorInset - LOOP_MOTION.mouthInsetPulse * pulse,
+      doorRound: state.mouthDoorRound + LOOP_MOTION.mouthRoundPulse * pulse
+    };
+  }
+
+  function mouthOpeningClipD(){
+    const p = clamp(state.mouthProgress / 100, 0, 1);
+    const cx = MOUTH_OPENING.cx;
+    const mouth = mouthClipParams();
+    const sideY = mouth.sideY;
+    if (p <= 0.01){
+      return [
+        `M ${fmt(cx - 0.35)} ${fmt(sideY)}`,
+        `C ${fmt(cx - 0.35)} ${fmt(sideY)} ${fmt(cx - 0.15)} ${fmt(sideY)} ${fmt(cx)} ${fmt(sideY)}`,
+        `C ${fmt(cx + 0.15)} ${fmt(sideY)} ${fmt(cx + 0.35)} ${fmt(sideY)} ${fmt(cx + 0.35)} ${fmt(sideY)}`,
+        `C ${fmt(cx + 0.35)} ${fmt(sideY + 0.15)} ${fmt(cx + 0.18)} ${fmt(sideY + 0.2)} ${fmt(cx)} ${fmt(sideY + 0.2)}`,
+        `C ${fmt(cx - 0.18)} ${fmt(sideY + 0.2)} ${fmt(cx - 0.35)} ${fmt(sideY + 0.15)} ${fmt(cx - 0.35)} ${fmt(sideY)} Z`
+      ].join(" ");
+    }
+    const dx = cx - 187;
+    const topYShift = (sideY - 199) * 0.18;
+    const tx = (x) => x + dx;
+    const ty = (y) => y + topYShift;
+    const fullBottomDrop = Math.max(0.15, mouth.bottomY - sideY);
+    const bottomDrop = fullBottomDrop * p;
+    const bottomY = sideY + bottomDrop;
+    const bottomW = Math.max(6, mouth.halfW);
+    return [
+      `M ${fmt(tx(163))} ${fmt(ty(192))}`,
+      `C ${fmt(tx(163))} ${fmt(ty(195))} ${fmt(tx(166))} ${fmt(ty(198))} ${fmt(tx(171))} ${fmt(ty(198))}`,
+      `C ${fmt(tx(180))} ${fmt(ty(198))} ${fmt(tx(187))} ${fmt(ty(190))} ${fmt(tx(187))} ${fmt(ty(177))}`,
+      `C ${fmt(tx(187))} ${fmt(ty(190))} ${fmt(tx(194))} ${fmt(ty(198))} ${fmt(tx(203))} ${fmt(ty(198))}`,
+      `C ${fmt(tx(208))} ${fmt(ty(198))} ${fmt(tx(211))} ${fmt(ty(195))} ${fmt(tx(211))} ${fmt(ty(192))}`,
+      `C ${fmt(tx(211))} ${fmt(bottomY - bottomDrop * 0.15)} ${fmt(cx + bottomW)} ${fmt(bottomY)} ${fmt(cx)} ${fmt(bottomY)}`,
+      `C ${fmt(cx - bottomW)} ${fmt(bottomY)} ${fmt(tx(163))} ${fmt(bottomY - bottomDrop * 0.15)} ${fmt(tx(163))} ${fmt(ty(192))} Z`
+    ].join(" ");
+  }
+
+  function mouthDoorClipD(){
+    const mouth = mouthClipParams();
+    const inset = clamp(mouth.doorInset, 0, 22);
+    const cx = MOUTH_OPENING.cx;
+    const topY = 166;
+    const tailY = 292;
+    const sideY = mouth.sideY;
+    const bottomY = mouth.bottomY;
+    const left = 163 + inset;
+    const right = 211 - inset;
+    const lowerLeft = Math.max(left, cx - Math.max(0.1, mouth.halfW));
+    const lowerRight = Math.min(right, cx + Math.max(0.1, mouth.halfW));
+    const round = clamp(mouth.doorRound || 0, 0, Math.max(0.1, bottomY - sideY));
+    const curveStartY = clamp(bottomY - round, sideY, bottomY - 0.1);
+    const sideHandleY = lerp(curveStartY, bottomY, 0.72);
+    const bottomHandleY = bottomY - round * 0.15;
+    if (round <= 0.01){
+      return [
+        `M ${fmt(left)} ${fmt(topY)}`,
+        `L ${fmt(right)} ${fmt(topY)}`,
+        `L ${fmt(right)} ${fmt(tailY)}`,
+        `L ${fmt(left)} ${fmt(tailY)} Z`
+      ].join(" ");
+    }
+    return [
+      `M ${fmt(left)} ${fmt(topY)}`,
+      `L ${fmt(right)} ${fmt(topY)}`,
+      `L ${fmt(right)} ${fmt(curveStartY)}`,
+      `C ${fmt(right)} ${fmt(sideHandleY)} ${fmt(lowerRight)} ${fmt(bottomHandleY)} ${fmt(lowerRight)} ${fmt(bottomY)}`,
+      `L ${fmt(lowerRight)} ${fmt(tailY)}`,
+      `L ${fmt(lowerLeft)} ${fmt(tailY)}`,
+      `L ${fmt(lowerLeft)} ${fmt(bottomY)}`,
+      `C ${fmt(lowerLeft)} ${fmt(bottomHandleY)} ${fmt(left)} ${fmt(sideHandleY)} ${fmt(left)} ${fmt(curveStartY)}`,
+      `L ${fmt(left)} ${fmt(topY)} Z`
+    ].join(" ");
+  }
+
+  function mouthCavityD(){
+    const cx = MOUTH_OPENING.cx;
+    const cy = MOUTH_OPENING.cavityY;
+    const w = state.mouthCavityW;
+    const h = state.mouthCavityH;
+    return [
+      `M ${fmt(cx - w)} ${fmt(cy)}`,
+      `C ${fmt(cx - w)} ${fmt(cy - h * 0.55)} ${fmt(cx + w)} ${fmt(cy - h * 0.55)} ${fmt(cx + w)} ${fmt(cy)}`,
+      `C ${fmt(cx + w)} ${fmt(cy + h * 0.66)} ${fmt(cx - w)} ${fmt(cy + h * 0.66)} ${fmt(cx - w)} ${fmt(cy)} Z`
+    ].join(" ");
+  }
+
+  function mouthLowerCavityD(){
+    const p = clamp((state.mouthProgress - 18) / 82, 0, 1);
+    const cx = MOUTH_OPENING.cx;
+    const cy = MOUTH_OPENING.lowerCavityY;
+    const w = Math.max(0.1, state.mouthLowerCavityW * p);
+    const h = Math.max(0.1, state.mouthLowerCavityH * p);
+    const tail = 46 + Math.max(0.15, state.mouthBottomY - state.mouthSideY);
+    return [
+      `M ${fmt(cx - w)} ${fmt(cy)}`,
+      `C ${fmt(cx - w * 0.82)} ${fmt(cy - h)} ${fmt(cx + w * 0.82)} ${fmt(cy - h)} ${fmt(cx + w)} ${fmt(cy)}`,
+      `L ${fmt(cx + w * 1.28)} ${fmt(cy + tail)}`,
+      `L ${fmt(cx - w * 1.28)} ${fmt(cy + tail)} Z`
+    ].join(" ");
+  }
+
+  function applyMouthPose(){
+    const interior = activeSvg.querySelector("#mouth-interior-clipped");
+    const lower = activeSvg.querySelector("#mouth-lower-cavity-fill");
+    setAttr("mouth-opening-clip-path", "d", mouthOpeningClipD());
+    setAttr("mouth-door-clip-path", "d", mouthDoorClipD());
+    setAttr("mouth-inner-shade", "d", mouthCavityD());
+    setAttr("mouth-cavity-fill", "d", mouthCavityD());
+    setAttr("mouth-lower-cavity-fill", "d", mouthLowerCavityD());
+    if (interior){
+      interior.style.display = state.mouthProgress > 1 ? "" : "none";
+      interior.setAttribute("opacity", fmt(0.72 + 0.28 * clamp(state.mouthProgress / 100, 0, 1)));
+    }
+    if (lower) lower.style.display = state.mouthProgress > 18 ? "" : "none";
+  }
+
+  function applyBrowPose(){
+    setDirectTransform("brows", `translate(${fmt(BROW_OFFSET.x)} ${fmt(BROW_OFFSET.y)})`);
+  }
+
+  function prepareTieGravityRig(){
+    const tie = activeSvg.querySelector("#tie");
+    if (!tie || tie.querySelector("#tie-blade-gravity")) return;
+    const knot = tie.querySelector("#tie-knot");
+    const bladeGroup = svgEl("g", {
+      id: "tie-blade-gravity",
+      "data-role": "task-complete-tie-blade-gravity"
+    });
+    ["tie-shadow", "tie-blade", "tie-center-fold", "tie-left-fold"].forEach((id) => {
+      const part = tie.querySelector(`#${id}`);
+      if (part) bladeGroup.appendChild(part);
+    });
+    tie.insertBefore(bladeGroup, knot || tie.firstChild);
+  }
+
+  function installTaskCompleteStars(){
+    if (activeSvg.querySelector("#task-complete-bg-stars")) return;
+    const root = activeSvg.querySelector("#hamster-flat-master-v11") || activeSvg;
+    const backgroundAnchor = activeSvg.querySelector("#tail") || activeSvg.querySelector("#feet-layer") || activeSvg.querySelector("#body-layer");
+    const bgLayer = svgEl("g", {
+      id: "task-complete-bg-stars",
+      "data-layer": "task-complete-background-stars"
+    });
+    bgLayer.style.pointerEvents = "none";
+    BG_STAR_SPECS.forEach((spec) => bgLayer.appendChild(makeSparkle(spec, "background-sparkle")));
+    if (backgroundAnchor?.parentNode) backgroundAnchor.parentNode.insertBefore(bgLayer, backgroundAnchor);
+    else root.appendChild(bgLayer);
+
+    const sunglasses = activeSvg.querySelector("#sunglasses");
+    if (sunglasses && !sunglasses.querySelector("#task-complete-glasses-sparkles")){
+      const glassesLayer = svgEl("g", {
+        id: "task-complete-glasses-sparkles",
+        "data-layer": "task-complete-glasses-sparkles"
+      });
+      glassesLayer.style.pointerEvents = "none";
+      GLASSES_STAR_SPECS.forEach((spec) => glassesLayer.appendChild(makeSparkle(spec, "glasses-sparkle")));
+      sunglasses.appendChild(glassesLayer);
+    }
+  }
+
+  // ── 任务清单剧场（mini-happy 反向移植）：pop → 勾勾勾 → 结算变身大绿勾 → 彩屑 + 星星渐显 ──
+  function boardTimes(){
+    const pop = 0.45;
+    const tick1 = pop + 0.12;
+    const tick2 = tick1 + state.tickGap;
+    const tick3 = tick1 + state.tickGap * 2;
+    const tSee = tick3 + state.tickDur;
+    const tMorph = tSee + 0.10;
+    const tMorphDone = tMorph + 0.34;
+    const theaterEnd = tMorphDone + CONFETTI_LIFE + 0.35;
+    return { pop, tick1, tick2, tick3, tSee, tMorph, tMorphDone, theaterEnd };
+  }
+
+  function installTaskCompleteBoard(){
+    if (activeSvg.querySelector("#task-complete-board")) return;
+    const root = activeSvg.querySelector("#hamster-flat-master-v11") || activeSvg;
+    const layer = svgEl("g", {
+      id: "task-complete-board",
+      "data-layer": "task-complete-one-shot-board",
+      "data-layer-order": "above-hamster"
+    });
+    layer.style.pointerEvents = "none";
+    layer.style.transformBox = "view-box";
+    layer.style.transformOrigin = "0 0";
+    layer.innerHTML = `
+      <rect id="board-back" x="-45" y="-58" width="90" height="116" rx="9" fill="#d8a686" stroke="#b98c6e" stroke-width="2.5"/>
+      <rect id="board-paper" x="-37" y="-46" width="74" height="96" rx="5" fill="#fff8f0" stroke="#ecdcc8" stroke-width="1.5"/>
+      <path id="board-clip-arch" d="M -8 -58 C -8 -67 8 -67 8 -58" fill="none" stroke="#8a5a3f" stroke-width="4.5" stroke-linecap="round"/>
+      <rect id="board-clip-bar" x="-13" y="-62" width="26" height="9" rx="3.5" fill="#8a5a3f"/>
+      <g id="board-rows" fill="none">
+        <rect class="row-box" x="-29" y="-28.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"/>
+        <line class="row-text" x1="-10" y1="-22" x2="28" y2="-22" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"/>
+        <rect class="row-box" x="-29" y="-2.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"/>
+        <line class="row-text" x1="-10" y1="4" x2="20" y2="4" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"/>
+        <rect class="row-box" x="-29" y="23.5" width="13" height="13" rx="3.5" fill="#fffdf8" stroke="#c9a98c" stroke-width="2.2"/>
+        <line class="row-text" x1="-10" y1="30" x2="25" y2="30" stroke="#d9c6b0" stroke-width="4.5" stroke-linecap="round"/>
+      </g>
+      <g id="board-ticks" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path id="board-tick-1" d="M -26.6 -22.2 L -23.6 -18.8 L -17.6 -26.4" stroke-width="3"/>
+        <path id="board-tick-2" d="M -26.6 3.8 L -23.6 7.2 L -17.6 -0.4" stroke-width="3"/>
+        <path id="board-tick-3" d="M -26.6 29.8 L -23.6 33.2 L -17.6 25.6" stroke-width="3"/>
+      </g>
+      <g id="board-done" opacity="0">
+        <path id="board-done-under" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".25"/>
+        <path id="board-done-main" d="M -17 4 L -5 16 L 19 -12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>`;
+    root.appendChild(layer);
+    if (!activeSvg.querySelector("#task-complete-confetti")) {
+      const confetti = svgEl("g", {
+        id: "task-complete-confetti",
+        "data-layer": "task-complete-one-shot-confetti"
+      });
+      confetti.style.pointerEvents = "none";
+      root.appendChild(confetti);
+    }
+  }
+
+  // 剧场钟：返回剧场秒；播完(>=theaterEnd)归 0 停钟，沿用 checkmark「已完成态」口径
+  function boardElapsed(now){
+    if (!state.showBoard) return -1;
+    if (!boardStartNow) return Infinity; // 已完成态：末态保持
+    return (now - boardStartNow) / 1000;
+  }
+
+  // 星星渐显 ramp（鹿鹿口径「blingbling 更自然」：变身完成后才渐显+pop，替代原常驻 twinkle）
+  function boardStarRamp(now = performance.now()){
+    const tb = boardElapsed(now);
+    if (tb < 0) return 1; // 清单隐藏时星星不受 ramp 约束
+    const bt = boardTimes();
+    return smooth01(clamp((tb - (bt.tMorphDone + 0.05)) / 0.45, 0, 1));
+  }
+
+  function applyBoardPose(now = performance.now()){
+    const layer = activeSvg.querySelector("#task-complete-board");
+    if (!layer) return;
+    const tb = boardElapsed(now);
+    const bt = boardTimes();
+    layer.style.display = state.showBoard ? "" : "none";
+    const t = Math.min(tb, bt.theaterEnd);
+
+    // 外层板从 0 秒就常驻在人物右上方并跟随人物；剧场只发生在板内清单内容上。
+
+    // 三勾描画 + 落定咔哒
+    const starts = [bt.tick1, bt.tick2, bt.tick3];
+    let kick = 0;
+    for (let i = 0; i < 3; i += 1) {
+      const p = clamp((t - starts[i]) / state.tickDur, 0, 1);
+      const tickEl = layer.querySelector(`#board-tick-${i + 1}`);
+      const len = tickEl.getTotalLength();
+      tickEl.setAttribute("stroke", TICK_PALETTES[state.tickPalette] || TICK_PALETTES[0]);
+      tickEl.setAttribute("stroke-dasharray", `${fmt(len * p)} ${fmt(len + 4)}`);
+      if (p >= 1) {
+        const k = 1 - smooth01(clamp((t - (starts[i] + state.tickDur)) / 0.12, 0, 1));
+        if (k > 0) kick = Math.max(kick, k);
+      }
+    }
+
+    // 结算变身：条目+小勾淡出，大绿勾描画+微弹
+    const morphFade = 1 - smooth01(clamp((t - bt.tMorph) / 0.12, 0, 1));
+    layer.querySelector("#board-rows").setAttribute("opacity", fmt(morphFade));
+    layer.querySelector("#board-ticks").setAttribute("opacity", fmt(morphFade));
+    const doneDraw = smooth01(clamp((t - (bt.tMorph + 0.06)) / 0.22, 0, 1));
+    const donePop = 0.7 + 0.3 * easeOutBackLocal(smooth01(clamp((t - (bt.tMorph + 0.06)) / 0.28, 0, 1)));
+    const doneNode = layer.querySelector("#board-done");
+    doneNode.setAttribute("opacity", doneDraw > 0 ? "1" : "0");
+    doneNode.setAttribute("transform", `scale(${faceFmt(donePop)})`);
+    const doneColor = DONE_PALETTES[state.donePalette] || DONE_PALETTES[0];
+    ["board-done-under", "board-done-main"].forEach((id, i) => {
+      const p = layer.querySelector(`#${id}`);
+      const len = p.getTotalLength();
+      p.setAttribute("stroke", doneColor);
+      p.setAttribute("stroke-width", fmt(state.doneStroke + (i === 0 ? 5 : 0)));
+      p.setAttribute("stroke-dasharray", `${fmt(len * doneDraw)} ${fmt(len + 4)}`);
+    });
+
+    // hold 跟随（checkmark hold 同款公式，剧场完后小幅浮动；现在 body 已绑死，hold 留一点点呼吸）
+    const loopPhase = Number.isFinite(state.loopPhase) ? state.loopPhase : 0;
+    const holdPhase = ((loopPhase - state.boardHoldLag) % 1 + 1) % 1;
+    const holdBlend = t >= bt.theaterEnd && state.playLoop ? 1 : 0;
+    const holdWave = Math.sin(holdPhase * Math.PI * 2);
+    const holdDrift = Math.cos(holdPhase * Math.PI * 2);
+    const holdY = -holdWave * state.boardHoldY * holdBlend;
+    const holdRotate = holdDrift * state.boardHoldRotate * holdBlend;
+    const holdScale = 1 + holdWave * state.boardHoldScale * holdBlend;
+    const breathBlend = smooth01(clamp((t - bt.tMorphDone) / 0.45, 0, 1));
+    const breathWave = Math.sin((loopPhase - 0.12) * Math.PI * 2);
+    const breathScale = 1 + breathWave * state.boardBreathScale * breathBlend;
+
+    // C 方案：身体跟随与板自身惯性分开，避免 slider 看起来在动但实际被 bodyTransformStr() 吃掉。
+    const p = bodyParams();
+    const follow = Number.isFinite(state.boardFollow) ? state.boardFollow : 1;
+    const rotFollow = Number.isFinite(state.boardRotFollow) ? state.boardRotFollow : 1;
+    const followTransform = [
+      `rotate(${fmt(p.td * rotFollow)} ${fmt(p.pivotX)} ${fmt(p.pivotY)})`,
+      `translate(${fmt(p.sx * follow)} ${fmt(-p.up * follow)})`
+    ].join(" ");
+    const hopWave = Math.sin(loopPhase * Math.PI * 2);
+    const hopLift = -(hopWave * hopWave) * state.boardBounceY;
+    const lagPhase = ((loopPhase - state.boardLagPhase) % 1 + 1) % 1;
+    const inertialSway = -Math.sin(lagPhase * Math.PI * 2) * state.boardSwayDeg;
+    const landingKick = (
+      phasePulse(loopPhase, 0.035, 0.12) -
+      phasePulse(loopPhase, 0.535, 0.12)
+    ) * state.boardKickDeg * 0.35;
+    const boardSelfRot = state.boardRot + holdRotate + inertialSway + landingKick;
+    const boardY = state.boardY + kick * state.tickKick + holdY + hopLift;
+    layer.setAttribute(
+      "transform",
+      `${followTransform} translate(${fmt(state.boardX)} ${fmt(boardY)}) rotate(${fmt(boardSelfRot)} ${fmt(state.boardPivotX)} ${fmt(state.boardPivotY)}) scale(${faceFmt(state.boardScale * holdScale * breathScale)})`
+    );
+    layer.setAttribute("opacity", "1");
+
+    // 彩屑（变身完成时 one-shot 撒花）
+    renderBoardConfetti(t, bt);
+    if (tb !== Infinity && tb >= bt.theaterEnd) boardStartNow = 0;
+  }
+
+  function renderBoardConfetti(t, bt){
+    const confettiLayer = activeSvg.querySelector("#task-complete-confetti");
+    if (!confettiLayer) return;
+    const t0 = bt.tMorphDone;
+    if (!state.showBoard || !Number.isFinite(t) || t < t0 || t > t0 + CONFETTI_LIFE + 0.3) {
+      if (confettiLayer.firstChild) confettiLayer.textContent = "";
+      return;
+    }
+    let html = "";
+    for (const s of CONFETTI_SPECS) {
+      const lt = clamp((t - t0 - s.delay) / CONFETTI_LIFE, 0, 1);
+      if (lt <= 0 || lt >= 1) continue;
+      const e = 1 - Math.pow(1 - lt, 3);
+      const x = s.x + s.dx * e;
+      const y = s.y + s.dy * e;
+      const rot = s.rot + s.drot * lt;
+      const op = smooth01(clamp(lt / 0.12, 0, 1)) * (1 - smooth01(clamp((lt - 0.62) / 0.38, 0, 1)));
+      if (op < 0.02) continue;
+      html += `<rect x="${fmt(-s.w / 2)}" y="${fmt(-s.h / 2)}" width="${fmt(s.w)}" height="${fmt(s.h)}" rx="1.6" fill="${s.c}" opacity="${fmt(op)}" transform="translate(${fmt(x)} ${fmt(y)}) rotate(${fmt(rot)})"/>`;
+    }
+    confettiLayer.innerHTML = html;
+  }
+
+  function easeOutBackLocal(v){
+    const t = clamp(v, 0, 1) - 1;
+    return 1 + t * t * (2.70158 * t + 1.70158);
+  }
+
+  function raiseBoardLayer(){
+    const root = activeSvg.querySelector("#hamster-flat-master-v11") || activeSvg;
+    const layer = activeSvg.querySelector("#task-complete-board");
+    const confetti = activeSvg.querySelector("#task-complete-confetti");
+    if (root && layer && layer.parentNode === root && root.lastElementChild !== confetti) {
+      root.appendChild(layer);
+      if (confetti) root.appendChild(confetti);
+    }
+  }
+
+  function scheduleBoardFrame(){
+    if (boardRaf || !activeSvg || !state.showBoard || !boardStartNow) return;
+    boardRaf = requestAnimationFrame((now) => {
+      boardRaf = 0;
+      if (!activeSvg || !state.showBoard) return;
+      if (!state.playLoop) renderScene();
+      else {
+        const liveElapsed = loopElapsed + (loopLastNow ? clamp(now - loopLastNow, 0, LOOP_MOTION.maxFrameDelta) : 0);
+        withLoopPose(liveElapsed, () => {
+          applyBoardPose(now);
+          applyStarPose();
+        });
+      }
+      if (boardStartNow) scheduleBoardFrame();
+    });
+  }
+
+  function replayBoard(){
+    boardStartNow = performance.now();
+    applyBoardPose(boardStartNow);
+    scheduleBoardFrame();
+  }
+
+  function applyStarPose(){
+    const phase = Number.isFinite(state.loopPhase) ? state.loopPhase : 0.18;
+    // 鹿鹿口径「blingbling 更自然」：星星不再常驻——清单结算变身完成后 0.45s 渐显+pop 进场，再接 twinkle
+    const ramp = boardStarRamp();
+    [...BG_STAR_SPECS, ...GLASSES_STAR_SPECS].forEach((spec) => {
+      const el = activeSvg.querySelector(`#${spec.id}`);
+      if (!el) return;
+      const twinkle = twinkleAt(phase, spec);
+      const opacity = clamp(spec.base + spec.alpha * twinkle, 0, 1) * ramp;
+      const scaleValue = (0.78 + twinkle * 0.46) * (0.55 + 0.45 * easeOutBackLocal(ramp));
+      const center = sparkleCenter(spec);
+      el.setAttribute("opacity", fmt(opacity));
+      el.setAttribute(
+        "transform",
+        `translate(${fmt(center.x)} ${fmt(center.y)}) scale(${faceFmt(scaleValue)})`
+      );
+    });
+  }
+
+  function tieBladeTransformStr(){
+    const p = bodyParams();
+    const angle = -p.td * state.tieGravity + state.tieBladeSway;
+    return `rotate(${fmt(angle)} 34 24)`;
+  }
+
+  function applyTiePose(){
+    const bladeGroup = activeSvg.querySelector("#tie-blade-gravity");
+    if (!bladeGroup) return;
+    bladeGroup.setAttribute("transform", tieBladeTransformStr());
+    bladeGroup.setAttribute("data-world-sway", fmt(bodyParams().td + (-bodyParams().td * state.tieGravity + state.tieBladeSway)));
+  }
+
+  function applyFaceLookPose(){
+    const cheek = cheekPath();
+    setAttr("head-cap-fill", "d", headCapPath());
+    setAttr("cheek-muzzle-fill", "d", cheek);
+    setAttr("task-complete-blush-clip-path", "d", cheek);
+    setAttr("left-cheek-crease", "d", creasePath("left"));
+    setAttr("right-cheek-crease", "d", creasePath("right"));
+    setDirectTransform("task-complete-blush-transform", blushLookTransformStr());
+  }
+
+  function applyBodyPose(){
+    const bodyT = bodyTransformStr();
+    const headT = headTransformStr();
+    const faceT = faceLookTransformStr();
+    ["body-layer", "tie", "hands-layer", "tail"].forEach((id) => setTransform(id, bodyT));
+    ["ears-layer", "head-tufts", "head-layer"].forEach((id) => {
+      setTransform(id, `${bodyT} ${headT}`.trim());
+    });
+    setTransform("face-layer", `${bodyT} ${headT} ${faceT}`.trim());
+  }
+
+  function ensureFrontLayer(){
+    let layer = activeSvg.querySelector("#foot-front-layer");
+    if (!layer){
+      layer = document.createElementNS(SVG_NS, "g");
+      layer.setAttribute("id", "foot-front-layer");
+      const body = activeSvg.querySelector("#body-layer");
+      body.parentNode.insertBefore(layer, body.nextSibling);
+    }
+    return layer;
+  }
+
+  function layerFeet(){
+    const feetLayer = activeSvg.querySelector("#feet-layer");
+    const frontLayer = ensureFrontLayer();
+    const support = activeSvg.querySelector(state.supportSide === "right" ? "#right-foot" : "#left-foot");
+    const free = activeSvg.querySelector(freeSide() === "right" ? "#right-foot" : "#left-foot");
+    if (support && support.parentNode !== feetLayer) feetLayer.appendChild(support);
+    const freeTarget = state.freeLayer === "front" ? frontLayer : feetLayer;
+    if (free && free.parentNode !== freeTarget) freeTarget.appendChild(free);
+  }
+
+  function renderFeet(){
+    layerFeet();
+    const rf = activeSvg.querySelector("#right-foot-fill");
+    const lf = activeSvg.querySelector("#left-foot-fill");
+    if (rf) rf.setAttribute("d", state.supportSide === "right" ? supportLegPath("right") : freeFootPath("right"));
+    if (lf) lf.setAttribute("d", state.supportSide === "left" ? supportLegPath("left") : freeFootPath("left"));
+  }
+
+  function renderLoopFeet(){
+    const mix = clamp(state.loopFootMix || 0, 0, 1);
+    const leftFrame = footPathsForFrame("left-landing");
+    const rightFrame = footPathsForFrame("right-landing");
+    const rf = activeSvg.querySelector("#right-foot-fill");
+    const lf = activeSvg.querySelector("#left-foot-fill");
+    if (rf) rf.setAttribute("d", interpolateNumberString(leftFrame.right, rightFrame.right, mix));
+    if (lf) lf.setAttribute("d", interpolateNumberString(leftFrame.left, rightFrame.left, mix));
+  }
+
+  function armPose(side){
+    const isLeft = side === "left";
+    const root = {
+      x: isLeft ? state.leftArmRootX : state.rightArmRootX,
+      y: isLeft ? state.leftArmRootY : state.rightArmRootY
+    };
+    const angle = (isLeft ? state.leftArmAngle : state.rightArmAngle) * Math.PI / 180;
+    const length = isLeft ? state.leftArmLength : state.rightArmLength;
+    const ux = Math.cos(angle);
+    const uy = Math.sin(angle);
+    const end = { x: root.x + ux * length, y: root.y + uy * length };
+    const radius = state.armWidth / 2;
+    const nx = -uy;
+    const ny = ux;
+    const pawT = clamp(1 - state.pawLength / Math.max(1, length), 0.58, 0.86);
+    const widthAt = (t) => {
+      const rootW = radius * 0.72;
+      const midW = radius * 1.24;
+      const endW = radius * 1.04;
+      if (t < 0.52) {
+        const k = t / 0.52;
+        return rootW + (midW - rootW) * (k * k * (3 - 2 * k));
+      }
+      const k = (t - 0.52) / 0.48;
+      return midW + (endW - midW) * (k * k * (3 - 2 * k));
+    };
+    const at = (t, wMul) => {
+      const w = widthAt(t) * wMul;
+      return {
+        x: root.x + ux * length * t + nx * w,
+        y: root.y + uy * length * t + ny * w
+      };
+    };
+    const center = (t) => ({
+      x: root.x + ux * length * t,
+      y: root.y + uy * length * t
+    });
+    const point = (p) => `${fmt(p.x)} ${fmt(p.y)}`;
+    const outlinePath = () => {
+      const a = at(0, 1);
+      const b = at(0.28, 1);
+      const c = at(0.64, 1);
+      const d = at(1, 1);
+      const e = at(1, -1);
+      const f = at(0.64, -1);
+      const g = at(0.28, -1);
+      const h = at(0, -1);
+      const rw = widthAt(0);
+      const ew = widthAt(1);
+      return [
+        `M${point(a)}`,
+        `C${point(b)} ${point(c)} ${point(d)}`,
+        `A${fmt(ew)} ${fmt(ew)} 0 0 1 ${point(e)}`,
+        `C${point(f)} ${point(g)} ${point(h)}`,
+        `A${fmt(rw)} ${fmt(rw)} 0 0 1 ${point(a)}`,
+        "Z"
+      ].join(" ");
+    };
+    const pawPath = () => {
+      const a = at(pawT, 0.88);
+      const b = at((pawT + 1) / 2, 0.98);
+      const c = at(1, 1);
+      const d = at(1, -1);
+      const e = at((pawT + 1) / 2, -0.98);
+      const f = at(pawT, -0.88);
+      const seam1 = center(Math.max(0.04, pawT - 0.05));
+      const seam2 = center(pawT + 0.03);
+      const ew = widthAt(1);
+      return [
+        `M${point(a)}`,
+        `C${point(b)} ${point(b)} ${point(c)}`,
+        `A${fmt(ew)} ${fmt(ew)} 0 0 1 ${point(d)}`,
+        `C${point(e)} ${point(e)} ${point(f)}`,
+        `C${fmt(seam1.x + nx * widthAt(pawT) * -0.18)} ${fmt(seam1.y + ny * widthAt(pawT) * -0.18)} ${fmt(seam2.x + nx * widthAt(pawT) * 0.18)} ${fmt(seam2.y + ny * widthAt(pawT) * 0.18)} ${point(a)}`,
+        "Z"
+      ].join(" ");
+    };
+    return {
+      side,
+      root,
+      end,
+      pawStart: center(pawT),
+      radius,
+      armPath: outlinePath(),
+      pawPath: pawPath()
+    };
+  }
+
+  function ensureCompleteArmsLayer(){
+    let layer = activeSvg.querySelector("#complete-arms-layer");
+    if (layer) return layer;
+    layer = document.createElementNS(SVG_NS, "g");
+    layer.setAttribute("id", "complete-arms-layer");
+    layer.setAttribute("data-layer", "task-complete-arms");
+    layer.setAttribute("data-motion", "each arm rotates around its own shoulder-root anchor");
+    const tie = activeSvg.querySelector("#tie");
+    tie.parentNode.insertBefore(layer, tie);
+    return layer;
+  }
+
+  function drawCompleteArms(){
+    const layer = ensureCompleteArmsLayer();
+    layer.textContent = "";
+    layer.setAttribute("transform", bodyTransformStr());
+    layer.style.transformBox = "view-box";
+    layer.style.transformOrigin = "0px 0px";
+
+    ["left", "right"].forEach((side) => {
+      const pose = armPose(side);
+      const g = document.createElementNS(SVG_NS, "g");
+      g.setAttribute("id", `${side}-complete-arm`);
+      g.setAttribute("data-part", `${side}-complete-arm`);
+      g.setAttribute("data-root-x", fmt(pose.root.x));
+      g.setAttribute("data-root-y", fmt(pose.root.y));
+      g.setAttribute("data-motion", "rotate-around-root");
+      g.style.transformBox = "view-box";
+      g.style.transformOrigin = `${fmt(pose.root.x)}px ${fmt(pose.root.y)}px`;
+
+      const shadow = document.createElementNS(SVG_NS, "path");
+      shadow.setAttribute("id", `${side}-complete-arm-shadow`);
+      shadow.setAttribute("d", pose.armPath);
+      shadow.setAttribute("fill", "#000000");
+      shadow.setAttribute("opacity", "0.045");
+      shadow.setAttribute("transform", "translate(1.5 2)");
+      g.appendChild(shadow);
+
+      const arm = document.createElementNS(SVG_NS, "path");
+      arm.setAttribute("id", `${side}-complete-arm-fill`);
+      arm.setAttribute("d", pose.armPath);
+      arm.setAttribute("fill", "#fff8f0");
+      g.appendChild(arm);
+
+      const paw = document.createElementNS(SVG_NS, "path");
+      paw.setAttribute("id", `${side}-complete-paw-tip`);
+      paw.setAttribute("d", pose.pawPath);
+      paw.setAttribute("fill", "#d8a686");
+      g.appendChild(paw);
+
+      if (state.showArmAnchors){
+        const rootDot = document.createElementNS(SVG_NS, "circle");
+        rootDot.setAttribute("cx", fmt(pose.root.x));
+        rootDot.setAttribute("cy", fmt(pose.root.y));
+        rootDot.setAttribute("r", "4.2");
+        rootDot.setAttribute("fill", "#2f74c0");
+        rootDot.setAttribute("opacity", "0.72");
+        rootDot.setAttribute("id", `${side}-complete-arm-root`);
+        g.appendChild(rootDot);
+
+        const rootRing = document.createElementNS(SVG_NS, "circle");
+        rootRing.setAttribute("cx", fmt(pose.root.x));
+        rootRing.setAttribute("cy", fmt(pose.root.y));
+        rootRing.setAttribute("r", "13");
+        rootRing.setAttribute("fill", "none");
+        rootRing.setAttribute("stroke", "#2f74c0");
+        rootRing.setAttribute("stroke-width", "1.2");
+        rootRing.setAttribute("stroke-dasharray", "3 3");
+        rootRing.setAttribute("opacity", "0.52");
+        g.appendChild(rootRing);
+      }
+
+      layer.appendChild(g);
+    });
+  }
+
+  function drawFootReference(){
+    activeSvg.querySelector("#pose-foot-ref")?.remove();
+    if (!state.showFootRef) return;
+    const root = activeSvg.querySelector("#hamster-flat-master-v11");
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("id", "pose-foot-ref");
+    [["right", RIGHT_FOOT_BASE_D], ["left", mirror(RIGHT_FOOT_BASE_D)]].forEach(([, d]) => {
+      const path = document.createElementNS(SVG_NS, "path");
+      path.setAttribute("d", d);
+      path.setAttribute("fill", "#d8a686");
+      path.setAttribute("fill-opacity", "0.13");
+      path.setAttribute("stroke", "#7f6f60");
+      path.setAttribute("stroke-width", "1.3");
+      path.setAttribute("stroke-dasharray", "4 3");
+      path.setAttribute("opacity", "0.75");
+      g.appendChild(path);
+    });
+    root.appendChild(g);
+  }
+
+  function drawGuides(){
+    activeSvg.querySelector("#pose-guides")?.remove();
+    if (!state.showAxis) return;
+    const root = activeSvg.querySelector("#hamster-flat-master-v11");
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("id", "pose-guides");
+    const p = bodyParams();
+    const lines = [
+      { x: MID, color: "#c23a35", dash: "5 4" },
+      { x: p.pivotX, color: "#2f74c0", dash: "" }
+    ];
+    lines.forEach((item) => {
+      const line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("x1", fmt(item.x));
+      line.setAttribute("x2", fmt(item.x));
+      line.setAttribute("y1", "128");
+      line.setAttribute("y2", "426");
+      line.setAttribute("stroke", item.color);
+      line.setAttribute("stroke-width", "1.4");
+      line.setAttribute("opacity", "0.52");
+      if (item.dash) line.setAttribute("stroke-dasharray", item.dash);
+      g.appendChild(line);
+    });
+    root.appendChild(g);
+  }
+
+  function noodleHandSpec(side){
+    const isLeft = side === "left";
+    const root = {
+      x: isLeft ? state.leftArmRootX : state.rightArmRootX,
+      y: isLeft ? state.leftArmRootY : state.rightArmRootY
+    };
+    const totalLength = isLeft ? state.leftArmLength : state.rightArmLength;
+    const angle = isLeft ? state.leftArmAngle : state.rightArmAngle;
+    const elbowAlong = isLeft ? state.leftElbowAlong : state.rightElbowAlong;
+    const forearmAngle = angle + (isLeft ? state.leftElbowBend : state.rightElbowBend);
+    const wristAlong = isLeft ? state.leftWristAlong : state.rightWristAlong;
+    const pawAngle = forearmAngle + (isLeft ? state.leftWristBend : state.rightWristBend);
+    const upperDir = dirFromDeg(angle);
+    const forearmDir = dirFromDeg(forearmAngle);
+    const pawDir = dirFromDeg(pawAngle);
+    const pawLen = clamp(state.pawLength, 22, totalLength * 0.36);
+    const armLen = Math.max(42, totalLength - pawLen);
+    const upperLen = clamp(armLen * 0.48 + elbowAlong, 30, armLen - 26);
+    const forearmLen = Math.max(24, armLen - upperLen + wristAlong);
+    const shoulder = add(root, scale(upperDir, -state.shoulderInset));
+    const elbow = add(root, scale(upperDir, upperLen));
+    const wrist = add(elbow, scale(forearmDir, forearmLen));
+    const tip = add(wrist, scale(pawDir, pawLen));
+
+    return {
+      side,
+      angle,
+      forearmAngle,
+      pawAngle,
+      totalLength,
+      upperLen,
+      forearmLen,
+      pawLen,
+      radius: state.armWidth / 2,
+      root,
+      shoulder,
+      visibleRoot: root,
+      elbow,
+      wrist,
+      tip,
+      thick: state.armWidth / 37
+    };
+  }
+
+  function dirFromDeg(deg){
+    const rad = deg * Math.PI / 180;
+    return { x: Math.cos(rad), y: Math.sin(rad) };
+  }
+
+  function noodleHandTransform(side){
+    const s = noodleHandSpec(side);
+    return `fk-arm S(${fmt(s.shoulder.x)},${fmt(s.shoulder.y)}) R(${fmt(s.visibleRoot.x)},${fmt(s.visibleRoot.y)}) E(${fmt(s.elbow.x)},${fmt(s.elbow.y)}) W(${fmt(s.wrist.x)},${fmt(s.wrist.y)}) T(${fmt(s.tip.x)},${fmt(s.tip.y)}) upper(${fmt(s.angle)}) forearm(${fmt(s.forearmAngle)}) paw(${fmt(s.pawAngle)})`;
+  }
+
+  function noodleHandSnapshot(side){
+    const s = noodleHandSpec(side);
+    return {
+      side,
+      upperAngle: s.angle,
+      forearmAngle: s.forearmAngle,
+      pawAngle: s.pawAngle,
+      totalLength: s.totalLength,
+      upperLen: s.upperLen,
+      forearmLen: s.forearmLen,
+      pawLen: s.pawLen,
+      thick: s.thick,
+      shoulder: s.shoulder,
+      root: s.visibleRoot,
+      elbow: s.elbow,
+      wrist: s.wrist,
+      tip: s.tip
+    };
+  }
+
+  function armStrokePath(s){
+    return [
+      `M${fmt(s.shoulder.x)} ${fmt(s.shoulder.y)}`,
+      `L${fmt(s.visibleRoot.x)} ${fmt(s.visibleRoot.y)}`,
+      `L${fmt(s.elbow.x)} ${fmt(s.elbow.y)}`,
+      `L${fmt(s.wrist.x)} ${fmt(s.wrist.y)}`
+    ].join(" ");
+  }
+
+  function rigidPawTipPath(s){
+    const source = PAW_TIP_SOURCE[s.side];
+    const sourceAxis = normalize(sub(source.tip, source.seam));
+    const sourceNormal = { x: -sourceAxis.y, y: sourceAxis.x };
+    const sourceLen = Math.hypot(source.tip.x - source.seam.x, source.tip.y - source.seam.y) || 1;
+    const targetAxis = normalize(sub(s.tip, s.wrist));
+    const targetNormal = { x: -targetAxis.y, y: targetAxis.x };
+    const targetLen = Math.hypot(s.tip.x - s.wrist.x, s.tip.y - s.wrist.y) || 1;
+    const alongScale = targetLen / sourceLen;
+    const acrossScale = s.radius / 18.5;
+    const seamControl = add(source.seam, scale(sourceAxis, -7.5 * state.pawSeamCurve));
+    const sourceD = [
+      source.dPrefix,
+      `C${fmt(seamControl.x)} 278.2 ${fmt(seamControl.x)} 257.8 ${fmt(source.seam.x)} 249.5`,
+      "Z"
+    ].join(" ");
+    return transformPathXY(sourceD, (point) => {
+      const offset = sub(point, source.seam);
+      const along = offset.x * sourceAxis.x + offset.y * sourceAxis.y;
+      const across = offset.x * sourceNormal.x + offset.y * sourceNormal.y;
+      return add(
+        s.wrist,
+        add(scale(targetAxis, along * alongScale), scale(targetNormal, across * acrossScale))
+      );
+    });
+  }
+
+  function applyNoodleHands(){
+    ["left", "right"].forEach((side) => {
+      const hand = activeSvg.querySelector(`#${side}-hand`);
+      if (!hand) return;
+      const spec = noodleHandSpec(side);
+      hand.style.transformBox = "view-box";
+      hand.style.transformOrigin = "0px 0px";
+      hand.removeAttribute("transform");
+      let shoulder = activeSvg.querySelector(`#${side}-shoulder-inset`);
+      if (!shoulder) {
+        shoulder = document.createElementNS(SVG_NS, "path");
+        shoulder.setAttribute("id", `${side}-shoulder-inset`);
+        shoulder.setAttribute("data-part", `${side}-shoulder-inset`);
+        hand.insertBefore(shoulder, hand.firstChild);
+      }
+      shoulder.setAttribute("d", "");
+      shoulder.style.display = "none";
+      const [baseId, pawId] = HAND_IDS[side];
+      const base = activeSvg.querySelector(`#${baseId}`);
+      const paw = activeSvg.querySelector(`#${pawId}`);
+      if (base) {
+        base.setAttribute("d", armStrokePath(spec));
+        base.setAttribute("fill", "none");
+        base.setAttribute("stroke", "#fff8f0");
+        base.setAttribute("stroke-width", fmt(spec.radius * 2));
+        base.setAttribute("stroke-linecap", "round");
+        base.setAttribute("stroke-linejoin", "round");
+        base.setAttribute("data-motion", "fk-upper-forearm-round-stroke");
+      }
+      if (paw) {
+        paw.setAttribute("d", rigidPawTipPath(spec));
+        paw.setAttribute("fill", "#d8a686");
+        paw.removeAttribute("stroke");
+        paw.removeAttribute("stroke-width");
+        paw.removeAttribute("stroke-linecap");
+        paw.removeAttribute("stroke-linejoin");
+        paw.setAttribute("data-motion", "rigid-v18-paw-tip-on-wrist");
+      }
+    });
+  }
+
+  function drawNoodleHandRig(){
+    activeSvg.querySelector("#noodle-hand-rig-layer")?.remove();
+    if (!state.showHands || !state.showArmAnchors) return;
+    const handsLayer = activeSvg.querySelector("#hands-layer");
+    if (!handsLayer) return;
+    const layer = document.createElementNS(SVG_NS, "g");
+    layer.setAttribute("id", "noodle-hand-rig-layer");
+    layer.setAttribute("data-layer", "hand-rig-guides");
+
+    ["left", "right"].forEach((side) => {
+      const s = noodleHandSpec(side);
+      const color = side === "left" ? "#2f9b72" : "#5d69bf";
+      const line = document.createElementNS(SVG_NS, "path");
+      line.setAttribute("d", `M${fmt(s.visibleRoot.x)} ${fmt(s.visibleRoot.y)} L${fmt(s.elbow.x)} ${fmt(s.elbow.y)} L${fmt(s.wrist.x)} ${fmt(s.wrist.y)} L${fmt(s.tip.x)} ${fmt(s.tip.y)}`);
+      line.setAttribute("fill", "none");
+      line.setAttribute("stroke", color);
+      line.setAttribute("stroke-width", "1.4");
+      line.setAttribute("stroke-dasharray", "4 3");
+      line.setAttribute("opacity", "0.68");
+      layer.appendChild(line);
+
+      const nodes = [
+        { p: s.shoulder, id: "S", r: 3.4, fill: color },
+        { p: s.visibleRoot, id: "R", r: 4.4, fill: "#2f74c0" },
+        { p: s.elbow, id: "E", r: 3.7, fill: "#e3a052" },
+        { p: s.wrist, id: "W", r: 3.7, fill: "#f0c24f" },
+        { p: s.tip, id: "T", r: 4.2, fill: "#c23a35" }
+      ];
+      nodes.forEach((node) => {
+        const dot = document.createElementNS(SVG_NS, "circle");
+        dot.setAttribute("id", `${side}-noodle-${node.id}-node`);
+        dot.setAttribute("cx", fmt(node.p.x));
+        dot.setAttribute("cy", fmt(node.p.y));
+        dot.setAttribute("r", String(node.r));
+        dot.setAttribute("fill", node.fill);
+        dot.setAttribute("opacity", "0.82");
+        layer.appendChild(dot);
+
+        const label = document.createElementNS(SVG_NS, "text");
+        label.setAttribute("x", fmt(node.p.x + 5));
+        label.setAttribute("y", fmt(node.p.y - 5));
+        label.setAttribute("fill", node.fill);
+        label.setAttribute("font-size", "10");
+        label.setAttribute("font-weight", "700");
+        label.textContent = node.id;
+        layer.appendChild(label);
+      });
+
+      const ring = document.createElementNS(SVG_NS, "circle");
+      ring.setAttribute("cx", fmt(s.visibleRoot.x));
+      ring.setAttribute("cy", fmt(s.visibleRoot.y));
+      ring.setAttribute("r", "14");
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", "#2f74c0");
+      ring.setAttribute("stroke-width", "1.1");
+      ring.setAttribute("stroke-dasharray", "3 3");
+      ring.setAttribute("opacity", "0.48");
+      layer.appendChild(ring);
+    });
+
+    handsLayer.appendChild(layer);
+  }
+
+  function applyVisibility(){
+    const toggle = (selector, visible) => {
+      const el = activeSvg.querySelector(selector);
+      if (el) el.style.display = visible ? "" : "none";
+    };
+    toggle("#hands-layer", state.showHands);
+    toggle("#complete-arms-layer", false);
+    toggle("#face-layer", state.showFace);
+    toggle("#task-complete-blush-clip-wrapper", state.showFace);
+    toggle("#tail", state.showTail);
+    toggle("#task-complete-bg-stars", state.showStars);
+    toggle("#task-complete-glasses-sparkles", state.showStars && state.showFace);
+    const tie = activeSvg.querySelector("#tie");
+    if (tie){
+      tie.style.display = state.showTie ? "" : "none";
+      tie.style.opacity = state.showTie ? "1" : "";
+    }
+  }
+
+  function applyDemoOverlay(){}
+
+  function renderScene(){
+    if (!activeSvg) return;
+    applyBodyPose();
+    applyFaceLookPose();
+    applyBrowPose();
+    applyMouthPose();
+    applyTiePose();
+    applyBoardPose();
+    applyStarPose();
+    if (state.loopFootMix !== undefined) renderLoopFeet();
+    else renderFeet();
+    applyNoodleHands();
+    drawNoodleHandRig();
+    applyVisibility();
+    drawFootReference();
+    drawGuides();
+    raiseBoardLayer();
+    applyDemoOverlay();
+    const p = bodyParams();
+    const frameLabel = FRAME_LABELS[state.motionFrame] || "自定义";
+  }
+
+  function stopLoop(){
+    if (loopRaf) cancelAnimationFrame(loopRaf);
+    if (loopTimer) clearTimeout(loopTimer);
+    loopRaf = 0;
+    loopTimer = 0;
+    loopLastNow = 0;
+  }
+
+  function scheduleLoopFrame(){
+    if (!activeSvg || !state.playLoop || loopRaf || loopTimer) return;
+    if (document.hidden){
+      loopTimer = window.setTimeout(() => {
+        loopTimer = 0;
+        loopStep(performance.now());
+      }, LOOP_MOTION.hiddenFrameMs);
+      return;
+    }
+    loopRaf = requestAnimationFrame(loopStep);
+  }
+
+  function loopStep(now){
+    loopRaf = 0;
+    loopTimer = 0;
+    if (!activeSvg || !state.playLoop) return;
+    if (!loopLastNow) loopLastNow = now;
+    const delta = clamp(now - loopLastNow, 0, LOOP_MOTION.maxFrameDelta);
+    loopLastNow = now;
+    loopElapsed += delta;
+    const pose = loopPoseAt(loopElapsed);
+    renderingLoopPose = true;
+    withTemporaryState(pose, renderScene);
+    renderingLoopPose = false;
+    scheduleLoopFrame();
+  }
+
+  function startLoop(){
+    if (!activeSvg || !state.playLoop || loopRaf || loopTimer) return;
+    loopElapsed = 0;
+    loopLastNow = performance.now();
+    const pose = loopPoseAt(loopElapsed);
+    renderingLoopPose = true;
+    withTemporaryState(pose, renderScene);
+    renderingLoopPose = false;
+    scheduleLoopFrame();
+  }
+
+  function render(){
+    if (!activeSvg) return;
+    if (state.playLoop && !renderingLoopPose) {
+      startLoop();
+      return;
+    }
+    stopLoop();
+    renderScene();
+  }
+
+  function syncInputs(){
+    document.querySelectorAll("[data-setting]").forEach((el) => {
+      const key = el.dataset.setting;
+      if (el.type === "checkbox") el.checked = !!state[key];
+      else el.value = state[key];
+    });
+    document.querySelectorAll("[data-out]").forEach((out) => {
+      const key = out.dataset.out;
+      out.textContent = String(state[key]);
+    });
+    document.querySelectorAll("[data-side]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.side === state.supportSide);
+    });
+    document.querySelectorAll("[data-frame]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.frame === state.motionFrame);
+    });
+    document.querySelectorAll("[data-free-layer]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.freeLayer === state.freeLayer);
+    });
+    document.querySelectorAll("[data-tick-palette]").forEach((btn) => {
+      btn.classList.toggle("active", Number(btn.dataset.tickPalette) === state.tickPalette);
+    });
+    document.querySelectorAll("[data-done-palette]").forEach((btn) => {
+      btn.classList.toggle("active", Number(btn.dataset.donePalette) === state.donePalette);
+    });
+  }
+
+  function bindControls(){
+    document.querySelectorAll("[data-setting]").forEach((el) => {
+      el.addEventListener("input", () => {
+        const key = el.dataset.setting;
+        state[key] = el.type === "checkbox" ? el.checked : parseFloat(el.value);
+        document.querySelectorAll(`[data-out="${key}"]`).forEach((out) => { out.textContent = String(state[key]); });
+        render();
+      });
+    });
+    document.querySelectorAll("[data-side]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyFramePreset(btn.dataset.side === "right" ? "right-landing" : "left-landing");
+      });
+    });
+    document.querySelectorAll("[data-frame]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyFramePreset(btn.dataset.frame);
+      });
+    });
+    document.querySelectorAll("[data-free-layer]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.freeLayer = btn.dataset.freeLayer;
+        syncInputs();
+        render();
+      });
+    });
+    document.getElementById("replayCheckBtn").addEventListener("click", () => {
+      replayBoard();
+    });
+    document.querySelectorAll("[data-tick-palette]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.tickPalette = Number(btn.dataset.tickPalette) || 0;
+        syncInputs();
+        render();
+      });
+    });
+    document.querySelectorAll("[data-done-palette]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.donePalette = Number(btn.dataset.donePalette) || 0;
+        syncInputs();
+        render();
+      });
+    });
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      Object.assign(state, DEFAULTS);
+      syncInputs();
+      render();
+    });
+    document.getElementById("copyPoseBtn").addEventListener("click", () => {
+      const data = {
+        status: "task-complete-pose-v1",
+        motionFrame: state.motionFrame,
+        supportSide: state.supportSide,
+        freeSide: freeSide(),
+        bodyTransform: bodyTransformStr(),
+        headTransform: headTransformStr(),
+        faceLookTransform: faceLookTransformStr(),
+        supportFootPath: supportLegPath(state.supportSide),
+        freeFootPath: freeFootPath(freeSide()),
+        noodleHands: {
+          left: {
+            transform: noodleHandTransform("left"),
+            rig: noodleHandSnapshot("left")
+          },
+          right: {
+            transform: noodleHandTransform("right"),
+            rig: noodleHandSnapshot("right")
+          }
+        },
+        mouth: {
+          type: "surprised-mask-opening",
+          openingClipD: mouthOpeningClipD(),
+          doorClipD: mouthDoorClipD(),
+          cavityD: mouthCavityD(),
+          lowerCavityD: mouthLowerCavityD(),
+          layering: [
+            "mouth-opening-clip-path is invisible",
+            "mouth-door-clip-path is an invisible rounded vertical door mask for left-right width",
+            "mask width and bottom height are controlled by the clip path",
+            "mouth-interior-clipped stays larger than the opening and is not squeezed by mask width",
+            "mouth-left and mouth-right remain visible above the interior"
+          ]
+        },
+        tie: {
+          transform: bodyTransformStr(),
+          bladeTransform: tieBladeTransformStr(),
+          gravity: state.tieGravity,
+          sway: state.tieBladeSway
+        },
+        board: {
+          type: "one-shot-task-list-board",
+          x: state.boardX,
+          y: state.boardY,
+          scale: state.boardScale,
+          rotate: state.boardRot,
+          tickGap: state.tickGap,
+          tickDur: state.tickDur,
+          tickKick: state.tickKick,
+          tickColor: TICK_PALETTES[state.tickPalette],
+          doneColor: DONE_PALETTES[state.donePalette],
+          doneStroke: state.doneStroke,
+          holdY: state.boardHoldY,
+          holdRotate: state.boardHoldRotate,
+          holdScale: state.boardHoldScale,
+          holdLag: state.boardHoldLag,
+          times: boardTimes(),
+          behavior: "empty list pops on state enter, three ticks draw fast, list settles into one big green check, confetti bursts once, stars ramp in then twinkle; board holds with the hop afterwards"
+        },
+        params: Object.assign({}, state)
+      };
+      const text = JSON.stringify(data, null, 2);
+      document.getElementById("exportOut").textContent = text;
+      navigator.clipboard?.writeText(text).catch(() => {});
+    });
+    document.addEventListener("visibilitychange", () => {
+      loopLastNow = performance.now();
+      if (state.playLoop && !loopRaf && !loopTimer) scheduleLoopFrame();
+    });
+  }
+
+  async function loadSvg(){
+    const resp = await fetch(`${MASTER_URL}?t=${Date.now()}`);
+    if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+    const text = await resp.text();
+    const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+    const svg = doc.querySelector("svg");
+    if (!svg) throw new Error("SVG missing");
+    svg.removeAttribute("width");
+    svg.removeAttribute("height");
+    svg.setAttribute("viewBox", PAGE_VIEWBOX);
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    svg.style.overflow = "visible";
+    return document.importNode(svg, true);
+  }
+
+  const exportSvg = document.currentScript && document.currentScript.ownerSVGElement;
+  if (!exportSvg) return;
+  activeSvg = exportSvg;
+  Object.assign(state, {
+    playLoop: true,
+    showBoard: true,
+    showArmAnchors: false,
+    showAxis: false,
+    showFootRef: false,
+    showDemoOverlay: false,
+    showTail: false,
+    showStars: true
+  });
+
+  prepareFaceLookBlushClip();
+  installTaskCompleteMouthRig();
+  prepareTieGravityRig();
+  installTaskCompleteStars();
+  installTaskCompleteBoard();
+  render();
+  replayBoard();
+
+  const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion) pause();
+
+  function play() {
+    if (state.playLoop) return;
+    state.playLoop = true;
+    startLoop();
+  }
+
+  function pause() {
+    state.playLoop = false;
+    stopLoop();
+    withLoopPose(loopElapsed, renderScene);
+  }
+
+  function setPhase(phase) {
+    const normalized = ((Number(phase) || 0) % 1 + 1) % 1;
+    loopElapsed = normalized * Math.max(300, state.loopMs || DEFAULTS.loopMs);
+    loopLastNow = performance.now();
+    withLoopPose(loopElapsed, renderScene);
+  }
+
+  function withLoopPose(elapsed, fn) {
+    renderingLoopPose = true;
+    try {
+      return withTemporaryState(loopPoseAt(elapsed), fn);
+    } finally {
+      renderingLoopPose = false;
+    }
+  }
+
+  function snapshot() {
+    const board = activeSvg.querySelector("#task-complete-board");
+    const leftStar = activeSvg.querySelector("#glasses-star-left");
+    return {
+      mode: "task-complete-loop-v2-board-anim-v1",
+      phase: Number(fmt(((loopElapsed % Math.max(300, state.loopMs || DEFAULTS.loopMs)) + Math.max(300, state.loopMs || DEFAULTS.loopMs)) % Math.max(300, state.loopMs || DEFAULTS.loopMs) / Math.max(300, state.loopMs || DEFAULTS.loopMs))),
+      loopMs: state.loopMs,
+      boardTransform: board?.getAttribute("transform") || "",
+      glassesStarOpacity: leftStar?.getAttribute("opacity") || "",
+      board: {
+        x: state.boardX, y: state.boardY, scale: state.boardScale, rot: state.boardRot,
+        follow: state.boardFollow, rotFollow: state.boardRotFollow,
+        lagPhase: state.boardLagPhase,
+        swayDeg: state.boardSwayDeg, kickDeg: state.boardKickDeg,
+        bounceY: state.boardBounceY,
+        pivot: [state.boardPivotX, state.boardPivotY],
+        holdY: state.boardHoldY, holdRotate: state.boardHoldRotate,
+        breathScale: state.boardBreathScale
+      }
+    };
+  }
+
+  function setBoardParams(opts){
+    if (!opts) return;
+    const keys = ["boardX","boardY","boardScale","boardRot","boardFollow","boardRotFollow","boardLagPhase","boardSwayDeg","boardKickDeg","boardPivotX","boardPivotY","boardBounceY","boardHoldY","boardHoldRotate","boardHoldScale","boardHoldLag","boardBreathScale"];
+    for (const k of keys){
+      if (opts[k] !== undefined && Number.isFinite(Number(opts[k]))) state[k] = Number(opts[k]);
+    }
+    if (!state.playLoop) renderScene();
+  }
+
+  window.__cloudlingTaskCompleteLoop = { play, pause, setPhase, replayBoard, replayCheckmark: replayBoard, snapshot, setBoardParams };
+  window.__clawdSetLowPowerPaused = (value) => {
+    if (value) pause();
+    else play();
+  };
+})();
+]]></script>
+</svg>

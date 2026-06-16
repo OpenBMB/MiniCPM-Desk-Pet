@@ -622,6 +622,7 @@ function setViewportOffsetY(offsetY) { return petWindowRuntime.setViewportOffset
 function getPetWindowBounds() { return petWindowRuntime.getPetWindowBounds(); }
 function applyPetWindowBounds(bounds) { return petWindowRuntime.applyPetWindowBounds(bounds); }
 function applyPetWindowPosition(x, y) { return petWindowRuntime.applyPetWindowPosition(x, y); }
+function syncRenderCanvasForState(state, svg) { return petWindowRuntime.syncRenderCanvasForState(state, svg); }
 
 function syncHitStateAfterLoad() {
   sendToHitWin("hit-state-sync", {
@@ -914,6 +915,7 @@ const _stateCtx = {
   get pendingPermissions() { return pendingPermissions; },
   sendToRenderer,
   sendToHitWin,
+  syncRenderCanvasForState,
   syncHitWin,
   playSound,
   t: (key) => t(key),

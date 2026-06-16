@@ -1,0 +1,294 @@
+<svg id="mini-stage" xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="-150 -60 580 580" role="img" aria-labelledby="title desc" style="pointer-events:none">
+  <title id="title">Hamster mini-sleep v1 (scripted)</title>
+  <desc id="desc">Mini-mode sleep for clawd-on-desk / MiniCPM-Desk-Pet, right-edge variant (host mirrors for left edge). Host semantics: this is the Do-Not-Disturb resting state — applied on DND enable in mini mode and auto-returned to from other mini states while DND is on; hovering the sleeping pet pushes the window out 25px (host PEEK_OFFSET window animation) while this SVG keeps sleeping, so the pose must (and does) hold up with more body revealed. Confirmed by 鹿鹿 2026-06-15 (three review rounds — round 3 客户「too stiff/喜欢大幅度」feedback): paws stay clamped on the screen edge (transforms byte-frozen to the base-pose strings), no entrance — pure sleep loop. Round-3 amplified breath: 4s cycle (was 5.6s main-line, sped up to pair with bigger amplitude), body swell about (187,322) ×5 amp = sx ±12% / sy ±9% / by ±8px (was ±2.4%/±1.8%/±1.6px), far-edge pixel excursion ≈17px after the -90deg pose rotation it reads as a lying belly clearly rising and falling. Three Zzz with stagger delays 0/0.23/0.46 and easeOutCubic appear/drift/fade. Round-2 look kept: Zzz anchored to an emergence point by the upper ear drifting up-left away from the head (never covering the head cap — verified per-frame via elementsFromPoint), closed eyes (verbatim main-line sleeping arcs behind the .97 lenses, open-eye ellipses hidden), relaxed symmetric sleep brows (verbatim main-line) lifted 4px away from the sunglasses. Head droops -7deg about the neck (187,252) via the sleep-head-tilt wrapper with a 7.1deg inhale lift (peak reaches +0.1° = essentially horizontal, reads as a deep-breath neck stretch, not a backwards overshoot — verified); tufts float ±1.5° offset-phase on top of the baked 32° gravity angle; tie micro-sways ±0.4° about the knot center via the sleep-tie-sway wrapper (baked tie strings untouched); mouth is the confirmed thinking dasharray inset breathing 16→18. Self-driven infinite loop, no pointer feed, no engine; svg root keeps pointer-events:none for embedding pages. Pure paths + soft-lift filter, no image/gradient/fetch.</desc>
+  <defs>
+      <filter id="soft-lift" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+        <feGaussianBlur in="SourceAlpha" stdDeviation="2.8" result="soft-edge"/>
+        <feFlood flood-color="#8b735e" flood-opacity=".045" result="halo-color"/>
+        <feComposite in="halo-color" in2="soft-edge" operator="in" result="halo"/>
+        <feOffset in="SourceAlpha" dx="0" dy="8" result="shadow-offset"/>
+        <feGaussianBlur in="shadow-offset" stdDeviation="9" result="shadow-blur"/>
+        <feFlood flood-color="#3a2d23" flood-opacity=".055" result="shadow-color"/>
+        <feComposite in="shadow-color" in2="shadow-blur" operator="in" result="ambient-shadow"/>
+        <feMerge>
+          <feMergeNode in="ambient-shadow"/>
+          <feMergeNode in="halo"/>
+          <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+      </filter>
+      <clipPath id="mini-paw-clip-right" clipPathUnits="userSpaceOnUse">
+        <rect x="340" y="236" width="78" height="64"/>
+      </clipPath>
+      <clipPath id="mini-paw-clip-left" clipPathUnits="userSpaceOnUse">
+        <rect x="-44" y="236" width="78" height="64"/>
+      </clipPath>
+    </defs>
+
+  <g id="mini-rotate" style="transform-origin:0 0" transform="rotate(-90 187 230)">
+      <g id="hamster-flat-master-v11" style="transform-origin:0 0" filter="url(#soft-lift)" fill-rule="evenodd" clip-rule="evenodd">
+        <g id="tail" data-part="tail">
+          <circle id="tail-fill" cx="187" cy="356" r="22" fill="#d8a686"/>
+        </g>
+        <g id="feet-layer" data-layer="behind-body">
+          <g id="left-foot" data-part="left-foot">
+            <path id="left-foot-fill" d="M109 392 C101 389 93 391 87 396 C80 402 84 410 94 414 C105 418 118 414 125 405 C131 397 123 394 109 392 Z" fill="#d8a686"/>
+          </g>
+          <g id="right-foot" data-part="right-foot">
+            <path id="right-foot-fill" d="M265 392 C273 389 281 391 287 396 C294 402 290 410 280 414 C269 418 256 414 249 405 C243 397 251 394 265 392 Z" fill="#d8a686"/>
+          </g>
+        </g>
+
+        <!-- sleep 呼吸 wrapper:绕 (187,322) 胀缩 = 主线 sleeping-loop 串逐字;横躺后语义=躺着肚子起伏 -->
+        <g id="sleep-body-breath">
+        <g id="body-layer" data-layer="body">
+          <g id="body-belly" data-part="body-belly">
+            <path id="body-belly-fill" d="M187 200 C113 200 60 251 60 322 C60 380 101 412 187 412 C273 412 314 380 314 322 C314 251 261 200 187 200Z" fill="#fff8f0"/>
+          </g>
+        </g>
+        </g><!-- /sleep-body-breath -->
+
+        <!-- sleep 头耷 wrapper:静态耷角+呼吸微抬,绕脖根 (187,252)(alert 头摆 wrapper 同款结构) -->
+        <g id="sleep-head-tilt">
+        <g id="ears-layer" data-layer="ears">
+          <g id="left-ear" data-part="left-ear">
+            <circle id="left-ear-outer" cx="101" cy="73" r="34" fill="#d8a686"/>
+            <circle id="left-ear-inner" cx="101" cy="73" r="18" fill="#f8b2aa"/>
+          </g>
+          <g id="right-ear" data-part="right-ear">
+            <circle id="right-ear-outer" cx="286" cy="73" r="34" fill="#d8a686"/>
+            <circle id="right-ear-inner" cx="286" cy="73" r="18" fill="#f8b2aa"/>
+          </g>
+        </g>
+
+        <g id="head-tufts" data-part="head-tufts">
+          <path id="left-tuft" d="M182 49 C184 35 187 24 192 15" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round" transform="rotate(-32 182 49)"/>
+          <path id="right-tuft" d="M200 50 C203 34 208 24 214 16" fill="none" stroke="#d8a686" stroke-width="6.5" stroke-linecap="round" transform="rotate(-32 200 50)"/>
+        </g>
+
+        <g id="head-layer" data-layer="head">
+          <g id="head-cap" data-part="head-cap">
+            <path id="head-cap-fill" d="M64 153 C64 88 116 48 187 48 C258 48 310 88 310 153 C310 214 257 253 187 253 C117 253 64 214 64 153Z" fill="#edc8a5"/>
+          </g>
+          <g id="cheek-muzzle" data-part="cheek-muzzle">
+            <path id="cheek-muzzle-fill" d="M65 153 C97 159 136 168 172 154 C181 150 193 147 202 154 C238 168 277 159 309 153 C331 178 336 221 303 246 C270 268 104 268 71 246 C38 221 43 178 65 153Z" fill="#fff8f0"/>
+          </g>
+          <g id="cheek-creases" data-part="cheek-creases" opacity=".35">
+            <path id="left-cheek-crease" d="M62 238 C70 250 84 256 100 256" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"/>
+            <path id="right-cheek-crease" d="M312 238 C304 250 290 256 274 256" fill="none" stroke="#e6d7c6" stroke-width="3" stroke-linecap="round"/>
+          </g>
+        </g>
+
+        <g id="face-layer" data-layer="face">
+          <!-- 睡觉眉 = 主线 sleeping 定稿对称放松拱(逐字),上移滑块离墨镜更远(鹿鹿二轮) -->
+          <g id="brows" data-part="brows">
+            <path id="left-brow" d="M 127.1 116 C 135.02 106 147.98 106 155.9 116" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round"/>
+            <path id="right-brow" d="M 247.9 116 C 239.98 106 227.02 106 219.1 116" fill="none" stroke="#7b4a23" stroke-width="7" stroke-linecap="round"/>
+          </g>
+          <!-- 闭眼 = 主线 sleeping 定稿(逐字):睁眼椭圆 opacity 0 + 闭眼弧(墨镜留一丝透,镜后可见,鹿鹿二轮) -->
+          <g id="eyes" data-part="eyes">
+            <ellipse id="left-eye" cx="138" cy="157" rx="12.5" ry="17" fill="#5a300f" opacity="0"/>
+            <ellipse id="right-eye" cx="237" cy="157" rx="12.5" ry="17" fill="#5a300f" opacity="0"/>
+            <path id="sleep-left-eye-arc" data-part="left-sleep-eye-arc" d="M 125.85 158.5 C 132.53 164.5 143.47 164.5 150.15 158.5" fill="none" stroke="#5a300f" stroke-width="4.6" stroke-linecap="round"/>
+            <path id="sleep-right-eye-arc" data-part="right-sleep-eye-arc" d="M 224.85 158.5 C 231.53 164.5 242.47 164.5 249.15 158.5" fill="none" stroke="#5a300f" stroke-width="4.6" stroke-linecap="round"/>
+          </g>
+          <!-- 腮红:层级在墨镜下面(鹿鹿 2026-06-14;与 mini-enter-sleep 终点一致,切换零跳变) -->
+          <g id="blushes" data-part="blushes">
+            <ellipse id="left-blush" cx="92" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9"/>
+            <ellipse id="right-blush" cx="281" cy="185" rx="17" ry="11" fill="#f8aaa2" opacity=".9"/>
+          </g>
+          <g id="sunglasses" data-part="sunglasses">
+            <g id="left-sunglass" data-part="left-sunglass">
+              <path id="left-sunglass-frame" d="M99.22 132 C114.76 125.7 144.16 126.96 166 131.58 C171.46 132.84 174.82 136.62 174.4 143.34 C171.88 170.22 152.98 187.44 129.46 187.44 C109.72 187.44 96.7 170.64 96.28 146.7 C96.28 139.56 94.18 134.52 99.22 132 Z M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"/>
+              <path id="left-sunglass-lens" d="M109.54 137.88 C123.82 133.68 145.66 134.94 162.88 138.72 C161.62 159.3 149.44 178.62 133.9 179.46 C118.78 180.3 107.86 164.76 107.44 146.7 C107.44 142.5 106.18 139.56 109.54 137.88 Z" fill="#16140f" opacity=".97"/>
+              <path id="left-lens-main-shine" d="M151.96 135.36 L124.24 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"/>
+              <path id="left-lens-small-shine" d="M161.62 140.82 L146.08 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"/>
+            </g>
+            <g id="right-sunglass" data-part="right-sunglass">
+              <path id="right-sunglass-frame" d="M275.62 132 C260.08 125.7 230.68 126.96 208.84 131.58 C203.38 132.84 200.02 136.62 200.44 143.34 C202.96 170.22 221.86 187.44 245.38 187.44 C265.12 187.44 278.14 170.64 278.56 146.7 C278.56 139.56 280.66 134.52 275.62 132 Z M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#171716" fill-rule="evenodd" stroke="#111111" stroke-width="2.52" stroke-linejoin="round"/>
+              <path id="right-sunglass-lens" d="M265.3 137.88 C251.02 133.68 229.18 134.94 211.96 138.72 C213.22 159.3 225.4 178.62 240.94 179.46 C256.06 180.3 266.98 164.76 267.4 146.7 C267.4 142.5 268.66 139.56 265.3 137.88 Z" fill="#16140f" opacity=".97"/>
+              <path id="right-lens-main-shine" d="M255.64 135.36 L227.92 178.62" fill="none" stroke="#ffffff" stroke-width="3.36" stroke-linecap="round" opacity=".12"/>
+              <path id="right-lens-small-shine" d="M265.3 140.82 L249.76 167.28" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" opacity=".09"/>
+            </g>
+            <path id="sunglasses-bridge" d="M173.98 144.18 C182.38 138.3 192.46 138.3 200.86 144.18" fill="none" stroke="#111111" stroke-width="4.2" stroke-linecap="round"/>
+          </g>
+          <g id="nose-mouth" data-part="nose-mouth">
+            <ellipse id="nose-fill" cx="187" cy="170" rx="10" ry="7.5" fill="#7b4a23"/>
+            <path id="mouth-left" d="M187 177 C187 190 180 198 171 198 C166 198 163 195 163 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round"/>
+            <path id="mouth-right" d="M187 177 C187 190 194 198 203 198 C208 198 211 195 211 192" fill="none" stroke="#7b4a23" stroke-width="5" stroke-linecap="round"/>
+          </g>
+        </g>
+        </g><!-- /sleep-head-tilt -->
+
+        <!-- mini 专用 z 序:爪层在脸之上(鹿鹿定稿);睡觉爪扒边不动(鹿鹿拍板) -->
+        <g id="hands-layer" data-layer="hands-above-face">
+          <g id="left-hand" data-part="left-hand" clip-path="url(#mini-paw-clip-left)"
+             transform="translate(122.5 7) rotate(90 -9.5 268) translate(-9.5 268) scale(1.25) translate(9.5 -268)">
+            <path id="left-hand-base" d="M118 249.5 L-9.5 249.5 C-19.7 249.5 -28 257.8 -28 268 C-28 278.2 -19.7 286.5 -9.5 286.5 L118 286.5 C123 279.1 123 256.9 118 249.5 Z" fill="#fff8f0"/>
+            <path id="left-paw-tip" d="M8.5 249.5 L-9.5 249.5 C-19.7 249.5 -28 257.8 -28 268 C-28 278.2 -19.7 286.5 -9.5 286.5 L8.5 286.5 C16 278.2 16 257.8 8.5 249.5 Z" fill="#d8a686"/>
+          </g>
+          <g id="right-hand" data-part="right-hand" clip-path="url(#mini-paw-clip-right)"
+             transform="translate(-122.5 7) rotate(270 383.5 268) translate(383.5 268) scale(1.25) translate(-383.5 -268)">
+            <path id="right-hand-base" d="M256 249.5 L383.5 249.5 C393.7 249.5 402 257.8 402 268 C402 278.2 393.7 286.5 383.5 286.5 L256 286.5 C251 279.1 251 256.9 256 249.5 Z" fill="#fff8f0"/>
+            <path id="right-paw-tip" d="M365.5 249.5 L383.5 249.5 C393.7 249.5 402 257.8 402 268 C402 278.2 393.7 286.5 383.5 286.5 L365.5 286.5 C358 278.2 358 257.8 365.5 249.5 Z" fill="#d8a686"/>
+          </g>
+        </g>
+
+        <!-- mini 专用 z 序:领带在手臂之上(鹿鹿定稿);组内 blade 前 knot 后;定稿串写死为 base -->
+        <!-- sleep 领带微摆 wrapper:绕领结中心母版系 (186.5,279) 滞后微摆,可关 0 -->
+        <g id="sleep-tie-sway">
+        <g id="tie" data-part="tie" transform="translate(153 260)">
+          <path id="tie-shadow" d="M24 27 L44 27 L54 68 C55 72.5 53 76 49 80 L38 93 C35.5 96 31 96 28.5 93 L17.5 80 C14 76 13 72.5 14.5 68 Z" fill="#000000" opacity=".08" transform="translate(7 6.5) rotate(59.5 33.5 14) translate(2 2)"/>
+          <path id="tie-blade" d="M24 24 L44 24 L54 66 C55 70.5 53 74 49 78 L38 91 C35.5 94 31 94 28.5 91 L17.5 78 C14 74 13 70.5 14.5 66 Z" fill="#21201e" stroke="#151515" stroke-width="2" stroke-linejoin="round" transform="translate(7 6.5) rotate(59.5 33.5 14)"/>
+          <path id="tie-center-fold" d="M34 28 L34 84" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".07" transform="translate(7 6.5) rotate(59.5 33.5 14)"/>
+          <path id="tie-left-fold" d="M27 28 L21 64" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" opacity=".18" transform="translate(7 6.5) rotate(59.5 33.5 14)"/>
+          <path id="tie-knot" d="M23 3 L44 3 L51 14 L44 25 L23 25 L16 14 Z" fill="#2d2c29" stroke="#151515" stroke-width="2" stroke-linejoin="round" transform="translate(0 5) rotate(24 33.5 14)"/>
+          <path id="tie-knot-highlight" d="M26 8 L40 8" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".12" transform="translate(0 5) rotate(24 33.5 14)"/>
+        </g>
+        </g><!-- /sleep-tie-sway -->
+      </g>
+    </g>
+
+    <!-- Zzz 层:屏幕坐标,头上方往左上(屏幕内上方)飘;几何/节奏=主线 sleeping-loop 三段错相搬运 -->
+    <g id="sleep-zzz-layer" fill="none" stroke="#8a5a3f" stroke-linecap="round" stroke-linejoin="round" pointer-events="none">
+      <path id="sleep-zzz-large" d="M 0 0 L 29 4 L -3 33 L 25 38" stroke-width="7" opacity="0"/>
+      <path id="sleep-zzz-mid" d="M 0 0 L 25 3 L -3 27 L 21 30" stroke-width="6" opacity="0"/>
+      <path id="sleep-zzz-small" d="M 0 0 L 16 2 L -2 18 L 14 20" stroke-width="4.6" opacity="0"/>
+    </g>
+
+  <script type="application/ecmascript"><![CDATA[
+(() => {
+  "use strict";
+  const svg = document.getElementById("mini-stage");
+
+  // ── 可调参数(tuner state)──
+  const state = {
+    cycle: 4,                // 2026-06-15 鹿鹿拍板:客户「太木」反馈把节奏从主线 5.6s 调到 4s,与放大幅度配套(快节奏深呼吸);原口径「主线 sleeping-loop 5.6s 同款」已让位给客户「幅度大」要求
+    tilt: 7, tiltBreath: 7.1,  // 头耷角(正值=耷拉程度,apply 取负——呆毛重力同口径)+ 吸气微抬。tiltBreath 2026-06-15 鹿鹿拍板 7.1°(原 1°,客户「太木」反馈;视觉=深呼吸吸气脖子伸直,峰值头抬到水平 +0.1°,几乎归零非反向穿帮);滑块上限 8°
+    breathAmp: 5,            // 身体呼吸系数(×主线 0.024/0.018/1.6)。2026-06-15 鹿鹿拍板 ×5(原 1,客户「喜欢幅度大的」反馈;远端扰动 ~17px,sx ±12%/sy ±9%);滑块上限 5
+    zzzX: 52, zzzY: 86, zzzScale: 1, zzzColor: 0,  // 锚=冒出点(贴上耳,屏幕系上耳(30,131)),鹿鹿二轮:别遮脑袋
+    mouthInset: 16, mouthWobble: 2,  // 主线睡觉 19→22 = base+3*t 同语义
+    browLift: 4,                     // 眉毛放松上移(离墨镜更远,鹿鹿二轮)
+    tuftFloat: 1.5,
+    tieSway: 0.4
+  };
+  const TILT_PIVOT = { x: 187, y: 252 };   // 脖根(alert 摆心同款)
+  const TIE_PIVOT = { x: 186.5, y: 279 };  // 领结中心母版系(153+33.5, 260+5+14)
+
+  // Zzz 三段:错相/淡入淡出/飘移节奏 = 主线 sleeping-loop zzzParts 搬运(dx 取负=往屏幕内上方飘)。
+  // 鹿鹿二轮重排:锚(zzzX/zzzY)=冒出点贴上耳(屏幕系上耳(30,131)),小 Z 先冒(delay 0),
+  // 中/大 Z 依次往左上逐级飘大——「一颗 z 从耳朵冒出来越飘越大」,默认全程不压头盖(head-cap y≥107)。
+  const ZZZ_PARTS = [
+    { id: "sleep-zzz-small", relX: 0,   relY: 0,   delay: 0,    dx: -5, dy: -10, scale0: 0.62 },
+    { id: "sleep-zzz-mid",   relX: -28, relY: -38, delay: 0.23, dx: -7, dy: -13, scale0: 0.68 },
+    { id: "sleep-zzz-large", relX: -52, relY: -85, delay: 0.46, dx: -9, dy: -16, scale0: 0.72 }
+  ];
+  const ZZZ_PALETTES = [
+    { name: "暖棕", color: "#8a5a3f" },   // 主线 sleeping-loop 同款
+    { name: "灰蓝", color: "#5a6a8a" },
+    { name: "青蓝", color: "#4fb8d8" }    // alert 音波系
+  ];
+
+  // ── 工具(主线 sleeping-loop / alert tuner 同款)──
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function fract(v) { return v - Math.floor(v); }
+  function easeOutCubic(v) { const t = clamp(v, 0, 1); return 1 - Math.pow(1 - t, 3); }
+  function easeBreath(linear) { return (1 - Math.cos(linear * Math.PI * 2)) / 2; }
+  function fmt(v) { return String(parseFloat(Number(v).toFixed(2))); }
+  function fmtFine(v) { return String(parseFloat(Number(v).toFixed(4))); }
+  function setT(id, transform) {
+    const node = svg.querySelector(`#${id}`);
+    if (node) {
+      if (transform) node.setAttribute("transform", transform);
+      else node.removeAttribute("transform");
+    }
+  }
+
+  // thinking 定稿闭嘴收口搬运(alert 同款 applyMouthInset)
+  function applyMouthInset(inset) {
+    ["mouth-left", "mouth-right"].forEach((id) => {
+      const node = svg.querySelector(`#${id}`);
+      if (!node || !node.getTotalLength) return;
+      if (inset <= .01) {
+        node.removeAttribute("stroke-dasharray");
+        node.removeAttribute("stroke-dashoffset");
+        return;
+      }
+      const length = node.getTotalLength();
+      const visibleLength = Math.max(.1, length - inset);
+      node.setAttribute("stroke-dasharray", `${fmt(visibleLength)} ${fmt(length + 24)}`);
+      node.setAttribute("stroke-dashoffset", "0");
+    });
+  }
+
+  // ── 每帧 ──
+  const zzzLayer = document.getElementById("sleep-zzz-layer");
+  let t0 = performance.now();
+  function frame(now) {
+    const phase = fract((now - t0) / 1000 / state.cycle);
+    const t = easeBreath(phase);   // 0..1..0 正弦呼吸(主线同款)
+
+    // 身体呼吸:主线串逐字 ×幅度系数(横躺后视觉=躺着肚子起伏,方向数学自洽)
+    const a = state.breathAmp;
+    const sx = 1 + 0.024 * a * t;
+    const sy = 1 - 0.018 * a * t;
+    const by = 1.6 * a * t;
+    setT("sleep-body-breath",
+      `translate(187 322) translate(0 ${fmtFine(by)}) scale(${fmtFine(sx)} ${fmtFine(sy)}) translate(-187 -322)`);
+
+    // 头耷:静态耷角 + 吸气微抬;屏幕系下垂=母版负角(呆毛重力同款取负)
+    const tiltDeg = -(state.tilt - state.tiltBreath * t);
+    setT("sleep-head-tilt", Math.abs(tiltDeg) > .01
+      ? `rotate(${fmt(tiltDeg)} ${TILT_PIVOT.x} ${TILT_PIVOT.y})` : "");
+
+    // 呆毛缓飘:底座重力角 -32 上叠加,与呼吸同周期,两根错相(alert 错相先例)
+    const fl = Math.sin(2 * Math.PI * phase) * state.tuftFloat;
+    const fr = Math.sin(2 * Math.PI * phase + .9) * state.tuftFloat;
+    setT("left-tuft", `rotate(${fmt(-32 + fl)} 182 49)`);
+    setT("right-tuft", `rotate(${fmt(-32 + fr)} 200 50)`);
+
+    // 领带微摆:主线 tieLag(phase+0.08 滞后)语义,对称小角,可关 0
+    if (state.tieSway > .01) {
+      const lag = easeBreath(fract(phase + 0.08));
+      const sway = state.tieSway * (lag * 2 - 1);
+      setT("sleep-tie-sway", `rotate(${fmt(sway)} ${TIE_PIVOT.x} ${TIE_PIVOT.y})`);
+    } else {
+      setT("sleep-tie-sway", "");
+    }
+
+    // 嘴:睡觉小嘴 + 呼吸波动(主线 19→22 同语义 base+wobble*t)
+    applyMouthInset(state.mouthInset + state.mouthWobble * t);
+
+    // 眉毛放松上移(鹿鹿二轮:离墨镜更远;眉形已换主线 sleeping 对称放松拱,母版系 y- = 远离镜框)
+    const browT = state.browLift > .01 ? `translate(0 ${fmt(-state.browLift)})` : "";
+    setT("left-brow", browT);
+    setT("right-brow", browT);
+
+    // Zzz 三段错相(主线 render 的 zzz 段逐字:appear/fade/rise/scale)
+    for (const part of ZZZ_PARTS) {
+      const node = document.getElementById(part.id);
+      if (!node) continue;
+      const p = fract(phase - part.delay);
+      const appear = easeOutCubic(p / 0.24);
+      const fade = clamp((p - 0.64) / 0.24, 0, 1);
+      const alpha = 0.9 * appear * (1 - fade);
+      const rise = easeOutCubic(p / 0.9);
+      const s = lerp(part.scale0, 1, appear) * state.zzzScale;
+      const x = state.zzzX + part.relX * state.zzzScale + part.dx * rise;
+      const y = state.zzzY + part.relY * state.zzzScale + part.dy * rise;
+      node.setAttribute("transform", `translate(${fmt(x)} ${fmt(y)}) scale(${fmt(s)})`);
+      node.setAttribute("opacity", fmt(alpha));
+    }
+    zzzLayer.setAttribute("stroke", ZZZ_PALETTES[state.zzzColor].color);
+
+    refreshJson();
+    requestAnimationFrame(frame);
+  }
+
+  function refreshJson() {} // 面板已剥离(导出无 tuner)
+
+  requestAnimationFrame(frame);
+  window.__miniSleep = { state };
+})();
+  ]]></script>
+</svg>

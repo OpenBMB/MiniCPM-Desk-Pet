@@ -21,6 +21,13 @@ const {
   needsFinalClampAdjustment: needsFinalClampAdjustmentRaw,
   materializeVirtualBounds: materializeVirtualBoundsRaw,
 } = require("./drag-position");
+const {
+  DEFAULT_RENDER_CANVAS,
+  getRenderCanvasForFile,
+  renderCanvasEquals,
+  getActualBoundsForLogical,
+  getLogicalBoundsForActual,
+} = require("./render-canvas");
 
 const noop = () => {};
 
@@ -87,6 +94,7 @@ function createPetWindowRuntime(options = {}) {
   let hitShapeWidth = 0;
   let hitShapeHeight = 0;
   let settingsSizePreviewSyncFrozen = false;
+  let renderCanvas = DEFAULT_RENDER_CANVAS;
   const themeMarginEnvelopeCache = new Map();
 
   function getPrimaryWorkAreaFallback() {
@@ -134,12 +142,13 @@ function createPetWindowRuntime(options = {}) {
     const win = getRenderWindow();
     if (!isLiveWindow(win)) return null;
     const bounds = win.getBounds();
-    return {
+    const actualVirtualBounds = {
       x: bounds.x,
       y: bounds.y - viewportOffsetY,
       width: bounds.width,
       height: bounds.height,
     };
+    return getLogicalBoundsForActual(actualVirtualBounds, renderCanvas);
   }
 
   function materializeVirtualBounds(bounds, workArea) {
@@ -154,12 +163,21 @@ function createPetWindowRuntime(options = {}) {
   function applyPetWindowBounds(bounds) {
     const win = getRenderWindow();
     if (!isLiveWindow(win) || !bounds) return null;
-    const materialized = materializeVirtualBounds(bounds);
+    const actualBounds = getActualBoundsForLogical(bounds, renderCanvas);
+    const materialized = materializeVirtualBounds(actualBounds);
     if (!materialized) return null;
     win.setBounds(materialized.bounds);
     setViewportOffsetY(materialized.viewportOffsetY);
     repositionSessionHud();
-    return materialized.bounds;
+    return getLogicalBoundsForActual(materialized.bounds, renderCanvas);
+  }
+
+  function syncRenderCanvasForState(state, file) {
+    const next = getRenderCanvasForFile(getActiveTheme(), file);
+    if (renderCanvasEquals(next, renderCanvas)) return;
+    const logicalBounds = getPetWindowBounds();
+    renderCanvas = next;
+    if (logicalBounds) applyPetWindowBounds(logicalBounds);
   }
 
   function applyPetWindowPosition(x, y) {
@@ -721,6 +739,7 @@ function createPetWindowRuntime(options = {}) {
     getPetWindowBounds,
     applyPetWindowBounds,
     applyPetWindowPosition,
+    syncRenderCanvasForState,
     isPetHidden,
     togglePetVisibility,
     bringPetToPrimaryDisplay,

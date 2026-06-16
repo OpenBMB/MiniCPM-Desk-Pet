@@ -32,6 +32,7 @@ function initWithConfig(cfg) {
   _eyeTrackingStates = (tc.eyeTrackingStates) || ["idle", "dozing", "mini-idle"];
   _trustedScriptedSvgFiles = new Set(Array.isArray(tc.trustedScriptedSvgFiles) ? tc.trustedScriptedSvgFiles : []);
   _forceSvgObjectChannel = !!(tc.rendering && tc.rendering.svgChannel === "object");
+  _renderCanvas = tc.renderCanvas || { fileRatios: {} };
   _imgCacheBustSeq = 0;
   _miniViewBox = tc.miniModeViewBox || null;
   _fileViewBoxes = tc.fileViewBoxes || {};
@@ -302,6 +303,25 @@ function applyNormalizedLayoutStyle(el, file, state) {
     - ((centerX - viewBox.x) * unitRatio);
   const bottomRatio = (_layout.baselineBottomRatio != null ? _layout.baselineBottomRatio : 0.05)
     - ((viewBox.y + viewBox.height - baselineY) * unitRatio);
+  const stage = getRenderStageMetrics(file);
+
+  if (stage.widthRatio > 1) {
+    const widthPx = widthRatio * stage.logicalWidth;
+    const heightPx = heightRatio * stage.logicalHeight;
+    const leftPx = stage.left + leftRatio * stage.logicalWidth + ox;
+    const bottomPx = bottomRatio * stage.logicalHeight + oy + _viewportOffsetY;
+    if (el.tagName === "IMG") {
+      el.style.width = `${widthPx}px`;
+      el.style.height = "auto";
+    } else {
+      el.style.width = `${widthPx}px`;
+      el.style.height = `${heightPx}px`;
+    }
+    el.style.left = `${leftPx}px`;
+    el.style.top = "auto";
+    el.style.bottom = `${bottomPx}px`;
+    return;
+  }
 
   if (el.tagName === "IMG") {
     el.style.width = `${widthRatio * 100}%`;
@@ -315,6 +335,40 @@ function applyNormalizedLayoutStyle(el, file, state) {
     el.style.left = `calc(${leftRatio * 100}% + ${ox}px)`;
     el.style.top = "auto";
     el.style.bottom = `calc(${bottomRatio * 100}% + ${oy + _viewportOffsetY}px)`;
+  }
+}
+
+function getRenderCanvasForFile(file) {
+  const entry = file
+    && _renderCanvas
+    && _renderCanvas.fileRatios
+    && _renderCanvas.fileRatios[file];
+  const widthRatio = entry && Number.isFinite(entry.widthRatio)
+    ? Math.max(1, entry.widthRatio)
+    : 1;
+  const anchorX = entry && Number.isFinite(entry.anchorX)
+    ? Math.max(0, Math.min(1, entry.anchorX))
+    : 0.5;
+  return { widthRatio, anchorX };
+}
+
+function getRenderStageMetrics(file) {
+  const canvas = getRenderCanvasForFile(file);
+  const viewportWidth = Math.max(1, window.innerWidth || 1);
+  const viewportHeight = Math.max(1, window.innerHeight || 1);
+  const logicalWidth = viewportWidth / canvas.widthRatio;
+  return {
+    widthRatio: canvas.widthRatio,
+    logicalWidth,
+    logicalHeight: viewportHeight,
+    left: (viewportWidth - logicalWidth) * canvas.anchorX,
+  };
+}
+
+function refreshObjectLayout() {
+  applyObjectScaleStyle(clawdEl, currentDisplayedSvg, currentState);
+  if (pendingNext) {
+    applyObjectScaleStyle(pendingNext, getObjectSvgName(pendingNext), currentState);
   }
 }
 
@@ -332,6 +386,7 @@ let _forceSvgObjectChannel = false;
 let _imgCacheBustSeq = 0;
 let _miniViewBox = null;
 let _fileViewBoxes = {};
+let _renderCanvas = { fileRatios: {} };
 let _dragSvg;
 let _idleFollowSvg;
 let _glyphFlipDefs;
@@ -375,6 +430,8 @@ let _layeredTrackingObj = null;    // the <object> element currently tracked (gu
 const LAYER_SETTLE_EPSILON = 0.02;
 
 initWithConfig(tc);
+
+window.addEventListener("resize", refreshObjectLayout);
 
 // Theme switch: reload + IPC push overrides additionalArguments
 window.electronAPI.onThemeConfig((newConfig) => {

@@ -79,6 +79,7 @@ function createThemeContext(theme, options = {}) {
       eyeTrackingStates: theme.eyeTracking.enabled ? theme.eyeTracking.states : [],
       trustedScriptedSvgFiles: [...trustedScriptedSvgFiles],
       rendering: theme.rendering || { svgChannel: "auto" },
+      renderCanvas: theme.renderCanvas || { fileRatios: {} },
       objectScale: theme.objectScale,
       transitions: theme.transitions || {},
     };
