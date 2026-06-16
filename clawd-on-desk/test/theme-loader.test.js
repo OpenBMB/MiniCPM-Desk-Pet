@@ -236,6 +236,7 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
             "../nested/mini-special.svg": { x: -12, y: -12, width: 48, height: 48 },
           },
           miniMode: fullMiniMode({
+            scale: 0.84,
             viewBox: { x: -12, y: -12, width: 48, height: 48 },
           }),
         }),
@@ -286,6 +287,7 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
     assert.deepStrictEqual(rendererConfig.rendering, { svgChannel: "auto" });
     assert.deepStrictEqual(theme.fileViewBoxes, {});
     assert.strictEqual(theme.miniMode.viewBox, null);
+    assert.strictEqual(theme.miniMode.scale, 1);
   });
 
   it("preserves trustedRuntime only for built-in themes and sanitizes filenames", () => {
@@ -305,10 +307,12 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
       "mini-special.svg": { x: -12, y: -12, width: 48, height: 48 },
     });
     assert.deepStrictEqual(rendererConfig.miniModeViewBox, { x: -12, y: -12, width: 48, height: 48 });
+    assert.strictEqual(rendererConfig.miniModeScale, 0.84);
     assert.deepStrictEqual(theme.fileViewBoxes, {
       "mini-special.svg": { x: -12, y: -12, width: 48, height: 48 },
     });
     assert.deepStrictEqual(theme.miniMode.viewBox, { x: -12, y: -12, width: 48, height: 48 });
+    assert.strictEqual(theme.miniMode.scale, 0.84);
   });
 
   it("does not let external themes forge trustedRuntime into renderer config", () => {
@@ -324,6 +328,7 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
       "mini-special.svg": { x: -10, y: -10, width: 40, height: 40 },
     });
     assert.deepStrictEqual(rendererConfig.miniModeViewBox, { x: -10, y: -10, width: 40, height: 40 });
+    assert.strictEqual(rendererConfig.miniModeScale, 1);
     assert.strictEqual(warn.mock.callCount(), 1);
     assert.match(warn.mock.calls[0].arguments[0], /trustedRuntime ignored for non-builtin theme "forged"/);
     assert.deepStrictEqual(theme.fileViewBoxes, {

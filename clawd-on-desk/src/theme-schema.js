@@ -35,6 +35,7 @@ const DEFAULT_OBJECT_SCALE = {
   widthRatio: 1.9, heightRatio: 1.3,
   offsetX: -0.45, offsetY: -0.25,
 };
+const DEFAULT_MINI_MODE_SCALE = 1;
 const DEFAULT_LAYOUT = {
   centerXRatio: 0.5,
   baselineBottomRatio: 0.05,
@@ -595,10 +596,12 @@ function mergeDefaults(raw, themeId, isBuiltin) {
 
   // miniMode
   if (raw.miniMode) {
+    const miniScale = Number(raw.miniMode.scale);
     theme.miniMode = {
       supported: true,
       offsetRatio: 0.486,
       ...raw.miniMode,
+      scale: Number.isFinite(miniScale) && miniScale > 0 ? Math.min(2, miniScale) : DEFAULT_MINI_MODE_SCALE,
       viewBox: normalizeViewBox(raw.miniMode.viewBox),
       timings: {
         minDisplay: {},
@@ -609,7 +612,7 @@ function mergeDefaults(raw, themeId, isBuiltin) {
       preventCrossDisplayCrop: !!raw.miniMode.preventCrossDisplayCrop,
     };
   } else {
-    theme.miniMode = { supported: false, states: {}, viewBox: null, timings: { minDisplay: {}, autoReturn: {} }, glyphFlips: {} };
+    theme.miniMode = { supported: false, states: {}, viewBox: null, scale: DEFAULT_MINI_MODE_SCALE, timings: { minDisplay: {}, autoReturn: {} }, glyphFlips: {} };
   }
 
   // Merge mini timings into main timings for state.js convenience

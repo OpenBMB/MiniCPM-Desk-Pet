@@ -67,6 +67,7 @@ function createThemeContext(theme, options = {}) {
     return {
       viewBox: theme.viewBox,
       miniModeViewBox: theme.miniMode ? theme.miniMode.viewBox : null,
+      miniModeScale: theme.miniMode ? theme.miniMode.scale : 1,
       fileViewBoxes: { ...(theme.fileViewBoxes || {}) },
       layout: theme.layout,
       assetsPath: getRendererAssetsPath(),

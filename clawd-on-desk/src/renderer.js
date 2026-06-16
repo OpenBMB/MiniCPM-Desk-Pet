@@ -35,6 +35,9 @@ function initWithConfig(cfg) {
   _renderCanvas = tc.renderCanvas || { fileRatios: {} };
   _imgCacheBustSeq = 0;
   _miniViewBox = tc.miniModeViewBox || null;
+  _miniScale = Number.isFinite(Number(tc.miniModeScale)) && Number(tc.miniModeScale) > 0
+    ? Number(tc.miniModeScale)
+    : 1;
   _fileViewBoxes = tc.fileViewBoxes || {};
   _dragSvg = tc.dragSvg || null;
   _idleFollowSvg = tc.idleFollowSvg || "clawd-idle-follow.svg";
@@ -71,6 +74,7 @@ function applyObjectScaleStyle(el, file, state) {
   if (!el || !_objectScaleCSS) return;
   if (shouldUseNormalizedLayout(file, state)) {
     applyNormalizedLayoutStyle(el, file, state);
+    applyPetElementTransform(el, state);
     return;
   }
   const fo = (file && _fileOffsets[file]) || null;
@@ -91,6 +95,27 @@ function applyObjectScaleStyle(el, file, state) {
     el.style.left = `calc(${_objectScaleCSS.left} + ${ox}px)`;
     el.style.top = "auto";
     el.style.bottom = `calc(${_objectScaleCSS.objBottom} + ${oy + _viewportOffsetY}px)`;
+  }
+  applyPetElementTransform(el, state);
+}
+
+function getMiniVisualScale() {
+  return _inMiniMode ? _miniScale : 1;
+}
+
+function applyPetElementTransform(el, state = currentState) {
+  if (!el) return;
+  const transforms = [];
+  const miniScale = getMiniVisualScale();
+  if (miniScale !== 1) transforms.push(`scale(${miniScale})`);
+  if (el.tagName === "IMG" && shouldApplyMiniAssetFlip(state)) transforms.push("scaleX(-1)");
+
+  if (transforms.length) {
+    el.style.transformOrigin = miniScale !== 1 ? "right center" : "";
+    el.style.transform = transforms.join(" ");
+  } else {
+    el.style.transformOrigin = "";
+    el.style.transform = "";
   }
 }
 
@@ -385,6 +410,7 @@ let _trustedScriptedSvgFiles = new Set();
 let _forceSvgObjectChannel = false;
 let _imgCacheBustSeq = 0;
 let _miniViewBox = null;
+let _miniScale = 1;
 let _fileViewBoxes = {};
 let _renderCanvas = { fileRatios: {} };
 let _dragSvg;
@@ -414,8 +440,7 @@ function shouldApplyMiniAssetFlip(state) {
 }
 
 function applyMiniFlip(el, state = currentState) {
-  if (!el || el.tagName !== "IMG") return;
-  el.style.transform = shouldApplyMiniAssetFlip(state) ? "scaleX(-1)" : "";
+  applyPetElementTransform(el, state);
 }
 
 function applyMiniWindowCrop(crop) {

@@ -375,6 +375,7 @@
   "miniMode": {
     "supported": true,
     "offsetRatio": 0.336,
+    "scale": 0.84,
     "preventCrossDisplayCrop": true,
     "viewBox": {
       "x": -150,
