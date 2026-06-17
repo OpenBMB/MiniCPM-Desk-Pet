@@ -5,7 +5,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const childProcess = require("child_process");
-const { asarUnpackedPath, writeJsonAtomic } = require("./json-utils");
+const { asarUnpackedPath, writeJsonAtomic, writeJsonAtomicWithBackup } = require("./json-utils");
 
 const PLUGIN_ID = "clawd-on-desk";
 const PLUGIN_DIR_NAME = "openclaw-plugin";
@@ -345,8 +345,11 @@ function unregisterOpenClawPlugin(options = {}) {
     delete config.plugins.entries[PLUGIN_ID];
     updated = true;
   }
-  if (updated) writeJsonAtomic(configPath, config);
-  return { removed: updated, skipped: !updated, configPath, pluginDir };
+  let backupPath = null;
+  if (updated) backupPath = writeJsonAtomicWithBackup(configPath, config, options);
+  const result = { removed: updated, skipped: !updated, configPath, pluginDir };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
 }
 
 module.exports = {

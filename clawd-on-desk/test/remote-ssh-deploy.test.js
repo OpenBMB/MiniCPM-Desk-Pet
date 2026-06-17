@@ -1,6 +1,6 @@
 "use strict";
 
-const { test } = require("node:test");
+const { test, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
@@ -14,8 +14,13 @@ const {
   startCodexMonitor,
   stopCodexMonitor,
 } = require("../src/remote-ssh-deploy");
+const { clearRemoteNodeCache } = require("../src/remote-ssh-node");
 
 const REPO_ROOT = path.join(__dirname, "..");
+
+afterEach(() => {
+  clearRemoteNodeCache();
+});
 
 // ── Manifest consistency: HOOK_FILES vs scripts/remote-deploy.sh FILES=() ──
 //
@@ -122,6 +127,22 @@ function makeRuntimeStub() {
     events,
   };
 }
+// Existing happy-path tests pre-date the `remote-shell` step that now runs
+// first inside deploy(). Pass this stub via deps.detectRemoteShell so the
+// recorded spawn handlers still line up call-for-call with mkdir, check-node,
+// scp, etc. — no extra entries needed. Tests that exercise the Windows-cmd
+// block path override this with their own stub.
+async function stubPosixShellProbe() {
+  return { ok: true, shell: "posix", os: "Linux" };
+}
+
+function nodeProbeStdout(nodeBin = "/usr/bin/node", version = "v20.10.0", source = "path") {
+  return [
+    `CLAWD_REMOTE_NODE_BIN=${nodeBin}`,
+    `CLAWD_REMOTE_NODE_VERSION=${version}`,
+    `CLAWD_REMOTE_NODE_SOURCE=${source}`,
+  ].join("\n");
+}
 
 test("deploy: full happy path emits expected progress sequence", async () => {
   // Use real hooks dir so file existence check passes.
@@ -133,19 +154,25 @@ test("deploy: full happy path emits expected progress sequence", async () => {
   };
   const { spawn } = makeRecordingSpawn([
     { code: 0 }, // mkdir
-    { code: 0, stdout: "/usr/bin/node\nv20.10.0\n" }, // check-node
+    { code: 0, stdout: nodeProbeStdout() }, // check-node
     { code: 0 }, // scp
     { code: 0 }, // install-claude
     { code: 0 }, // install-codex
     { code: 0 }, // install-copilot
   ]);
   const runtime = makeRuntimeStub();
-  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   assert.equal(result.ok, true);
+  assert.deepEqual(result.remoteNode, {
+    nodeBin: "/usr/bin/node",
+    version: "v20.10.0",
+    source: "path",
+  });
 
   const steps = runtime.events.map((e) => `${e.payload.step}:${e.payload.status}`);
   assert.deepEqual(steps, [
     "verify:ok",
+    "remote-shell:start", "remote-shell:ok",
     "mkdir:start", "mkdir:ok",
     "check-node:start", "check-node:ok",
     "scp:start", "scp:ok",
@@ -153,6 +180,66 @@ test("deploy: full happy path emits expected progress sequence", async () => {
     "install-codex:start", "install-codex:ok",
     "install-copilot:start", "install-copilot:ok",
   ]);
+});
+
+test("deploy: reuses resolved absolute Node path for all remote installers", async () => {
+  const hooksDir = path.join(REPO_ROOT, "hooks");
+  const profile = {
+    id: "p1",
+    host: "user@pi",
+    remoteForwardPort: 23333,
+  };
+  const nodeBin = "/home/me/.nvm/versions/node/v22.1.0/bin/node";
+  const { spawn, calls } = makeRecordingSpawn([
+    { code: 0 }, // mkdir
+    { code: 0, stdout: nodeProbeStdout(nodeBin, "v22.1.0", "shell:/bin/bash") },
+    { code: 0 }, // scp
+    { code: 0 }, // install-claude
+    { code: 0 }, // install-codex
+    { code: 0 }, // install-copilot
+  ]);
+  const runtime = makeRuntimeStub();
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
+  assert.equal(result.ok, true);
+
+  const installCommands = calls.slice(3, 6).map((c) => c.args[c.args.length - 1]);
+  assert.deepEqual(installCommands, [
+    `'${nodeBin}' "$HOME/.claude/hooks/install.js" '--remote'`,
+    `'${nodeBin}' "$HOME/.claude/hooks/codex-install.js" '--remote'`,
+    `'${nodeBin}' "$HOME/.claude/hooks/copilot-install.js" '--remote'`,
+  ]);
+  for (const command of installCommands) {
+    assert.equal(command.includes(" node "), false);
+    assert.equal(command.startsWith("node "), false);
+  }
+});
+
+test("deploy: verifies stale persisted Node metadata before using it", async () => {
+  const hooksDir = path.join(REPO_ROOT, "hooks");
+  const profile = {
+    id: "p1",
+    host: "user@pi",
+    remoteForwardPort: 23333,
+    detectedRemoteNodeBin: "/stale/node",
+    detectedRemoteNodeVersion: "v20.10.0",
+    detectedRemoteNodeSource: "profile",
+  };
+  const nodeBin = "/home/me/.nvm/versions/node/v22.1.0/bin/node";
+  const { spawn, calls } = makeRecordingSpawn([
+    { code: 0 }, // mkdir
+    { code: 127, stderr: "/stale/node: not found" }, // cached node verification
+    { code: 0, stdout: nodeProbeStdout(nodeBin, "v22.1.0", "shell:/bin/bash") }, // full probe
+    { code: 0 }, // scp
+    { code: 0 }, // install-claude
+    { code: 0 }, // install-codex
+    { code: 0 }, // install-copilot
+  ]);
+  const runtime = makeRuntimeStub();
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
+  assert.equal(result.ok, true);
+  assert.equal(result.remoteNode.nodeBin, nodeBin);
+  assert.ok(calls[1].args[calls[1].args.length - 1].includes("/stale/node"));
+  assert.ok(calls[4].args[calls[4].args.length - 1].startsWith(`'${nodeBin}'`));
 });
 
 test("deploy: with hostPrefix triggers host-prefix step via ssh stdin", async () => {
@@ -166,7 +253,7 @@ test("deploy: with hostPrefix triggers host-prefix step via ssh stdin", async ()
   let capturedStdin = null;
   const { spawn, calls } = makeRecordingSpawn([
     { code: 0 }, // mkdir
-    { code: 0, stdout: "/usr/bin/node\nv20.0.0\n" },
+    { code: 0, stdout: nodeProbeStdout("/usr/bin/node", "v20.0.0") },
     { code: 0 }, // scp
     (child) => {
       // host-prefix step: capture stdin
@@ -180,7 +267,7 @@ test("deploy: with hostPrefix triggers host-prefix step via ssh stdin", async ()
     { code: 0 }, // install-copilot
   ]);
   const runtime = makeRuntimeStub();
-  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   assert.equal(result.ok, true);
   assert.equal(capturedStdin, "raspberry");
   // The 4th call (index 3) must be the host-prefix ssh: cat > ~/.claude/hooks/clawd-host-prefix
@@ -204,13 +291,13 @@ test("deploy: scp uses CAPITAL -P for non-default port", async () => {
   };
   const { spawn, calls } = makeRecordingSpawn([
     { code: 0 },
-    { code: 0, stdout: "/usr/bin/node\nv20\n" },
+    { code: 0, stdout: nodeProbeStdout("/usr/bin/node", "v20") },
     { code: 0 },
     { code: 0 },
     { code: 0 },
   ]);
   const runtime = makeRuntimeStub();
-  await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   const scpCall = calls[2];
   assert.equal(scpCall.command, "scp");
   assert.ok(scpCall.args.includes("-P"), "scp must use -P for port (not -p)");
@@ -227,13 +314,13 @@ test("deploy: ssh and scp inject -i identityFile when set", async () => {
   };
   const { spawn, calls } = makeRecordingSpawn([
     { code: 0 },
-    { code: 0, stdout: "/usr/bin/node\nv20\n" },
+    { code: 0, stdout: nodeProbeStdout("/usr/bin/node", "v20") },
     { code: 0 },
     { code: 0 },
     { code: 0 },
   ]);
   const runtime = makeRuntimeStub();
-  await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   for (const c of calls) {
     const i = c.args.indexOf("-i");
     assert.ok(i >= 0, `every ssh/scp call must have -i: ${c.command} ${c.args.join(" ")}`);
@@ -249,7 +336,7 @@ test("deploy: aborts when local hook file is missing", async () => {
     const profile = { id: "p1", host: "pi", remoteForwardPort: 23333 };
     const { spawn } = makeRecordingSpawn([]);
     const runtime = makeRuntimeStub();
-    const result = await deploy({ profile, runtime, deps: { spawn, hooksDir: tmpDir } });
+    const result = await deploy({ profile, runtime, deps: { spawn, hooksDir: tmpDir, detectRemoteShell: stubPosixShellProbe } });
     assert.equal(result.ok, false);
     assert.equal(result.step, "verify");
     assert.match(result.message, /Missing files/);
@@ -267,7 +354,7 @@ test("deploy: aborts on mkdir failure", async () => {
     { code: 255, stderr: "ssh: Permission denied" },
   ]);
   const runtime = makeRuntimeStub();
-  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   assert.equal(result.ok, false);
   assert.equal(result.step, "mkdir");
   assert.match(result.message, /Permission denied/);
@@ -278,10 +365,10 @@ test("deploy: aborts on missing remote node", async () => {
   const profile = { id: "p1", host: "pi", remoteForwardPort: 23333 };
   const { spawn } = makeRecordingSpawn([
     { code: 0 }, // mkdir ok
-    { code: 1, stdout: "" }, // command -v node fails
+    { code: 1, stdout: "" }, // remote Node probe fails
   ]);
   const runtime = makeRuntimeStub();
-  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   assert.equal(result.ok, false);
   assert.equal(result.step, "check-node");
 });
@@ -291,14 +378,14 @@ test("deploy: install-claude failure is non-fatal (best-effort)", async () => {
   const profile = { id: "p1", host: "pi", remoteForwardPort: 23333 };
   const { spawn } = makeRecordingSpawn([
     { code: 0 },
-    { code: 0, stdout: "/usr/bin/node\nv20\n" },
+    { code: 0, stdout: nodeProbeStdout("/usr/bin/node", "v20") },
     { code: 0 },
     { code: 1, stderr: "install.js failed" }, // install-claude
     { code: 0 }, // install-codex
     { code: 0 }, // install-copilot
   ]);
   const runtime = makeRuntimeStub();
-  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   // ok=true even though install-claude failed
   assert.equal(result.ok, true);
   const steps = runtime.events.map((e) => `${e.payload.step}:${e.payload.status}`);
@@ -315,7 +402,7 @@ test("startCodexMonitor pre-cleans then launches new monitor", async () => {
     { code: 0 }, // pre-clean
     { code: 0 }, // launch
   ]);
-  const r = await startCodexMonitor({ profile, deps: { spawn } });
+  const r = await startCodexMonitor({ profile, deps: { spawn, nodeBin: "/usr/bin/node" } });
   assert.equal(r.ok, true);
   assert.equal(calls.length, 2);
   // First call: pre-clean (kill old PID + rm)
@@ -326,8 +413,31 @@ test("startCodexMonitor pre-cleans then launches new monitor", async () => {
   assert.match(cleanCmd, /;\s*true\s*$/, "must terminate with `; true` so exit code is 0 even on missing pid");
   // Second call: launch with port + writes new PID file
   const startCmd = calls[1].args[calls[1].args.length - 1];
-  assert.match(startCmd, /nohup node ~\/.claude\/hooks\/codex-remote-monitor\.js --port 23335/);
+  assert.match(startCmd, /nohup '\/usr\/bin\/node' "\$HOME\/\.claude\/hooks\/codex-remote-monitor\.js" '--port' '23335'/);
   assert.match(startCmd, /echo \$! > ~\/\.clawd-codex-monitor\.pid/);
+});
+
+test("startCodexMonitor verifies stale persisted Node metadata before launch", async () => {
+  const profile = {
+    id: "p1",
+    host: "pi",
+    remoteForwardPort: 23335,
+    detectedRemoteNodeBin: "/stale/node",
+    detectedRemoteNodeVersion: "v20.10.0",
+    detectedRemoteNodeSource: "profile",
+  };
+  const { spawn, calls } = makeRecordingSpawn([
+    { code: 127, stderr: "/stale/node: not found" },
+    { code: 0, stdout: nodeProbeStdout("/usr/local/bin/node", "v22.1.0", "path") },
+    { code: 0 }, // pre-clean
+    { code: 0 }, // launch
+  ]);
+  const r = await startCodexMonitor({ profile, deps: { spawn } });
+  assert.equal(r.ok, true);
+  assert.equal(calls.length, 4);
+  assert.ok(calls[0].args[calls[0].args.length - 1].includes("/stale/node"));
+  const startCmd = calls[3].args[calls[3].args.length - 1];
+  assert.match(startCmd, /nohup '\/usr\/local\/bin\/node'/);
 });
 
 test("stopCodexMonitor kills PID and removes pid file (best-effort)", async () => {
@@ -357,12 +467,12 @@ test("deploy: registers each spawned child with runtime so cleanup can kill it",
   };
   const { spawn, calls } = makeRecordingSpawn([
     { code: 0 },
-    { code: 0, stdout: "/usr/bin/node\nv20\n" },
+    { code: 0, stdout: nodeProbeStdout("/usr/bin/node", "v20") },
     { code: 0 },
     { code: 0 },
     { code: 0 },
   ]);
-  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir } });
+  const result = await deploy({ profile, runtime, deps: { spawn, hooksDir, detectRemoteShell: stubPosixShellProbe } });
   assert.equal(result.ok, true);
   // Each spawned child is registered exactly once and unregistered exactly once.
   assert.equal(registered.length, calls.length);
@@ -383,7 +493,7 @@ test("startCodexMonitor / stopCodexMonitor register children with runtime when p
     unregisterChild: (c) => unregistered.push(c),
   };
   const { spawn } = makeRecordingSpawn([{ code: 0 }, { code: 0 }]);
-  await startCodexMonitor({ profile, runtime, deps: { spawn } });
+  await startCodexMonitor({ profile, runtime, deps: { spawn, nodeBin: "/usr/bin/node" } });
   assert.equal(registered.length, 2);
   assert.equal(unregistered.length, 2);
 
@@ -401,4 +511,101 @@ test("stopCodexMonitor swallows failures (best-effort cleanup)", async () => {
   const r = await stopCodexMonitor({ profile, deps: { spawn } });
   // Even on failure, returns ok:true — caller doesn't surface this.
   assert.equal(r.ok, true);
+});
+
+// ── Remote shell probe gating ──
+//
+// When the remote shell is Windows cmd.exe, every later POSIX command
+// (mkdir -p, ~/, sh -c, nohup &) would fail loudly with CP936 mojibake.
+// deploy() must bail out at the shell probe step with a structured
+// reason/hint pair so the renderer can localize and the user gets a
+// single actionable error instead of half-a-deploy worth of garbage.
+test("deploy: aborts at remote-shell step when remote is Windows cmd.exe", async () => {
+  const hooksDir = path.join(REPO_ROOT, "hooks");
+  const profile = { id: "p1", host: "user@win", remoteForwardPort: 23333 };
+  const { spawn, calls } = makeRecordingSpawn([]); // no further spawns expected
+  const runtime = makeRuntimeStub();
+  const result = await deploy({
+    profile,
+    runtime,
+    deps: {
+      spawn,
+      hooksDir,
+      detectRemoteShell: async () => ({ ok: true, shell: "windows-cmd", os: "windows" }),
+    },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.step, "remote-shell");
+  assert.equal(result.reason, "windows_cmd_shell");
+  assert.equal(result.hint, "remoteSshErrWindowsCmdShell");
+  // No mkdir / scp / check-node spawn calls — we short-circuited.
+  assert.equal(calls.length, 0);
+  // verify:ok, remote-shell:start, remote-shell:fail — and nothing else.
+  const steps = runtime.events.map((e) => `${e.payload.step}:${e.payload.status}`);
+  assert.deepEqual(steps, [
+    "verify:ok",
+    "remote-shell:start",
+    "remote-shell:fail",
+  ]);
+  // The fail event carries the hint key so the renderer can localize.
+  const failEv = runtime.events.find((e) =>
+    e.payload.step === "remote-shell" && e.payload.status === "fail");
+  assert.equal(failEv.payload.hint, "remoteSshErrWindowsCmdShell");
+});
+
+test("deploy: proceeds when remote-shell probe returns posix", async () => {
+  const hooksDir = path.join(REPO_ROOT, "hooks");
+  const profile = { id: "p1", host: "pi", remoteForwardPort: 23333 };
+  const { spawn } = makeRecordingSpawn([
+    { code: 0 }, // mkdir
+    { code: 0, stdout: nodeProbeStdout() },
+    { code: 0 }, // scp
+    { code: 0 }, // install-claude
+    { code: 0 }, // install-codex
+    { code: 0 }, // install-copilot
+  ]);
+  const runtime = makeRuntimeStub();
+  const result = await deploy({
+    profile,
+    runtime,
+    deps: {
+      spawn,
+      hooksDir,
+      detectRemoteShell: async () => ({ ok: true, shell: "posix", os: "Linux" }),
+    },
+  });
+  assert.equal(result.ok, true);
+  // remote-shell:ok lands between verify and mkdir.
+  const steps = runtime.events.map((e) => `${e.payload.step}:${e.payload.status}`);
+  assert.equal(steps[0], "verify:ok");
+  assert.equal(steps[1], "remote-shell:start");
+  assert.equal(steps[2], "remote-shell:ok");
+  assert.equal(steps[3], "mkdir:start");
+});
+
+test("deploy: unknown remote shell does not block deploy", async () => {
+  // Conservative: an unknown shell (PowerShell, fish, restricted shell)
+  // could still happen to be POSIX-compatible. Let the existing steps
+  // fail loudly if not — don't gate on a probe that lacked a verdict.
+  const hooksDir = path.join(REPO_ROOT, "hooks");
+  const profile = { id: "p1", host: "weird", remoteForwardPort: 23333 };
+  const { spawn } = makeRecordingSpawn([
+    { code: 0 }, // mkdir
+    { code: 0, stdout: nodeProbeStdout() },
+    { code: 0 }, // scp
+    { code: 0 }, // install-claude
+    { code: 0 }, // install-codex
+    { code: 0 }, // install-copilot
+  ]);
+  const runtime = makeRuntimeStub();
+  const result = await deploy({
+    profile,
+    runtime,
+    deps: {
+      spawn,
+      hooksDir,
+      detectRemoteShell: async () => ({ ok: false, shell: "unknown" }),
+    },
+  });
+  assert.equal(result.ok, true);
 });

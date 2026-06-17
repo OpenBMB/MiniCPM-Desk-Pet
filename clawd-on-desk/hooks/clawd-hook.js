@@ -6,16 +6,34 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const { postStateToRunningServer, readHostPrefix } = require("./server-config");
+const { extractClaudeContextUsageFromEntries } = require("./context-usage");
 const { createPidResolver, readStdinJson, getPlatformConfig } = require("./shared-process");
 
 const TRANSCRIPT_TAIL_BYTES = 262144; // 256 KB
+const ASSISTANT_OUTPUT_MAX = 2200;
+// Observed in Claude Code 2.1.150 StopFailure hook schema (tyq enum).
+// Unknown values from future versions fall back to "unknown".
+const API_ERROR_TYPES = new Set([
+  "authentication_failed",
+  "oauth_org_not_allowed",
+  "billing_error",
+  "rate_limit",
+  "invalid_request",
+  "model_not_found",
+  "server_error",
+  "unknown",
+  "max_output_tokens",
+]);
 const SESSION_TITLE_CONTROL_RE = /[\u0000-\u001F\u007F-\u009F]+/g;
 const SESSION_TITLE_MAX = 80;
-const LAST_SUMMARY_MAX = 110;
+const PROMPT_TITLE_MAX = 40;
+const PROMPT_TITLE_SECRET_RE =
+  /\b(api[_-]?key|authorization|bearer|password|passwd|private[_-]?key|secret|token)\b|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|[A-Za-z0-9+/=_-]{32,}/i;
 const TOOL_MATCH_STRING_MAX = 240;
 const TOOL_MATCH_ARRAY_MAX = 16;
 const TOOL_MATCH_OBJECT_KEYS_MAX = 32;
 const TOOL_MATCH_DEPTH_MAX = 6;
+const ASSISTANT_OUTPUT_CONTROL_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001F\u007F-\u009F]+/g;
 
 function normalizeTitle(value) {
   if (typeof value !== "string") return null;
@@ -29,10 +47,33 @@ function normalizeTitle(value) {
     : collapsed;
 }
 
-// Read the tail of a Claude Code transcript JSONL and return the most recent
-// user-set session title (custom-title / agent-name events). Returns null if
-// the file is missing/unreadable or no title events are found.
-function extractSessionTitleFromTranscript(transcriptPath) {
+function normalizeTitleWithMax(value, maxLen) {
+  const title = normalizeTitle(value);
+  if (!title || title.length <= maxLen) return title;
+  return `${title.slice(0, maxLen - 1)}\u2026`;
+}
+
+function looksSecretishPromptTitle(value) {
+  if (typeof value !== "string") return false;
+  return PROMPT_TITLE_SECRET_RE.test(value);
+}
+
+function extractPromptTitle(prompt) {
+  if (typeof prompt !== "string") return null;
+  for (const line of prompt.split(/\r?\n/)) {
+    const candidate = line.trim();
+    if (!candidate) continue;
+    if (looksSecretishPromptTitle(candidate)) return null;
+    return normalizeTitleWithMax(candidate, PROMPT_TITLE_MAX);
+  }
+  return null;
+}
+
+// Read the tail of a Claude Code transcript JSONL and return parsed entries.
+// Skips the truncated first line when the tail is a partial read, and silently
+// drops lines that fail JSON.parse. Returns null if the file is missing or
+// unreadable.
+function readTranscriptTailEntries(transcriptPath) {
   if (typeof transcriptPath !== "string" || !transcriptPath) return null;
 
   let data;
@@ -55,16 +96,22 @@ function extractSessionTitleFromTranscript(transcriptPath) {
   }
 
   const lines = data.split("\n");
-  // If we read a tail of a larger file, the first line is likely a truncated
-  // JSON fragment — drop it so JSON.parse doesn't fail noisily on it.
   if (truncated && lines.length > 1) lines.shift();
 
-  let latest = null;
+  const entries = [];
   for (const line of lines) {
     if (!line.trim()) continue;
     let obj;
     try { obj = JSON.parse(line); } catch { continue; }
-    if (!obj || typeof obj !== "object") continue;
+    if (obj && typeof obj === "object") entries.push(obj);
+  }
+  return entries;
+}
+
+function extractSessionTitleFromEntries(entries) {
+  if (!entries) return null;
+  let latest = null;
+  for (const obj of entries) {
     const type = typeof obj.type === "string" ? obj.type : "";
     if (type !== "custom-title" && type !== "agent-name") continue;
     latest =
@@ -78,142 +125,141 @@ function extractSessionTitleFromTranscript(transcriptPath) {
   return latest;
 }
 
+function extractSessionTitleFromTranscript(transcriptPath) {
+  return extractSessionTitleFromEntries(readTranscriptTailEntries(transcriptPath));
+}
+
+function normalizeAssistantOutputText(value) {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/\r\n?/g, "\n")
+    .replace(ASSISTANT_OUTPUT_CONTROL_RE, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim();
+}
+
+function clampAssistantOutputText(text, maxLen = ASSISTANT_OUTPUT_MAX) {
+  const normalized = normalizeAssistantOutputText(text);
+  const max = Number.isInteger(maxLen) && maxLen > 0 ? maxLen : ASSISTANT_OUTPUT_MAX;
+  if (!normalized) return null;
+  if (normalized.length <= max) return { text: normalized, truncated: false };
+
+  const marker = "\n...[truncated]...\n";
+  if (max <= marker.length + 20) {
+    return { text: normalized.slice(Math.max(0, normalized.length - max)), truncated: true };
+  }
+  const keep = max - marker.length;
+  const head = Math.ceil(keep / 2);
+  const tail = Math.floor(keep / 2);
+  return {
+    text: `${normalized.slice(0, head)}${marker}${normalized.slice(normalized.length - tail)}`,
+    truncated: true,
+  };
+}
+
+function assistantEntryMatchesSession(entry, sessionId) {
+  if (!sessionId) return true;
+  if (!entry || typeof entry !== "object") return false;
+  return !entry.sessionId || entry.sessionId === sessionId;
+}
+
+function assistantEntryLooksSubagent(entry) {
+  if (!entry || typeof entry !== "object") return false;
+  return entry.isSidechain === true
+    || entry.isSubagent === true
+    || entry.is_subagent === true
+    || entry.subagent === true;
+}
+
+function assistantEntryIsTurnBoundary(entry, sessionId) {
+  if (!entry || typeof entry !== "object") return false;
+  if (entry.type !== "user") return false;
+  return assistantEntryMatchesSession(entry, sessionId);
+}
+
+function assistantTextPartsFromContent(content) {
+  if (typeof content === "string") return [content];
+  if (!Array.isArray(content)) return [];
+  const parts = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      parts.push(block);
+      continue;
+    }
+    if (!block || typeof block !== "object") continue;
+    const type = typeof block.type === "string" ? block.type : "";
+    if (type === "tool_use" || type === "server_tool_use") continue;
+    if ((type === "text" || type === "output_text") && typeof block.text === "string") {
+      parts.push(block.text);
+    }
+  }
+  return parts;
+}
+
+function assistantTextFromEntry(entry) {
+  if (!entry || typeof entry !== "object") return "";
+  const message = entry.message && typeof entry.message === "object" ? entry.message : null;
+  const content = message && Object.prototype.hasOwnProperty.call(message, "content")
+    ? message.content
+    : entry.content;
+  return normalizeAssistantOutputText(assistantTextPartsFromContent(content).join("\n\n"));
+}
+
+function extractLastAssistantTextFromEntries(entries, sessionId, options = {}) {
+  if (!Array.isArray(entries) || !entries.length) return null;
+  const maxLen = Number.isInteger(options.maxLen) && options.maxLen > 0
+    ? options.maxLen
+    : ASSISTANT_OUTPUT_MAX;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (!entry || typeof entry !== "object") continue;
+    if (assistantEntryIsTurnBoundary(entry, sessionId)) break;
+    if (entry.type !== "assistant") continue;
+    if (entry.isApiErrorMessage === true) continue;
+    if (!assistantEntryMatchesSession(entry, sessionId)) continue;
+    if (assistantEntryLooksSubagent(entry)) continue;
+    const text = assistantTextFromEntry(entry);
+    if (!text) continue;
+    return clampAssistantOutputText(text, maxLen);
+  }
+  return null;
+}
+
+// Find the most recent isApiErrorMessage entry for the current session, but
+// only if it belongs to the current turn. A current-turn API error has no
+// later "user" or non-error "assistant" entry — those indicate the turn has
+// moved on (user re-prompted or model recovered) and the error is stale.
+// See docs/investigations/api-error-race-condition.md for the 11-sample basis.
+function extractApiErrorFromEntries(entries, sessionId) {
+  if (!entries || !sessionId) return null;
+
+  let lastErrorIndex = -1;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (e.isApiErrorMessage !== true) continue;
+    if (e.sessionId !== sessionId) continue;
+    lastErrorIndex = i;
+    break;
+  }
+  if (lastErrorIndex < 0) return null;
+
+  for (let i = lastErrorIndex + 1; i < entries.length; i++) {
+    const e = entries[i];
+    const type = typeof e.type === "string" ? e.type : "";
+    if (type === "user") return null;
+    if (type === "assistant" && e.isApiErrorMessage !== true) return null;
+  }
+
+  const rawType = entries[lastErrorIndex].error;
+  const apiErrorType = API_ERROR_TYPES.has(rawType) ? rawType : "unknown";
+  return { api_error_type: apiErrorType };
+}
+
 function normalizeToolUseId(value) {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed || null;
-}
-
-// Walk the Claude Code transcript JSONL forward to find the very first
-// `type: "user"` message and use it as the conversation topic ("title").
-// Mirrors cursor-hook's extractFirstUserQuery so narration framing has
-// the actual subject (e.g. "晚餐推荐") instead of falling back to the
-// cwd basename ("ekkoz").
-function extractFirstUserQueryFromTranscript(transcriptPath) {
-  if (typeof transcriptPath !== "string" || !transcriptPath) return null;
-  let data, fd = null;
-  try {
-    fd = fs.openSync(transcriptPath, "r");
-    // Reading from the head, not the tail — title is the first user msg.
-    const stat = fs.statSync(transcriptPath);
-    const readLen = Math.min(stat.size, TRANSCRIPT_TAIL_BYTES);
-    const buf = Buffer.alloc(readLen);
-    fs.readSync(fd, buf, 0, readLen, 0);
-    data = buf.toString("utf8");
-  } catch {
-    return null;
-  } finally {
-    if (fd !== null) { try { fs.closeSync(fd); } catch {} }
-  }
-  const lines = data.split("\n").filter(Boolean);
-  for (const line of lines) {
-    let obj;
-    try { obj = JSON.parse(line); } catch { continue; }
-    if (!obj || obj.type !== "user") continue;
-    const msg = obj.message;
-    if (!msg) continue;
-    let text = "";
-    if (typeof msg.content === "string") {
-      text = msg.content;
-    } else if (Array.isArray(msg.content)) {
-      for (const part of msg.content) {
-        if (part && part.type === "text" && typeof part.text === "string") text += part.text;
-      }
-    }
-    text = text
-      .replace(SESSION_TITLE_CONTROL_RE, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    // Skip system-injected prefaces like /init, hook tests, etc.
-    if (!text || text.startsWith("/")) continue;
-    if (text.length > SESSION_TITLE_MAX) text = text.slice(0, SESSION_TITLE_MAX - 1) + "…";
-    return text;
-  }
-  return null;
-}
-
-// Read the tail of a Claude Code transcript JSONL and return the last
-// assistant text message (truncated). Powers the narration's "AI 最后说"
-// summary so the local model can react to outcomes, not just topics.
-//
-// Claude transcript format (different from Cursor):
-//   { type: "user" | "assistant" | "permission-mode" | ...,
-//     message: { role, content: string | [{ type: "text", text: "..." }, ...] } }
-function extractLastAssistantSummary(transcriptPath) {
-  if (typeof transcriptPath !== "string" || !transcriptPath) return null;
-
-  // Race-condition guard: Claude Code can fire Stop hooks BEFORE the last
-  // assistant turn is fully flushed to the JSONL transcript on disk. Wait
-  // for the file size to settle (no growth for ~120ms) up to a hard cap,
-  // so we don't extract a stale "previous turn" summary.
-  const POLL_INTERVAL_MS = 60;
-  const SETTLE_MS = 120;
-  const MAX_WAIT_MS = 1200;
-  const startedAt = Date.now();
-  let lastSize = -1;
-  let lastChange = startedAt;
-  // Synchronous busy-wait via a child-process sleep would block too long;
-  // use Atomics.wait on a SAB instead — works in all Node 18+.
-  const sleep = (ms) => {
-    const sab = new SharedArrayBuffer(4);
-    Atomics.wait(new Int32Array(sab), 0, 0, ms);
-  };
-  while (Date.now() - startedAt < MAX_WAIT_MS) {
-    let size;
-    try { size = fs.statSync(transcriptPath).size; } catch { return null; }
-    if (size !== lastSize) {
-      lastSize = size;
-      lastChange = Date.now();
-    } else if (Date.now() - lastChange >= SETTLE_MS) {
-      break;  // file size hasn't changed for SETTLE_MS — assume flushed
-    }
-    sleep(POLL_INTERVAL_MS);
-  }
-
-  let data, fd = null;
-  try {
-    const stat = fs.statSync(transcriptPath);
-    fd = fs.openSync(transcriptPath, "r");
-    const readLen = Math.min(stat.size, TRANSCRIPT_TAIL_BYTES);
-    const buf = Buffer.alloc(readLen);
-    fs.readSync(fd, buf, 0, readLen, Math.max(0, stat.size - readLen));
-    data = buf.toString("utf8");
-  } catch {
-    return null;
-  } finally {
-    if (fd !== null) { try { fs.closeSync(fd); } catch {} }
-  }
-
-  // Iterate lines bottom-up, find first assistant entry with text content.
-  const lines = data.split("\n").filter(Boolean);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    let obj;
-    try { obj = JSON.parse(lines[i]); } catch { continue; }
-    if (!obj || obj.type !== "assistant") continue;
-    const msg = obj.message;
-    if (!msg) continue;
-    let text = "";
-    if (typeof msg.content === "string") {
-      text = msg.content;
-    } else if (Array.isArray(msg.content)) {
-      for (const part of msg.content) {
-        if (part && part.type === "text" && typeof part.text === "string") {
-          text += part.text;
-        }
-      }
-    }
-    text = text
-      .replace(SESSION_TITLE_CONTROL_RE, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!text) continue;
-    // Prefer the first sentence boundary so we don't dump a wall of text.
-    const stop = text.search(/[。！？!?\n]/);
-    if (stop > 0 && stop < LAST_SUMMARY_MAX) text = text.slice(0, stop + 1);
-    if (text.length > LAST_SUMMARY_MAX) text = text.slice(0, LAST_SUMMARY_MAX - 1) + "…";
-    return text;
-  }
-  return null;
 }
 
 function normalizeToolMatchValue(value, depth = 0) {
@@ -247,6 +293,10 @@ function buildToolInputFingerprint(toolInput) {
     .digest("hex");
 }
 
+function shouldReportForegroundWtHwnd(event) {
+  return event === "SessionStart" || event === "UserPromptSubmit";
+}
+
 const EVENT_TO_STATE = {
   SessionStart: "idle",
   SessionEnd: "sleeping",
@@ -256,10 +306,15 @@ const EVENT_TO_STATE = {
   PostToolUseFailure: "error",
   Stop: "attention",
   StopFailure: "error",
+  ApiError: "error",
   SubagentStart: "juggling",
   SubagentStop: "working",
   PreCompact: "sweeping",
-  PostCompact: "attention",
+  // PostCompact is "compaction finished", NOT turn completion (#406). Default to
+  // thinking so the pet stays busy until work resumes (auto-compact continues
+  // the task); buildStateBody downgrades a manual /compact to idle below. Either
+  // way it must not be "attention" — compacting is not task done.
+  PostCompact: "thinking",
   Notification: "notification",
   // PermissionRequest is handled by HTTP hook (blocking) — not command hook
   Elicitation: "notification",
@@ -288,9 +343,16 @@ function buildStateBody(event, payload, resolve) {
 
   // /clear triggers SessionEnd → SessionStart in quick succession;
   // show sweeping (clearing context) instead of sleeping
+  // PostCompact: keep the EVENT_TO_STATE "thinking" for auto-compact (context
+  // full, work resumes right after), but settle a manual /compact to idle.
+  // Neither is "attention" anymore — see #406.
+  const postCompactState = event === "PostCompact"
+    ? (payload.trigger === "manual" ? "idle" : "thinking")
+    : null;
   const resolvedState = syntheticSubagentStart
     ? "juggling"
-    : ((event === "SessionEnd" && source === "clear") ? "sweeping" : state);
+    : (postCompactState
+        || ((event === "SessionEnd" && source === "clear") ? "sweeping" : state));
   const resolvedEvent = syntheticSubagentStart ? "SubagentStart" : event;
 
   const body = { state: resolvedState, session_id: sessionId, event: resolvedEvent };
@@ -304,25 +366,62 @@ function buildStateBody(event, payload, resolve) {
   if (toolName) body.tool_name = toolName;
   if (toolUseId) body.tool_use_id = toolUseId;
   if (toolInputFingerprint) body.tool_input_fingerprint = toolInputFingerprint;
-  // Session title: prefer payload field, then user-set custom-title /
-  // agent-name events near the tail, then fall back to the very first
-  // user message in the transcript (the actual conversation topic).
+  // Read transcript tail once and reuse for both session title extraction and
+  // API error detection (Stop only). Avoids two file reads per hook invocation.
+  const transcriptEntries = readTranscriptTailEntries(payload.transcript_path);
+  // Pass the raw session id (null when the hook payload omits it), not the
+  // "default" placeholder above: a transcript whose entries carry a real
+  // sessionId must not be filtered out just because session_id was missing.
+  const contextUsage = extractClaudeContextUsageFromEntries(
+    transcriptEntries,
+    payload.session_id || null,
+  );
+  if (contextUsage) body.context_usage = contextUsage;
   const sessionTitle =
     normalizeTitle(payload.session_title) ||
-    extractSessionTitleFromTranscript(payload.transcript_path) ||
-    extractFirstUserQueryFromTranscript(payload.transcript_path);
+    extractSessionTitleFromEntries(transcriptEntries);
   if (sessionTitle) body.session_title = sessionTitle;
-  // Last assistant message — only attached for stop / sessionEnd because
-  // mid-conversation events don't represent a "final outcome" yet, and
-  // parsing the transcript on every tool-use would be wasteful.
-  if (resolvedEvent === "Stop" || resolvedEvent === "SessionEnd") {
-    const lastSummary = extractLastAssistantSummary(payload.transcript_path);
-    if (lastSummary) body.last_summary = lastSummary;
+  if (event === "UserPromptSubmit" && !body.session_title) {
+    const promptTitle = extractPromptTitle(payload.prompt);
+    if (promptTitle) body.session_title = promptTitle;
+  }
+
+  // Claude Code synthesizes API errors into a fake assistant message tagged
+  // isApiErrorMessage:true and emits a regular Stop hook (not StopFailure).
+  // Upgrade Stop → ApiError when transcript tail shows a current-turn error.
+  // See docs/investigations/api-error-race-condition.md.
+  if (event === "Stop" && !syntheticSubagentStart) {
+    const apiError = extractApiErrorFromEntries(transcriptEntries, sessionId);
+    if (apiError) {
+      body.event = "ApiError";
+      body.state = "error";
+      body.failure_kind = "api_error";
+      body.api_error_type = apiError.api_error_type;
+      body.error_present = true;
+    } else {
+      const assistantOutput = extractLastAssistantTextFromEntries(transcriptEntries, sessionId);
+      if (assistantOutput && assistantOutput.text) {
+        body.assistant_last_output = assistantOutput.text;
+        if (assistantOutput.truncated) body.assistant_last_output_truncated = true;
+      }
+    }
+  }
+  // #406 completion-gate inputs. A Stop that still has live background shells or
+  // cron wakeups, or a Stop-hook continuation (stop_hook_active), is not a real
+  // turn completion. Forward only counts + the boolean — never the task
+  // command/description — so state.js can suppress the celebration without
+  // leaking shell contents into Clawd state.
+  if (body.event === "Stop") {
+    const bgCount = Array.isArray(payload.background_tasks) ? payload.background_tasks.length : 0;
+    const cronCount = Array.isArray(payload.session_crons) ? payload.session_crons.length : 0;
+    if (bgCount > 0) body.background_tasks_count = bgCount;
+    if (cronCount > 0) body.session_crons_count = cronCount;
+    if (payload.stop_hook_active === true) body.stop_hook_active = true;
   }
   if (process.env.CLAWD_REMOTE) {
     body.host = readHostPrefix();
   } else {
-    const { stablePid, agentPid, agentCommandLine, detectedEditor, pidChain } = resolve();
+    const { stablePid, agentPid, agentCommandLine, detectedEditor, pidChain, foregroundWtHwnd, tmuxSocket, tmuxClient } = resolve();
     body.source_pid = stablePid;
     if (detectedEditor) body.editor = detectedEditor;
     if (agentPid) {
@@ -333,6 +432,11 @@ function buildStateBody(event, payload, resolve) {
       }
     }
     if (pidChain.length) body.pid_chain = pidChain;
+    if (tmuxSocket) body.tmux_socket = tmuxSocket;
+    if (tmuxClient) body.tmux_client = tmuxClient;
+    if (shouldReportForegroundWtHwnd(event) && foregroundWtHwnd) {
+      body.wt_hwnd = String(foregroundWtHwnd);
+    }
   }
 
   return body;
@@ -353,31 +457,25 @@ function main() {
   // Remote mode: skip PID collection — remote PIDs are meaningless on the local machine
   if (event === "SessionStart" && !process.env.CLAWD_REMOTE) resolve();
 
-  readStdinJson().then((payload) => {
-    // Cursor IDE invokes ~/.claude/settings.json hooks for its own Agent
-    // events (compatibility shim), passing a Cursor-shaped payload with
-    // fields like `cursor_version` / `conversation_id` / `composer_mode`.
-    // Those events are already covered by hooks/cursor-hook.js via
-    // ~/.cursor/hooks.json — if we also post them here they will overwrite
-    // the session's agentId to "claude-code" and the HUD logo will flip
-    // between Cursor and Claude Code.
-    if (payload && (
-      typeof payload.cursor_version !== "undefined"
-      || typeof payload.conversation_id !== "undefined"
-      || typeof payload.composer_mode !== "undefined"
-    )) {
-      process.exit(0);
-    }
-    const body = buildStateBody(event, payload || {}, resolve);
-    if (!body) process.exit(0);
-    postStateToRunningServer(
-      JSON.stringify(body),
-      { timeoutMs: 100 },
-      () => process.exit(0)
-    );
-  });
+  readStdinJson()
+    .then((payload) => {
+      const body = buildStateBody(event, payload || {}, resolve);
+      if (!body) process.exit(0);
+      postStateToRunningServer(
+        JSON.stringify(body),
+        { timeoutMs: 100 },
+        () => process.exit(0)
+      );
+    })
+    .catch(() => process.exit(0));
 }
 
 if (require.main === module) main();
 
-module.exports = { buildStateBody, extractSessionTitleFromTranscript };
+module.exports = {
+  buildStateBody,
+  extractSessionTitleFromTranscript,
+  extractApiErrorFromEntries,
+  extractLastAssistantTextFromEntries,
+  readTranscriptTailEntries,
+};

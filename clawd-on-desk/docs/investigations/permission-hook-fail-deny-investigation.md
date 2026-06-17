@@ -96,7 +96,7 @@ PreToolUse matcher 接受 `Bash`, `Edit|Write`, `mcp__.*` 等所有工具名。
 - [ ] 监控 anthropics/claude-code#46193 的 status
 - [ ] CC 修了之后：
   - 删除 `README.md` / `README.zh-CN.md` 里 Known Limitations 表格的对应行
-  - 在标题加 RESOLVED，或直接删除这份调查文档
+  - 把这个文档归档（移到 `docs/archive/` 或在标题加 RESOLVED）
   - 顺手更新 `hooks/install.js:248-250` 那条过时注释（"Edit/Write permissions are handled by Claude Code's own permission mode — not our hook"），写明历史脉络
 
 ## 不要做的事

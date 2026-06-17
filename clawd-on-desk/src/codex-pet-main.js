@@ -1,7 +1,5 @@
 "use strict";
 
-const { DEFAULT_THEME_ID } = require("./default-theme");
-
 const defaultFs = require("fs");
 const defaultPath = require("path");
 const { pathToFileURL } = require("url");
@@ -112,7 +110,7 @@ function createCodexPetMain(options = {}) {
 
   function getActiveThemeId() {
     const activeTheme = typeof options.getActiveTheme === "function" ? options.getActiveTheme() : null;
-    return activeTheme ? activeTheme._id : (settingsController.get("theme") || DEFAULT_THEME_ID);
+    return activeTheme ? activeTheme._id : (settingsController.get("theme") || "clawd");
   }
 
   function getDialogParent() {
@@ -159,6 +157,25 @@ function createCodexPetMain(options = {}) {
 
   function setLastSyncSummary(summary) {
     lastSyncSummary = summary;
+  }
+
+  function reloadActiveThemeIfUpdated(summary, activeThemeId) {
+    if (
+      !activeThemeId
+      || !summary
+      || !Array.isArray(summary.themes)
+      || typeof options.reloadActiveTheme !== "function"
+    ) {
+      return false;
+    }
+    const updatedActiveTheme = summary.themes.some((theme) => (
+      theme
+      && theme.themeId === activeThemeId
+      && theme.operation === "updated"
+    ));
+    if (!updatedActiveTheme) return false;
+    options.reloadActiveTheme();
+    return true;
   }
 
   function getManagedThemeDir(themeId) {
@@ -222,21 +239,32 @@ function createCodexPetMain(options = {}) {
     }
 
     if (summaryHasActiveCodexPetOrphan(summary, activeId)) {
-      const result = await settingsController.applyCommand("setThemeSelection", { themeId: DEFAULT_THEME_ID });
+      const result = await settingsController.applyCommand("setThemeSelection", { themeId: "clawd" });
       if (!result || result.status !== "ok") {
         return {
           status: "error",
-          message: (result && result.message) || `failed to switch active orphan Codex Pet theme back to ${DEFAULT_THEME_ID}`,
+          message: (result && result.message) || "failed to switch active orphan Codex Pet theme back to clawd",
           summary,
         };
       }
       switchedToFallback = true;
-      const cleanup = syncThemes(DEFAULT_THEME_ID);
+      const cleanup = syncThemes("clawd");
       summary = mergeCodexPetSyncSummaries(summary, cleanup);
       lastSyncSummary = summary;
       if (cleanup.error) {
         return { status: "error", message: cleanup.error, summary, switchedToFallback };
       }
+    }
+
+    try {
+      reloadActiveThemeIfUpdated(summary, activeId);
+    } catch (err) {
+      return {
+        status: "error",
+        message: (err && err.message) || String(err),
+        summary,
+        switchedToFallback,
+      };
     }
 
     rebuildMenusBestEffort();
@@ -478,6 +506,7 @@ function createCodexPetMain(options = {}) {
     if (!result || result.status !== "ok") {
       throw new Error((result && result.message) || "failed to switch to imported theme");
     }
+    reloadActiveThemeIfUpdated(summary, activeId);
     rebuildMenusBestEffort({ logFailure: false });
     return { themeId: generated.themeId, summary };
   }

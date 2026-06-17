@@ -29,6 +29,7 @@ describe("state-priority constants", () => {
       working: 3,
       thinking: 2,
       idle: 1,
+      roam: 1,
       sleeping: 0,
     });
     assert.deepStrictEqual([...SLEEP_SEQUENCE], ["yawning", "dozing", "collapsing", "sleeping", "waking"]);
@@ -71,6 +72,82 @@ describe("state-priority display selection", () => {
       ["s1", session("carrying")],
       ["s2", session("juggling")],
     ])), "carrying");
+  });
+
+  it("ignores superseded local Codex sessions that share one agent process", () => {
+    assert.strictEqual(resolveDominantSessionState(new Map([
+      ["codex:old", session("working", {
+        agentId: "codex",
+        agentPid: 4242,
+        updatedAt: 1000,
+      })],
+      ["codex:new", session("idle", {
+        agentId: "codex",
+        agentPid: 4242,
+        updatedAt: 2000,
+      })],
+    ])), "idle");
+
+    assert.strictEqual(resolveDominantSessionState(new Map([
+      ["codex:a", session("working", {
+        agentId: "codex",
+        agentPid: 1111,
+        updatedAt: 1000,
+      })],
+      ["codex:b", session("idle", {
+        agentId: "codex",
+        agentPid: 2222,
+        updatedAt: 2000,
+      })],
+    ])), "working");
+  });
+
+  it("does not dedupe Codex sessions without a local agent pid", () => {
+    assert.strictEqual(resolveDominantSessionState(new Map([
+      ["codex:old", session("working", {
+        agentId: "codex",
+        agentPid: null,
+        updatedAt: 1000,
+      })],
+      ["codex:new", session("idle", {
+        agentId: "codex",
+        agentPid: null,
+        updatedAt: 2000,
+      })],
+    ])), "working");
+  });
+
+  it("does not dedupe remote Codex sessions that happen to share an agent pid", () => {
+    assert.strictEqual(resolveDominantSessionState(new Map([
+      ["codex:remote-old", session("working", {
+        agentId: "codex",
+        agentPid: 4242,
+        host: "remote-box",
+        updatedAt: 1000,
+      })],
+      ["codex:remote-new", session("idle", {
+        agentId: "codex",
+        agentPid: 4242,
+        host: "remote-box",
+        updatedAt: 2000,
+      })],
+    ])), "working");
+  });
+
+  it("does not let headless Codex sessions supersede an interactive root session", () => {
+    assert.strictEqual(resolveDominantSessionState(new Map([
+      ["codex:root", session("working", {
+        agentId: "codex",
+        agentPid: 4242,
+        updatedAt: 1000,
+      })],
+      ["codex:subagent", session("idle", {
+        agentId: "codex",
+        agentPid: 4242,
+        headless: true,
+        updatedAt: 2000,
+      })],
+    ])), "working");
   });
 
   it("applies permission locks and update overlays with strict priority comparison", () => {

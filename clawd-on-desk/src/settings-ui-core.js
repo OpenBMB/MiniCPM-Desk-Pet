@@ -62,8 +62,10 @@
     mountedControls: {
       generalSwitches: new Map(),
       bubblePolicyControls: new Map(),
+      sessionCleanupControls: new Map(),
       agentSwitches: new Map(),
       agentPermissionModes: new Map(),
+      agentIntegrationActions: new Map(),
       animMapSwitches: new Map(),
       animMapReset: null,
       animOverrideTimingSliders: new Map(),
@@ -73,6 +75,7 @@
       size: null,
       soundSummary: null,
       soundVolume: null,
+      textScale: null,
     },
     shortcutRecordingActionId: null,
     shortcutRecordingError: "",
@@ -82,6 +85,10 @@
 
   const runtime = {
     agentMetadata: null,
+    agentInstallationHints: null,
+    agentInstallationHintsPending: false,
+    agentInstallationHintsFetched: false,
+    agentInstallationHintsPromise: null,
     themeList: null,
     codexPetsRefreshPending: false,
     codexPetZipImportPending: false,
@@ -105,7 +112,6 @@
     about: {
       infoCache: null,
       clickCount: 0,
-      contributorsExpanded: false,
     },
   };
 
@@ -151,6 +157,13 @@
     return entry ? entry[flag] !== false : true;
   }
 
+  function readAgentIntegrationInstalled(agentId) {
+    const entry = state.snapshot && state.snapshot.agents && state.snapshot.agents[agentId];
+    // Normalized v11 snapshots carry the explicit flag. The true fallback is
+    // only for old/mocked snapshots that predate on-demand installation.
+    return entry ? entry.integrationInstalled === true : true;
+  }
+
   function readAgentPermissionMode(agentId) {
     const entry = state.snapshot && state.snapshot.agents && state.snapshot.agents[agentId];
     if (agentId === "codex" && entry && entry.permissionMode === "intercept") return "intercept";
@@ -167,9 +180,6 @@
     return (state.snapshot && state.snapshot.lang) || "system";
   }
 
-  // Effective UI language: resolves "system" via navigator.language so the
-  // settings panel and all renderer-side translation lookups always render
-  // in one of the five concrete UI langs.
   function getLang() {
     const stored = getStoredLang();
     const resolver = typeof globalThis !== "undefined" ? globalThis.ClawdLocaleResolver : null;
@@ -217,7 +227,7 @@
 
   function t(key) {
     const dict = STRINGS[getLang()] || STRINGS.en || {};
-    return dict[key] || key;
+    return dict[key] || (STRINGS.en && STRINGS.en[key]) || key;
   }
 
   function escapeHtml(s) {
@@ -408,10 +418,6 @@
       return `${body.scrollHeight}px`;
     }
 
-    function isGroupConnected() {
-      return !!(document.body && document.body.contains(group));
-    }
-
     function setExpandedBodyHeight() {
       body.style.setProperty("--collapsible-body-height", measureCollapsibleBodyHeight());
     }
@@ -454,12 +460,11 @@
         if (collapsed) {
           body.style.setProperty("--collapsible-body-height", "0px");
         } else {
-          // Detached groups report scrollHeight=0 in some engines. Keep the
-          // body fully expanded until the post-mount RAF can measure a real height.
-          body.style.setProperty(
-            "--collapsible-body-height",
-            isGroupConnected() ? measureCollapsibleBodyHeight() : "none"
-          );
+          // Settled-open groups must NOT keep a pinned max-height: text zoom
+          // or window-width changes rewrap descriptions and grow the content,
+          // and a stale pinned height clips the bottom rows (overflow:
+          // hidden). A measured height is only needed while animating.
+          body.style.setProperty("--collapsible-body-height", "none");
         }
         return;
       }
@@ -505,11 +510,13 @@
     body.addEventListener("transitionend", (ev) => {
       if (ev.target !== body || ev.propertyName !== "max-height") return;
       group.classList.remove("expanding", "collapsing");
-      if (!collapsed) setExpandedBodyHeight();
+      // Release the pinned height once settled so later reflows (text zoom,
+      // window resize) can grow the body instead of clipping at the bottom.
+      if (!collapsed) body.style.setProperty("--collapsible-body-height", "none");
     });
     applyCollapsedState();
     requestAnimationFrame(() => {
-      if (!collapsed) setExpandedBodyHeight();
+      if (!collapsed) body.style.setProperty("--collapsible-body-height", "none");
     });
     return group;
   }
@@ -550,6 +557,7 @@
     descExtraKey = null,
     onToggle = null,
     actionButton = null,
+    danger = false,
   }) {
     const row = document.createElement("div");
     row.className = "row";
@@ -559,7 +567,9 @@
         `<span class="row-desc"></span>` +
       `</div>` +
       `<div class="row-control"><div class="switch" role="switch" tabindex="0"></div></div>`;
-    row.querySelector(".row-label").textContent = t(labelKey);
+    const labelEl = row.querySelector(".row-label");
+    labelEl.textContent = t(labelKey);
+    if (danger) labelEl.classList.add("row-label-danger");
     const text = row.querySelector(".row-text");
     const desc = row.querySelector(".row-desc");
     if (descKey) desc.textContent = t(descKey);
@@ -627,6 +637,166 @@
     return btn;
   }
 
+  // Generic number-input row used by the Session cleanup group. Mirrors the
+  // bubble-policy seconds-input shape but without a toggle axis: label + desc
+  // + numeric input + localized unit suffix. Debounces commits so typing
+  // doesn't fire a write on every keystroke; reverts on rejection.
+  //
+  // `toDisplay(ms)` maps the stored ms value -> the integer shown in the
+  // input. `fromDisplay(display)` maps the user's input back to ms. The
+  // helper does not enforce the cross-field invariant; that's the
+  // controller's job (`settings-actions.js`).
+  const NUMBER_INPUT_COMMIT_DELAY_MS = 600;
+  function buildNumberInputRow({
+    key,
+    labelKey,
+    descKey,
+    unitKey,
+    toDisplay,
+    fromDisplay,
+    min,
+    max,
+    zeroLabelKey = null,
+    debounceMs = NUMBER_INPUT_COMMIT_DELAY_MS,
+  }) {
+    const row = document.createElement("div");
+    row.className = "row session-cleanup-row";
+    row.innerHTML =
+      `<div class="row-text">` +
+        `<span class="row-label"></span>` +
+        `<span class="row-desc"></span>` +
+      `</div>` +
+      `<div class="row-control session-cleanup-control">` +
+        `<input type="text" class="bubble-policy-seconds session-cleanup-input" inputmode="numeric" />` +
+        `<span class="bubble-policy-unit session-cleanup-unit"></span>` +
+      `</div>`;
+    row.querySelector(".row-label").textContent = t(labelKey);
+    const descNode = row.querySelector(".row-desc");
+    if (descKey) descNode.textContent = t(descKey);
+    else descNode.remove();
+    const input = row.querySelector(".session-cleanup-input");
+    const unit = row.querySelector(".session-cleanup-unit");
+    if (unitKey) unit.textContent = t(unitKey);
+    else unit.remove();
+    input.maxLength = String(max).length + 1;
+
+    function currentStored() {
+      const stored = state.snapshot && state.snapshot[key];
+      return Number.isFinite(stored) ? stored : 0;
+    }
+    function renderValue() {
+      const stored = currentStored();
+      const display = toDisplay(stored);
+      if (stored === 0 && zeroLabelKey) {
+        input.value = t(zeroLabelKey);
+      } else {
+        input.value = String(display);
+      }
+    }
+    renderValue();
+
+    let commitTimer = null;
+    let inFlightDisplay = null;
+    let commitSeq = 0;
+    function clearCommitTimer() {
+      if (commitTimer) {
+        clearTimeout(commitTimer);
+        commitTimer = null;
+      }
+    }
+    function syncFromSnapshot() {
+      if (document.activeElement === input) return;
+      renderValue();
+    }
+    function revert() {
+      renderValue();
+    }
+    function commit(nextStored) {
+      const seq = ++commitSeq;
+      inFlightDisplay = nextStored;
+      return window.settingsAPI.update(key, nextStored).then((result) => {
+        if (seq !== commitSeq) return false;
+        inFlightDisplay = null;
+        if (!result || result.status !== "ok") {
+          const msg = (result && result.message) || "unknown error";
+          showToast(t("toastSaveFailed") + msg, { error: true });
+          revert();
+          return false;
+        }
+        return true;
+      }).catch((err) => {
+        if (seq !== commitSeq) return false;
+        inFlightDisplay = null;
+        showToast(t("toastSaveFailed") + (err && err.message), { error: true });
+        revert();
+        return false;
+      });
+    }
+    function parseInput() {
+      const raw = input.value.trim();
+      if (raw === "" || (zeroLabelKey && raw === t(zeroLabelKey))) {
+        // Treat the localized "Disabled" label as the literal zero.
+        return zeroLabelKey ? 0 : null;
+      }
+      if (!/^[0-9]+(?:\.[0-9]+)?$/.test(raw)) return null;
+      const display = Number(raw);
+      if (!Number.isFinite(display) || display < min || display > max) return null;
+      return display;
+    }
+    function commitFromInput() {
+      const display = parseInput();
+      if (display == null) {
+        showToast(t("toastSaveFailed") + `${min}-${max}`, { error: true });
+        revert();
+        return;
+      }
+      const nextStored = display === 0 ? 0 : fromDisplay(display);
+      if (nextStored === currentStored() || nextStored === inFlightDisplay) {
+        // No change — just re-render so the input matches the stored value.
+        renderValue();
+        return;
+      }
+      void commit(nextStored);
+    }
+    function scheduleCommit() {
+      clearCommitTimer();
+      commitTimer = setTimeout(() => {
+        commitTimer = null;
+        commitFromInput();
+      }, debounceMs);
+    }
+
+    input.addEventListener("focus", () => {
+      // Strip the zero-label so the user types numerics, not localized text.
+      const stored = currentStored();
+      if (stored === 0 && zeroLabelKey) input.value = "0";
+    });
+    input.addEventListener("input", () => {
+      scheduleCommit();
+    });
+    input.addEventListener("blur", () => {
+      clearCommitTimer();
+      commitFromInput();
+    });
+    input.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        clearCommitTimer();
+        commitFromInput();
+        input.blur();
+      } else if (ev.key === "Escape") {
+        ev.preventDefault();
+        clearCommitTimer();
+        revert();
+        input.blur();
+      }
+    });
+
+    const handle = { row, input, syncFromSnapshot };
+    state.mountedControls.sessionCleanupControls.set(key, handle);
+    return handle;
+  }
+
   function openExternalSafe(url) {
     if (!url) return;
     if (!window.settingsAPI || typeof window.settingsAPI.openExternal !== "function") return;
@@ -649,10 +819,18 @@
     if (state.mountedControls.soundVolume && typeof state.mountedControls.soundVolume.dispose === "function") {
       state.mountedControls.soundVolume.dispose();
     }
+    // Rolls back a transient text-scale preview that a full re-render would
+    // otherwise strand in the main process (the row's blur never fires when
+    // its subtree is dropped wholesale).
+    if (state.mountedControls.textScale && typeof state.mountedControls.textScale.dispose === "function") {
+      state.mountedControls.textScale.dispose();
+    }
     state.mountedControls.generalSwitches.clear();
     state.mountedControls.bubblePolicyControls.clear();
+    state.mountedControls.sessionCleanupControls.clear();
     state.mountedControls.agentSwitches.clear();
     state.mountedControls.agentPermissionModes.clear();
+    state.mountedControls.agentIntegrationActions.clear();
     state.mountedControls.animMapSwitches.clear();
     state.mountedControls.animMapReset = null;
     state.mountedControls.animOverrideTimingSliders.clear();
@@ -662,6 +840,7 @@
     state.mountedControls.size = null;
     state.mountedControls.soundSummary = null;
     state.mountedControls.soundVolume = null;
+    state.mountedControls.textScale = null;
   }
 
   function syncMountedSizeControl({ fromBroadcast = false } = {}) {
@@ -709,6 +888,62 @@
   function applyAgentMetadata(list) {
     runtime.agentMetadata = Array.isArray(list) ? list : [];
     if (state.activeTab === "agents") requestRender({ content: true });
+  }
+
+  function normalizeAgentInstallationHints(result) {
+    const source = result && typeof result === "object" ? result : {};
+    const normalized = {
+      checkedAt: Number.isFinite(source.checkedAt) ? source.checkedAt : null,
+      agents: Array.isArray(source.agents) ? source.agents : [],
+      skippedAgentIds: Array.isArray(source.skippedAgentIds) ? source.skippedAgentIds : [],
+    };
+    if (typeof source.error === "string" && source.error) normalized.error = source.error;
+    return normalized;
+  }
+
+  function emptyAgentInstallationHints(error) {
+    const result = {
+      checkedAt: null,
+      agents: [],
+      skippedAgentIds: [],
+    };
+    if (error) result.error = error;
+    return result;
+  }
+
+  function fetchAgentInstallationHints({ force = false } = {}) {
+    if (runtime.agentInstallationHintsPending) {
+      return runtime.agentInstallationHintsPromise || Promise.resolve(runtime.agentInstallationHints);
+    }
+    if (!force && runtime.agentInstallationHintsFetched) {
+      return Promise.resolve(runtime.agentInstallationHints);
+    }
+    if (!window.settingsAPI || typeof window.settingsAPI.detectAgentInstallations !== "function") {
+      runtime.agentInstallationHints = emptyAgentInstallationHints();
+      runtime.agentInstallationHintsFetched = true;
+      return Promise.resolve(runtime.agentInstallationHints);
+    }
+
+    runtime.agentInstallationHintsPending = true;
+    runtime.agentInstallationHintsPromise = window.settingsAPI.detectAgentInstallations()
+      .then((result) => {
+        runtime.agentInstallationHints = normalizeAgentInstallationHints(result);
+        return runtime.agentInstallationHints;
+      })
+      .catch((err) => {
+        console.warn("settings: detectAgentInstallations failed", err);
+        runtime.agentInstallationHints = emptyAgentInstallationHints(
+          err && err.message ? err.message : String(err)
+        );
+        return runtime.agentInstallationHints;
+      })
+      .finally(() => {
+        runtime.agentInstallationHintsPending = false;
+        runtime.agentInstallationHintsFetched = true;
+        runtime.agentInstallationHintsPromise = null;
+        if (state.activeTab === "agents") requestRender({ content: true });
+      });
+    return runtime.agentInstallationHintsPromise;
   }
 
   function fetchThemes() {
@@ -1017,6 +1252,7 @@
     readGeneralSwitchVisual,
     agentSwitchStateId,
     readAgentFlagValue,
+    readAgentIntegrationInstalled,
     readAgentPermissionMode,
     getShortcutValue,
     getLang,
@@ -1036,6 +1272,7 @@
     createDisclosureChevron,
     attachActivation,
     buildShortcutButton,
+    buildNumberInputRow,
     openExternalSafe,
     SIZE_UI_MIN,
     SIZE_UI_MAX,
@@ -1072,6 +1309,7 @@
     finishShortcutRecording,
     handleShortcutRecordKey,
     applyShortcutFailures,
+    fetchAgentInstallationHints,
     fetchThemes,
     fetchAnimationOverridesData,
     applyAnimationPreviewPoster,

@@ -104,9 +104,12 @@ describe("server-route-state POST", () => {
       event: "PreToolUse",
       display_svg: "/tmp/display.svg",
       source_pid: 123.9,
+      wt_hwnd: "123456",
       cwd: "D:\\repo",
       editor: "cursor",
       pid_chain: [1, "bad", 3],
+      tmux_socket: "/tmp/tmux-1000/work",
+      tmux_client: "/dev/pts/7",
       agent_pid: 99.8,
       agent_id: "codex",
       host: "remote-host",
@@ -116,6 +119,7 @@ describe("server-route-state POST", () => {
       provider: "openai",
       codex_originator: "Codex Desktop",
       codex_source: "vscode",
+      ghostty_terminal_id: "ghostty-term-7",
       session_title: "  Work title  ",
       permission_suspect: true,
       preserve_state: true,
@@ -129,9 +133,12 @@ describe("server-route-state POST", () => {
       "PreToolUse",
       {
         sourcePid: 123,
+        wtHwnd: "123456",
         cwd: "D:\\repo",
         editor: "cursor",
         pidChain: [1, 3],
+        tmuxSocket: "/tmp/tmux-1000/work",
+        tmuxClient: "/dev/pts/7",
         agentPid: 99,
         agentId: "codex",
         host: "remote-host",
@@ -141,13 +148,91 @@ describe("server-route-state POST", () => {
         provider: "openai",
         codexOriginator: "Codex Desktop",
         codexSource: "vscode",
+        ghosttyTerminalId: "ghostty-term-7",
         displayHint: "display.svg",
         sessionTitle: "Work title",
+        contextUsage: null,
+        assistantLastOutput: null,
+        assistantLastOutputTruncated: false,
         permissionSuspect: true,
         preserveState: true,
         hookSource: "codex-official",
+        backgroundTasksCount: 0,
+        sessionCronsCount: 0,
+        stopHookActive: false,
       },
     ]]);
+  });
+
+  it("passes assistant last output metadata to updateSession", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "attention",
+      session_id: "sid",
+      event: "Stop",
+      assistant_last_output: "  Done.\nsecret=abc123  ",
+      assistant_last_output_truncated: true,
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.updateSession[0][3].assistantLastOutput, "Done.\nsecret=abc123");
+    assert.strictEqual(res.calls.updateSession[0][3].assistantLastOutputTruncated, true);
+  });
+
+  it("passes valid context_usage to updateSession", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      context_usage: { used: 1000, limit: 200000, percent: 1, source: "claude" },
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.deepStrictEqual(res.calls.updateSession[0][3].contextUsage, {
+      used: 1000,
+      limit: 200000,
+      percent: 1,
+      source: "claude",
+    });
+  });
+
+  it("drops invalid context_usage without rejecting state", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      context_usage: { used: -1, limit: 0 },
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.updateSession[0][3].contextUsage, null);
+  });
+
+  it("marks missing agent_id as a defaulted Claude Code attribution", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "legacy-sid",
+      event: "PreToolUse",
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    const opts = res.calls.updateSession[0][3];
+    assert.strictEqual(opts.agentId, "claude-code");
+    assert.strictEqual(opts.agentIdDefaulted, true);
+  });
+
+  it("infers opencode from hook_source when agent_id is missing", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "opencode-sid",
+      event: "PreToolUse",
+      hook_source: "opencode-plugin",
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    const opts = res.calls.updateSession[0][3];
+    assert.strictEqual(opts.agentId, "opencode");
+    assert.strictEqual(opts.hookSource, "opencode-plugin");
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(opts, "agentIdDefaulted"), false);
   });
 
   it("uses basename for explicit svg state overrides", async () => {
@@ -202,5 +287,114 @@ describe("server-route-state POST", () => {
 
     assert.strictEqual(res.statusCode, 400);
     assert.strictEqual(res.body, "bad json");
+  });
+});
+
+describe("server-route-state ExitPlanMode stale sweep", () => {
+  it("clears stale ExitPlanMode on UserPromptSubmit for same session", async () => {
+    const stalePerm = { res: {}, sessionId: "sid", toolName: "ExitPlanMode" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "UserPromptSubmit",
+    }), {
+      ctx: { pendingPermissions: [stalePerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 1);
+    assert.strictEqual(res.calls.resolved[0].perm, stalePerm);
+    assert.strictEqual(res.calls.resolved[0].behavior, "deny");
+    assert.strictEqual(res.calls.resolved[0].message, "Plan dialog dismissed in terminal");
+  });
+
+  it("does NOT clear ExitPlanMode for a different session", async () => {
+    const stalePerm = { res: {}, sessionId: "other-sid", toolName: "ExitPlanMode" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "UserPromptSubmit",
+    }), {
+      ctx: { pendingPermissions: [stalePerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 0);
+  });
+
+  it("does NOT trigger sweep on PreToolUse(ExitPlanMode)", async () => {
+    const stalePerm = { res: {}, sessionId: "sid", toolName: "ExitPlanMode" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      tool_name: "ExitPlanMode",
+    }), {
+      ctx: { pendingPermissions: [stalePerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 0);
+  });
+
+  it("triggers sweep on PreToolUse with a different tool", async () => {
+    const stalePerm = { res: {}, sessionId: "sid", toolName: "ExitPlanMode" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      tool_name: "Bash",
+    }), {
+      ctx: { pendingPermissions: [stalePerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 1);
+    assert.strictEqual(res.calls.resolved[0].perm, stalePerm);
+  });
+
+  it("does NOT clear non-ExitPlanMode pending permissions", async () => {
+    const otherPerm = { res: {}, sessionId: "sid", toolName: "Bash" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "UserPromptSubmit",
+    }), {
+      ctx: { pendingPermissions: [otherPerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 0);
+  });
+
+  it("skips entries with no res (already cleaned up)", async () => {
+    const stalePerm = { res: null, sessionId: "sid", toolName: "ExitPlanMode" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "Stop",
+    }), {
+      ctx: { pendingPermissions: [stalePerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 0);
+  });
+
+  it("clears stale ExitPlanMode on PostToolUse(ExitPlanMode) as fallback", async () => {
+    const stalePerm = { res: {}, sessionId: "sid", toolName: "ExitPlanMode" };
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PostToolUse",
+      tool_name: "ExitPlanMode",
+    }), {
+      ctx: { pendingPermissions: [stalePerm] },
+    });
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.resolved.length, 1);
+    assert.strictEqual(res.calls.resolved[0].perm, stalePerm);
+    assert.strictEqual(res.calls.resolved[0].message, "User answered in terminal");
   });
 });

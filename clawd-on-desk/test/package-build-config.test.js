@@ -44,6 +44,33 @@ describe("package build config", () => {
     );
   });
 
+  it("ships and unpacks runtime files required by external hook scripts", () => {
+    assert.ok(
+      pkg.build.files.includes("hooks/**/*"),
+      "build.files should include hooks/**/*"
+    );
+    assert.ok(
+      pkg.build.files.includes("extensions/**/*"),
+      "build.files should include extensions/**/*"
+    );
+    assert.ok(
+      pkg.build.files.includes("agents/**/*"),
+      "build.files should include agents/**/*"
+    );
+    assert.ok(
+      pkg.build.asarUnpack.includes("agents/**/*"),
+      "asarUnpack should include agents/**/*"
+    );
+    assert.ok(
+      pkg.build.asarUnpack.includes("hooks/**/*"),
+      "asarUnpack should include hooks/**/*"
+    );
+    assert.ok(
+      pkg.build.asarUnpack.includes("extensions/**/*"),
+      "asarUnpack should include extensions/**/*"
+    );
+  });
+
   describe("Windows architecture targets", () => {
     function getWindowsNsisTarget() {
       const targets = pkg.build.win && pkg.build.win.target;
@@ -89,6 +116,63 @@ describe("package build config", () => {
     });
   });
 
+  describe("macOS architecture targets", () => {
+    function getMacDmgTarget() {
+      const targets = pkg.build.mac && pkg.build.mac.target;
+      return Array.isArray(targets) ? targets.find((target) => target && target.target === "dmg") : null;
+    }
+
+    it("builds native macOS DMGs for x64 and arm64", () => {
+      const target = getMacDmgTarget();
+      assert.ok(target, "build.mac.target should include a dmg target");
+      assert.deepStrictEqual(
+        target.arch.slice().sort(),
+        ["x64", "arm64"].slice().sort(),
+        "macOS builds should publish both x64 and ARM64 DMGs"
+      );
+    });
+
+    it("uses architecture-specific macOS DMG names without spaces", () => {
+      const artifactName = pkg.build.mac && pkg.build.mac.artifactName;
+      assert.strictEqual(
+        typeof artifactName,
+        "string",
+        "build.mac.artifactName should be a string"
+      );
+      assert.match(
+        artifactName,
+        /\$\{arch\}/,
+        "macOS artifactName must include ${arch} so x64 and ARM64 DMGs cannot collide"
+      );
+      assert.doesNotMatch(
+        artifactName,
+        /\s/,
+        "macOS artifactName should not contain spaces so latest-mac.yml URLs match uploaded DMG assets"
+      );
+    });
+  });
+
+  describe("Linux artifact targets", () => {
+    it("uses Linux artifact names without spaces so latest-linux.yml URLs match uploaded assets", () => {
+      const artifactName = pkg.build.linux && pkg.build.linux.artifactName;
+      assert.strictEqual(
+        typeof artifactName,
+        "string",
+        "build.linux.artifactName should be a string"
+      );
+      assert.match(
+        artifactName,
+        /\$\{arch\}/,
+        "Linux artifactName should include ${arch} so architecture-specific assets stay explicit"
+      );
+      assert.doesNotMatch(
+        artifactName,
+        /\s/,
+        "Linux artifactName should not contain spaces so latest-linux.yml URLs match uploaded assets"
+      );
+    });
+  });
+
   // getWindowsShellIconPath has a three-step fallback:
   //   1. resourcesPath/icon.ico            ← extraResources copy
   //   2. resourcesPath/app.asar.unpacked/assets/icon.ico
@@ -130,4 +214,97 @@ describe("package build config", () => {
       );
     });
   });
+
+  describe("Telegram approval sidecar packaging", () => {
+    it("does not preflight remote approval sidecars during source launches", () => {
+      assert.strictEqual(
+        pkg.scripts.start,
+        "node launch.js",
+        "source launch should not fetch or verify remote-control sidecars automatically"
+      );
+      assert.match(pkg.scripts.prebuild, /node scripts\/verify-sidecar-binaries\.js/);
+      assert.strictEqual(pkg.scripts["fetch:sidecars"], "node scripts/fetch-sidecar-binaries.js");
+    });
+
+    it("copies cc-connect-clawd sidecars into packaged resources", () => {
+      const extra = pkg.build.extraResources || [];
+      const copied = extra.some(
+        (e) => e && e.from === "bin/cc-connect-clawd" && e.to === "sidecars/cc-connect-clawd"
+      );
+      assert.ok(
+        copied,
+        "build.extraResources must copy bin/cc-connect-clawd -> sidecars/cc-connect-clawd"
+      );
+    });
+
+    it("documents the expected sidecar binary names in the README", () => {
+      const readme = path.join(ROOT, "bin", "cc-connect-clawd", "README.md");
+      assert.ok(fs.existsSync(readme), "bin/cc-connect-clawd/README.md should document release binary names");
+      const text = fs.readFileSync(readme, "utf8");
+      assert.match(text, /windows-x64\/cc-connect-clawd\.exe/);
+      assert.match(text, /darwin-arm64\/cc-connect-clawd/);
+      assert.match(text, /linux-x64\/cc-connect-clawd/);
+    });
+
+    it("fetches and verifies pinned sidecars before release builds", () => {
+      const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build.yml"), "utf8");
+      assertWorkflowOrder(
+        workflow,
+        "npm run fetch:sidecars -- --target windows-x64,windows-arm64",
+        "node scripts/verify-sidecar-binaries.js prebuild:win:all",
+        "npx electron-builder --win --publish never"
+      );
+      assertWorkflowOrder(
+        workflow,
+        "npm run fetch:sidecars -- --target darwin-x64,darwin-arm64",
+        "node scripts/verify-sidecar-binaries.js prebuild:mac",
+        "npx electron-builder --mac --publish never"
+      );
+      assertWorkflowOrder(
+        workflow,
+        "npm run fetch:sidecars -- --target linux-x64",
+        "node scripts/verify-sidecar-binaries.js prebuild:linux",
+        "npx electron-builder --linux --publish never"
+      );
+    });
+
+    it("publishes GitHub releases only for version tags", () => {
+      const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build.yml"), "utf8");
+      const releaseIndex = findWorkflowJobIndex(workflow, "release");
+      assert.ok(releaseIndex >= 0, "workflow should define a release job");
+      const releaseGateIndex = workflow.indexOf("if: startsWith(github.ref, 'refs/tags/v')", releaseIndex);
+      const bodyPathIndex = workflow.indexOf("body_path: docs/releases/release-${{ github.ref_name }}.md", releaseIndex);
+      assert.ok(releaseGateIndex >= 0, "release job should be gated to v* tags");
+      assert.ok(bodyPathIndex >= 0, "release job should still use tag-specific release notes");
+      assert.ok(releaseGateIndex < bodyPathIndex, "release job gate should run before release publication");
+    });
+
+    it("creates tag releases as drafts for final asset inspection", () => {
+      const workflow = fs.readFileSync(path.join(ROOT, ".github", "workflows", "build.yml"), "utf8");
+      const releaseIndex = findWorkflowJobIndex(workflow, "release");
+      assert.ok(releaseIndex >= 0, "workflow should define a release job");
+      const actionIndex = workflow.indexOf("softprops/action-gh-release@v2", releaseIndex);
+      const draftIndex = workflow.indexOf("draft: true", actionIndex);
+      const prereleaseIndex = workflow.indexOf("prerelease: ${{ contains(github.ref_name, '-') }}", actionIndex);
+      assert.ok(actionIndex >= 0, "release job should use the GitHub release action");
+      assert.ok(draftIndex > actionIndex, "tag releases should be created as drafts first");
+      assert.ok(prereleaseIndex > actionIndex, "hyphenated tags should be marked prerelease");
+    });
+  });
 });
+
+function findWorkflowJobIndex(workflow, jobName) {
+  const match = String(workflow || "").match(new RegExp(`(?:^|\\r?\\n)  ${jobName}:\\r?\\n`));
+  return match ? match.index : -1;
+}
+
+function assertWorkflowOrder(workflow, fetchCommand, verifyCommand, buildCommand) {
+  const fetchIndex = workflow.indexOf(fetchCommand);
+  const verifyIndex = workflow.indexOf(verifyCommand);
+  const buildIndex = workflow.indexOf(buildCommand);
+  assert.ok(fetchIndex >= 0, `workflow should run: ${fetchCommand}`);
+  assert.ok(verifyIndex >= 0, `workflow should run: ${verifyCommand}`);
+  assert.ok(buildIndex >= 0, `workflow should run: ${buildCommand}`);
+  assert.ok(fetchIndex < verifyIndex, `${fetchCommand} should run before ${verifyCommand}`);
+  assert.ok(verifyIndex < buildIndex, `${verifyCommand} should run before ${buildCommand}`);
+}

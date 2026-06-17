@@ -19,6 +19,10 @@ const path = require("path");
 const os = require("os");
 const CodexSubagentClassifier = require("./codex-subagent-classifier");
 const { readCodexThreadName } = require("../hooks/codex-session-index");
+const {
+  clampAssistantOutputText,
+  extractAssistantTextFromRecord,
+} = require("../hooks/codex-assistant-output");
 
 const APPROVAL_HEURISTIC_MS = 2000;
 const MAX_TRACKED_FILES = 50;
@@ -36,6 +40,46 @@ const ACTIVE_SESSION_WINDOW_MS = 5 * 60 * 1000;
 // file written within the grace window is a live session and emits normally.
 const BACKFILL_GRACE_MS = 5 * 1000;
 const BACKFILL_SNAPSHOT_STATES = new Set(["thinking", "working", "codex-permission"]);
+
+function finiteNonnegativeNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function positiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function extractCodexContextUsage(payload) {
+  if (!payload || typeof payload !== "object") return null;
+  const info = payload.info && typeof payload.info === "object" ? payload.info : null;
+  const lastUsage = info && info.last_token_usage && typeof info.last_token_usage === "object"
+    ? info.last_token_usage
+    : null;
+  const used = finiteNonnegativeNumber(
+    (lastUsage && lastUsage.total_tokens)
+    ?? payload.total_tokens
+    ?? payload.tokens_used
+    ?? payload.input_tokens
+    ?? payload.context_tokens
+  );
+  if (used === null) return null;
+
+  const limit = positiveNumber(
+    (info && info.model_context_window)
+    ?? payload.model_context_window
+    ?? payload.context_window
+    ?? payload.limit
+    ?? payload.max_tokens
+  );
+  const out = { used, source: "codex" };
+  if (limit !== null) {
+    out.limit = limit;
+    out.percent = Math.max(0, Math.min(100, Math.round((used / limit) * 100)));
+  }
+  return out;
+}
 
 class CodexLogMonitor {
   /**
@@ -302,6 +346,9 @@ class CodexLogMonitor {
         isSubagent: retired ? retired.isSubagent === true : false,
         agentPid: retired ? retired.agentPid : null,
         pendingApprovalDetail: null,
+        assistantLastOutput: retired ? retired.assistantLastOutput || null : null,
+        assistantLastOutputTruncated: retired ? retired.assistantLastOutputTruncated === true : false,
+        contextUsage: retired ? retired.contextUsage || null : null,
         // Backfill mode: only a file whose last write predates monitor
         // start (by more than BACKFILL_GRACE_MS) is treated as stale
         // history — we replay it silently to advance offset + pick up
@@ -381,7 +428,25 @@ class CodexLogMonitor {
     // storms on app restart from driving stale state transitions.
     if (obj && typeof obj.timestamp === "string") {
       const ts = Date.parse(obj.timestamp);
-      if (Number.isFinite(ts) && ts < this._startedAtMs - 1500) return;
+      if (!tracked.backfilling && Number.isFinite(ts) && ts < this._startedAtMs - 1500) return;
+    }
+
+    const assistantText = extractAssistantTextFromRecord(obj);
+    if (assistantText) {
+      const assistantOutput = clampAssistantOutputText(assistantText);
+      tracked.assistantLastOutput = assistantOutput ? assistantOutput.text : null;
+      tracked.assistantLastOutputTruncated = !!(assistantOutput && assistantOutput.truncated);
+    }
+
+    if (key === "event_msg:token_count") {
+      const contextUsage = extractCodexContextUsage(payload);
+      if (contextUsage) {
+        tracked.contextUsage = contextUsage;
+        if (!tracked.backfilling) {
+          this._emitStateChange(tracked, tracked.lastState || "idle", key);
+        }
+      }
+      return;
     }
 
     // Extract Codex-authored session summary (turn_context.summary).
@@ -426,6 +491,8 @@ class CodexLogMonitor {
     // Track tool use per turn — reset on task_started, set on function_call
     if (key === "event_msg:task_started") {
       tracked.hadToolUse = false;
+      tracked.assistantLastOutput = null;
+      tracked.assistantLastOutputTruncated = false;
     }
     if (key === "response_item:function_call") {
       tracked.hadToolUse = true;
@@ -444,7 +511,7 @@ class CodexLogMonitor {
       tracked.hadToolUse = false;
       tracked.lastState = resolved;
       if (tracked.backfilling) return;
-      this._emitStateChange(tracked, resolved, key);
+      this._emitStateChange(tracked, resolved, key, this._assistantOutputExtra(tracked));
       return;
     }
 
@@ -651,6 +718,9 @@ class CodexLogMonitor {
       hadToolUse: tracked.hadToolUse === true,
       isSubagent: tracked.isSubagent === true,
       agentPid: tracked.agentPid || null,
+      assistantLastOutput: tracked.assistantLastOutput || null,
+      assistantLastOutputTruncated: tracked.assistantLastOutputTruncated === true,
+      contextUsage: tracked.contextUsage || null,
     });
     while (this._retiredTracked.size > MAX_RETIRED_TRACKED_FILES) {
       const oldest = this._retiredTracked.keys().next().value;
@@ -660,7 +730,12 @@ class CodexLogMonitor {
 
   _emitBackfillSnapshot(tracked) {
     const snapshotState = tracked.lastState;
-    if (!BACKFILL_SNAPSHOT_STATES.has(snapshotState)) return;
+    if (!BACKFILL_SNAPSHOT_STATES.has(snapshotState)) {
+      if (tracked.contextUsage) {
+        this._emitStateChange(tracked, "idle", "event_msg:token_count");
+      }
+      return;
+    }
     const extra = snapshotState === "codex-permission" && tracked.pendingApprovalDetail
       ? { permissionDetail: tracked.pendingApprovalDetail }
       : null;
@@ -670,6 +745,21 @@ class CodexLogMonitor {
       tracked.lastStateEvent || "session_meta",
       extra
     );
+  }
+
+  _assistantOutputExtra(tracked) {
+    if (!tracked || typeof tracked.assistantLastOutput !== "string" || !tracked.assistantLastOutput) {
+      return null;
+    }
+    return {
+      assistantLastOutput: tracked.assistantLastOutput,
+      assistantLastOutputTruncated: tracked.assistantLastOutputTruncated === true,
+    };
+  }
+
+  _withTrackedContextUsage(tracked, extra = null) {
+    if (!tracked || !tracked.contextUsage) return extra;
+    return { ...(extra || {}), contextUsage: tracked.contextUsage };
   }
 
   _isTrackedSubagent(tracked) {
@@ -704,7 +794,7 @@ class CodexLogMonitor {
       sessionTitle: tracked.sessionTitle,
       codexOriginator: tracked.codexOriginator || null,
       codexSource: tracked.codexSource || null,
-      ...(extra || {}),
+      ...this._withTrackedContextUsage(tracked, extra),
       headless: this._isTrackedSubagent(tracked)
         ? true
         : (extra && Object.prototype.hasOwnProperty.call(extra, "headless") ? extra.headless : undefined),

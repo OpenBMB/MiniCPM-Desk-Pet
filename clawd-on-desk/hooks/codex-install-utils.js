@@ -3,10 +3,14 @@ const path = require("path");
 const os = require("os");
 const { resolveNodeBin } = require("./server-config");
 const {
+  readJsonFile,
   writeJsonAtomic,
+  writeJsonAtomicWithBackup,
   asarUnpackedPath,
+  commandMatchesMarker,
   extractExistingNodeBin,
   formatNodeHookCommand,
+  removeMatchingCommandHooks,
 } = require("./json-utils");
 
 const DEFAULT_PARENT_DIR = path.join(os.homedir(), ".codex");
@@ -78,7 +82,7 @@ function withCommandEnv(command, env, platform = process.platform) {
 
 function readJsonIfPresent(filePath, label) {
   try {
-    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    return readJsonFile(filePath);
   } catch (err) {
     if (err.code === "ENOENT") return {};
     throw new Error(`Failed to read ${label}: ${err.message}`);
@@ -301,9 +305,9 @@ function findCodexCommandHook(entry, marker) {
   const innerHooks = Array.isArray(entry.hooks) ? entry.hooks : [];
   for (const hook of innerHooks) {
     if (!hook || typeof hook !== "object") continue;
-    if (typeof hook.command === "string" && hook.command.includes(marker)) return hook;
+    if (typeof hook.command === "string" && commandMatchesMarker(hook.command, marker)) return hook;
   }
-  if (typeof entry.command === "string" && entry.command.includes(marker)) return entry;
+  if (typeof entry.command === "string" && commandMatchesMarker(entry.command, marker)) return entry;
   return null;
 }
 
@@ -424,14 +428,16 @@ function registerCodexCommandHooks(options = {}) {
 }
 
 function unregisterCodexCommandHooks(options = {}) {
-  const marker = options.marker;
+  const markers = Array.isArray(options.markers)
+    ? options.markers.filter((marker) => typeof marker === "string" && marker)
+    : [options.marker].filter((marker) => typeof marker === "string" && marker);
   const events = Array.isArray(options.events) ? options.events : CODEX_HOOK_EVENTS;
-  if (!marker) throw new Error("unregisterCodexCommandHooks requires marker");
+  if (!markers.length) throw new Error("unregisterCodexCommandHooks requires marker");
 
   const { hooksPath } = getCodexPaths(options);
   let settings;
   try {
-    settings = JSON.parse(fs.readFileSync(hooksPath, "utf-8"));
+    settings = readJsonFile(hooksPath);
   } catch (err) {
     if (err.code === "ENOENT") return { removed: 0 };
     throw new Error(`Failed to read hooks.json: ${err.message}`);
@@ -443,17 +449,23 @@ function unregisterCodexCommandHooks(options = {}) {
   for (const event of events) {
     const arr = settings.hooks[event];
     if (!Array.isArray(arr)) continue;
-    const next = arr.filter((entry) => !findCodexCommandHook(entry, marker));
-    removed += arr.length - next.length;
-    if (next.length !== arr.length) {
-      settings.hooks[event] = next;
+    const result = removeMatchingCommandHooks(arr, (command) =>
+      markers.some((marker) => commandMatchesMarker(command, marker))
+    );
+    if (result.changed) {
+      removed += result.removed;
+      if (result.entries.length > 0) settings.hooks[event] = result.entries;
+      else delete settings.hooks[event];
       changed = true;
     }
   }
 
-  if (changed) writeJsonAtomic(hooksPath, settings);
+  let backupPath = null;
+  if (changed) backupPath = writeJsonAtomicWithBackup(hooksPath, settings, options);
   if (!options.silent) console.log(`Clawd Codex hooks removed: ${removed}`);
-  return { removed };
+  const result = { removed, changed };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
 }
 
 module.exports = {

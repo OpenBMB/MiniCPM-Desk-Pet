@@ -14,7 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { writeJsonAtomic, asarUnpackedPath } = require("./json-utils");
+const { readJsonFile, writeJsonAtomic, writeJsonAtomicWithBackup, asarUnpackedPath } = require("./json-utils");
 
 const PLUGIN_DIR_NAME = "opencode-plugin";
 const DEFAULT_PARENT_DIR = path.join(os.homedir(), ".config", "opencode");
@@ -32,6 +32,14 @@ function resolvePluginDir(baseDir) {
   // Normalize to forward slashes for JSON storage + cross-platform opencode compat
   const dir = path.resolve(baseDir || __dirname, PLUGIN_DIR_NAME).replace(/\\/g, "/");
   return asarUnpackedPath(dir);
+}
+
+function normalizePluginEntry(value) {
+  return String(value || "").replace(/\\/g, "/");
+}
+
+function entryIsExactManagedPlugin(entry, pluginDir) {
+  return typeof entry === "string" && normalizePluginEntry(entry) === normalizePluginEntry(pluginDir);
 }
 
 /**
@@ -56,15 +64,21 @@ function registerOpencodePlugin(options = {}) {
       if (!options.silent) {
         console.log("Clawd: ~/.config/opencode/ not found — skipping opencode plugin registration");
       }
-      return { added: false, skipped: true, created: false, configPath, pluginDir };
+      return {
+        added: false,
+        skipped: true,
+        created: false,
+        reason: "opencode-not-found",
+        configPath,
+        pluginDir,
+      };
     }
   }
 
   let settings = {};
   let created = false;
   try {
-    const raw = fs.readFileSync(configPath, "utf-8");
-    settings = JSON.parse(raw);
+    settings = readJsonFile(configPath);
     if (!settings || typeof settings !== "object") settings = {};
   } catch (err) {
     if (err.code === "ENOENT") {
@@ -133,16 +147,50 @@ function registerOpencodePlugin(options = {}) {
   return { added, skipped, created, configPath, pluginDir };
 }
 
+function unregisterOpencodePlugin(options = {}) {
+  const configDir = path.join(options.homeDir || os.homedir(), ".config", "opencode");
+  const configPath = options.configPath || path.join(configDir, "opencode.json");
+  const pluginDir = options.pluginDir || resolvePluginDir();
+
+  let settings = {};
+  try {
+    settings = readJsonFile(configPath);
+    if (!settings || typeof settings !== "object") settings = {};
+  } catch (err) {
+    if (err.code === "ENOENT") return { removed: 0, changed: false, skipped: true, configPath, pluginDir };
+    throw new Error(`Failed to read ${configPath}: ${err.message}`);
+  }
+
+  if (!Array.isArray(settings.plugin)) {
+    return { removed: 0, changed: false, skipped: true, configPath, pluginDir };
+  }
+
+  const before = settings.plugin.length;
+  settings.plugin = settings.plugin.filter((entry) => !entryIsExactManagedPlugin(entry, pluginDir));
+  const removed = before - settings.plugin.length;
+  const changed = removed > 0;
+
+  let backupPath = null;
+  if (changed) backupPath = writeJsonAtomicWithBackup(configPath, settings, options);
+  if (!options.silent) console.log(`Clawd opencode plugin entries removed: ${removed}`);
+  const result = { removed, changed, skipped: !changed, configPath, pluginDir };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
+}
+
 module.exports = {
   DEFAULT_PARENT_DIR,
   DEFAULT_CONFIG_PATH,
   registerOpencodePlugin,
+  unregisterOpencodePlugin,
   resolvePluginDir,
+  __test: { entryIsExactManagedPlugin, normalizePluginEntry },
 };
 
 if (require.main === module) {
   try {
-    registerOpencodePlugin({});
+    if (process.argv.includes("--uninstall")) unregisterOpencodePlugin({});
+    else registerOpencodePlugin({});
   } catch (err) {
     console.error(err.message);
     process.exit(1);

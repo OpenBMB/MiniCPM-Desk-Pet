@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Clawd Desktop Pet — Auto-Start Script
+// MiniCPM Desk Pet — Auto-Start Script
 // Registered as a SessionStart hook BEFORE clawd-hook.js.
 // Checks if the Electron app is running; if not, launches it detached.
 // Uses shared server discovery helpers and should exit quickly in normal cases.
@@ -69,9 +69,9 @@ function launchApp() {
     if (isPackaged) {
       if (isWin) {
         // __dirname: <install>/resources/app.asar.unpacked/hooks
-        // exe:       <install>/Clawd on Desk.exe
+        // exe:       <install>/MiniCPM Desk Pet.exe
         const installDir = path.resolve(__dirname, "..", "..", "..");
-        const exe = path.join(installDir, "Clawd on Desk.exe");
+        const exe = path.join(installDir, "MiniCPM Desk Pet.exe");
         spawn(exe, [], { detached: true, stdio: "ignore" }).unref();
       } else if (isMac) {
         // __dirname: <name>.app/Contents/Resources/app.asar.unpacked/hooks

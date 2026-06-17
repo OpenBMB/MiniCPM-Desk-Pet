@@ -5,7 +5,16 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { resolveNodeBin } = require("./server-config");
-const { writeJsonAtomic, asarUnpackedPath, extractExistingNodeBin, formatNodeHookCommand } = require("./json-utils");
+const {
+  readJsonFile,
+  writeJsonAtomic,
+  writeJsonAtomicWithBackup,
+  asarUnpackedPath,
+  commandMatchesMarker,
+  extractExistingNodeBin,
+  formatNodeHookCommand,
+  removeMatchingCommandHooks,
+} = require("./json-utils");
 const MARKER = "gemini-hook.js";
 const DEFAULT_PARENT_DIR = path.join(os.homedir(), ".gemini");
 const DEFAULT_CONFIG_PATH = path.join(DEFAULT_PARENT_DIR, "settings.json");
@@ -246,17 +255,56 @@ function registerGeminiHooks(options = {}) {
   return { added, skipped, updated };
 }
 
+function unregisterGeminiHooks(options = {}) {
+  const homeDir = options.homeDir || os.homedir();
+  const settingsPath = options.settingsPath || path.join(homeDir, ".gemini", "settings.json");
+
+  let settings = {};
+  try {
+    settings = readJsonFile(settingsPath);
+  } catch (err) {
+    if (err.code === "ENOENT") return { removed: 0, changed: false, settingsPath };
+    throw new Error(`Failed to read settings.json: ${err.message}`);
+  }
+
+  if (!settings.hooks || typeof settings.hooks !== "object") {
+    return { removed: 0, changed: false, settingsPath };
+  }
+
+  let removed = 0;
+  let changed = false;
+  for (const event of GEMINI_HOOK_EVENTS) {
+    const entries = settings.hooks[event];
+    if (!Array.isArray(entries)) continue;
+    const result = removeMatchingCommandHooks(entries, (command) => commandMatchesMarker(command, MARKER));
+    if (!result.changed) continue;
+    removed += result.removed;
+    changed = true;
+    if (result.entries.length > 0) settings.hooks[event] = result.entries;
+    else delete settings.hooks[event];
+  }
+
+  let backupPath = null;
+  if (changed) backupPath = writeJsonAtomicWithBackup(settingsPath, settings, options);
+  if (!options.silent) console.log(`Clawd Gemini hooks removed: ${removed}`);
+  const result = { removed, changed, settingsPath };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
+}
+
 module.exports = {
   DEFAULT_PARENT_DIR,
   DEFAULT_CONFIG_PATH,
   registerGeminiHooks,
+  unregisterGeminiHooks,
   GEMINI_HOOK_EVENTS,
   __test: { buildGeminiHookCommand },
 };
 
 if (require.main === module) {
   try {
-    registerGeminiHooks({});
+    if (process.argv.includes("--uninstall")) unregisterGeminiHooks({});
+    else registerGeminiHooks({});
   } catch (err) {
     console.error(err.message);
     process.exit(1);

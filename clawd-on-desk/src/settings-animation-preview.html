@@ -37,7 +37,7 @@ body {
 (function initPreviewRenderer() {
   const preview = document.getElementById("preview");
 
-  window.renderAnimationPreviewPoster = function renderAnimationPreviewPoster(src, renderCanvas) {
+  window.renderAnimationPreviewPoster = function renderAnimationPreviewPoster(src) {
     return new Promise((resolve) => {
       let url = null;
       try {
@@ -56,9 +56,6 @@ body {
       object.type = "image/svg+xml";
       object.data = url.href;
       object.setAttribute("aria-hidden", "true");
-      if (renderCanvas && Number.isFinite(renderCanvas.widthRatio) && renderCanvas.widthRatio > 1) {
-        object.style.width = "285%";
-      }
 
       let settled = false;
       const settle = (ok) => {

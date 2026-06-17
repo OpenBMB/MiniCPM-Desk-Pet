@@ -6,7 +6,7 @@ const os = require("os");
 const path = require("path");
 const zlib = require("zlib");
 
-const ADAPTER_VERSION = 2;
+const ADAPTER_VERSION = 3;
 const MARKER_FILENAME = ".clawd-codex-pet.json";
 const THEME_ID_PREFIX = "codex-pet-";
 const PNG_ALPHA_VALIDATION_SCHEMA_VERSION = 1;
@@ -265,7 +265,11 @@ function syncCodexPetThemes(options = {}) {
     if (materialized.operation === "created") summary.imported += 1;
     else if (materialized.operation === "updated") summary.updated += 1;
     else if (materialized.operation === "unchanged") summary.unchanged += 1;
-    summary.themes.push({ packageDir: result.packageInfo.packageDir, themeId: materialized.themeId });
+    summary.themes.push({
+      packageDir: result.packageInfo.packageDir,
+      themeId: materialized.themeId,
+      operation: materialized.operation,
+    });
   }
 
   const gc = removeOrphanManagedThemes(userThemesDir, { activeThemeId: options.activeThemeId });
@@ -367,7 +371,11 @@ function buildThemeJson(packageInfo, themeId) {
       wide: { x: 0, y: 0, w: ATLAS.frameWidth, h: ATLAS.frameHeight },
     },
     reactions: {
-      drag: { file: "codex-pet-running-loop.svg" },
+      drag: {
+        file: "codex-pet-running-loop.svg",
+        fileLeft: "codex-pet-running-left-loop.svg",
+        fileRight: "codex-pet-running-right-loop.svg",
+      },
       clickLeft: { file: "codex-pet-jumping-once.svg", duration: 840 },
       clickRight: { file: "codex-pet-jumping-once.svg", duration: 840 },
       double: { files: ["codex-pet-waving-once.svg"], duration: 700 },

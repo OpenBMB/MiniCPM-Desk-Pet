@@ -6,9 +6,13 @@ const assert = require("node:assert");
 const {
   getCodexPermissionMode,
   isAgentEnabled,
+  isAgentIntegrationInstalled,
   isAgentPermissionsEnabled,
+  isAgentSubagentPermissionsEnabled,
   isAgentNotificationHookEnabled,
+  isCodexNativeNotificationSoundEnabled,
   isCodexPermissionInterceptEnabled,
+  shouldSyncAgentIntegration,
 } = require("../src/agent-gate");
 const { commandRegistry } = require("../src/settings-actions");
 const prefs = require("../src/prefs");
@@ -52,6 +56,36 @@ describe("isAgentEnabled", () => {
   it("treats malformed agent entries as enabled", () => {
     assert.strictEqual(isAgentEnabled({ agents: { codex: "nope" } }, "codex"), true);
     assert.strictEqual(isAgentEnabled({ agents: { codex: null } }, "codex"), true);
+  });
+});
+
+describe("isAgentIntegrationInstalled", () => {
+  it("defaults true for missing legacy snapshots", () => {
+    assert.strictEqual(isAgentIntegrationInstalled(null, "copilot-cli"), true);
+    assert.strictEqual(isAgentIntegrationInstalled({ lang: "en" }, "copilot-cli"), true);
+    assert.strictEqual(isAgentIntegrationInstalled({ agents: { "copilot-cli": {} } }, "copilot-cli"), true);
+  });
+
+  it("reads explicit installed intent from normalized prefs", () => {
+    const snap = prefs.getDefaults();
+    assert.strictEqual(isAgentIntegrationInstalled(snap, "claude-code"), true);
+    assert.strictEqual(isAgentIntegrationInstalled(snap, "codex"), true);
+    assert.strictEqual(isAgentIntegrationInstalled(snap, "copilot-cli"), false);
+  });
+
+  it("combines installed intent and enabled for startup sync", () => {
+    assert.strictEqual(
+      shouldSyncAgentIntegration({ agents: { codex: { integrationInstalled: true, enabled: true } } }, "codex"),
+      true
+    );
+    assert.strictEqual(
+      shouldSyncAgentIntegration({ agents: { codex: { integrationInstalled: false, enabled: true } } }, "codex"),
+      false
+    );
+    assert.strictEqual(
+      shouldSyncAgentIntegration({ agents: { codex: { integrationInstalled: true, enabled: false } } }, "codex"),
+      false
+    );
   });
 });
 
@@ -195,6 +229,75 @@ describe("Codex permission mode gate", () => {
   });
 });
 
+describe("isAgentSubagentPermissionsEnabled", () => {
+  it("returns true when the flag is absent (pre-#451 prefs file)", () => {
+    assert.strictEqual(isAgentSubagentPermissionsEnabled(null, "claude-code"), true);
+    assert.strictEqual(isAgentSubagentPermissionsEnabled({}, "claude-code"), true);
+    assert.strictEqual(
+      isAgentSubagentPermissionsEnabled(
+        { agents: { "claude-code": { enabled: true, permissionsEnabled: true } } },
+        "claude-code"
+      ),
+      true
+    );
+  });
+
+  it("returns false only when subagentPermissionsEnabled === false", () => {
+    assert.strictEqual(
+      isAgentSubagentPermissionsEnabled(
+        { agents: { "claude-code": { subagentPermissionsEnabled: false } } },
+        "claude-code"
+      ),
+      false
+    );
+    assert.strictEqual(
+      isAgentSubagentPermissionsEnabled(
+        { agents: { "claude-code": { subagentPermissionsEnabled: true } } },
+        "claude-code"
+      ),
+      true
+    );
+  });
+
+  it("is independent of the master / permission gates", () => {
+    assert.strictEqual(
+      isAgentSubagentPermissionsEnabled(
+        { agents: { "claude-code": { enabled: false, permissionsEnabled: false, subagentPermissionsEnabled: true } } },
+        "claude-code"
+      ),
+      true
+    );
+  });
+
+  it("defaults true for agents that never carry the flag", () => {
+    const snap = prefs.getDefaults();
+    assert.strictEqual(isAgentSubagentPermissionsEnabled(snap, "codex"), true);
+    assert.strictEqual(isAgentSubagentPermissionsEnabled(snap, "future-agent-id"), true);
+  });
+});
+
+describe("Codex native notification sound gate", () => {
+  it("defaults off for missing / legacy prefs", () => {
+    assert.strictEqual(isCodexNativeNotificationSoundEnabled(null), false);
+    assert.strictEqual(isCodexNativeNotificationSoundEnabled({ agents: { codex: {} } }), false);
+  });
+
+  it("returns true only when nativeNotificationSoundEnabled === true", () => {
+    assert.strictEqual(
+      isCodexNativeNotificationSoundEnabled({
+        agents: { codex: { nativeNotificationSoundEnabled: true } },
+      }),
+      true
+    );
+    assert.strictEqual(
+      isCodexNativeNotificationSoundEnabled({
+        agents: { codex: { nativeNotificationSoundEnabled: false } },
+      }),
+      false
+    );
+  });
+});
+
 describe("setAgentFlag command", () => {
   function makeDeps(overrides = {}) {
     const calls = {
@@ -230,6 +333,16 @@ describe("setAgentFlag command", () => {
     const { deps } = makeDeps();
     const r = commandRegistry.setAgentFlag(
       { agentId: "codex", flag: "wombat", value: false },
+      deps
+    );
+    assert.strictEqual(r.status, "error");
+    assert.ok(r.message.includes("flag"));
+  });
+
+  it("does not let the generic flag command fake installed state", () => {
+    const { deps } = makeDeps();
+    const r = commandRegistry.setAgentFlag(
+      { agentId: "copilot-cli", flag: "integrationInstalled", value: true },
       deps
     );
     assert.strictEqual(r.status, "error");
@@ -288,6 +401,26 @@ describe("setAgentFlag command", () => {
     assert.strictEqual(r.commit.agents.codex.enabled, true);
   });
 
+  it("enabling an uninstalled agent starts the monitor without syncing integration files", () => {
+    const seeded = prefs.getDefaults();
+    seeded.agents["copilot-cli"] = {
+      integrationInstalled: false,
+      enabled: false,
+      permissionsEnabled: true,
+      notificationHookEnabled: true,
+    };
+    const { deps, calls } = makeDeps({ snapshot: seeded });
+    const r = commandRegistry.setAgentFlag(
+      { agentId: "copilot-cli", flag: "enabled", value: true },
+      deps
+    );
+    assert.strictEqual(r.status, "ok");
+    assert.deepStrictEqual(calls.syncIntegrationForAgent, []);
+    assert.deepStrictEqual(calls.startMonitorForAgent, ["copilot-cli"]);
+    assert.strictEqual(r.commit.agents["copilot-cli"].enabled, true);
+    assert.strictEqual(r.commit.agents["copilot-cli"].integrationInstalled, false);
+  });
+
   it("disabling Claude Code stops its integration watcher before commit", () => {
     const seeded = prefs.getDefaults();
     seeded.agents["claude-code"] = { enabled: true, permissionsEnabled: true };
@@ -322,6 +455,61 @@ describe("setAgentFlag command", () => {
       false,
       "permissionsEnabled flag must survive a master-switch flip"
     );
+  });
+
+  it("rejects subagentPermissionsEnabled for non-claude agents before any side effect (#451)", () => {
+    // Yunbao review E: a kimi-cli call would otherwise reach
+    // agent-runtime-main's dismissPermissionsByAgent, whose Kimi branch
+    // disposes permission state regardless of options/removed count.
+    const dismissCalls = [];
+    const { deps } = makeDeps({
+      dismissPermissionsByAgent: (id, options) => dismissCalls.push([id, options]),
+    });
+    const r = commandRegistry.setAgentFlag(
+      { agentId: "kimi-cli", flag: "subagentPermissionsEnabled", value: false },
+      deps
+    );
+    assert.strictEqual(r.status, "error");
+    assert.match(r.message, /claude-code/);
+    assert.deepStrictEqual(dismissCalls, []);
+  });
+
+  it("disabling subagentPermissionsEnabled dismisses only subagent bubbles (#451)", () => {
+    const dismissCalls = [];
+    const { deps, calls } = makeDeps({
+      dismissPermissionsByAgent: (id, options) => dismissCalls.push([id, options]),
+    });
+    const r = commandRegistry.setAgentFlag(
+      { agentId: "claude-code", flag: "subagentPermissionsEnabled", value: false },
+      deps
+    );
+    assert.strictEqual(r.status, "ok");
+    assert.deepStrictEqual(dismissCalls, [["claude-code", { subagentOnly: true }]]);
+    assert.strictEqual(calls.stopMonitorForAgent.length, 0);
+    assert.strictEqual(calls.clearSessionsByAgent.length, 0);
+    assert.strictEqual(r.commit.agents["claude-code"].subagentPermissionsEnabled, false);
+    assert.strictEqual(
+      r.commit.agents["claude-code"].permissionsEnabled,
+      true,
+      "sibling permission flag must survive the subagent sub-gate flip"
+    );
+  });
+
+  it("enabling subagentPermissionsEnabled is a pure data flip — no side effects", () => {
+    const seeded = prefs.getDefaults();
+    seeded.agents["claude-code"] = { enabled: true, permissionsEnabled: true, subagentPermissionsEnabled: false };
+    const dismissCalls = [];
+    const { deps } = makeDeps({
+      snapshot: seeded,
+      dismissPermissionsByAgent: (id, options) => dismissCalls.push([id, options]),
+    });
+    const r = commandRegistry.setAgentFlag(
+      { agentId: "claude-code", flag: "subagentPermissionsEnabled", value: true },
+      deps
+    );
+    assert.strictEqual(r.status, "ok");
+    assert.deepStrictEqual(dismissCalls, []);
+    assert.strictEqual(r.commit.agents["claude-code"].subagentPermissionsEnabled, true);
   });
 
   it("disabling permissionsEnabled only dismisses bubbles — no monitor/session churn", () => {
@@ -377,7 +565,13 @@ describe("setAgentFlag command", () => {
   it("missing side-effect deps are tolerated (simulates hook-only agent)", () => {
     // Hook-based agents like Copilot / Cursor have no monitor — the command
     // should still succeed; the route layer enforces the gate.
-    const { deps } = makeDeps();
+    const seeded = prefs.getDefaults();
+    seeded.agents["copilot-cli"] = {
+      ...seeded.agents["copilot-cli"],
+      integrationInstalled: true,
+      enabled: true,
+    };
+    const { deps } = makeDeps({ snapshot: seeded });
     delete deps.startMonitorForAgent;
     delete deps.stopMonitorForAgent;
     const r = commandRegistry.setAgentFlag(
@@ -413,6 +607,21 @@ describe("setAgentFlag command", () => {
       true,
       "permissionsEnabled sibling must be preserved"
     );
+  });
+
+  it("accepts Codex nativeNotificationSoundEnabled as a pure data flip", () => {
+    const { deps, calls } = makeDeps();
+    const r = commandRegistry.setAgentFlag(
+      { agentId: "codex", flag: "nativeNotificationSoundEnabled", value: true },
+      deps
+    );
+    assert.strictEqual(r.status, "ok");
+    assert.strictEqual(calls.stopMonitorForAgent.length, 0);
+    assert.strictEqual(calls.startMonitorForAgent.length, 0);
+    assert.strictEqual(calls.clearSessionsByAgent.length, 0);
+    assert.strictEqual(calls.dismissPermissionsByAgent.length, 0);
+    assert.strictEqual(r.commit.agents.codex.nativeNotificationSoundEnabled, true);
+    assert.strictEqual(r.commit.agents.codex.permissionMode, "intercept");
   });
 });
 

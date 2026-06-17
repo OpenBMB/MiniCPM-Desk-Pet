@@ -1,5 +1,7 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const sessionHud = require("../src/session-hud");
 const {
@@ -7,6 +9,8 @@ const {
   computeHudLayout,
   computeHudHeight,
   getHudWidth,
+  getHudWidthScale,
+  computeHudOuterWidth,
   evaluateBaseEligible,
   evaluateShouldShow,
   pointInExpandedRect,
@@ -26,9 +30,21 @@ function mkSession(id, overrides = {}) {
 }
 
 describe("session HUD geometry", () => {
-  it("uses a narrower HUD width when elapsed time is hidden", () => {
-    assert.strictEqual(getHudWidth(true), constants.HUD_WIDTH);
-    assert.strictEqual(getHudWidth(false), constants.HUD_WIDTH_COMPACT);
+  it("uses wider HUD widths when state labels are enabled", () => {
+    assert.strictEqual(
+      getHudWidth(true, true),
+      constants.HUD_WIDTH_LABELS - constants.HUD_LABELS_ONLY_WIDTH_TRIM
+    );
+    assert.strictEqual(
+      getHudWidth(false, true),
+      constants.HUD_WIDTH_LABELS_COMPACT - constants.HUD_LABELS_ONLY_WIDTH_TRIM
+    );
+    assert.strictEqual(getHudWidth(true, false), constants.HUD_WIDTH);
+    assert.strictEqual(getHudWidth(false, false), constants.HUD_WIDTH_COMPACT);
+    assert.strictEqual(
+      getHudWidth(true, true, true),
+      constants.HUD_WIDTH_LABELS + constants.HUD_CONTEXT_USAGE_WIDTH_BUMP
+    );
 
     const result = computeSessionHudBounds({
       hitRect: { left: 10, top: 80, right: 90, bottom: 160 },
@@ -113,6 +129,115 @@ describe("session HUD geometry", () => {
     assert.ok(constants.HUD_WINDOW_SHELL.bottom > constants.HUD_WINDOW_SHELL.left);
     assert.ok(constants.HUD_WINDOW_SHELL.bottom > constants.HUD_WINDOW_SHELL.right);
   });
+
+  it("converts CSS px inputs to scaled DIP bounds when textScale is set", () => {
+    const scale = 1.5;
+    const result = computeSessionHudBounds({
+      hitRect: { left: 10, top: 80, right: 90, bottom: 160 },
+      workArea: { x: 0, y: 0, width: 1200, height: 900 },
+      scale,
+    });
+
+    const dipWidth = Math.round(constants.HUD_WIDTH * scale);
+    const dipHeight = Math.ceil(constants.HUD_HEIGHT * scale);
+    const shellLeft = Math.round(constants.HUD_WINDOW_SHELL.left * scale);
+    const shellRight = Math.round(constants.HUD_WINDOW_SHELL.right * scale);
+    const shellTop = Math.round(constants.HUD_WINDOW_SHELL.top * scale);
+    const shellBottom = Math.round(constants.HUD_WINDOW_SHELL.bottom * scale);
+    const petGap = Math.round(constants.HUD_PET_GAP * scale);
+
+    assert.deepStrictEqual(result.contentBounds, {
+      x: 0,
+      y: 160 + petGap,
+      width: dipWidth,
+      height: dipHeight,
+    });
+    assert.deepStrictEqual(result.bounds, {
+      x: -shellLeft,
+      y: 160 + petGap - shellTop,
+      width: dipWidth + shellLeft + shellRight,
+      height: dipHeight + shellTop + shellBottom,
+    });
+    assert.strictEqual(result.flippedAbove, false);
+  });
+
+  it("dampens large-text HUD width while keeping height and gaps at full scale", () => {
+    const scale = 1.5;
+    const widthScale = getHudWidthScale(scale);
+    const width = constants.HUD_WIDTH_LABELS + constants.HUD_CONTEXT_USAGE_WIDTH_BUMP;
+    const result = computeSessionHudBounds({
+      hitRect: { left: 10, top: 80, right: 90, bottom: 160 },
+      workArea: { x: 0, y: 0, width: 1200, height: 900 },
+      width,
+      scale,
+      widthScale,
+    });
+
+    assert.strictEqual(widthScale, 1 + (scale - 1) * constants.HUD_WIDTH_GROWTH_RATIO);
+    assert.strictEqual(result.contentBounds.width, Math.round(width * 1.2));
+    assert.strictEqual(result.contentBounds.height, Math.ceil(constants.HUD_HEIGHT * scale));
+    assert.strictEqual(result.contentBounds.y, 160 + Math.round(constants.HUD_PET_GAP * scale));
+    assert.strictEqual(
+      result.bounds.width,
+      computeHudOuterWidth(width, scale, widthScale)
+    );
+    assert.ok(result.bounds.width < computeHudOuterWidth(width, scale, scale));
+  });
+
+  it("treats scale 1 (and an omitted scale) as the identity", () => {
+    const args = {
+      hitRect: { left: 10, top: 80, right: 90, bottom: 160 },
+      workArea: { x: 0, y: 0, width: 800, height: 600 },
+    };
+    assert.deepStrictEqual(
+      computeSessionHudBounds({ ...args, scale: 1 }),
+      computeSessionHudBounds(args),
+    );
+  });
+
+  it("clamps a garbage scale to the supported range before converting", () => {
+    const result = computeSessionHudBounds({
+      hitRect: { left: 10, top: 80, right: 90, bottom: 160 },
+      workArea: { x: 0, y: 0, width: 1200, height: 900 },
+      scale: 99,
+    });
+    assert.strictEqual(result.contentBounds.width, Math.round(constants.HUD_WIDTH * 1.6));
+  });
+
+  it("keeps the scaled pin corner inside the auto-hide hot zone at 150%", () => {
+    // Regression: the hot zone used to be computed from UNSCALED expected
+    // bounds, so at 150% the cursor "left" the zone while still visually over
+    // the HUD — making the pin unreachable (HUD hid before you could click).
+    const scale = 1.5;
+    const widthScale = getHudWidthScale(scale);
+    const hitRect = { left: 100, top: 80, right: 260, bottom: 240 };
+    const workArea = { x: 0, y: 0, width: 2000, height: 1200 };
+    const width = constants.HUD_WIDTH_LABELS + constants.HUD_CONTEXT_USAGE_WIDTH_BUMP; // 356
+
+    const scaled = computeSessionHudBounds({ hitRect, workArea, width, scale, widthScale });
+    const pad = Math.round(constants.HOT_ZONE_PAD * scale);
+    const hotZone = computeAutoHideHotZone({
+      petHitRect: hitRect,
+      expectedHudContentBounds: scaled.contentBounds,
+      pad,
+    });
+
+    // The pin lives near the top-right corner of the visible (scaled) HUD.
+    const pinPoint = {
+      x: scaled.contentBounds.x + scaled.contentBounds.width - 10,
+      y: scaled.contentBounds.y + 10,
+    };
+    assert.strictEqual(pointInHotZone(pinPoint, hotZone), true);
+
+    // Sanity: the OLD bug (unscaled expectation) excludes that same point.
+    const unscaled = computeSessionHudBounds({ hitRect, workArea, width });
+    const buggyZone = computeAutoHideHotZone({
+      petHitRect: hitRect,
+      expectedHudContentBounds: unscaled.contentBounds,
+      pad: constants.HOT_ZONE_PAD,
+    });
+    assert.strictEqual(pointInHotZone(pinPoint, buggyZone), false);
+  });
 });
 
 describe("session HUD layout", () => {
@@ -129,14 +254,30 @@ describe("session HUD layout", () => {
     assert.strictEqual(rowCount, 3);
   });
 
-  it("folds sessions beyond the 3-row cap", () => {
+  it("folds sessions beyond the 5-row label cap", () => {
+    const sessions = [];
+    const orderedIds = [];
+    for (let i = 0; i < 7; i++) {
+      sessions.push(mkSession(`s${i}`));
+      orderedIds.push(`s${i}`);
+    }
+    const { expanded, folded, rowCount } = computeHudLayout({ sessions, orderedIds });
+    assert.strictEqual(expanded.length, constants.HUD_MAX_EXPANDED_ROWS_LABELS);
+    assert.strictEqual(folded.length, 7 - constants.HUD_MAX_EXPANDED_ROWS_LABELS);
+    assert.strictEqual(rowCount, constants.HUD_MAX_EXPANDED_ROWS_LABELS + 1);
+  });
+
+  it("folds sessions beyond the 3-row cap when state labels are hidden", () => {
     const sessions = [];
     const orderedIds = [];
     for (let i = 0; i < 5; i++) {
       sessions.push(mkSession(`s${i}`));
       orderedIds.push(`s${i}`);
     }
-    const { expanded, folded, rowCount } = computeHudLayout({ sessions, orderedIds });
+    const { expanded, folded, rowCount } = computeHudLayout(
+      { sessions, orderedIds },
+      { showStateLabels: false }
+    );
     assert.strictEqual(expanded.length, constants.HUD_MAX_EXPANDED_ROWS);
     assert.strictEqual(folded.length, 5 - constants.HUD_MAX_EXPANDED_ROWS);
     assert.strictEqual(rowCount, constants.HUD_MAX_EXPANDED_ROWS + 1);
@@ -150,7 +291,7 @@ describe("session HUD layout", () => {
       mkSession("oldest"),
     ];
     const orderedIds = ["newest", "middle", "old", "oldest"];
-    const { expanded, folded } = computeHudLayout({ sessions, orderedIds });
+    const { expanded, folded } = computeHudLayout({ sessions, orderedIds }, { showStateLabels: false });
     assert.deepStrictEqual(expanded.map((s) => s.id), ["newest", "middle", "old"]);
     assert.deepStrictEqual(folded.map((s) => s.id), ["oldest"]);
   });
@@ -221,8 +362,8 @@ describe("session HUD auto-hide helpers", () => {
   const baseFlags = {
     snapshot: baseSnapshot,
     sessionHudEnabled: true,
-    sessionHudAutoHide: false,
     sessionHudPinned: false,
+    clickRevealed: true,
     inHotZone: false,
     now: 1000,
     visibleHoldUntil: 0,
@@ -242,15 +383,16 @@ describe("session HUD auto-hide helpers", () => {
     assert.strictEqual(evaluateBaseEligible(baseFlags), true);
   });
 
-  it("evaluateShouldShow shows when auto-hide is off, regardless of hot zone", () => {
-    const r = evaluateShouldShow({ ...baseFlags, sessionHudAutoHide: false, inHotZone: false });
-    assert.strictEqual(r.show, true);
+  it("evaluateShouldShow hides when clickRevealed is false (default hidden state)", () => {
+    const r = evaluateShouldShow({ ...baseFlags, clickRevealed: false, inHotZone: true });
+    assert.strictEqual(r.show, false);
+    assert.strictEqual(r.nextHoldUntil, 0);
   });
 
-  it("evaluateShouldShow hides when auto-hide on + unpinned + outside zone + hold expired", () => {
+  it("evaluateShouldShow hides when revealed + unpinned + outside zone + hold expired", () => {
     const r = evaluateShouldShow({
       ...baseFlags,
-      sessionHudAutoHide: true,
+      clickRevealed: true,
       sessionHudPinned: false,
       inHotZone: false,
       visibleHoldUntil: 500,
@@ -260,20 +402,20 @@ describe("session HUD auto-hide helpers", () => {
     assert.strictEqual(r.nextHoldUntil, 500);
   });
 
-  it("evaluateShouldShow shows when pinned regardless of zone", () => {
+  it("evaluateShouldShow shows when pinned regardless of clickRevealed or zone", () => {
     const r = evaluateShouldShow({
       ...baseFlags,
-      sessionHudAutoHide: true,
+      clickRevealed: false,
       sessionHudPinned: true,
       inHotZone: false,
     });
     assert.strictEqual(r.show, true);
   });
 
-  it("evaluateShouldShow advances visibleHoldUntil when in hot zone", () => {
+  it("evaluateShouldShow advances visibleHoldUntil when revealed and in hot zone", () => {
     const r = evaluateShouldShow({
       ...baseFlags,
-      sessionHudAutoHide: true,
+      clickRevealed: true,
       inHotZone: true,
       now: 1000,
       visibleHoldUntil: 0,
@@ -283,10 +425,10 @@ describe("session HUD auto-hide helpers", () => {
     assert.strictEqual(r.nextHoldUntil, 1500);
   });
 
-  it("evaluateShouldShow keeps HUD visible during hold-grace window", () => {
+  it("evaluateShouldShow keeps HUD visible during hold-grace window after revealed", () => {
     const r = evaluateShouldShow({
       ...baseFlags,
-      sessionHudAutoHide: true,
+      clickRevealed: true,
       inHotZone: false,
       now: 1200,
       visibleHoldUntil: 1500,
@@ -294,10 +436,10 @@ describe("session HUD auto-hide helpers", () => {
     assert.strictEqual(r.show, true);
   });
 
-  it("evaluateShouldShow hides once now >= visibleHoldUntil", () => {
+  it("evaluateShouldShow hides once now >= visibleHoldUntil in revealed state", () => {
     const r = evaluateShouldShow({
       ...baseFlags,
-      sessionHudAutoHide: true,
+      clickRevealed: true,
       inHotZone: false,
       now: 1500,
       visibleHoldUntil: 1500,
@@ -305,10 +447,10 @@ describe("session HUD auto-hide helpers", () => {
     assert.strictEqual(r.show, false);
   });
 
-  it("evaluateShouldShow honors base guards even with auto-hide on", () => {
+  it("evaluateShouldShow honors base guards even when revealed", () => {
     const r = evaluateShouldShow({
       ...baseFlags,
-      sessionHudAutoHide: true,
+      clickRevealed: true,
       petHidden: true,
       inHotZone: true,
     });
@@ -359,5 +501,73 @@ describe("session HUD auto-hide helpers", () => {
     assert.strictEqual(pointInHotZone({ x: 100, y: 110 }, zone), true); // hud
     assert.strictEqual(pointInHotZone({ x: 40, y: 90 }, zone), true); // gap covered by pad expansion
     assert.strictEqual(pointInHotZone({ x: 500, y: 500 }, zone), false);
+  });
+});
+
+describe("session HUD v5 three-state runtime contracts (source-level)", () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, "..", "src", "session-hud.js"),
+    "utf8"
+  );
+
+  it("revealFromPet seeds visibleHoldUntil with HIDE_GRACE_MS (HIGH 3 fix)", () => {
+    // Inside revealFromPet, after setting clickRevealed, must seed hold.
+    const revealFn = src.match(/function revealFromPet\(\)\s*\{[\s\S]*?\n  \}/);
+    assert.ok(revealFn, "revealFromPet function missing");
+    assert.ok(
+      /visibleHoldUntil\s*=\s*Date\.now\(\)\s*\+\s*HIDE_GRACE_MS/.test(revealFn[0]),
+      "revealFromPet must seed visibleHoldUntil = Date.now() + HIDE_GRACE_MS"
+    );
+    assert.ok(
+      /clickRevealed\s*=\s*true/.test(revealFn[0]),
+      "revealFromPet must set clickRevealed=true"
+    );
+  });
+
+  it("handlePinnedChanged(false) reads real hudWindow.isVisible(), NOT shouldShow() (HIGH 2 fix)", () => {
+    const pinFn = src.match(/function handlePinnedChanged\([\s\S]*?\n  \}/);
+    assert.ok(pinFn, "handlePinnedChanged function missing");
+    // Must read real window visibility — router has already mirrored
+    // sessionHudPinned=false, so calling shouldShow() would return false.
+    assert.ok(
+      /hudWindow\.isVisible\(\)/.test(pinFn[0]),
+      "handlePinnedChanged must read hudWindow.isVisible() for unpin transition"
+    );
+    assert.ok(
+      !/wasVisible\s*=\s*shouldShow\(/.test(pinFn[0]),
+      "handlePinnedChanged must NOT rely on shouldShow() to detect visibility"
+    );
+  });
+
+  it("syncSessionHud entry clears clickRevealed when baseEligible drops (HIGH 1 stale defense)", () => {
+    const syncFn = src.match(/function syncSessionHud\([\s\S]*?\n  \}/);
+    assert.ok(syncFn, "syncSessionHud function missing");
+    assert.ok(
+      /if\s*\(!baseEligible\(snapshot\)\)\s*\{[\s\S]{0,80}clearReveal\(\)/.test(syncFn[0]),
+      "syncSessionHud must clearReveal() when !baseEligible(snapshot)"
+    );
+  });
+
+  it("isAutoHidePollingNeeded gates on clickRevealed only (no hover-mode regression)", () => {
+    const pollFn = src.match(/function isAutoHidePollingNeeded\(\)\s*\{[\s\S]*?\n  \}/);
+    assert.ok(pollFn, "isAutoHidePollingNeeded function missing");
+    assert.ok(
+      /return\s+clickRevealed\s*===\s*true/.test(pollFn[0]),
+      "polling must require clickRevealed (not autoHide)"
+    );
+    assert.ok(
+      !/sessionHudAutoHide/.test(pollFn[0]),
+      "polling must NOT reference removed sessionHudAutoHide"
+    );
+  });
+
+  it("exposes v5 three-state API surface", () => {
+    assert.ok(/revealFromPet,\s*\n\s*handlePinnedChanged,\s*\n\s*clearReveal/.test(src),
+      "module return must expose revealFromPet/handlePinnedChanged/clearReveal");
+  });
+
+  it("snapshot to renderer no longer includes hudAutoHide", () => {
+    assert.ok(!/hudAutoHide:/.test(src),
+      "session-hud must not send hudAutoHide in snapshot");
   });
 });

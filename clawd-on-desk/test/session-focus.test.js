@@ -68,6 +68,44 @@ describe("session focus helpers", () => {
     });
   });
 
+  it("downgrades Codex Desktop thread focus targets on Windows", () => {
+    const entry = {
+      id: "codex:019e115a-4df2-7ed0-b90e-8e6345aca777",
+      agentId: "codex",
+      codexOriginator: "Codex Desktop",
+      sourcePid: 123,
+      state: "working",
+    };
+    const noTerminalEntry = {
+      id: "codex:019e115b-4df2-7ed0-b90e-8e6345aca777",
+      agentId: "codex",
+      codexOriginator: "Codex Desktop",
+      state: "working",
+    };
+
+    assert.deepStrictEqual(getSessionFocusTarget(entry, { osPlatform: "win32" }), {
+      canFocus: true,
+      type: "terminal",
+      url: null,
+    });
+    assert.deepStrictEqual(getSessionFocusTarget(noTerminalEntry, { osPlatform: "win32" }), {
+      canFocus: false,
+      type: null,
+      url: null,
+    });
+    assert.deepStrictEqual(getSessionFocusTarget(noTerminalEntry, { osPlatform: "darwin" }), {
+      canFocus: true,
+      type: "codex-thread",
+      url: "codex://threads/019e115b-4df2-7ed0-b90e-8e6345aca777",
+    });
+    assert.deepStrictEqual(getFocusableLocalHudSessionIds({
+      sessions: [entry, noTerminalEntry],
+    }, { osPlatform: "win32" }), [
+      "codex:019e115a-4df2-7ed0-b90e-8e6345aca777",
+    ]);
+    assert.strictEqual(isFocusableLocalHudSession(noTerminalEntry, { osPlatform: "win32" }), false);
+  });
+
   it("rejects malformed entries defensively", () => {
     assert.strictEqual(isFocusableLocalHudSession(null), false);
     assert.strictEqual(isFocusableLocalHudSession({ sourcePid: 1 }), false);

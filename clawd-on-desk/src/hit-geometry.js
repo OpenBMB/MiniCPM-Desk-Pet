@@ -109,26 +109,6 @@ function fitViewBoxIntoRect(outerRect, viewBox) {
   };
 }
 
-function getMiniVisualScale(theme, state) {
-  const scale = theme
-    && theme.miniMode
-    && state
-    && state.startsWith("mini-")
-    ? Number(theme.miniMode.scale)
-    : 1;
-  return Number.isFinite(scale) && scale > 0 ? scale : 1;
-}
-
-function scaleRectAboutPoint(rect, origin, scale) {
-  if (!rect || scale === 1) return rect;
-  return {
-    x: origin.x + (rect.x - origin.x) * scale,
-    y: origin.y + (rect.y - origin.y) * scale,
-    w: rect.w * scale,
-    h: rect.h * scale,
-  };
-}
-
 function getAssetRectScreen(theme, bounds, state, file) {
   if (!theme || !bounds) return null;
 
@@ -162,19 +142,13 @@ function getAssetRectScreen(theme, bounds, state, file) {
       w: bounds.width * layout.widthRatio,
       h: bounds.height * layout.heightRatio,
     };
-    const rect = fitViewBoxIntoRect(outerRect, viewBox);
-    return scaleRectAboutPoint(rect, {
-      x: outerRect.x + outerRect.w,
-      y: outerRect.y + outerRect.h / 2,
-    }, getMiniVisualScale(theme, state));
+    return fitViewBoxIntoRect(outerRect, viewBox);
   }
 
-  const visualScale = getMiniVisualScale(theme, state);
-  const width = bounds.width * layout.imgWidthRatio * layout.fileScale * visualScale;
+  const width = bounds.width * layout.imgWidthRatio * layout.fileScale;
   const height = width * (viewBox.height / viewBox.width);
   return {
-    x: bounds.x + bounds.width * layout.imgOffsetX + layout.offsetPxX
-      + (bounds.width * layout.imgWidthRatio * layout.fileScale - width),
+    x: bounds.x + bounds.width * layout.imgOffsetX + layout.offsetPxX,
     y: bounds.y + bounds.height - height - bounds.height * layout.imgBottom - layout.offsetPxY,
     w: width,
     h: height,

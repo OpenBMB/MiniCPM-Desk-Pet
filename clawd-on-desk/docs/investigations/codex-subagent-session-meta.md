@@ -57,4 +57,10 @@ The subagent sample was `rollout-2026-05-01T12-16-50-019de1c0-ed8e-73b0-992d-109
 
 - Treat unknown fields as `unknown` and fail open as root/interactive behavior.
 - Do not infer subagents from cwd or timing.
-- Do not classify `/permission` requests; subagent PermissionRequest still needs a user decision.
+- ~~Do not classify `/permission` requests; subagent PermissionRequest still needs a user decision.~~
+  **Superseded by PR #448 (2026-06-10).** The auto-pilot work made the `/permission` route gate
+  headless requests before the bubble/auto-approve chokepoint, and codex subagent requests are
+  deliberately treated as headless (no-decision → native fallback) rather than shown as bubbles
+  (`isHeadlessPermissionRequest`, `src/server-route-permission.js`). To make that gate
+  deterministic, `buildPermissionBody` now carries `codex_session_role` on PermissionRequest
+  payloads too (`hooks/codex-hook.js`, #448 follow-up). The state-path guidance above is unchanged.

@@ -274,7 +274,7 @@ function buildStateBody(event, payload, resolve) {
   if (process.env.CLAWD_REMOTE) {
     body.host = readHostPrefix();
   } else {
-    const { stablePid, agentPid, detectedEditor, pidChain } = resolve();
+    const { stablePid, agentPid, detectedEditor, pidChain, tmuxSocket, tmuxClient } = resolve();
     body.source_pid = stablePid;
     if (detectedEditor) body.editor = detectedEditor;
     if (agentPid) {
@@ -282,6 +282,8 @@ function buildStateBody(event, payload, resolve) {
       body.kimi_pid = agentPid;
     }
     if (pidChain.length) body.pid_chain = pidChain;
+    if (tmuxSocket) body.tmux_socket = tmuxSocket;
+    if (tmuxClient) body.tmux_client = tmuxClient;
   }
 
   return body;

@@ -3,7 +3,12 @@ const assert = require("node:assert");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { registerCodeBuddyHooks, CODEBUDDY_HOOK_EVENTS } = require("../hooks/codebuddy-install");
+const {
+  registerCodeBuddyHooks,
+  unregisterCodeBuddyHooks,
+  CODEBUDDY_HOOK_EVENTS,
+  __test,
+} = require("../hooks/codebuddy-install");
 
 const MARKER = "codebuddy-hook.js";
 const tempDirs = [];
@@ -18,6 +23,12 @@ function makeTempSettingsFile(initial = {}) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function listCleanupBackups(filePath) {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  return fs.readdirSync(dir).filter((name) => name.startsWith(`${base}.clawd-cleanup-`));
 }
 
 afterEach(() => {
@@ -172,5 +183,52 @@ describe("CodeBuddy hook installer", () => {
     assert.ok(permHook.url.includes("/permission"));
     assert.ok(permHook.url.includes("127.0.0.1"));
     assert.notStrictEqual(permHook.url, "http://127.0.0.1:99999/permission");
+  });
+
+  it("unregister removes only managed command hooks and managed PermissionRequest URLs", () => {
+    const settingsPath = makeTempSettingsFile({
+      hooks: {
+        Stop: [{
+          matcher: "",
+          hooks: [
+            { type: "command", command: '"/node" "/clawd/codebuddy-hook.js"' },
+            { type: "command", command: "echo keep" },
+          ],
+        }],
+        PermissionRequest: [{
+          matcher: "",
+          hooks: [
+            { type: "http", url: "http://127.0.0.1:23333/permission", timeout: 600 },
+            { type: "http", url: "http://127.0.0.1:9999/permission", timeout: 600 },
+            { type: "http", url: "http://127.0.0.1:23333/permission?user=1", timeout: 600 },
+            { type: "http", url: "http://localhost:23333/permission", timeout: 600 },
+          ],
+        }],
+      },
+    });
+
+    const result = unregisterCodeBuddyHooks({ silent: true, settingsPath, backup: true });
+
+    assert.strictEqual(result.removed, 2);
+    assert.strictEqual(result.changed, true);
+    const settings = readJson(settingsPath);
+    assert.deepStrictEqual(settings.hooks.Stop, [{
+      matcher: "",
+      hooks: [{ type: "command", command: "echo keep" }],
+    }]);
+    assert.deepStrictEqual(settings.hooks.PermissionRequest[0].hooks.map((hook) => hook.url), [
+      "http://127.0.0.1:9999/permission",
+      "http://127.0.0.1:23333/permission?user=1",
+      "http://localhost:23333/permission",
+    ]);
+    assert.strictEqual(listCleanupBackups(settingsPath).length, 1);
+  });
+
+  it("isManagedPermissionUrl is intentionally strict", () => {
+    assert.strictEqual(__test.isManagedPermissionUrl("http://127.0.0.1:23333/permission"), true);
+    assert.strictEqual(__test.isManagedPermissionUrl("http://127.0.0.1:23337/permission"), true);
+    assert.strictEqual(__test.isManagedPermissionUrl("http://127.0.0.1:23338/permission"), false);
+    assert.strictEqual(__test.isManagedPermissionUrl("http://127.0.0.1:23333/permission?x=1"), false);
+    assert.strictEqual(__test.isManagedPermissionUrl("http://localhost:23333/permission"), false);
   });
 });

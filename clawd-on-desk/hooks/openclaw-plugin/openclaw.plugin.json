@@ -1,7 +1,7 @@
 {
   "id": "clawd-on-desk",
-  "name": "Clawd on Desk",
-  "description": "Forward OpenClaw lifecycle and tool-state events to Clawd on Desk.",
+  "name": "MiniCPM Desk Pet",
+  "description": "Forward OpenClaw lifecycle and tool-state events to MiniCPM Desk Pet.",
   "activation": {
     "onStartup": true
   },

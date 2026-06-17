@@ -95,10 +95,34 @@ let eyeOffset = { x: 0, y: 0 };
 let cloudRotate = 0;
 let curDistScale = 1.0;
 let lastT = performance.now();
+let lowPowerPaused = false;
+let lowPowerPausedAt = 0;
+let lowPowerPausedTotal = 0;
+let rafId = 0;
 
 let nextBlinkT = 3 + Math.random() * 2;
 let blinkActive = false;
 let blinkStartT = 0;
+
+function scheduleLoop() {
+  if (!lowPowerPaused && !rafId) rafId = requestAnimationFrame(loop);
+}
+
+window.__clawdSetLowPowerPaused = paused => {
+  const next = !!paused;
+  if (lowPowerPaused === next) return;
+  lowPowerPaused = next;
+  if (next) {
+    lowPowerPausedAt = performance.now();
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    return;
+  }
+  if (lowPowerPausedAt) lowPowerPausedTotal += performance.now() - lowPowerPausedAt;
+  lowPowerPausedAt = 0;
+  lastT = performance.now();
+  scheduleLoop();
+};
 
 svgEl.addEventListener('mousemove', e => {
   const r = svgEl.getBoundingClientRect();
@@ -162,9 +186,11 @@ function applyBlink(rect, base, scale) {
 
 const startT = performance.now();
 function loop(now) {
+  rafId = 0;
+  if (lowPowerPaused) return;
   const dt = (now - lastT) / 1000;
   lastT = now;
-  const t = (now - startT) / 1000;
+  const t = (now - startT - lowPowerPausedTotal) / 1000;
 
   /* 呼吸 scale */
   const phase = (Math.cos(2 * Math.PI * t / P.BREATH_PERIOD) + 1) / 2;
@@ -221,9 +247,9 @@ function loop(now) {
   eyeGrad.setAttribute('y1', (3 + flowOffset).toFixed(2));
   eyeGrad.setAttribute('y2', (21 + flowOffset).toFixed(2));
 
-  requestAnimationFrame(loop);
+  scheduleLoop();
 }
 
-requestAnimationFrame(loop);
+scheduleLoop();
 ]]></script>
 </svg>

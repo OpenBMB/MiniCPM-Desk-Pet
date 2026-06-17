@@ -33,6 +33,22 @@ const DEFAULT_EDITOR_PATH_CHECKS = [
   ["visual studio code", "code"],
   ["cursor.app", "cursor"],
 ];
+const WINDOWS_TERMINAL_WINDOW_CLASS = "CASCADIA_HOSTING_WINDOW_CLASS";
+const WINDOWS_TERMINAL_PROCESS_NAMES = new Set(["windowsterminal.exe", "windowsterminalpreview.exe"]);
+
+function normalizeTmuxSocketPath(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text.length > 4096 || !text.startsWith("/")) return null;
+  return /[\0\r\n]/.test(text) ? null : text;
+}
+
+function normalizeTmuxClientTarget(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text.length > 256 || text.startsWith("-")) return null;
+  return /^[\w./:-]+$/.test(text) ? text : null;
+}
 
 // ── getPlatformConfig ────────────────────────────────────────────────────────
 // Returns { terminalNames: Set, systemBoundary: Set, editorMap: Object, editorPathChecks: Array }
@@ -82,22 +98,77 @@ function getPlatformConfig(options) {
 //   startPid             — number (default process.ppid)
 //   maxDepth             — number (default 8)
 
+function normalizeHwndString(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!/^[1-9]\d{0,18}$/.test(text)) return null;
+  try {
+    return BigInt(text) <= 9223372036854775807n ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+const WINDOWS_PROCESS_SNAPSHOT_SCRIPT = `
+$typeDef = @"
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public class ClawdWin32 {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hWnd, uint gaFlags);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  public static extern int GetClassName(IntPtr hWnd, StringBuilder sb, int maxCount);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+}
+"@
+Add-Type -TypeDefinition $typeDef
+$fg = [ClawdWin32]::GetForegroundWindow()
+if ($fg -ne [IntPtr]::Zero) {
+  $root = [ClawdWin32]::GetAncestor($fg, 2)
+  if ($root -ne [IntPtr]::Zero) { $fg = $root }
+}
+$fgPid = 0
+$fgClass = ""
+if ($fg -ne [IntPtr]::Zero) {
+  [void][ClawdWin32]::GetWindowThreadProcessId($fg, [ref]$fgPid)
+  $sb = New-Object System.Text.StringBuilder 256
+  [void][ClawdWin32]::GetClassName($fg, $sb, $sb.Capacity)
+  $fgClass = $sb.ToString()
+}
+$processes = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, CommandLine)
+[pscustomobject]@{
+  processes = $processes
+  foreground = [pscustomobject]@{
+    hwnd = if ($fg -eq [IntPtr]::Zero) { $null } else { $fg.ToInt64().ToString() }
+    pid = $fgPid
+    className = $fgClass
+  }
+} | ConvertTo-Json -Compress -Depth 4
+`;
+
 // One PS spawn per resolve, not per ancestor — PowerShell cold-start (~270 ms)
-// would dominate the walk otherwise. Returns empty Map on failure.
+// would dominate the walk otherwise. Returns an empty process map on failure.
 function getWindowsProcessSnapshot(execFileSync) {
   try {
     const out = execFileSync(
       "powershell.exe",
       [
         "-NoProfile", "-NonInteractive", "-Command",
-        "Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, CommandLine | ConvertTo-Json -Compress",
+        WINDOWS_PROCESS_SNAPSHOT_SCRIPT,
       ],
       { encoding: "utf8", timeout: 3000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }
     );
     const trimmed = (out || "").trim();
-    if (!trimmed) return new Map();
+    if (!trimmed) return { processes: new Map(), foregroundWtHwnd: null };
     const parsed = JSON.parse(trimmed);
-    const list = Array.isArray(parsed) ? parsed : [parsed];
+    const foreground = parsed && !Array.isArray(parsed)
+      ? (parsed.foreground || parsed.Foreground || null)
+      : null;
+    const rawList = parsed && !Array.isArray(parsed)
+      ? (parsed.processes || parsed.Processes)
+      : parsed;
+    const list = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
     const map = new Map();
     for (const proc of list) {
       const pid = Number(proc && proc.ProcessId);
@@ -108,9 +179,21 @@ function getWindowsProcessSnapshot(execFileSync) {
         commandLine: typeof proc.CommandLine === "string" ? proc.CommandLine : "",
       });
     }
-    return map;
+    const foregroundPid = Number(foreground && (foreground.pid ?? foreground.Pid));
+    const foregroundClass = String(
+      (foreground && (foreground.className ?? foreground.ClassName)) || ""
+    );
+    const foregroundProc = Number.isFinite(foregroundPid) ? map.get(foregroundPid) : null;
+    const foregroundHwnd = normalizeHwndString(foreground && (foreground.hwnd ?? foreground.Hwnd));
+    const foregroundWtHwnd = foregroundHwnd
+      && foregroundClass.toLowerCase() === WINDOWS_TERMINAL_WINDOW_CLASS.toLowerCase()
+      && foregroundProc
+      && WINDOWS_TERMINAL_PROCESS_NAMES.has(foregroundProc.name)
+        ? foregroundHwnd
+        : null;
+    return { processes: map, foregroundWtHwnd };
   } catch {
-    return new Map();
+    return { processes: new Map(), foregroundWtHwnd: null };
   }
 }
 
@@ -134,7 +217,9 @@ function createPidResolver(options) {
     if (_cached) return _cached;
 
     const { execFileSync } = require("child_process");
-    const winSnapshot = isWin ? getWindowsProcessSnapshot(execFileSync) : null;
+    const winSnapshotResult = isWin ? getWindowsProcessSnapshot(execFileSync) : null;
+    const winSnapshot = winSnapshotResult ? winSnapshotResult.processes : null;
+    const foregroundWtHwnd = winSnapshotResult ? winSnapshotResult.foregroundWtHwnd : null;
 
     let pid = startPid;
     let lastGoodPid = pid;
@@ -200,7 +285,62 @@ function createPidResolver(options) {
       pid = parentPid;
     }
 
-    _cached = { stablePid: terminalPid || lastGoodPid, agentPid, agentCommandLine, detectedEditor, pidChain };
+    let tmuxClient = null;
+    if (!isWin && !terminalPid && process.env.TMUX && process.env.TMUX_PANE) {
+      const tmuxParts = process.env.TMUX.split(",");
+      const tmuxServerPid = tmuxParts.length >= 2 ? parseInt(tmuxParts[1], 10) : 0;
+      const walkReachedTmux = tmuxServerPid > 1 && pidChain.includes(tmuxServerPid);
+      if (walkReachedTmux) {
+        try {
+          const raw = execFileSync(
+            "tmux", ["list-clients", "-t", process.env.TMUX_PANE, "-F", "#{client_pid}\t#{client_tty}"],
+            { encoding: "utf8", timeout: 500 }
+          );
+          const clients = raw.split("\n")
+            .map((line) => {
+              const parts = line.split("\t");
+              const pid = parseInt((parts[0] || "").trim(), 10);
+              return {
+                pid,
+                target: normalizeTmuxClientTarget(parts.slice(1).join("\t")),
+              };
+            })
+            .filter(c => Number.isFinite(c.pid) && c.pid > 1);
+          outer: for (const client of clients) {
+            let walkPid = client.pid;
+            const localAdds = [];
+            for (let t = 0; t < 4; t++) {
+              let tName, tParent;
+              try {
+                const tComm = execFileSync("ps", ["-o", "comm=", "-p", String(walkPid)],
+                  { encoding: "utf8", timeout: 500 }).trim();
+                tName = require("path").basename(tComm).toLowerCase();
+                tParent = parseInt(
+                  execFileSync("ps", ["-o", "ppid=", "-p", String(walkPid)],
+                    { encoding: "utf8", timeout: 500 }).trim(), 10);
+              } catch { break; }
+              if (terminalNames.has(tName)) {
+                terminalPid = walkPid;
+                tmuxClient = client.target;
+                pidChain.push(...localAdds, walkPid);
+                break outer;
+              }
+              if (!tParent || tParent <= 1 || tParent === walkPid) break;
+              localAdds.push(walkPid);
+              walkPid = tParent;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    let tmuxSocket = null;
+    if (process.env.TMUX) {
+      const socketPath = process.env.TMUX.split(",")[0];
+      tmuxSocket = normalizeTmuxSocketPath(socketPath);
+    }
+
+    _cached = { stablePid: terminalPid || lastGoodPid, agentPid, agentCommandLine, detectedEditor, pidChain, foregroundWtHwnd, tmuxSocket, tmuxClient };
     return _cached;
   };
 }

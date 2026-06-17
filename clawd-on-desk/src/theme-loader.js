@@ -1,10 +1,9 @@
 "use strict";
 
-const { DEFAULT_THEME_ID } = require("./default-theme");
-
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
+const { DEFAULT_THEME_ID } = require("./default-theme");
 const createThemeContext = require("./theme-context");
 const {
   resolveExternalAssetsDir: _resolveExternalAssetsDir,

@@ -3,25 +3,34 @@
 const fs = require("fs");
 const path = require("path");
 
-const { isAgentEnabled, isAgentPermissionsEnabled } = require("../agent-gate");
+const {
+  isAgentEnabled,
+  isAgentIntegrationInstalled,
+  isAgentPermissionsEnabled,
+} = require("../agent-gate");
+const { getAgent } = require("../../agents/registry");
 const { findHookCommands } = require("../../hooks/json-utils");
 const { GEMINI_HOOK_EVENTS } = require("../../hooks/gemini-install");
+const { ANTIGRAVITY_HOOK_EVENTS, HOOK_GROUP_ID: ANTIGRAVITY_HOOK_GROUP_ID } = require("../../hooks/antigravity-install");
+const { QWEN_CODE_HOOK_EVENTS } = require("../../hooks/qwen-code-install");
+const {
+  hasUserPermissionHookInOtherFiles,
+  hasUserPermissionHookInSettingsJson,
+  isCopilotPermissionRegistrable,
+} = require("../../hooks/copilot-install");
 const { findKimiHookCommands } = require("../../hooks/kimi-install");
+const { parseTomlSections: parseCodewhaleTomlSections } = require("../../hooks/codewhale-install");
 const { getAgentDescriptors } = require("./agent-descriptors");
-const { validateHookCommand } = require("./agent-node-bin-parser");
+const { commandContainsFragment, validateHookCommand } = require("./agent-node-bin-parser");
 const { checkCodexHookTrust, checkCodexHooksFeature } = require("./codex-features-check");
 const { validateOpencodeEntry } = require("./opencode-entry-validator");
 const { validateOpenClawEntry } = require("./openclaw-entry-validator");
 const { hasIncludeDirective } = require("../../hooks/openclaw-install");
 
-const INFO_ONLY_STATUSES = new Set([
-  "disabled",
-  "manual-managed",
-  "manual-only",
-  "not-installed",
-]);
 const REPAIRABLE_AGENT_STATUSES = new Set(["not-connected", "broken-path"]);
 const GEMINI_HOOKS_DISABLED_DETAIL = "Gemini hooks are disabled in settings.json; Clawd preserves this user setting and will not receive hook events";
+const ANTIGRAVITY_HOOKS_DISABLED_DETAIL = "Antigravity Clawd hooks are disabled in hooks.json; Clawd preserves this user setting and will not receive hook events";
+const QWEN_HOOKS_DISABLED_DETAIL = "Qwen Code hooks are disabled in settings.json; Clawd preserves this user setting and will not receive hook events";
 
 function dirExists(fsImpl, dirPath) {
   try {
@@ -40,10 +49,27 @@ function fileExists(fsImpl, filePath) {
 }
 
 function readJson(fsImpl, filePath) {
-  return JSON.parse(fsImpl.readFileSync(filePath, "utf8"));
+  // Strip the UTF-8 BOM (U+FEFF). PowerShell `Set-Content -Encoding utf8`
+  // and some Notepad saves prepend it; Node's JSON.parse refuses to parse
+  // a leading BOM. Without this, a user who hand-edits hooks.json in those
+  // tools makes the doctor pane silently flip to config-corrupt while
+  // installers (which already strip BOM) keep working — the mismatch makes
+  // the offered Fix button useless because clicking it doesn't reproduce
+  // the parse error path.
+  let raw = fsImpl.readFileSync(filePath, "utf8");
+  if (raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1);
+  return JSON.parse(raw);
 }
 
 function withAgentBubbleNote(detail, prefs, agentId) {
+  // State-only agents (capabilities.permissionApproval === false) never
+  // surface a Clawd bubble in the first place, so annotating them as
+  // "permission bubbles disabled" would be misleading. Antigravity, Pi,
+  // and OpenClaw are current examples.
+  const agent = getAgent(agentId);
+  if (agent && agent.capabilities && agent.capabilities.permissionApproval === false) {
+    return detail;
+  }
   if (!isAgentPermissionsEnabled(prefs, agentId)) {
     return {
       ...detail,
@@ -54,6 +80,33 @@ function withAgentBubbleNote(detail, prefs, agentId) {
   return detail;
 }
 
+function getClaudeHookGuardStatus(options) {
+  const server = options && options.server;
+  if (!server || typeof server.getClaudeHookGuardStatus !== "function") return null;
+  try {
+    return server.getClaudeHookGuardStatus();
+  } catch {
+    return null;
+  }
+}
+
+function withClaudeHookGuardNotice(detail, descriptor, options) {
+  if (descriptor.agentId !== "claude-code") return detail;
+  if (!detail || detail.status !== "not-connected") return detail;
+  const guard = getClaudeHookGuardStatus(options);
+  if (!guard || guard.type !== "suspicious-shrink") return detail;
+  return {
+    ...detail,
+    detail: "Clawd paused automatic Claude hook repair after settings.json shrank during an external rewrite. Use Fix or restart Clawd to reinstall Clawd hooks.",
+    claudeHookGuard: {
+      type: guard.type,
+      at: guard.at || null,
+      before: guard.before || null,
+      after: guard.after || null,
+    },
+  };
+}
+
 function withAgentFixAction(detail, descriptor) {
   if (!descriptor.autoInstall || !REPAIRABLE_AGENT_STATUSES.has(detail.status)) return detail;
   if (
@@ -62,6 +115,36 @@ function withAgentFixAction(detail, descriptor) {
     && detail.supplementary.key === "gemini_hooks"
     && detail.supplementary.value !== "enabled"
   ) {
+    return detail;
+  }
+  if (
+    descriptor.agentId === "antigravity-cli"
+    && detail.supplementary
+    && detail.supplementary.key === "antigravity_hooks"
+    && detail.supplementary.value !== "enabled"
+  ) {
+    return detail;
+  }
+  if (
+    descriptor.agentId === "qwen-code"
+    && detail.supplementary
+    && detail.supplementary.key === "qwen_hooks"
+    && detail.supplementary.value !== "enabled"
+  ) {
+    return detail;
+  }
+  if (
+    descriptor.agentId === "copilot-cli"
+    && detail.supplementary
+    && detail.supplementary.key === "copilot_hooks"
+    && typeof detail.supplementary.value === "string"
+    && (detail.supplementary.value.startsWith("disabled")
+        || detail.supplementary.value === "permission-user-hook")
+  ) {
+    // disabled-*: user set disableAllHooks; Clawd must not override.
+    // permission-user-hook: user (or a sibling *.json) owns permissionRequest;
+    // running Fix would re-trigger the same safe-v1 skip — surface a warning
+    // without a button so the user wires Clawd in manually if they want it.
     return detail;
   }
   const fixAction = { type: "agent-integration", agentId: descriptor.agentId };
@@ -145,12 +228,12 @@ function findHookCommandsForEvent(settings, eventName, marker, options) {
     if (!entry || typeof entry !== "object") continue;
     if (nested && Array.isArray(entry.hooks)) {
       for (const hook of entry.hooks) {
-        if (hook && typeof hook.command === "string" && hook.command.includes(marker)) {
+        if (hook && typeof hook.command === "string" && commandContainsFragment(hook.command, marker)) {
           commands.push(hook.command);
         }
       }
     }
-    if (typeof entry.command === "string" && entry.command.includes(marker)) {
+    if (typeof entry.command === "string" && commandContainsFragment(entry.command, marker)) {
       commands.push(entry.command);
     }
   }
@@ -215,6 +298,306 @@ function validateGeminiHookEvents(descriptor, settings, options) {
   return makeDetail(descriptor, "ok", {
     level: null,
     detail: `${descriptor.configPath} Gemini hooks registered for ${GEMINI_HOOK_EVENTS.length} events, scriptPath verified`,
+    commandCount,
+    scriptPath: firstOk && firstOk.scriptPath ? firstOk.scriptPath : null,
+  });
+}
+
+function validateQwenHookEvents(descriptor, settings, options) {
+  const events = Array.isArray(descriptor.hookEvents) ? descriptor.hookEvents : QWEN_CODE_HOOK_EVENTS;
+  const missingEvents = [];
+  let commandCount = 0;
+  let firstOk = null;
+  let firstFailure = null;
+
+  for (const eventName of events) {
+    const commands = findHookCommandsForEvent(settings, eventName, descriptor.marker, { nested: !!descriptor.nested });
+    commandCount += commands.length;
+    if (!commands.length) {
+      missingEvents.push(eventName);
+      continue;
+    }
+
+    const results = commands.map((command) => options.validateCommand(command, {
+      platform: options.platform,
+      fs: options.fs,
+    }));
+    const ok = results.find((result) => result.ok);
+    if (ok) {
+      if (!firstOk) firstOk = ok;
+      continue;
+    }
+    if (!firstFailure) {
+      firstFailure = {
+        eventName,
+        result: results[0] || { issue: "parse-failed" },
+        command: commands[0],
+      };
+    }
+  }
+
+  if (missingEvents.length) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      detail: `${descriptor.configPath} missing Qwen Code hook event(s): ${missingEvents.join(", ")}`,
+      commandCount,
+      missingQwenHookEvents: missingEvents,
+    });
+  }
+
+  if (firstFailure) {
+    const first = firstFailure.result;
+    return makeDetail(descriptor, "broken-path", {
+      level: "warning",
+      detail: `Qwen Code hook command failed validation for ${firstFailure.eventName}: ${first.issue || "parse-failed"}`,
+      commandCount,
+      hookCommandIssue: first.issue || "parse-failed",
+      nodeBin: first.nodeBin || null,
+      scriptPath: first.scriptPath || null,
+      commandFragment: first.fragment || String(firstFailure.command || "").slice(0, 128),
+      brokenQwenHookEvent: firstFailure.eventName,
+    });
+  }
+
+  return makeDetail(descriptor, "ok", {
+    level: null,
+    detail: `${descriptor.configPath} Qwen Code hooks registered for ${events.length} events, scriptPath verified`,
+    commandCount,
+    scriptPath: firstOk && firstOk.scriptPath ? firstOk.scriptPath : null,
+  });
+}
+
+// Copilot CLI's hooks.json entries store the command in per-platform `bash` /
+// `powershell` fields (not the single `command` field used by Claude/Cursor/
+// Gemini). Generic findHookCommandsForEvent would miss them, so scan all three
+// fields and let the validator decide which is platform-appropriate.
+function findCopilotHookCommandsForEvent(settings, eventName, marker) {
+  if (!settings || !settings.hooks || typeof marker !== "string" || !marker) return [];
+  const entries = settings.hooks[eventName];
+  if (!Array.isArray(entries)) return [];
+  const commands = [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") continue;
+    for (const field of ["bash", "powershell", "command"]) {
+      const cmd = entry[field];
+      if (typeof cmd === "string" && commandContainsFragment(cmd, marker)) {
+        commands.push(cmd);
+      }
+    }
+  }
+  return commands;
+}
+
+function validateCopilotHookEvents(descriptor, settings, settingsJson, options) {
+  // disableAllHooks short-circuit — check both hooks.json (file-scoped) and
+  // settings.json (global). Either being true means hooks won't run.
+  if (settings && settings.disableAllHooks === true) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      detail: `${descriptor.configPath} has disableAllHooks=true; Clawd hooks will not run`,
+      supplementary: { key: "copilot_hooks", value: "disabled-file" },
+    });
+  }
+  if (settingsJson && settingsJson.disableAllHooks === true) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      detail: `${descriptor.settingsPath || "settings.json"} has disableAllHooks=true; Clawd hooks will not run`,
+      supplementary: { key: "copilot_hooks", value: "disabled-global" },
+    });
+  }
+
+  // Safe-v1 cross-file check. Mirrors hooks/copilot-install.js so the
+  // installer's silent skip is visible to the user via the doctor pane:
+  //   - in-file: another (non-Clawd) entry in hooks.json's permissionRequest
+  //   - cross-file: any sibling *.json in the same hooks/ dir declares the event
+  // When triggered, permissionRequest is removed from the per-event validation
+  // pass and the result is annotated with `permission-user-hook`. The Fix
+  // button is suppressed at attachFixAction() so the user cannot trigger an
+  // install that the installer itself will reject. Without this layer the
+  // doctor reports "missing permissionRequest" and offers a Fix that never
+  // does anything.
+  const inFileArr = (settings && settings.hooks && Array.isArray(settings.hooks.permissionRequest))
+    ? settings.hooks.permissionRequest
+    : [];
+  const hasInFileUserHook = !isCopilotPermissionRegistrable(inFileArr);
+  const hooksDirForScan = descriptor.configPath
+    ? require("path").dirname(descriptor.configPath)
+    : null;
+  const hasCrossFileUserHook = hooksDirForScan
+    ? hasUserPermissionHookInOtherFiles(hooksDirForScan, descriptor.configPath, { fs: options.fs })
+    : false;
+  // settings.json inline `hooks` block also merges into Copilot's hook chain.
+  // Doctor only covers installer-time signals here — repo-level
+  // .github/hooks/*.json is checked at request time by copilot-hook.js.
+  const hasInlineSettingsHook = descriptor.settingsPath
+    ? hasUserPermissionHookInSettingsJson(descriptor.settingsPath, { fs: options.fs })
+    : false;
+  const permissionOwnedByUser = hasInFileUserHook || hasCrossFileUserHook || hasInlineSettingsHook;
+
+  const events = (Array.isArray(descriptor.hookEvents) ? descriptor.hookEvents : [])
+    .filter((e) => !(permissionOwnedByUser && e === "permissionRequest"));
+  const missingEvents = [];
+  let commandCount = 0;
+  let firstOk = null;
+  let firstFailure = null;
+
+  for (const eventName of events) {
+    const commands = findCopilotHookCommandsForEvent(settings, eventName, descriptor.marker);
+    commandCount += commands.length;
+    if (!commands.length) {
+      missingEvents.push(eventName);
+      continue;
+    }
+
+    const results = commands.map((command) => options.validateCommand(command, {
+      platform: options.platform,
+      fs: options.fs,
+    }));
+    const ok = results.find((result) => result.ok);
+    if (ok) {
+      if (!firstOk) firstOk = ok;
+      continue;
+    }
+    if (!firstFailure) {
+      firstFailure = {
+        eventName,
+        result: results[0] || { issue: "parse-failed" },
+        command: commands[0],
+      };
+    }
+  }
+
+  if (missingEvents.length) {
+    const detail = {
+      level: "warning",
+      detail: `${descriptor.configPath} missing Copilot hook event(s): ${missingEvents.join(", ")}`,
+      commandCount,
+      missingCopilotHookEvents: missingEvents,
+    };
+    if (permissionOwnedByUser) {
+      detail.supplementary = { key: "copilot_hooks", value: "permission-user-hook" };
+      detail.permissionUserHook = true;
+    }
+    return makeDetail(descriptor, "not-connected", detail);
+  }
+
+  if (firstFailure) {
+    const first = firstFailure.result;
+    return makeDetail(descriptor, "broken-path", {
+      level: "warning",
+      detail: `Copilot hook command failed validation for ${firstFailure.eventName}: ${first.issue || "parse-failed"}`,
+      commandCount,
+      hookCommandIssue: first.issue || "parse-failed",
+      nodeBin: first.nodeBin || null,
+      scriptPath: first.scriptPath || null,
+      commandFragment: first.fragment || String(firstFailure.command || "").slice(0, 128),
+      brokenCopilotHookEvent: firstFailure.eventName,
+    });
+  }
+
+  if (permissionOwnedByUser) {
+    return makeDetail(descriptor, "ok", {
+      level: "warning",
+      detail: `${descriptor.configPath} Copilot state hooks registered; permissionRequest left to user hook`,
+      commandCount,
+      scriptPath: firstOk && firstOk.scriptPath ? firstOk.scriptPath : null,
+      supplementary: { key: "copilot_hooks", value: "permission-user-hook" },
+      permissionUserHook: true,
+    });
+  }
+
+  return makeDetail(descriptor, "ok", {
+    level: null,
+    detail: `${descriptor.configPath} Copilot hooks registered for ${events.length} events, scriptPath verified`,
+    commandCount,
+    scriptPath: firstOk && firstOk.scriptPath ? firstOk.scriptPath : null,
+  });
+}
+
+function findAntigravityHookCommandsForEvent(settings, eventName, marker) {
+  if (!settings || typeof settings !== "object" || typeof marker !== "string" || !marker) return [];
+  const commands = [];
+
+  for (const hookGroup of Object.values(settings)) {
+    if (!hookGroup || typeof hookGroup !== "object") continue;
+    const entries = hookGroup[eventName];
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      if (typeof entry.command === "string" && commandContainsFragment(entry.command, marker)) {
+        commands.push(entry.command);
+      }
+      if (!Array.isArray(entry.hooks)) continue;
+      for (const hook of entry.hooks) {
+        if (hook && typeof hook.command === "string" && commandContainsFragment(hook.command, marker)) {
+          commands.push(hook.command);
+        }
+      }
+    }
+  }
+
+  return commands;
+}
+
+function validateAntigravityHookEvents(descriptor, settings, options) {
+  const events = Array.isArray(descriptor.hookEvents) ? descriptor.hookEvents : ANTIGRAVITY_HOOK_EVENTS;
+  const missingEvents = [];
+  let commandCount = 0;
+  let firstOk = null;
+  let firstFailure = null;
+
+  for (const eventName of events) {
+    const commands = findAntigravityHookCommandsForEvent(settings, eventName, descriptor.marker);
+    commandCount += commands.length;
+    if (!commands.length) {
+      missingEvents.push(eventName);
+      continue;
+    }
+
+    const results = commands.map((command) => options.validateCommand(command, {
+      platform: options.platform,
+      fs: options.fs,
+    }));
+    const ok = results.find((result) => result.ok);
+    if (ok) {
+      if (!firstOk) firstOk = ok;
+      continue;
+    }
+    if (!firstFailure) {
+      firstFailure = {
+        eventName,
+        result: results[0] || { issue: "parse-failed" },
+        command: commands[0],
+      };
+    }
+  }
+
+  if (missingEvents.length) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      detail: `${descriptor.configPath} missing Antigravity hook event(s): ${missingEvents.join(", ")}`,
+      commandCount,
+      missingAntigravityHookEvents: missingEvents,
+    });
+  }
+
+  if (firstFailure) {
+    const first = firstFailure.result;
+    return makeDetail(descriptor, "broken-path", {
+      level: "warning",
+      detail: `Antigravity hook command failed validation for ${firstFailure.eventName}: ${first.issue || "parse-failed"}`,
+      commandCount,
+      hookCommandIssue: first.issue || "parse-failed",
+      nodeBin: first.nodeBin || null,
+      scriptPath: first.scriptPath || null,
+      commandFragment: first.fragment || String(firstFailure.command || "").slice(0, 128),
+      brokenAntigravityHookEvent: firstFailure.eventName,
+    });
+  }
+
+  return makeDetail(descriptor, "ok", {
+    level: null,
+    detail: `${descriptor.configPath} Antigravity hooks registered for ${events.length} events, scriptPath verified`,
     commandCount,
     scriptPath: firstOk && firstOk.scriptPath ? firstOk.scriptPath : null,
   });
@@ -321,6 +704,75 @@ function applyGeminiSupplementary(detail, descriptor, settings) {
   };
 }
 
+function getQwenHooksSupplementary(settings) {
+  if (settings && typeof settings === "object" && settings.disableAllHooks === true) {
+    return {
+      key: "qwen_hooks",
+      value: "disabled-global",
+      detail: "disableAllHooks is true",
+    };
+  }
+  return {
+    key: "qwen_hooks",
+    value: "enabled",
+    detail: "settings.json allows Clawd Qwen hooks",
+  };
+}
+
+function applyQwenSupplementary(detail, descriptor, settings) {
+  if (descriptor.agentId !== "qwen-code") return detail;
+
+  const supplementary = getQwenHooksSupplementary(settings);
+  if (supplementary.value !== "enabled") {
+    return {
+      ...detail,
+      status: "not-connected",
+      level: "warning",
+      detail: QWEN_HOOKS_DISABLED_DETAIL,
+      supplementary,
+    };
+  }
+  return {
+    ...detail,
+    supplementary,
+  };
+}
+
+function getAntigravityHooksSupplementary(settings) {
+  const hookGroup = settings && typeof settings === "object" ? settings[ANTIGRAVITY_HOOK_GROUP_ID] : null;
+  if (hookGroup && typeof hookGroup === "object" && hookGroup.enabled === false) {
+    return {
+      key: "antigravity_hooks",
+      value: "disabled-clawd",
+      detail: `${ANTIGRAVITY_HOOK_GROUP_ID}.enabled is false`,
+    };
+  }
+  return {
+    key: "antigravity_hooks",
+    value: "enabled",
+    detail: "hooks.json allows Clawd Antigravity hooks",
+  };
+}
+
+function applyAntigravitySupplementary(detail, descriptor, settings) {
+  if (descriptor.agentId !== "antigravity-cli") return detail;
+
+  const supplementary = getAntigravityHooksSupplementary(settings);
+  if (supplementary.value !== "enabled") {
+    return {
+      ...detail,
+      status: "not-connected",
+      level: "warning",
+      detail: ANTIGRAVITY_HOOKS_DISABLED_DETAIL,
+      supplementary,
+    };
+  }
+  return {
+    ...detail,
+    supplementary,
+  };
+}
+
 function checkFileMode(descriptor, options) {
   if (!fileExists(options.fs, descriptor.configPath)) {
     return makeDetail(descriptor, descriptor.autoInstall ? "not-connected" : "manual-only", {
@@ -349,13 +801,18 @@ function checkFileMode(descriptor, options) {
     return checkOpencodeSettings(descriptor, settings, options);
   }
 
-  let detail = descriptor.agentId === "gemini-cli"
-    ? validateGeminiHookEvents(descriptor, settings, options)
-    : validateCommandList(
+  let detail;
+  if (descriptor.agentId === "gemini-cli") {
+    detail = validateGeminiHookEvents(descriptor, settings, options);
+  } else if (descriptor.agentId === "qwen-code") {
+    detail = validateQwenHookEvents(descriptor, settings, options);
+  } else {
+    detail = validateCommandList(
       descriptor,
       findHookCommands(settings, descriptor.marker, { nested: !!descriptor.nested }),
       options
     );
+  }
   detail = {
     ...detail,
     parentDirExists: true,
@@ -363,7 +820,54 @@ function checkFileMode(descriptor, options) {
     configPath: descriptor.configPath,
   };
   detail = applyCodexSupplementary(detail, descriptor, options, settings);
-  return applyGeminiSupplementary(detail, descriptor, settings);
+  detail = applyGeminiSupplementary(detail, descriptor, settings);
+  return applyQwenSupplementary(detail, descriptor, settings);
+}
+
+function checkCopilotHooksMode(descriptor, options) {
+  if (!fileExists(options.fs, descriptor.configPath)) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      parentDirExists: true,
+      configFileExists: false,
+      configPath: descriptor.configPath,
+      detail: `${descriptor.configPath} missing`,
+    });
+  }
+
+  let hooksJson;
+  try {
+    hooksJson = readJson(options.fs, descriptor.configPath);
+  } catch (err) {
+    return makeDetail(descriptor, "config-corrupt", {
+      level: "warning",
+      parentDirExists: true,
+      configFileExists: true,
+      configPath: descriptor.configPath,
+      detail: err && err.message ? err.message : "hooks.json parse failed",
+    });
+  }
+
+  // settings.json is optional and auxiliary — its only doctor signal is the
+  // disableAllHooks flag. Parse errors are ignored so a malformed
+  // settings.json never blocks hooks.json validation (see the matching
+  // "ignores parse errors in settings.json" test case).
+  let settingsJson = null;
+  if (descriptor.settingsPath && fileExists(options.fs, descriptor.settingsPath)) {
+    try {
+      settingsJson = readJson(options.fs, descriptor.settingsPath);
+    } catch {
+      // ignore parse errors; settings.json is auxiliary
+    }
+  }
+
+  const detail = validateCopilotHookEvents(descriptor, hooksJson, settingsJson, options);
+  return {
+    ...detail,
+    parentDirExists: true,
+    configFileExists: true,
+    configPath: descriptor.configPath,
+  };
 }
 
 function checkTomlTextMode(descriptor, options) {
@@ -392,6 +896,186 @@ function checkTomlTextMode(descriptor, options) {
 
   return {
     ...validateCommandList(descriptor, findKimiHookCommands(text, descriptor.marker), options),
+    parentDirExists: true,
+    configFileExists: true,
+    configPath: descriptor.configPath,
+  };
+}
+
+function unescapeTomlDoubleQuotedValue(value) {
+  return String(value || "")
+    .replace(/\\"/g, "\"")
+    .replace(/\\\\/g, "\\");
+}
+
+function parseTomlScalarValue(raw) {
+  const value = String(raw || "").trim();
+  if (value.startsWith("'''")) {
+    const end = value.indexOf("'''", 3);
+    return end >= 0 ? value.slice(3, end) : null;
+  }
+  if (value.startsWith('"""')) {
+    const end = value.indexOf('"""', 3);
+    return end >= 0 ? unescapeTomlDoubleQuotedValue(value.slice(3, end)) : null;
+  }
+  if (value.startsWith("'")) {
+    const end = value.indexOf("'", 1);
+    return end >= 0 ? value.slice(1, end) : null;
+  }
+  if (value.startsWith("\"")) {
+    let escaped = false;
+    for (let i = 1; i < value.length; i++) {
+      const ch = value[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === "\"") {
+        return unescapeTomlDoubleQuotedValue(value.slice(1, i));
+      }
+    }
+    return null;
+  }
+  const bare = value.replace(/\s+#.*$/, "").trim();
+  return bare || null;
+}
+
+function tomlAssignmentValue(lines, key) {
+  const pattern = new RegExp(`^\\s*${key}\\s*=\\s*(.+)$`);
+  for (const line of lines) {
+    const match = String(line || "").match(pattern);
+    if (!match) continue;
+    return parseTomlScalarValue(match[1]);
+  }
+  return null;
+}
+
+function findCodewhaleHookCommandsForEvent(text, eventName, descriptor) {
+  if (typeof text !== "string" || !text) return [];
+  const sectionMarker = descriptor.marker;
+  const commandMarker = descriptor.commandMarker || "codewhale-hook.js";
+  return parseCodewhaleTomlSections(text)
+    .filter((section) => section.header === "hooks.hooks")
+    .filter((section) => section.lines.some((line) => commandContainsFragment(line, sectionMarker)))
+    .filter((section) => tomlAssignmentValue(section.lines, "event") === eventName)
+    .map((section) => tomlAssignmentValue(section.lines, "command"))
+    .filter((command) => typeof command === "string" && commandContainsFragment(command, commandMarker));
+}
+
+function codewhaleHooksExplicitlyDisabled(text) {
+  const hooksSection = parseCodewhaleTomlSections(text)
+    .find((section) => section.header === "hooks");
+  if (!hooksSection) return false;
+  return tomlAssignmentValue(hooksSection.lines, "enabled") === "false";
+}
+
+function validateCodewhaleHookEvents(descriptor, text, options) {
+  const events = Array.isArray(descriptor.hookEvents) ? descriptor.hookEvents : [];
+  const missingEvents = [];
+  let commandCount = 0;
+  let firstOk = null;
+  let firstFailure = null;
+
+  if (codewhaleHooksExplicitlyDisabled(text)) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      detail: "CodeWhale hooks are disabled in config.toml; Clawd will not receive hook events",
+      supplementary: {
+        key: "codewhale_hooks",
+        value: "disabled",
+        detail: "[hooks].enabled is false",
+      },
+      commandCount: 0,
+    });
+  }
+
+  for (const eventName of events) {
+    const commands = findCodewhaleHookCommandsForEvent(text, eventName, descriptor);
+    commandCount += commands.length;
+    if (!commands.length) {
+      missingEvents.push(eventName);
+      continue;
+    }
+
+    const results = commands.map((command) => options.validateCommand(command, {
+      platform: options.platform,
+      fs: options.fs,
+    }));
+    const ok = results.find((result) => result.ok);
+    if (ok) {
+      if (!firstOk) firstOk = ok;
+      continue;
+    }
+    if (!firstFailure) {
+      firstFailure = {
+        eventName,
+        result: results[0] || { issue: "parse-failed" },
+        command: commands[0],
+      };
+    }
+  }
+
+  if (missingEvents.length) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      detail: `${descriptor.configPath} missing CodeWhale hook event(s): ${missingEvents.join(", ")}`,
+      commandCount,
+      missingCodewhaleHookEvents: missingEvents,
+    });
+  }
+
+  if (firstFailure) {
+    const first = firstFailure.result;
+    return makeDetail(descriptor, "broken-path", {
+      level: "warning",
+      detail: `CodeWhale hook command failed validation for ${firstFailure.eventName}: ${first.issue || "parse-failed"}`,
+      commandCount,
+      hookCommandIssue: first.issue || "parse-failed",
+      nodeBin: first.nodeBin || null,
+      scriptPath: first.scriptPath || null,
+      commandFragment: first.fragment || String(firstFailure.command || "").slice(0, 128),
+      brokenCodewhaleHookEvent: firstFailure.eventName,
+    });
+  }
+
+  return makeDetail(descriptor, "ok", {
+    level: null,
+    detail: `${descriptor.configPath} CodeWhale hooks registered for ${events.length} events, scriptPath verified`,
+    commandCount,
+    scriptPath: firstOk && firstOk.scriptPath ? firstOk.scriptPath : null,
+  });
+}
+
+function checkCodewhaleHooksTomlMode(descriptor, options) {
+  if (!fileExists(options.fs, descriptor.configPath)) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      parentDirExists: true,
+      configFileExists: false,
+      configPath: descriptor.configPath,
+      detail: `${descriptor.configPath} missing`,
+    });
+  }
+
+  let text;
+  try {
+    text = options.fs.readFileSync(descriptor.configPath, "utf8");
+  } catch (err) {
+    return makeDetail(descriptor, "config-corrupt", {
+      level: "warning",
+      parentDirExists: true,
+      configFileExists: true,
+      configPath: descriptor.configPath,
+      detail: err && err.message ? err.message : "CodeWhale config read failed",
+    });
+  }
+
+  return {
+    ...validateCodewhaleHookEvents(descriptor, text, options),
     parentDirExists: true,
     configFileExists: true,
     configPath: descriptor.configPath,
@@ -584,6 +1268,39 @@ function checkPluginDirMode(descriptor, options) {
   });
 }
 
+function checkAntigravityHooksMode(descriptor, options) {
+  if (!fileExists(options.fs, descriptor.configPath)) {
+    return makeDetail(descriptor, "not-connected", {
+      level: "warning",
+      parentDirExists: true,
+      configFileExists: false,
+      configPath: descriptor.configPath,
+      detail: `${descriptor.configPath} missing`,
+    });
+  }
+
+  let settings;
+  try {
+    settings = readJson(options.fs, descriptor.configPath);
+  } catch (err) {
+    return makeDetail(descriptor, "config-corrupt", {
+      level: "warning",
+      parentDirExists: true,
+      configFileExists: true,
+      configPath: descriptor.configPath,
+      detail: err && err.message ? err.message : "Antigravity hooks.json parse failed",
+    });
+  }
+
+  const detail = {
+    ...validateAntigravityHookEvents(descriptor, settings, options),
+    parentDirExists: true,
+    configFileExists: true,
+    configPath: descriptor.configPath,
+  };
+  return applyAntigravitySupplementary(detail, descriptor, settings);
+}
+
 function stripYamlComment(line) {
   let quote = null;
   for (let i = 0; i < line.length; i++) {
@@ -705,6 +1422,25 @@ function findOpenClawPluginEntry(pluginPaths, marker) {
   return null;
 }
 
+function describeOpencodeEntryIssue(reason) {
+  switch (reason) {
+    case "not-absolute":
+      return "the plugin path is not absolute";
+    case "directory-missing":
+      return "the plugin directory does not exist";
+    case "not-a-directory":
+      return "the plugin entry is not a directory";
+    case "index-mjs-missing":
+      return "the plugin directory has no index.mjs";
+    case "index-mjs-unreadable":
+      return "the plugin index.mjs could not be read";
+    case "extra-module-exports":
+      return "the module exports more than the default function, so opencode rejects it and loads nothing (#413)";
+    default:
+      return reason;
+  }
+}
+
 function checkOpencodeSettings(descriptor, settings, options) {
   const entry = findOpencodePluginEntry(settings && settings.plugin, descriptor.marker);
   if (!entry) {
@@ -724,7 +1460,7 @@ function checkOpencodeSettings(descriptor, settings, options) {
       parentDirExists: true,
       configFileExists: true,
       configPath: descriptor.configPath,
-      detail: `opencode plugin entry is invalid: ${validation.reason}`,
+      detail: `opencode plugin entry is invalid: ${describeOpencodeEntryIssue(validation.reason)}`,
       opencodeEntryIssue: validation.reason,
       opencodeEntry: entry,
     });
@@ -909,6 +1645,13 @@ function checkPiExtensionMode(descriptor, options) {
 
 function checkAgent(descriptor, options) {
   const prefs = options.prefs || {};
+  if (!isAgentIntegrationInstalled(prefs, descriptor.agentId)) {
+    return makeDetail(descriptor, "not-managed", {
+      level: "info",
+      detail: "This integration is not installed in Settings",
+    });
+  }
+
   if (!isAgentEnabled(prefs, descriptor.agentId)) {
     return makeDetail(descriptor, "disabled", {
       level: "info",
@@ -926,7 +1669,7 @@ function checkAgent(descriptor, options) {
   if (descriptor.configMode === "none-global") {
     return makeDetail(descriptor, "manual-only", {
       level: "info",
-      detail: "This agent uses project-level config",
+      detail: "This agent does not use a host-managed config file",
       scriptPath: descriptor.scriptPath || null,
       scriptExists: descriptor.scriptPath ? fileExists(options.fs, descriptor.scriptPath) : null,
     });
@@ -945,8 +1688,12 @@ function checkAgent(descriptor, options) {
   let detail;
   if (descriptor.configMode === "file") {
     detail = checkFileMode(descriptor, options);
+  } else if (descriptor.configMode === "copilot-hooks") {
+    detail = checkCopilotHooksMode(descriptor, options);
   } else if (descriptor.configMode === "toml-text") {
     detail = checkTomlTextMode(descriptor, options);
+  } else if (descriptor.configMode === "codewhale-hooks-toml") {
+    detail = checkCodewhaleHooksTomlMode(descriptor, options);
   } else if (descriptor.configMode === "dir") {
     detail = checkKiroDirMode(descriptor, options);
   } else if (descriptor.configMode === "pi-extension") {
@@ -955,6 +1702,8 @@ function checkAgent(descriptor, options) {
     detail = checkOpenClawPluginMode(descriptor, options);
   } else if (descriptor.configMode === "plugin-dir") {
     detail = checkPluginDirMode(descriptor, options);
+  } else if (descriptor.configMode === "antigravity-hooks") {
+    detail = checkAntigravityHooksMode(descriptor, options);
   } else {
     detail = makeDetail(descriptor, "manual-only", {
       level: "info",
@@ -962,6 +1711,7 @@ function checkAgent(descriptor, options) {
     });
   }
 
+  detail = withClaudeHookGuardNotice(detail, descriptor, options);
   return withAgentFixAction(withAgentBubbleNote(detail, prefs, descriptor.agentId), descriptor);
 }
 
@@ -977,10 +1727,12 @@ function summarize(details) {
   if (warningCount > 0) {
     status = "warning";
     level = "warning";
-  } else if (okCount === 0 && details.every((detail) => INFO_ONLY_STATUSES.has(detail.status))) {
-    status = "critical";
-    level = "critical";
   }
+  // An all-info aggregate (every integration disabled / manual-managed / not
+  // installed) is a deliberate user or environment choice, not a fault, so the
+  // summary stays green (#490). The "nothing is wired up" hint is surfaced as
+  // info-level UI copy instead, and a genuinely broken local server is still
+  // flagged red by the separate local-server check.
   return { status, level, counts, okCount, warningCount };
 }
 
@@ -989,6 +1741,7 @@ function checkAgentIntegrations(options = {}) {
     fs: options.fs || fs,
     platform: options.platform || process.platform,
     prefs: options.prefs || {},
+    server: options.server || null,
     validateCommand: options.validateCommand || validateHookCommand,
   };
   const descriptors = options.descriptors || getAgentDescriptors();
@@ -1013,7 +1766,10 @@ module.exports = {
     checkOpenClawPluginMode,
     checkPiExtensionMode,
     checkPluginDirMode,
+    checkAntigravityHooksMode,
+    findAntigravityHookCommandsForEvent,
     parseYamlPluginEnabled,
+    codewhaleHooksExplicitlyDisabled,
     checkTomlTextMode,
     validateCommandList,
   },

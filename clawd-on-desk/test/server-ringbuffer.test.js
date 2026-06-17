@@ -347,6 +347,19 @@ describe("server hook event ringbuffer", () => {
     assert.strictEqual(events.at(-1).eventType, `E${HOOK_EVENT_RING_SIZE_PER_AGENT + 6}`);
   });
 
+  it("attributes hook events by hook_source when agent_id is missing", () => {
+    const buffer = new Map();
+    recordHookEventInBuffer(buffer, {
+      hook_source: "opencode-plugin",
+      event: "PreToolUse",
+    }, "state", "accepted", { now: () => 10 });
+
+    const events = getRecentHookEventsFromBuffer(buffer);
+    assert.strictEqual(events.length, 1);
+    assert.strictEqual(events[0].agentId, "opencode");
+    assert.strictEqual(events[0].eventType, "PreToolUse");
+  });
+
   it("filters recent hook events by agent and timestamp and returns copies", () => {
     const buffer = new Map();
     recordHookEventInBuffer(buffer, { agent_id: "codex", event: "Old" }, "state", "accepted", { now: () => 10 });

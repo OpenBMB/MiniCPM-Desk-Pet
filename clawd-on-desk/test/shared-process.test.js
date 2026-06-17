@@ -124,6 +124,152 @@ describe("createPidResolver()", () => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// createPidResolver() — tmux resolution
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Mocked tmux bridge tests. The previous { skip: !process.env.TMUX } block
+// required a running tmux server with a GUI terminal in the client's ancestry,
+// so it never ran in CI and failed silently for tmux users in ssh / IDE
+// terminals. These mocked variants always run.
+describe("createPidResolver() — tmux bridge (mocked)", () => {
+  const { loadSharedProcessWithMock } = require("./helpers/load-shared-process-with-mock");
+
+  function makeMock(routes) {
+    return function execFileSync(cmd, args /*, opts */) {
+      const key = cmd + " " + args.join(" ");
+      for (const [pattern, value] of routes) {
+        const match = pattern instanceof RegExp ? pattern.test(key) : pattern === key;
+        if (!match) continue;
+        if (typeof value === "function") return value();
+        return value;
+      }
+      const err = new Error("ENOENT: no route for " + key);
+      err.code = "ENOENT";
+      throw err;
+    };
+  }
+
+  it("(a) walk reaches tmux server; list-clients yields client pid → stablePid is terminal", () => {
+    const routes = [
+      ["ps -o ppid= -p 100", "200\n"],
+      ["ps -o comm= -p 100", "zsh\n"],
+      ["ps -o ppid= -p 200", "1\n"],
+      ["ps -o comm= -p 200", "tmux\n"],
+      ["tmux list-clients -t %1 -F #{client_pid}\t#{client_tty}", "300\t/dev/pts/7\n"],
+      ["ps -o comm= -p 300", "alacritty\n"],
+      ["ps -o ppid= -p 300", "1\n"],
+    ];
+    const { mod, cleanup } = loadSharedProcessWithMock({
+      execFileSyncMock: makeMock(routes),
+      env: { TMUX: "/tmp/tmux-1000/default,200,5", TMUX_PANE: "%1" },
+      platform: "linux",
+    });
+    try {
+      const cfg = mod.getPlatformConfig();
+      const resolve = mod.createPidResolver({ platformConfig: cfg, startPid: 100 });
+      const { stablePid, pidChain, tmuxSocket, tmuxClient } = resolve();
+      assert.strictEqual(stablePid, 300, "stablePid should be the terminal pid");
+      assert.ok(pidChain.includes(200), "pidChain should include tmux server pid");
+      assert.ok(pidChain.includes(300), "pidChain should include terminal pid");
+      assert.strictEqual(tmuxSocket, "/tmp/tmux-1000/default");
+      assert.strictEqual(tmuxClient, "/dev/pts/7");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("(b) walk does not reach tmux server → bridge skipped", () => {
+    const routes = [
+      ["ps -o ppid= -p 100", "1\n"],
+      ["ps -o comm= -p 100", "zsh\n"],
+    ];
+    const { mod, cleanup } = loadSharedProcessWithMock({
+      execFileSyncMock: makeMock(routes),
+      env: { TMUX: "/tmp/tmux-1000/default,200,5", TMUX_PANE: "%1" },
+      platform: "linux",
+    });
+    try {
+      const cfg = mod.getPlatformConfig();
+      const { stablePid, pidChain } = mod.createPidResolver({
+        platformConfig: cfg, startPid: 100, maxDepth: 1,
+      })();
+      assert.strictEqual(stablePid, 100);
+      assert.strictEqual(pidChain.length, 1, "no extra hops appended");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("(c) list-clients empty (detached) → bridge skipped, stablePid falls back", () => {
+    const routes = [
+      ["ps -o ppid= -p 100", "200\n"],
+      ["ps -o comm= -p 100", "zsh\n"],
+      ["ps -o ppid= -p 200", "1\n"],
+      ["ps -o comm= -p 200", "tmux\n"],
+      ["tmux list-clients -t %1 -F #{client_pid}\t#{client_tty}", "\n"],
+    ];
+    const { mod, cleanup } = loadSharedProcessWithMock({
+      execFileSyncMock: makeMock(routes),
+      env: { TMUX: "/tmp/tmux-1000/default,200,5", TMUX_PANE: "%1" },
+      platform: "linux",
+    });
+    try {
+      const cfg = mod.getPlatformConfig();
+      const { stablePid, pidChain } = mod.createPidResolver({
+        platformConfig: cfg, startPid: 100,
+      })();
+      assert.ok(!pidChain.some(p => p > 200), "no client pids appended past tmux server");
+      assert.strictEqual(stablePid, 200, "falls back to lastGoodPid (tmux server)");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("(d) tmuxSocket parsed from $TMUX exposed on resolver result", () => {
+    const routes = [
+      ["ps -o ppid= -p 100", "200\n"],
+      ["ps -o comm= -p 100", "zsh\n"],
+      ["ps -o ppid= -p 200", "1\n"],
+      ["ps -o comm= -p 200", "tmux\n"],
+      ["tmux list-clients -t %1 -F #{client_pid}\t#{client_tty}", "\n"],
+    ];
+    const { mod, cleanup } = loadSharedProcessWithMock({
+      execFileSyncMock: makeMock(routes),
+      env: { TMUX: "/tmp/tmux-1000/work,200,5", TMUX_PANE: "%1" },
+      platform: "linux",
+    });
+    try {
+      const cfg = mod.getPlatformConfig();
+      const result = mod.createPidResolver({ platformConfig: cfg, startPid: 100 })();
+      assert.strictEqual(result.tmuxSocket, "/tmp/tmux-1000/work");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("(e) default socket path is preserved for -S focus", () => {
+    const routes = [
+      ["ps -o ppid= -p 100", "1\n"],
+      ["ps -o comm= -p 100", "zsh\n"],
+    ];
+    const { mod, cleanup } = loadSharedProcessWithMock({
+      execFileSyncMock: makeMock(routes),
+      env: { TMUX: "/tmp/tmux-1000/default,200,5", TMUX_PANE: "%1" },
+      platform: "linux",
+    });
+    try {
+      const cfg = mod.getPlatformConfig();
+      const result = mod.createPidResolver({
+        platformConfig: cfg, startPid: 100, maxDepth: 1,
+      })();
+      assert.strictEqual(result.tmuxSocket, "/tmp/tmux-1000/default");
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 // buildElectronLaunchConfig()
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -189,6 +335,13 @@ describe("createPidResolver() — Windows PowerShell path", { skip: process.plat
     })));
   }
 
+  function snapshotEnvelopeJson(procs, foreground) {
+    return JSON.stringify({
+      processes: JSON.parse(snapshotJson(procs)),
+      foreground,
+    });
+  }
+
   it("populates pidChain by walking the snapshot Map", () => {
     const cfg = getPlatformConfig();
     const resolve = createPidResolver({ platformConfig: cfg, startPid: 1000 });
@@ -228,6 +381,40 @@ describe("createPidResolver() — Windows PowerShell path", { skip: process.plat
     ]), () => {
       const { stablePid } = resolve();
       assert.strictEqual(stablePid, 500);
+    });
+  });
+
+  it("captures the foreground Windows Terminal HWND from the same snapshot", () => {
+    const cfg = getPlatformConfig();
+    const resolve = createPidResolver({ platformConfig: cfg, startPid: 500 });
+    withMockedExec(() => snapshotEnvelopeJson([
+      { pid: 500, name: "powershell.exe", ppid: 501 },
+      { pid: 501, name: "explorer.exe", ppid: 0 },
+      { pid: 700, name: "WindowsTerminal.exe", ppid: 0 },
+    ], {
+      hwnd: "123456",
+      pid: 700,
+      className: "CASCADIA_HOSTING_WINDOW_CLASS",
+    }), () => {
+      const { foregroundWtHwnd } = resolve();
+      assert.strictEqual(foregroundWtHwnd, "123456");
+    });
+  });
+
+  it("rejects foreground HWNDs that are not Windows Terminal host windows", () => {
+    const cfg = getPlatformConfig();
+    const resolve = createPidResolver({ platformConfig: cfg, startPid: 500 });
+    withMockedExec(() => snapshotEnvelopeJson([
+      { pid: 500, name: "powershell.exe", ppid: 501 },
+      { pid: 501, name: "explorer.exe", ppid: 0 },
+      { pid: 700, name: "WindowsTerminal.exe", ppid: 0 },
+    ], {
+      hwnd: "123456",
+      pid: 700,
+      className: "PseudoConsoleWindow",
+    }), () => {
+      const { foregroundWtHwnd } = resolve();
+      assert.strictEqual(foregroundWtHwnd, null);
     });
   });
 

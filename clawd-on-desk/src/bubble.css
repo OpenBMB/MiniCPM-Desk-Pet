@@ -321,7 +321,7 @@ body { padding: 6px; }
 
 .option-item input {
   margin-top: 2px;
-  accent-color: #373ED8;
+  accent-color: #d97757;
 }
 
 .option-item-copy {
@@ -365,7 +365,7 @@ body { padding: 6px; }
 }
 .option-item-textarea.visible { display: block; }
 .option-item-textarea:focus {
-  border-color: #373ED8;
+  border-color: #d97757;
 }
 
 /* ── Action buttons ── */
@@ -389,12 +389,12 @@ body { padding: 6px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-allow {
-  background: #373ED8;
+  background: #d97757;
   color: #fff;
   border: 1px solid transparent;
 }
 .btn-allow:hover:not(:disabled) {
-  background: #2D34C4;
+  background: #c4684a;
 }
 
 .btn-deny {
@@ -456,3 +456,39 @@ body { padding: 6px; }
 
 .btn-suggestion:active:not(:disabled) { transform: scale(0.98); }
 .btn-suggestion:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Plan feedback form ── */
+.plan-feedback-form {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-feedback-form.visible { display: flex; }
+
+.plan-feedback-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--cmd-bg);
+  border: 1px solid var(--cmd-border);
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 48px;
+  max-height: 120px;
+  outline: none;
+  box-sizing: border-box;
+}
+.plan-feedback-textarea:focus {
+  border-color: #d97757;
+}
+
+.plan-feedback-actions {
+  display: flex;
+  gap: 8px;
+}
+.plan-feedback-actions .btn {
+  flex: 1;
+}

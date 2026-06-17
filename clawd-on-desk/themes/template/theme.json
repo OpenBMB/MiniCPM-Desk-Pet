@@ -93,8 +93,8 @@
   "sleepingHitboxFiles": ["sleeping.gif"],
 
   "reactions": {
-    "_comment": "Click/drag reaction animations. Omit the whole block to disable click and drag reactions.",
-    "drag":       { "file": "react-drag.gif" },
+    "_comment": "Click/drag reaction animations. Optional drag fileLeft/fileRight play on horizontal drag; omitted directions fall back to file. Omit the whole block to disable click and drag reactions.",
+    "drag":       { "file": "react-drag.gif", "fileLeft": "react-drag-left.gif", "fileRight": "react-drag-right.gif" },
     "clickLeft":  { "file": "react-left.gif",  "duration": 2500 },
     "clickRight": { "file": "react-right.gif", "duration": 2500 },
     "double":     { "files": ["react-double.gif"], "duration": 3500 }

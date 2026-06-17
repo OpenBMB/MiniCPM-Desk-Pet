@@ -21,13 +21,19 @@ module.exports = {
   },
   capabilities: {
     httpHook: false,
-    permissionApproval: false, // preToolUse only supports deny, not allow
+    // permissionRequest is wired in via command hook + curl https — same
+    // shape as Codex/Qwen (hook command exits 0 with JSON stdout). The
+    // bubble pipeline returns no-decision on fallback so Copilot's
+    // native menu still owns the call.
+    permissionApproval: true,
+    interactiveBubble: true,
     sessionEnd: true,
     subagent: true,
   },
-  // Copilot hooks use project-level hooks.json (not global settings)
+  // User-global hooks at <COPILOT_HOME or ~/.copilot>/hooks/hooks.json,
+  // merged with optional .github/hooks/*.json at repo scope by Copilot CLI.
   hookConfig: {
-    configFormat: "project-hooks-json",
+    configFormat: "user-global-hooks-json",
   },
   // stdin JSON uses camelCase field names (sessionId not session_id)
   stdinFormat: "camelCase",

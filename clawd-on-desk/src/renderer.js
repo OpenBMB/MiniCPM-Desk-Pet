@@ -3,6 +3,7 @@
 // Reactions are triggered via IPC from main (relayed from hit window).
 
 const container = document.getElementById("pet-container");
+const clipLayer = document.getElementById("pet-clip");
 let clawdEl = document.getElementById("clawd");
 let pendingNext = null;
 const LOW_POWER_IDLE_PAUSE_MS = 5000;
@@ -32,14 +33,11 @@ function initWithConfig(cfg) {
   _eyeTrackingStates = (tc.eyeTrackingStates) || ["idle", "dozing", "mini-idle"];
   _trustedScriptedSvgFiles = new Set(Array.isArray(tc.trustedScriptedSvgFiles) ? tc.trustedScriptedSvgFiles : []);
   _forceSvgObjectChannel = !!(tc.rendering && tc.rendering.svgChannel === "object");
-  _renderCanvas = tc.renderCanvas || { fileRatios: {} };
   _imgCacheBustSeq = 0;
   _miniViewBox = tc.miniModeViewBox || null;
-  _miniScale = Number.isFinite(Number(tc.miniModeScale)) && Number(tc.miniModeScale) > 0
-    ? Number(tc.miniModeScale)
-    : 1;
   _fileViewBoxes = tc.fileViewBoxes || {};
   _dragSvg = tc.dragSvg || null;
+  _dragSvgs = tc.dragSvgs || {};
   _idleFollowSvg = tc.idleFollowSvg || "clawd-idle-follow.svg";
   _glyphFlipDefs = tc.glyphFlips || { "pixel-z": 4, "pixel-z-small": 3 };
 
@@ -74,7 +72,6 @@ function applyObjectScaleStyle(el, file, state) {
   if (!el || !_objectScaleCSS) return;
   if (shouldUseNormalizedLayout(file, state)) {
     applyNormalizedLayoutStyle(el, file, state);
-    applyPetElementTransform(el, state);
     return;
   }
   const fo = (file && _fileOffsets[file]) || null;
@@ -96,31 +93,6 @@ function applyObjectScaleStyle(el, file, state) {
     el.style.top = "auto";
     el.style.bottom = `calc(${_objectScaleCSS.objBottom} + ${oy + _viewportOffsetY}px)`;
   }
-  applyPetElementTransform(el, state);
-}
-
-function shouldApplyMiniVisualScale(state) {
-  return !!(_inMiniMode && state && state.startsWith("mini-"));
-}
-
-function getMiniVisualScale(state = currentState) {
-  return shouldApplyMiniVisualScale(state) ? _miniScale : 1;
-}
-
-function applyPetElementTransform(el, state = currentState) {
-  if (!el) return;
-  const transforms = [];
-  const miniScale = getMiniVisualScale(state);
-  if (miniScale !== 1) transforms.push(`scale(${miniScale})`);
-  if (el.tagName === "IMG" && shouldApplyMiniAssetFlip(state)) transforms.push("scaleX(-1)");
-
-  if (transforms.length) {
-    el.style.transformOrigin = miniScale !== 1 ? "right center" : "";
-    el.style.transform = transforms.join(" ");
-  } else {
-    el.style.transformOrigin = "";
-    el.style.transform = "";
-  }
 }
 
 function getCurrentSvgRoot() {
@@ -131,6 +103,15 @@ function getCurrentSvgRoot() {
   } catch {
     return null;
   }
+}
+
+function setCurrentScriptedSvgLowPowerPaused(paused) {
+  const target = clawdEl;
+  if (!target || target.tagName !== "OBJECT") return;
+  try {
+    const fn = target.contentWindow && target.contentWindow.__clawdSetLowPowerPaused;
+    if (typeof fn === "function") fn(!!paused);
+  } catch {}
 }
 
 function shouldPauseForLowPower() {
@@ -233,6 +214,7 @@ function pauseCurrentSvgForLowPower({ waitForBoundary = false } = {}) {
   try {
     if (typeof root.pauseAnimations === "function") root.pauseAnimations();
   } catch {}
+  setCurrentScriptedSvgLowPowerPaused(true);
   setLowPowerSvgPaused(true);
 }
 
@@ -250,6 +232,7 @@ function resumeCurrentSvgForLowPower() {
       if (typeof root.unpauseAnimations === "function") root.unpauseAnimations();
     } catch {}
   }
+  setCurrentScriptedSvgLowPowerPaused(false);
   setLowPowerSvgPaused(false);
 }
 
@@ -332,25 +315,6 @@ function applyNormalizedLayoutStyle(el, file, state) {
     - ((centerX - viewBox.x) * unitRatio);
   const bottomRatio = (_layout.baselineBottomRatio != null ? _layout.baselineBottomRatio : 0.05)
     - ((viewBox.y + viewBox.height - baselineY) * unitRatio);
-  const stage = getRenderStageMetrics(file);
-
-  if (stage.widthRatio > 1) {
-    const widthPx = widthRatio * stage.logicalWidth;
-    const heightPx = heightRatio * stage.logicalHeight;
-    const leftPx = stage.left + leftRatio * stage.logicalWidth + ox;
-    const bottomPx = bottomRatio * stage.logicalHeight + oy + _viewportOffsetY;
-    if (el.tagName === "IMG") {
-      el.style.width = `${widthPx}px`;
-      el.style.height = "auto";
-    } else {
-      el.style.width = `${widthPx}px`;
-      el.style.height = `${heightPx}px`;
-    }
-    el.style.left = `${leftPx}px`;
-    el.style.top = "auto";
-    el.style.bottom = `${bottomPx}px`;
-    return;
-  }
 
   if (el.tagName === "IMG") {
     el.style.width = `${widthRatio * 100}%`;
@@ -367,40 +331,6 @@ function applyNormalizedLayoutStyle(el, file, state) {
   }
 }
 
-function getRenderCanvasForFile(file) {
-  const entry = file
-    && _renderCanvas
-    && _renderCanvas.fileRatios
-    && _renderCanvas.fileRatios[file];
-  const widthRatio = entry && Number.isFinite(entry.widthRatio)
-    ? Math.max(1, entry.widthRatio)
-    : 1;
-  const anchorX = entry && Number.isFinite(entry.anchorX)
-    ? Math.max(0, Math.min(1, entry.anchorX))
-    : 0.5;
-  return { widthRatio, anchorX };
-}
-
-function getRenderStageMetrics(file) {
-  const canvas = getRenderCanvasForFile(file);
-  const viewportWidth = Math.max(1, window.innerWidth || 1);
-  const viewportHeight = Math.max(1, window.innerHeight || 1);
-  const logicalWidth = viewportWidth / canvas.widthRatio;
-  return {
-    widthRatio: canvas.widthRatio,
-    logicalWidth,
-    logicalHeight: viewportHeight,
-    left: (viewportWidth - logicalWidth) * canvas.anchorX,
-  };
-}
-
-function refreshObjectLayout() {
-  applyObjectScaleStyle(clawdEl, currentDisplayedSvg, currentState);
-  if (pendingNext) {
-    applyObjectScaleStyle(pendingNext, getObjectSvgName(pendingNext), currentState);
-  }
-}
-
 let _assetsPath;
 let _sourceAssetsPath;
 let _viewBox;
@@ -414,10 +344,10 @@ let _trustedScriptedSvgFiles = new Set();
 let _forceSvgObjectChannel = false;
 let _imgCacheBustSeq = 0;
 let _miniViewBox = null;
-let _miniScale = 1;
 let _fileViewBoxes = {};
-let _renderCanvas = { fileRatios: {} };
 let _dragSvg;
+let _dragSvgs;
+let currentDragSvg = null;
 let _idleFollowSvg;
 let _glyphFlipDefs;
 let _objectScaleCSS;
@@ -444,22 +374,8 @@ function shouldApplyMiniAssetFlip(state) {
 }
 
 function applyMiniFlip(el, state = currentState) {
-  applyPetElementTransform(el, state);
-}
-
-function applyMiniWindowCrop(crop) {
-  if (!document.body) return;
-  if (!crop
-    || !Number.isFinite(crop.x)
-    || !Number.isFinite(crop.width)
-    || crop.width <= 0) {
-    document.body.style.clipPath = "";
-    return;
-  }
-  const viewportWidth = Math.max(0, Math.round(window.innerWidth || 0));
-  const left = Math.max(0, Math.round(crop.x));
-  const right = Math.max(0, viewportWidth - left - Math.round(crop.width));
-  document.body.style.clipPath = `inset(0px ${right}px 0px ${left}px)`;
+  if (!el || el.tagName !== "IMG") return;
+  el.style.transform = shouldApplyMiniAssetFlip(state) ? "scaleX(-1)" : "";
 }
 
 // ── Layered tracking state (multi-layer eye/head/body tracking) ──
@@ -474,8 +390,6 @@ let _layeredTrackingObj = null;    // the <object> element currently tracked (gu
 const LAYER_SETTLE_EPSILON = 0.02;
 
 initWithConfig(tc);
-
-window.addEventListener("resize", refreshObjectLayout);
 
 // Theme switch: reload + IPC push overrides additionalArguments
 window.electronAPI.onThemeConfig((newConfig) => {
@@ -524,7 +438,6 @@ window.electronAPI.onMiniModeChange((enabled, edge, options) => {
   _miniPreEntryMode = !!enabled && preEntry;
   _inMiniMode = !!enabled && !preEntry;
   miniLeftFlip = !!enabled && edge === "left";
-  applyMiniWindowCrop(enabled && !preEntry ? (options && options.crop) : null);
   container.classList.toggle("mini-left", miniLeftFlip);
   applyMiniFlip(clawdEl, currentState);
   if (miniLeftFlip) {
@@ -532,10 +445,40 @@ window.electronAPI.onMiniModeChange((enabled, edge, options) => {
   } else {
     removeGlyphFlipCompensation(clawdEl);
   }
+  if (!enabled) applyMiniClip(null);
   if (shouldUseCloudlingPointerBridge(currentState, currentDisplayedSvg) && lastCloudlingPointerPayload) {
     applyCloudlingPointerBridge(lastCloudlingPointerPayload);
   }
 });
+
+// Multi-monitor seam clip: in mini mode at an internal seam, main sends the
+// fraction of the window width that falls on the local display. We clip the
+// rest away so the half that physically crosses onto the neighbouring
+// monitor renders nothing there — the local display keeps the half-body peek.
+//
+// The clip is applied to #pet-clip, which (unlike #pet-container) never
+// carries transform: scaleX(-1). A clip-path on the flipped container would
+// be mirrored too, so a left-edge clip would land on the wrong half; the
+// unflipped wrapper keeps `inset()` in screen space for both edges.
+function applyMiniClip(info) {
+  if (!clipLayer) return;
+  if (!info || !Number.isFinite(info.fraction)) {
+    clipLayer.style.clipPath = "";
+    return;
+  }
+  const f = Math.max(0, Math.min(1, info.fraction));
+  if (info.edge === "left") {
+    // Local display lies to the RIGHT of the seam — keep [f, 1], clip the left.
+    clipLayer.style.clipPath = `inset(0 0 0 ${f * 100}%)`;
+  } else {
+    // Local display lies to the LEFT of the seam — keep [0, f], clip the right.
+    clipLayer.style.clipPath = `inset(0 ${(1 - f) * 100}% 0 0)`;
+  }
+}
+
+if (window.electronAPI && typeof window.electronAPI.onMiniClip === "function") {
+  window.electronAPI.onMiniClip(applyMiniClip);
+}
 
 // Counter-flip asymmetric pixel-art glyphs (Zzz) inside SVG defs so they
 // render correctly when the container has scaleX(-1). Only the glyph shape
@@ -670,7 +613,7 @@ function getAssetUrl(file) {
 }
 
 // --- IPC-triggered reactions (from hit window via main relay) ---
-window.electronAPI.onStartDragReaction(() => startDragReaction());
+window.electronAPI.onStartDragReaction((direction) => startDragReaction(direction));
 window.electronAPI.onEndDragReaction(() => endDragReaction());
 window.electronAPI.onPlayClickReaction((svg, duration) => playReaction(svg, duration));
 
@@ -705,26 +648,29 @@ function cancelReaction() {
 }
 
 // --- Drag reaction (loops while dragging) ---
-function startDragReaction() {
-  if (isDragReacting) return;
+function startDragReaction(direction) {
   if (dndEnabled) return;
-  if (!_dragSvg) return;
+  const dragSvg = (direction && _dragSvgs[direction]) || _dragSvg;
+  if (!dragSvg) return;
+  if (isDragReacting && currentDragSvg === dragSvg) return;
 
-  if (isReacting) {
+  if (!isDragReacting && isReacting) {
     if (reactTimer) { clearTimeout(reactTimer); reactTimer = null; }
     isReacting = false;
   }
 
   isDragReacting = true;
+  currentDragSvg = dragSvg;
   detachEyeTracking();
   resumeCurrentSvgForLowPower();
   window.electronAPI.pauseCursorPolling();
-  swapToFile(_dragSvg, null);
+  swapToFile(dragSvg, null);
 }
 
 function endDragReaction() {
   if (!isDragReacting) return;
   isDragReacting = false;
+  currentDragSvg = null;
   window.electronAPI.resumeFromReaction();
 }
 
@@ -881,8 +827,7 @@ function swapToFile(file, state, useObjectChannel, options = {}) {
     };
 
     next.addEventListener("load", swap, { once: true });
-    const cacheBust = `${Date.now()}-${++_imgCacheBustSeq}`;
-    next.data = `${url}${url.includes("?") ? "&" : "?"}_t=${cacheBust}`;
+    next.data = url;
     container.appendChild(next);
     pendingNext = next;
     scheduleSwapVisibilityRescue(swapToken, file, state);
@@ -971,6 +916,15 @@ window.electronAPI.onStateChange((state, svg) => {
   // swapToFile() with the matching state for eye-tracking decisions.
   currentState = state;
   noteLowPowerActivity();
+
+  // ── Roam state: add walk animation class for visual movement ──
+  // When the pet is roaming (free-roam mode), add a CSS animation to simulate
+  // walking even if the theme doesn't have a dedicated roam SVG. The animation
+  // is a subtle horizontal bob that makes the idle SVG look like it's walking.
+  if (container) {
+    container.classList.toggle("roam-walk", state === "roam");
+  }
+
   if (!shouldUseCloudlingPointerBridge(state, svg)) {
     clearCloudlingPointerBridge();
   }
@@ -1346,6 +1300,72 @@ if (window.electronAPI && typeof window.electronAPI.onCloudlingPointer === "func
 
 // --- Sound playback (IPC from main, receives { url, volume } from theme) ---
 const _audioCache = {};
+const AUDIO_WARMUP_STALE_MS = 10000;
+const AUDIO_WARMUP_DELAY_MS = 50;
+const AUDIO_WARMUP_VOLUME = 0.001;
+let _lastAudioWarmupAt = 0;
+
+function reportSoundPlaybackError(phase, err) {
+  const message = err && err.message ? err.message : String(err || "unknown");
+  if (window.electronAPI && typeof window.electronAPI.reportSoundPlaybackError === "function") {
+    window.electronAPI.reportSoundPlaybackError({ phase, message });
+    return;
+  }
+  try { console.warn(`Clawd sound ${phase} failed:`, message); } catch {}
+}
+
+function cacheAudio(url) {
+  if (typeof url !== "string" || !url) return null;
+  let audio = _audioCache[url];
+  const created = !audio;
+  if (!audio) {
+    audio = new Audio(url);
+    audio.preload = "auto";
+    _audioCache[url] = audio;
+  }
+  if (created) {
+    try { audio.load(); } catch {}
+  }
+  return audio;
+}
+
+function normalizeSoundUrls(payload) {
+  const raw = Array.isArray(payload)
+    ? payload
+    : (payload && Array.isArray(payload.urls) ? payload.urls : []);
+  return raw.filter((url) => typeof url === "string" && url);
+}
+
+function warmAudioOutput(url, { force = false } = {}) {
+  const now = Date.now();
+  if (!force && now - _lastAudioWarmupAt < AUDIO_WARMUP_STALE_MS) {
+    return Promise.resolve();
+  }
+  if (!url) return Promise.resolve();
+  _lastAudioWarmupAt = now;
+
+  const primer = new Audio(url);
+  primer.preload = "auto";
+  primer.volume = AUDIO_WARMUP_VOLUME;
+  return primer.play()
+    .then(() => new Promise((resolve) => {
+      setTimeout(() => {
+        try { primer.pause(); } catch {}
+        resolve();
+      }, AUDIO_WARMUP_DELAY_MS);
+    }))
+    .catch((err) => {
+      reportSoundPlaybackError("warmup", err);
+    });
+}
+
+if (window.electronAPI && typeof window.electronAPI.onPreloadSounds === "function") {
+  window.electronAPI.onPreloadSounds((payload) => {
+    const urls = normalizeSoundUrls(payload);
+    urls.forEach((url) => cacheAudio(url));
+  });
+}
+
 window.electronAPI.onPlaySound((payload) => {
   const url = typeof payload === "string" ? payload : payload && payload.url;
   const volume = typeof payload === "object" && payload && typeof payload.volume === "number"
@@ -1357,14 +1377,14 @@ window.electronAPI.onPlaySound((payload) => {
   // for no benefit since the URL will never be requested again. Only cache
   // real playback URLs.
   const isPreview = url.includes("_t=");
-  let audio = !isPreview ? _audioCache[url] : null;
-  if (!audio) {
-    audio = new Audio(url);
-    if (!isPreview) _audioCache[url] = audio;
-  }
-  audio.volume = volume;
-  audio.currentTime = 0;
-  audio.play().catch(() => {});
+  const audio = isPreview ? new Audio(url) : cacheAudio(url);
+  if (!audio) return;
+  if (isPreview) audio.preload = "auto";
+  warmAudioOutput(url).then(() => {
+    audio.volume = volume;
+    audio.currentTime = 0;
+    audio.play().catch((err) => reportSoundPlaybackError("play", err));
+  });
 });
 // Same-extension override replacement overwrites the file on disk without
 // changing the URL, so the cached Audio object keeps its old buffered data.

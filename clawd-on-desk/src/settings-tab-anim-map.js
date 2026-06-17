@@ -1,12 +1,10 @@
 "use strict";
 
 (function initSettingsTabAnimMap(root) {
-  // Renderer context (nodeIntegration: false) — read the shared constant
-  // from the global exposed by default-theme.js, which is loaded earlier
-  // in settings.html. Keep a literal fallback so unit tests that eval
-  // this file in isolation still work.
+  // Renderer context (nodeIntegration: false) reads the shared constant
+  // from default-theme.js; the literal fallback keeps isolated tests working.
   const { DEFAULT_THEME_ID } = (typeof globalThis !== "undefined" && globalThis.ClawdDefaultTheme)
-    || { DEFAULT_THEME_ID: "calico" };
+    || { DEFAULT_THEME_ID: "cybercat" };
   const ANIM_MAP_ROWS = [
     { stateKey: "error", labelKey: "animMapErrorLabel", descKey: "animMapErrorDesc" },
     { stateKey: "notification", labelKey: "animMapNotificationLabel", descKey: "animMapNotificationDesc" },

@@ -232,6 +232,8 @@ function collectFiles() {
     for (const [key, react] of Object.entries(raw.reactions)) {
       if (key.startsWith("_")) continue;
       if (react.file) files.add(react.file);
+      if (react.fileLeft) files.add(react.fileLeft);
+      if (react.fileRight) files.add(react.fileRight);
       if (react.files) react.files.forEach(f => files.add(f));
     }
   }

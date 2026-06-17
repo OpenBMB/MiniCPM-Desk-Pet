@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { registerHooks, unregisterHooks, registerHooksAsync, unregisterHooksAsync, __test } = require("../hooks/install");
+const { buildPermissionUrl, SERVER_PORTS } = require("../hooks/server-config");
 const {
   parseClaudeVersion,
   getWindowsClaudePathSuffixes,
@@ -16,6 +17,7 @@ const {
   readClaudeVersionFallback,
   readClaudeVersionFallbackAsync,
   getClaudeVersionAsync,
+  isClawdPermissionUrl,
 } = __test;
 
 const tempDirs = [];
@@ -56,22 +58,26 @@ function getClawdCommands(settings, event) {
 }
 
 function getHttpUrls(settings, event) {
+  return getHttpHookEntries(settings, event).map((hook) => hook.url);
+}
+
+function getHttpHookEntries(settings, event) {
   const entries = settings.hooks?.[event];
   if (!Array.isArray(entries)) return [];
-  const urls = [];
+  const hooks = [];
   for (const entry of entries) {
     if (!entry || typeof entry !== "object") continue;
     if (entry.type === "http" && typeof entry.url === "string") {
-      urls.push(entry.url);
+      hooks.push(entry);
     }
     if (!Array.isArray(entry.hooks)) continue;
     for (const hook of entry.hooks) {
       if (hook && typeof hook === "object" && hook.type === "http" && typeof hook.url === "string") {
-        urls.push(hook.url);
+        hooks.push(hook);
       }
     }
   }
-  return urls;
+  return hooks;
 }
 
 afterEach(() => {
@@ -153,8 +159,8 @@ describe("Claude version detection helpers", () => {
     const npmDirUpper = "C:\\USERS\\Tester\\AppData\\Roaming\\NPM";
     const toolsDir = "C:\\Tools";
     const existing = new Set([
-      path.join(npmDir, "claude.cmd").toLowerCase(),
-      path.join(toolsDir, "claude.ps1").toLowerCase(),
+      path.win32.join(npmDir, "claude.cmd").toLowerCase(),
+      path.win32.join(toolsDir, "claude.ps1").toLowerCase(),
     ]);
 
     const candidates = getClaudePathCandidates({
@@ -167,8 +173,8 @@ describe("Claude version detection helpers", () => {
     });
 
     assert.deepStrictEqual(candidates, [
-      path.join(npmDir, "claude.cmd"),
-      path.join(toolsDir, "claude.ps1"),
+      path.win32.join(npmDir, "claude.cmd"),
+      path.win32.join(toolsDir, "claude.ps1"),
     ]);
   });
 
@@ -177,8 +183,8 @@ describe("Claude version detection helpers", () => {
     const npmDirUpper = "C:\\USERS\\Tester\\AppData\\Roaming\\NPM";
     const toolsDir = "C:\\Tools";
     const existing = new Set([
-      path.join(npmDir, "claude.cmd").toLowerCase(),
-      path.join(toolsDir, "claude.ps1").toLowerCase(),
+      path.win32.join(npmDir, "claude.cmd").toLowerCase(),
+      path.win32.join(toolsDir, "claude.ps1").toLowerCase(),
     ]);
 
     const candidates = await getClaudePathCandidatesAsync({
@@ -193,8 +199,8 @@ describe("Claude version detection helpers", () => {
     });
 
     assert.deepStrictEqual(candidates, [
-      path.join(npmDir, "claude.cmd"),
-      path.join(toolsDir, "claude.ps1"),
+      path.win32.join(npmDir, "claude.cmd"),
+      path.win32.join(toolsDir, "claude.ps1"),
     ]);
   });
 
@@ -206,19 +212,19 @@ describe("Claude version detection helpers", () => {
       platform: "linux",
       pathEnv: `${localDir}:${optDir}`,
       existsSync(candidatePath) {
-        return candidatePath === path.join(optDir, "claude");
+        return candidatePath === path.posix.join(optDir, "claude");
       },
     });
 
-    assert.deepStrictEqual(candidates, [path.join(optDir, "claude")]);
+    assert.deepStrictEqual(candidates, [path.posix.join(optDir, "claude")]);
   });
 
   it("collects Claude package.json candidates from sibling node_modules and realpath targets", () => {
     const candidatePath = "C:\\Users\\Tester\\AppData\\Roaming\\npm\\claude.cmd";
-    const candidateDir = path.dirname(candidatePath);
-    const siblingPackageJson = path.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const candidateDir = path.win32.dirname(candidatePath);
+    const siblingPackageJson = path.win32.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
     const realpathCli = "D:\\shim-store\\claude\\cli.js";
-    const realpathPackageJson = path.join(path.dirname(realpathCli), "package.json");
+    const realpathPackageJson = path.win32.join(path.win32.dirname(realpathCli), "package.json");
 
     const candidates = getClaudePackageJsonCandidates(candidatePath, {
       platform: "win32",
@@ -246,10 +252,10 @@ describe("Claude version detection helpers", () => {
 
   it("collects Claude package.json candidates asynchronously", async () => {
     const candidatePath = "C:\\Users\\Tester\\AppData\\Roaming\\npm\\claude.cmd";
-    const candidateDir = path.dirname(candidatePath);
-    const siblingPackageJson = path.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const candidateDir = path.win32.dirname(candidatePath);
+    const siblingPackageJson = path.win32.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
     const realpathCli = "D:\\shim-store\\claude\\cli.js";
-    const realpathPackageJson = path.join(path.dirname(realpathCli), "package.json");
+    const realpathPackageJson = path.win32.join(path.win32.dirname(realpathCli), "package.json");
     const existing = new Set([siblingPackageJson.toLowerCase(), realpathPackageJson.toLowerCase()]);
 
     const candidates = await getClaudePackageJsonCandidatesAsync(candidatePath, {
@@ -280,8 +286,8 @@ describe("Claude version detection helpers", () => {
 
   it("skips reading unusually large shim files", () => {
     const candidatePath = "C:\\Users\\Tester\\AppData\\Roaming\\npm\\claude.cmd";
-    const candidateDir = path.dirname(candidatePath);
-    const siblingPackageJson = path.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const candidateDir = path.win32.dirname(candidatePath);
+    const siblingPackageJson = path.win32.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
     let readCount = 0;
 
     const candidates = getClaudePackageJsonCandidates(candidatePath, {
@@ -302,6 +308,31 @@ describe("Claude version detection helpers", () => {
     });
 
     assert.strictEqual(readCount, 0);
+    assert.deepStrictEqual(candidates, [siblingPackageJson]);
+  });
+
+  it("treats drive-less rooted Windows paths as absolute when collecting candidates", () => {
+    const candidatePath = "\\npm\\claude.cmd";
+    const siblingPackageJson = path.win32.join("\\npm", "node_modules", "@anthropic-ai", "claude-code", "package.json");
+
+    const candidates = getClaudePackageJsonCandidates(candidatePath, {
+      platform: "win32",
+      existsSync(packageJsonPath) {
+        return packageJsonPath === siblingPackageJson;
+      },
+      realpathSync() {
+        throw new Error("not a symlink");
+      },
+      // Large size keeps the shim-read branch off: win32 resolve of drive-less rooted
+      // bases prepends the cwd drive on real Windows, which would be host-dependent here.
+      statSync() {
+        return { size: 1024 * 1024, isFile: () => true };
+      },
+      readFileSync() {
+        throw new Error("should not read large shims");
+      },
+    });
+
     assert.deepStrictEqual(candidates, [siblingPackageJson]);
   });
 
@@ -361,10 +392,10 @@ describe("Claude version detection helpers", () => {
 
   it("returns the first valid fallback version info from candidate package.json files", () => {
     const candidatePath = "C:\\Users\\Tester\\AppData\\Roaming\\npm\\claude.cmd";
-    const candidateDir = path.dirname(candidatePath);
-    const siblingPackageJson = path.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const candidateDir = path.win32.dirname(candidatePath);
+    const siblingPackageJson = path.win32.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
     const realpathCli = "D:\\shim-store\\claude\\cli.js";
-    const realpathPackageJson = path.join(path.dirname(realpathCli), "package.json");
+    const realpathPackageJson = path.win32.join(path.win32.dirname(realpathCli), "package.json");
 
     const result = readClaudeVersionFallback(candidatePath, {
       platform: "win32",
@@ -400,10 +431,10 @@ describe("Claude version detection helpers", () => {
 
   it("returns the first valid async fallback version info from candidate package.json files", async () => {
     const candidatePath = "C:\\Users\\Tester\\AppData\\Roaming\\npm\\claude.cmd";
-    const candidateDir = path.dirname(candidatePath);
-    const siblingPackageJson = path.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const candidateDir = path.win32.dirname(candidatePath);
+    const siblingPackageJson = path.win32.join(candidateDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
     const realpathCli = "D:\\shim-store\\claude\\cli.js";
-    const realpathPackageJson = path.join(path.dirname(realpathCli), "package.json");
+    const realpathPackageJson = path.win32.join(path.win32.dirname(realpathCli), "package.json");
     const existing = new Set([siblingPackageJson.toLowerCase(), realpathPackageJson.toLowerCase()]);
 
     const result = await readClaudeVersionFallbackAsync(candidatePath, {
@@ -442,7 +473,7 @@ describe("Claude version detection helpers", () => {
 
   it("getClaudeVersionAsync uses async metadata fallback when exec probes fail", async () => {
     const candidatePath = "C:\\Users\\Tester\\AppData\\Roaming\\npm\\claude.cmd";
-    const packageJsonPath = path.join(path.dirname(candidatePath), "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const packageJsonPath = path.win32.join(path.win32.dirname(candidatePath), "node_modules", "@anthropic-ai", "claude-code", "package.json");
 
     const result = await getClaudeVersionAsync({
       platform: "win32",
@@ -475,8 +506,8 @@ describe("Claude version detection helpers", () => {
 
   it("getClaudeVersionAsync does not call sync filesystem probes", async () => {
     const npmDir = "C:\\Users\\Tester\\AppData\\Roaming\\npm";
-    const candidatePath = path.join(npmDir, "claude.cmd");
-    const packageJsonPath = path.join(npmDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const candidatePath = path.win32.join(npmDir, "claude.cmd");
+    const packageJsonPath = path.win32.join(npmDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
 
     const throwSync = () => {
       throw new Error("sync filesystem probe should not run");
@@ -534,6 +565,8 @@ describe("Hook installer version compatibility", () => {
     const stopHooks = getCommandHookEntries(settings, "Stop", "clawd-hook.js");
     assert.strictEqual(stopHooks.length, 1);
     assert.strictEqual(stopHooks[0].shell, "powershell");
+    assert.strictEqual(stopHooks[0].async, true);
+    assert.strictEqual(stopHooks[0].timeout, 5);
     assert.ok(stopHooks[0].command.startsWith('& "node" "'), stopHooks[0].command);
     assert.ok(stopHooks[0].command.endsWith('" Stop'), stopHooks[0].command);
   });
@@ -550,6 +583,25 @@ describe("Hook installer version compatibility", () => {
     });
   });
 
+  it("registers remote hooks as async with reverse-tunnel headroom", () => {
+    const settingsPath = makeTempSettings({});
+    registerHooks({
+      silent: true,
+      settingsPath,
+      remote: true,
+      nodeBin: "/usr/bin/node",
+      claudeVersionInfo: { version: "2.1.78", source: "test", status: "known" },
+    });
+
+    const settings = readSettings(settingsPath);
+    const stopHooks = getCommandHookEntries(settings, "Stop", "clawd-hook.js");
+    assert.strictEqual(stopHooks.length, 1);
+    assert.ok(stopHooks[0].command.startsWith('CLAWD_REMOTE=1 "/usr/bin/node" "'), stopHooks[0].command);
+    assert.strictEqual(stopHooks[0].async, true);
+    assert.strictEqual(stopHooks[0].timeout, 10);
+    assert.ok(!Object.prototype.hasOwnProperty.call(stopHooks[0], "shell"));
+  });
+
   it("does not add a shell field for non-Windows hook registration", () => {
     const settingsPath = makeTempSettings({});
     registerHooks({
@@ -564,6 +616,8 @@ describe("Hook installer version compatibility", () => {
     const stopHooks = getCommandHookEntries(settings, "Stop", "clawd-hook.js");
     assert.strictEqual(stopHooks.length, 1);
     assert.ok(!Object.prototype.hasOwnProperty.call(stopHooks[0], "shell"));
+    assert.strictEqual(stopHooks[0].async, true);
+    assert.strictEqual(stopHooks[0].timeout, 5);
     assert.ok(stopHooks[0].command.startsWith('"/usr/bin/node" "'), stopHooks[0].command);
   });
 
@@ -830,6 +884,42 @@ describe("Hook installer version compatibility", () => {
     assert.ok(!commands[0].startsWith('"node"'), "should not downgrade to bare node");
   });
 
+  it("preserves an existing absolute Windows node path when detection fails", () => {
+    // Issue #317: startup auto-sync must not overwrite the user's manual
+    // `C:\Program Files\nodejs\node.exe` repair with bare `"node"`. install.js
+    // previously gated preservation on POSIX `/` prefixes, so Windows paths
+    // slipped through and got clobbered.
+    const existingWinPath = "C:\\Program Files\\nodejs\\node.exe";
+    const settingsPath = makeTempSettings({
+      hooks: {
+        Stop: [
+          {
+            matcher: "",
+            hooks: [{
+              type: "command",
+              shell: "powershell",
+              command: `& "${existingWinPath}" "C:/app/hooks/clawd-hook.js" Stop`,
+            }],
+          },
+        ],
+      },
+    });
+
+    registerHooks({
+      silent: true,
+      settingsPath,
+      platform: "win32",
+      nodeBin: null,
+      claudeVersionInfo: { version: "2.1.78", source: "test", status: "known" },
+    });
+
+    const settings = readSettings(settingsPath);
+    const commands = getClawdCommands(settings, "Stop");
+    assert.strictEqual(commands.length, 1);
+    assert.ok(commands[0].includes(existingWinPath), `expected ${existingWinPath} in: ${commands[0]}`);
+    assert.ok(!commands[0].includes('& "node"'), "should not downgrade to bare node");
+  });
+
   it("uses PowerShell-safe auto-start hooks on Windows", () => {
     const settingsPath = makeTempSettings({});
     registerHooks({
@@ -845,7 +935,29 @@ describe("Hook installer version compatibility", () => {
     const autoStartHooks = getCommandHookEntries(settings, "SessionStart", "auto-start.js");
     assert.strictEqual(autoStartHooks.length, 1);
     assert.strictEqual(autoStartHooks[0].shell, "powershell");
+    assert.strictEqual(autoStartHooks[0].async, true);
+    assert.strictEqual(autoStartHooks[0].timeout, 15);
     assert.ok(autoStartHooks[0].command.startsWith('& "node" "'), autoStartHooks[0].command);
+  });
+
+  it("uses async auto-start hooks on non-Windows", () => {
+    const settingsPath = makeTempSettings({});
+    registerHooks({
+      silent: true,
+      settingsPath,
+      autoStart: true,
+      platform: "darwin",
+      nodeBin: "/usr/local/bin/node",
+      claudeVersionInfo: { version: "2.1.78", source: "test", status: "known" },
+    });
+
+    const settings = readSettings(settingsPath);
+    const autoStartHooks = getCommandHookEntries(settings, "SessionStart", "auto-start.js");
+    assert.strictEqual(autoStartHooks.length, 1);
+    assert.ok(!Object.prototype.hasOwnProperty.call(autoStartHooks[0], "shell"));
+    assert.strictEqual(autoStartHooks[0].async, true);
+    assert.strictEqual(autoStartHooks[0].timeout, 15);
+    assert.ok(autoStartHooks[0].command.startsWith('"/usr/local/bin/node" "'), autoStartHooks[0].command);
   });
 
   it("updates stale Windows auto-start hooks to PowerShell format", () => {
@@ -874,13 +986,45 @@ describe("Hook installer version compatibility", () => {
     assert.ok(result.updated >= 1);
     assert.strictEqual(autoStartHooks.length, 1);
     assert.strictEqual(autoStartHooks[0].shell, "powershell");
+    assert.strictEqual(autoStartHooks[0].async, true);
+    assert.strictEqual(autoStartHooks[0].timeout, 15);
     assert.ok(autoStartHooks[0].command.startsWith("& "), autoStartHooks[0].command);
     assert.ok(!autoStartHooks[0].command.includes("/old/path/"));
   });
 
+  it("upgrades existing command hooks with async metadata without losing the Node path", () => {
+    const existingAbsPath = "/Users/tester/.nvm/versions/node/v20.11.0/bin/node";
+    const settingsPath = makeTempSettings({
+      hooks: {
+        Stop: [
+          {
+            matcher: "",
+            hooks: [{ command: `"${existingAbsPath}" "/app/hooks/clawd-hook.js" Stop` }],
+          },
+        ],
+      },
+    });
+
+    const result = registerHooks({
+      silent: true,
+      settingsPath,
+      nodeBin: null,
+      claudeVersionInfo: { version: "2.1.78", source: "test", status: "known" },
+    });
+
+    const settings = readSettings(settingsPath);
+    const stopHooks = getCommandHookEntries(settings, "Stop", "clawd-hook.js");
+    assert.ok(result.updated >= 1);
+    assert.strictEqual(stopHooks.length, 1);
+    assert.strictEqual(stopHooks[0].type, "command");
+    assert.ok(stopHooks[0].command.includes(existingAbsPath), stopHooks[0].command);
+    assert.strictEqual(stopHooks[0].async, true);
+    assert.strictEqual(stopHooks[0].timeout, 5);
+  });
+
   it("checks macOS absolute Claude paths before PATH fallback", () => {
     const attempted = [];
-    const expectedPath = path.join("/Users/tester", ".claude", "local", "claude");
+    const expectedPath = path.posix.join("/Users/tester", ".claude", "local", "claude");
     const info = __test.getClaudeVersion({
       platform: "darwin",
       homeDir: "/Users/tester",
@@ -894,7 +1038,7 @@ describe("Hook installer version compatibility", () => {
     });
 
     assert.deepStrictEqual(attempted, [
-      path.join("/Users/tester", ".local", "bin", "claude"),
+      path.posix.join("/Users/tester", ".local", "bin", "claude"),
       expectedPath,
     ]);
     assert.deepStrictEqual(info, {
@@ -906,8 +1050,8 @@ describe("Hook installer version compatibility", () => {
 
   it("falls back to npm shim sibling package.json on Windows when exec fails", () => {
     const shimDir = "C:\\Users\\Tester\\AppData\\Roaming\\npm";
-    const shimPath = path.join(shimDir, "claude.cmd");
-    const packageJsonPath = path.join(shimDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const shimPath = path.win32.join(shimDir, "claude.cmd");
+    const packageJsonPath = path.win32.join(shimDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
     const attempted = [];
 
     const info = __test.getClaudeVersion({
@@ -952,9 +1096,9 @@ describe("Hook installer version compatibility", () => {
   it("prefers a later exec-based version over an earlier metadata fallback", () => {
     const oldShimDir = "C:\\OldClaude";
     const newShimDir = "C:\\NewClaude";
-    const oldShimPath = path.join(oldShimDir, "claude.cmd");
-    const newShimPath = path.join(newShimDir, "claude.cmd");
-    const oldPackageJsonPath = path.join(oldShimDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
+    const oldShimPath = path.win32.join(oldShimDir, "claude.cmd");
+    const newShimPath = path.win32.join(newShimDir, "claude.cmd");
+    const oldPackageJsonPath = path.win32.join(oldShimDir, "node_modules", "@anthropic-ai", "claude-code", "package.json");
 
     const info = __test.getClaudeVersion({
       platform: "win32",
@@ -997,6 +1141,87 @@ describe("Hook installer version compatibility", () => {
       source: newShimPath,
       status: "known",
     });
+  });
+});
+
+describe("Claude permission hook ownership", () => {
+  it("recognizes only exact Clawd PermissionRequest URLs on managed ports", () => {
+    for (const port of SERVER_PORTS) {
+      assert.strictEqual(
+        isClawdPermissionUrl(`http://127.0.0.1:${port}/permission`),
+        true,
+        `expected managed port ${port} to be Clawd-owned`
+      );
+    }
+
+    assert.strictEqual(isClawdPermissionUrl("http://127.0.0.1:8080/permission"), false);
+    assert.strictEqual(isClawdPermissionUrl("http://localhost:23333/permission"), false);
+    assert.strictEqual(isClawdPermissionUrl("https://127.0.0.1:23333/permission"), false);
+    assert.strictEqual(isClawdPermissionUrl("http://127.0.0.1:23333/permission?x=1"), false);
+    assert.strictEqual(isClawdPermissionUrl("http://127.0.0.1:23333/permission#frag"), false);
+    assert.strictEqual(isClawdPermissionUrl("http://user@127.0.0.1:23333/permission"), false);
+    assert.strictEqual(isClawdPermissionUrl("http://127.0.0.1/permission"), false);
+  });
+
+  it("preserves third-party local PermissionRequest URLs while adding Clawd HTTP hook", () => {
+    const clawdUrl = buildPermissionUrl(SERVER_PORTS[0]);
+    const settingsPath = makeTempSettings({
+      hooks: {
+        PermissionRequest: [
+          {
+            matcher: "",
+            hooks: [{ type: "http", url: "http://127.0.0.1:8080/permission", timeout: 100 }],
+          },
+          {
+            matcher: "",
+            hooks: [{ type: "http", url: "http://localhost:8080/permission", timeout: 100 }],
+          },
+        ],
+      },
+    });
+
+    registerHooks({
+      silent: true,
+      settingsPath,
+      port: SERVER_PORTS[0],
+      claudeVersionInfo: { version: "2.1.78", source: "test", status: "known" },
+    });
+
+    const settings = readSettings(settingsPath);
+    assert.deepStrictEqual(getHttpUrls(settings, "PermissionRequest"), [
+      "http://127.0.0.1:8080/permission",
+      "http://localhost:8080/permission",
+      clawdUrl,
+    ]);
+  });
+
+  it("updates stale Clawd PermissionRequest URLs on managed fallback ports", () => {
+    const expectedUrl = buildPermissionUrl(SERVER_PORTS[0]);
+    const staleUrl = buildPermissionUrl(SERVER_PORTS[SERVER_PORTS.length - 1]);
+    const settingsPath = makeTempSettings({
+      hooks: {
+        PermissionRequest: [
+          {
+            matcher: "",
+            hooks: [{ type: "http", url: staleUrl, timeout: 600 }],
+          },
+        ],
+      },
+    });
+
+    const result = registerHooks({
+      silent: true,
+      settingsPath,
+      port: SERVER_PORTS[0],
+      claudeVersionInfo: { version: "2.1.78", source: "test", status: "known" },
+    });
+
+    const settings = readSettings(settingsPath);
+    assert.ok(result.updated >= 1);
+    const permissionHooks = getHttpHookEntries(settings, "PermissionRequest");
+    assert.deepStrictEqual(permissionHooks.map((hook) => hook.url), [expectedUrl]);
+    assert.strictEqual(permissionHooks[0].timeout, 600);
+    assert.ok(!Object.prototype.hasOwnProperty.call(permissionHooks[0], "async"));
   });
 });
 
@@ -1105,6 +1330,10 @@ describe("Hook installer unregisterHooks", () => {
             matcher: "",
             hooks: [{ type: "http", url: "http://localhost:8080/permission", timeout: 100 }],
           },
+          {
+            matcher: "",
+            hooks: [{ type: "http", url: "http://127.0.0.1:8080/permission", timeout: 100 }],
+          },
         ],
       },
     });
@@ -1119,7 +1348,10 @@ describe("Hook installer unregisterHooks", () => {
       settings.hooks.SessionStart[0].hooks[0].command,
       'node "/tmp/third-party.js" SessionStart'
     );
-    assert.deepStrictEqual(getHttpUrls(settings, "PermissionRequest"), ["http://localhost:8080/permission"]);
+    assert.deepStrictEqual(getHttpUrls(settings, "PermissionRequest"), [
+      "http://localhost:8080/permission",
+      "http://127.0.0.1:8080/permission",
+    ]);
     assert.ok(!Object.prototype.hasOwnProperty.call(settings.hooks, "Stop"));
   });
 
@@ -1131,6 +1363,10 @@ describe("Hook installer unregisterHooks", () => {
             matcher: "",
             hooks: [{ type: "http", url: "http://localhost:8080/permission", timeout: 600 }],
           },
+          {
+            matcher: "",
+            hooks: [{ type: "http", url: "http://127.0.0.1:8080/permission", timeout: 600 }],
+          },
         ],
       },
     });
@@ -1139,7 +1375,10 @@ describe("Hook installer unregisterHooks", () => {
     const settings = readSettings(settingsPath);
 
     assert.deepStrictEqual(result, { removed: 0, changed: false });
-    assert.deepStrictEqual(getHttpUrls(settings, "PermissionRequest"), ["http://localhost:8080/permission"]);
+    assert.deepStrictEqual(getHttpUrls(settings, "PermissionRequest"), [
+      "http://localhost:8080/permission",
+      "http://127.0.0.1:8080/permission",
+    ]);
   });
 
   it("recognizes stale Clawd PermissionRequest URLs on any managed port", () => {

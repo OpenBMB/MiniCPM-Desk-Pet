@@ -5,14 +5,10 @@ const defaultPath = require("path");
 const { pathToFileURL } = require("url");
 const defaultAnimationCycle = require("./animation-cycle");
 const { ANIMATION_OVERRIDES_EXPORT_VERSION } = require("./settings-actions");
-const {
-  getRenderCanvasForFile,
-  renderCanvasCacheSignature,
-} = require("./render-canvas");
 
 const ANIMATION_OVERRIDE_ASSET_EXTS = new Set([".svg", ".gif", ".apng", ".png", ".webp", ".jpg", ".jpeg"]);
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE = { width: 176, height: 144 };
-const ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION = 3;
+const ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION = 2;
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_CACHE_MAX = 192;
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_TIMEOUT_MS = 30000;
 const ASPECT_RATIO_WARN_THRESHOLD = 0.15;
@@ -33,35 +29,35 @@ const ANIMATION_OVERRIDES_EXPORT_DIALOG_STRINGS = {
     saveTitle: "Export Animation Overrides",
     openTitle: "Import Animation Overrides",
     defaultName: (ts) => `clawd-animation-overrides-${ts}.json`,
-    jsonFilter: "Animation Overrides",
+    jsonFilter: "Clawd Animation Overrides",
     nothingToExport: "No animation overrides to export. Override something first.",
   },
   zh: {
     saveTitle: "导出动画覆盖",
     openTitle: "导入动画覆盖",
     defaultName: (ts) => `clawd-animation-overrides-${ts}.json`,
-    jsonFilter: "动画覆盖",
+    jsonFilter: "Clawd 动画覆盖",
     nothingToExport: "没有可导出的动画覆盖。先自定义几个动画试试。",
   },
   "zh-TW": {
     saveTitle: "匯出動畫與音效自訂設定",
     openTitle: "匯入動畫與音效自訂設定",
     defaultName: (ts) => `clawd-animation-overrides-${ts}.json`,
-    jsonFilter: "動畫與音效自訂設定",
+    jsonFilter: "Clawd 動畫與音效自訂設定",
     nothingToExport: "目前沒有可匯出的自訂設定。",
   },
   ko: {
     saveTitle: "애니메이션 덮어쓰기 내보내기",
     openTitle: "애니메이션 덮어쓰기 가져오기",
     defaultName: (ts) => `clawd-animation-overrides-${ts}.json`,
-    jsonFilter: "애니메이션 덮어쓰기",
+    jsonFilter: "Clawd 애니메이션 덮어쓰기",
     nothingToExport: "내보낼 애니메이션 덮어쓰기가 없습니다. 먼저 무언가를 덮어써 보세요.",
   },
   ja: {
     saveTitle: "アニメーション差し替えをエクスポート",
     openTitle: "アニメーション差し替えをインポート",
     defaultName: (ts) => `clawd-animation-overrides-${ts}.json`,
-    jsonFilter: "アニメーション差し替え",
+    jsonFilter: "Clawd アニメーション差し替え",
     nothingToExport: "エクスポートするアニメーション差し替えがありません。先に何かを差し替えてください。",
   },
 };
@@ -117,19 +113,15 @@ function buildAnimationPreviewPosterDescriptor(filename, theme, absPath, { fs = 
     const stat = fs.statSync(absPath);
     const themeId = theme && theme._id ? theme._id : "theme";
     const safeFilename = path.basename(filename);
-    const renderCanvas = getRenderCanvasForFile(theme, safeFilename);
-    const canvasSignature = renderCanvasCacheSignature(theme, safeFilename);
     return {
       themeId,
       filename: safeFilename,
       absPath,
       fileUrl: buildFileUrl(absPath),
-      renderCanvas,
-      canvasSignature,
       posterVersion: ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION,
       size: stat.size,
       mtime: Math.round(stat.mtimeMs),
-      cacheKey: `${ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION}|${themeId}|${safeFilename}|${stat.size}|${Math.round(stat.mtimeMs)}|${canvasSignature}`,
+      cacheKey: `${ANIMATION_OVERRIDE_PREVIEW_POSTER_VERSION}|${themeId}|${safeFilename}|${stat.size}|${Math.round(stat.mtimeMs)}`,
     };
   } catch {
     return null;
@@ -340,8 +332,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
         needsScriptedPreviewPoster: false,
         previewPosterCacheKey: null,
         previewPosterPending: false,
-        previewRenderCanvas: null,
-        previewCanvasWidthRatio: 1,
       };
     }
 
@@ -353,8 +343,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
       needsScriptedPreviewPoster: true,
       previewPosterCacheKey: descriptor ? descriptor.cacheKey : null,
       previewPosterPending: !!(descriptor && !cachedPoster),
-      previewRenderCanvas: descriptor ? descriptor.renderCanvas : null,
-      previewCanvasWidthRatio: descriptor && descriptor.renderCanvas ? descriptor.renderCanvas.widthRatio : 1,
     };
   }
 
@@ -424,37 +412,20 @@ function createSettingsAnimationOverridesMain(options = {}) {
     animationOverridePreviewPosterReady = null;
   }
 
-  function getAnimationPreviewPosterCaptureSize(renderCanvas = null) {
-    const widthRatio = renderCanvas && Number.isFinite(renderCanvas.widthRatio)
-      ? Math.max(1, Math.min(3, renderCanvas.widthRatio))
-      : 1;
-    return {
-      width: Math.round(ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.width * widthRatio),
-      height: ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.height,
-    };
-  }
-
-  async function captureAnimationPreviewPosterDataUrl(fileUrl, renderCanvas = null) {
+  async function captureAnimationPreviewPosterDataUrl(fileUrl) {
     if (!fileUrl) return null;
     const capture = async () => {
       const posterWindow = await ensureAnimationPreviewPosterPage();
       if (!posterWindow || posterWindow.isDestroyed()) return null;
-      const captureSize = getAnimationPreviewPosterCaptureSize(renderCanvas);
-      if (typeof posterWindow.setContentSize === "function") {
-        posterWindow.setContentSize(captureSize.width, captureSize.height);
-      }
       const webContents = posterWindow.webContents;
       if (!webContents || webContents.isDestroyed()) return null;
-      await webContents.executeJavaScript(
-        `window.renderAnimationPreviewPoster(${JSON.stringify(fileUrl)}, ${JSON.stringify(renderCanvas || null)})`,
-        true
-      );
+      await webContents.executeJavaScript(`window.renderAnimationPreviewPoster(${JSON.stringify(fileUrl)})`, true);
       await animationPreviewDelay(20);
       const image = await webContents.capturePage({
         x: 0,
         y: 0,
-        width: captureSize.width,
-        height: captureSize.height,
+        width: ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.width,
+        height: ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE.height,
       });
       return image && typeof image.toDataURL === "function" ? image.toDataURL() : null;
     };
@@ -517,7 +488,7 @@ function createSettingsAnimationOverridesMain(options = {}) {
         return;
       }
 
-      const previewImageUrl = await captureAnimationPreviewPosterDataUrl(job.fileUrl, job.renderCanvas);
+      const previewImageUrl = await captureAnimationPreviewPosterDataUrl(job.fileUrl);
       if (!previewImageUrl) return;
       rememberAnimationPreviewPosterCache(job.previewPosterCacheKey, previewImageUrl);
       sendAnimationPreviewPosterReady(job, previewImageUrl);
@@ -550,7 +521,7 @@ function createSettingsAnimationOverridesMain(options = {}) {
     if (!webContents || !data || !data.theme || !data.theme.id) return;
     const themeId = data.theme.id;
     const generationId = animationOverridePreviewPosterGenerationId;
-    const enqueue = (filename, fileUrl, previewPosterCacheKey, previewPosterPending, renderCanvas) => {
+    const enqueue = (filename, fileUrl, previewPosterCacheKey, previewPosterPending) => {
       if (previewPosterPending !== true) return;
       if (!filename || !fileUrl || !previewPosterCacheKey) return;
       enqueueAnimationPreviewPosterJob({
@@ -558,26 +529,18 @@ function createSettingsAnimationOverridesMain(options = {}) {
         filename: path.basename(filename),
         fileUrl,
         previewPosterCacheKey,
-        renderCanvas: renderCanvas || null,
         generationId,
       });
     };
     for (const asset of data.assets || []) {
-      enqueue(
-        asset && asset.name,
-        asset && asset.fileUrl,
-        asset && asset.previewPosterCacheKey,
-        asset && asset.previewPosterPending,
-        asset && asset.previewRenderCanvas
-      );
+      enqueue(asset && asset.name, asset && asset.fileUrl, asset && asset.previewPosterCacheKey, asset && asset.previewPosterPending);
     }
     for (const card of data.cards || []) {
       enqueue(
         card && card.currentFile,
         card && card.currentFileUrl,
         card && card.currentFilePreviewPosterCacheKey,
-        card && card.previewPosterPending,
-        card && card.previewRenderCanvas
+        card && card.previewPosterPending
       );
     }
   }
@@ -665,8 +628,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
           needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
           previewPosterCacheKey: preview.previewPosterCacheKey,
           previewPosterPending: preview.previewPosterPending,
-          previewRenderCanvas: preview.previewRenderCanvas,
-          previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
           ext,
           cycleMs: Number.isFinite(probe && probe.assetCycleMs) && probe.assetCycleMs > 0 ? probe.assetCycleMs : null,
           cycleStatus: (probe && probe.assetCycleStatus) || "unavailable",
@@ -748,8 +709,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
         needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
         currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
         previewPosterPending: preview.previewPosterPending,
-        previewRenderCanvas: preview.previewRenderCanvas,
-        previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
         bindingLabel: `${tierGroup}[${originalFile}]`,
         transition: readResolvedTransition(tier.file),
         transitionThemeDefault: readThemeDefaultTransition(tier.file),
@@ -840,8 +799,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
       needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
       currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
       previewPosterPending: preview.previewPosterPending,
-      previewRenderCanvas: preview.previewRenderCanvas,
-      previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
       bindingLabel: fallbackTargetState
         ? `${bindingPathPrefix}.${stateKey}.fallbackTo -> ${fallbackTargetState}`
         : `${bindingPathPrefix}.${stateKey}[0]`,
@@ -893,8 +850,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
           needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
           currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
           previewPosterPending: preview.previewPosterPending,
-          previewRenderCanvas: preview.previewRenderCanvas,
-          previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
           bindingLabel: `idleAnimations[${index}] (${originalFile})`,
           transition: readResolvedTransition(entry.file),
           transitionThemeDefault: readThemeDefaultTransition(entry.file),
@@ -948,8 +903,6 @@ function createSettingsAnimationOverridesMain(options = {}) {
         needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
         currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
         previewPosterPending: preview.previewPosterPending,
-        previewRenderCanvas: preview.previewRenderCanvas,
-        previewCanvasWidthRatio: preview.previewCanvasWidthRatio,
         bindingLabel: `reactions.${spec.key}`,
         transition: readResolvedTransition(currentFile),
         transitionThemeDefault: readThemeDefaultTransition(currentFile),
@@ -1007,14 +960,19 @@ function createSettingsAnimationOverridesMain(options = {}) {
     pushSection(sections, "work", null, workCards);
 
     const idleMode = activeTheme._capabilities && activeTheme._capabilities.idleMode;
+    const idleCards = [];
     if (idleMode === "animated") {
-      pushSection(sections, "idle", idleMode, buildIdleAnimationCards(themeOverrideMap));
+      idleCards.push(...buildIdleAnimationCards(themeOverrideMap));
     } else {
       const idleCard = buildStateCard("idle", idleMode === "tracked" ? "idleTracked" : "idleStatic", themeOverrideMap, {
         sectionId: "idle",
       });
-      pushSection(sections, "idle", idleMode, idleCard ? [idleCard] : []);
+      if (idleCard) idleCards.push(idleCard);
     }
+    // Add roam state card (free-roam walking animation)
+    const roamCard = buildStateCard("roam", "roam", themeOverrideMap, { sectionId: "idle" });
+    if (roamCard) idleCards.push(roamCard);
+    pushSection(sections, "idle", idleMode, idleCards);
 
     const interruptCards = [];
     for (const [stateKey, triggerKind] of [
@@ -1301,11 +1259,11 @@ function createSettingsAnimationOverridesMain(options = {}) {
     }
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { status: "error", message: "file is not an animation overrides export" };
+      return { status: "error", message: "file is not a Clawd animation overrides export" };
     }
     const magic = parsed.clawdAnimationOverrides;
     if (typeof magic !== "number") {
-      return { status: "error", message: "file is not an animation overrides export" };
+      return { status: "error", message: "file is not a Clawd animation overrides export" };
     }
 
     const commandResult = await settingsController.applyCommand("importAnimationOverrides", {

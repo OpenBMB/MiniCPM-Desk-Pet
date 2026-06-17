@@ -99,6 +99,7 @@ function makeServer(overrides = {}) {
     setTimeout: timers.setTimeout,
     clearTimeout: timers.clearTimeout,
     getPortCandidates: () => [23333],
+    readRuntimePort: () => null,
     writeRuntimeConfig: () => true,
     clearRuntimeConfig: () => true,
     fs: {
@@ -112,10 +113,13 @@ function makeServer(overrides = {}) {
     },
     syncClawdHooksImpl: () => syncCalls.push("claude"),
     syncGeminiHooksImpl: () => syncCalls.push("gemini"),
+    syncAntigravityHooksImpl: () => syncCalls.push("antigravity"),
     syncCursorHooksImpl: () => syncCalls.push("cursor"),
+    syncCopilotHooksImpl: () => syncCalls.push("copilot"),
     syncCodeBuddyHooksImpl: () => syncCalls.push("codebuddy"),
     syncKiroHooksImpl: () => syncCalls.push("kiro"),
     syncKimiHooksImpl: () => syncCalls.push("kimi"),
+    syncQwenHooksImpl: () => syncCalls.push("qwen"),
     syncCodexHooksImpl: () => syncCalls.push("codex"),
     repairCodexHooksImpl: () => syncCalls.push("codex-repair"),
     syncOpencodePluginImpl: () => syncCalls.push("opencode"),
@@ -123,6 +127,9 @@ function makeServer(overrides = {}) {
     syncOpenClawPluginImpl: () => syncCalls.push("openclaw"),
     repairOpenClawPluginImpl: () => syncCalls.push("openclaw-repair"),
     syncHermesPluginImpl: () => syncCalls.push("hermes"),
+    syncCodewhaleHooksImpl: () => syncCalls.push("codewhale"),
+    syncQoderHooksImpl: () => syncCalls.push("qoder"),
+    syncReasonixHooksImpl: () => syncCalls.push("reasonix"),
     ...overrides,
   };
 
@@ -136,6 +143,28 @@ function makeServer(overrides = {}) {
   };
 }
 
+function healthyClaudeSettingsWithThirdPartyHook() {
+  return {
+    env: { FOO: "bar" },
+    permissions: { allow: ["*"], deny: [] },
+    enabledPlugins: { a: true },
+    skillOverrides: { sk1: true },
+    hooks: {
+      Stop: [{
+        matcher: "",
+        hooks: [
+          { type: "command", command: 'node "/tmp/clawd-hook.js" Stop' },
+          { type: "command", command: "node /home/u/.claude/hooks/third-party.js" },
+        ],
+      }],
+      PermissionRequest: [{
+        matcher: "",
+        hooks: [{ type: "http", url: "http://127.0.0.1:23333/permission", timeout: 600 }],
+      }],
+    },
+  };
+}
+
 describe("server Claude hook management", () => {
   it("startup syncs Claude hooks and starts watcher when automatic management is enabled", () => {
     const { api, syncCalls, getWatcher } = makeServer({
@@ -144,7 +173,7 @@ describe("server Claude hook management", () => {
 
     api.startHttpServer();
 
-    assert.deepStrictEqual(syncCalls, ["claude", "gemini", "cursor", "codebuddy", "kiro", "kimi", "codex", "opencode", "pi", "openclaw", "hermes"]);
+    assert.deepStrictEqual(syncCalls, ["claude", "gemini", "antigravity", "cursor", "copilot", "codebuddy", "kiro", "kimi", "qwen", "codewhale", "codex", "opencode", "pi", "openclaw", "hermes", "qoder","reasonix"]);
     assert.ok(getWatcher(), "watcher should start when management is enabled");
   });
 
@@ -161,7 +190,7 @@ describe("server Claude hook management", () => {
 
       api.startHttpServer();
 
-      assert.deepStrictEqual(syncCalls, ["claude", "gemini", "cursor", "codebuddy", "kiro", "kimi", "codex", "opencode", "pi", "openclaw"]);
+      assert.deepStrictEqual(syncCalls, ["claude", "gemini", "antigravity", "cursor", "copilot", "codebuddy", "kiro", "kimi", "qwen", "codewhale", "codex", "opencode", "pi", "openclaw", "qoder","reasonix"]);
       assert.ok(getWatcher(), "watcher should start when management is enabled");
       assert.strictEqual(warnings.some((line) => /Hermes/i.test(line)), false);
     } finally {
@@ -176,19 +205,19 @@ describe("server Claude hook management", () => {
 
     api.startHttpServer();
 
-    assert.deepStrictEqual(syncCalls, ["gemini", "cursor", "codebuddy", "kiro", "kimi", "codex", "opencode", "pi", "openclaw", "hermes"]);
+    assert.deepStrictEqual(syncCalls, ["gemini", "antigravity", "cursor", "copilot", "codebuddy", "kiro", "kimi", "qwen", "codewhale", "codex", "opencode", "pi", "openclaw", "hermes", "qoder","reasonix"]);
     assert.strictEqual(getWatcher(), null);
   });
 
   it("startup skips automatic hook/plugin sync for disabled agents", () => {
-    const disabled = new Set(["gemini-cli", "cursor-agent", "kiro-cli", "opencode", "pi", "openclaw"]);
+    const disabled = new Set(["gemini-cli", "antigravity-cli", "cursor-agent", "kiro-cli", "opencode", "pi", "openclaw"]);
     const { api, syncCalls, getWatcher } = makeServer({
       isAgentEnabled: (agentId) => !disabled.has(agentId),
     });
 
     api.startHttpServer();
 
-    assert.deepStrictEqual(syncCalls, ["claude", "codebuddy", "kimi", "codex", "hermes"]);
+    assert.deepStrictEqual(syncCalls, ["claude", "copilot", "codebuddy", "kimi", "qwen", "codewhale", "codex", "hermes", "qoder","reasonix"]);
     assert.ok(getWatcher(), "Claude watcher should still start when Claude is enabled");
   });
 
@@ -199,7 +228,7 @@ describe("server Claude hook management", () => {
 
     api.startHttpServer();
 
-    assert.deepStrictEqual(syncCalls, ["gemini", "cursor", "codebuddy", "kiro", "kimi", "codex", "opencode", "pi", "openclaw", "hermes"]);
+    assert.deepStrictEqual(syncCalls, ["gemini", "antigravity", "cursor", "copilot", "codebuddy", "kiro", "kimi", "qwen", "codewhale", "codex", "opencode", "pi", "openclaw", "hermes", "qoder","reasonix"]);
     assert.strictEqual(getWatcher(), null);
   });
 
@@ -276,6 +305,58 @@ describe("server Claude hook management", () => {
     assert.deepStrictEqual(syncCalls, ["claude"]);
   });
 
+  it("records suspicious-shrink guard status when watcher skips automatic Claude repair", () => {
+    const notices = [];
+    let now = 10_000;
+    const { api, syncCalls, timers, getWatcher, setSettingsRaw } = makeServer({
+      now: () => now,
+      notifySuspiciousShrink: (before, after, notice) => notices.push({ before, after, notice }),
+    });
+    setSettingsRaw(JSON.stringify(healthyClaudeSettingsWithThirdPartyHook()));
+
+    api.startClaudeSettingsWatcher();
+    setSettingsRaw(JSON.stringify({ skipDangerousModePermissionPrompt: true }));
+    getWatcher().emitChange("settings.json");
+    timers.flush();
+
+    assert.deepStrictEqual(syncCalls, []);
+    assert.strictEqual(notices.length, 1);
+    assert.strictEqual(notices[0].notice.type, "suspicious-shrink");
+    assert.strictEqual(notices[0].before.keyCount, 5);
+    assert.strictEqual(notices[0].after.keyCount, 1);
+    assert.deepStrictEqual(api.getClaudeHookGuardStatus(), notices[0].notice);
+
+    api.repairIntegrationForAgent("claude-code");
+    assert.strictEqual(api.getClaudeHookGuardStatus(), null);
+
+    setSettingsRaw(JSON.stringify({ skipDangerousModePermissionPrompt: true }));
+    getWatcher().emitChange("settings.json");
+    timers.flush();
+    now += 31 * 60 * 1000;
+    assert.strictEqual(api.getClaudeHookGuardStatus(), null);
+  });
+
+  it("keeps suspicious-shrink guard status when Claude repair fails and clears it on cleanup", () => {
+    const { api, timers, getWatcher, setSettingsRaw } = makeServer({
+      syncClawdHooksImpl: () => ({ status: "error", message: "write failed" }),
+    });
+    setSettingsRaw(JSON.stringify(healthyClaudeSettingsWithThirdPartyHook()));
+
+    api.startClaudeSettingsWatcher();
+    setSettingsRaw(JSON.stringify({ skipDangerousModePermissionPrompt: true }));
+    getWatcher().emitChange("settings.json");
+    timers.flush();
+    const guard = api.getClaudeHookGuardStatus();
+    assert.ok(guard);
+
+    const repairResult = api.repairIntegrationForAgent("claude-code");
+    assert.deepStrictEqual(repairResult, { status: "error", message: "write failed" });
+    assert.deepStrictEqual(api.getClaudeHookGuardStatus(), guard);
+
+    api.cleanup();
+    assert.strictEqual(api.getClaudeHookGuardStatus(), null);
+  });
+
   it("watcher ignores settings changes when both command and PermissionRequest hooks are intact", () => {
     const { api, syncCalls, timers, getWatcher } = makeServer();
 
@@ -301,6 +382,23 @@ describe("server Claude hook management", () => {
     assert.deepStrictEqual(syncCalls, []);
   });
 
+  it("watcher does not re-sync missing Claude hooks after Claude integration is uninstalled", () => {
+    let shouldSyncClaude = true;
+    const { api, syncCalls, timers, getWatcher, setSettingsRaw } = makeServer({
+      shouldSyncAgentIntegration: (agentId) => (
+        agentId !== "claude-code" || shouldSyncClaude
+      ),
+    });
+
+    api.startClaudeSettingsWatcher();
+    shouldSyncClaude = false;
+    setSettingsRaw('{"hooks":{}}');
+    getWatcher().emitChange("settings.json");
+    timers.flush();
+
+    assert.deepStrictEqual(syncCalls, []);
+  });
+
   it("disconnect-style restart does not reinstall Claude hooks when management stays disabled", () => {
     const first = makeServer({ manageClaudeHooksAutomatically: false });
     first.api.startHttpServer();
@@ -309,19 +407,26 @@ describe("server Claude hook management", () => {
     const second = makeServer({ manageClaudeHooksAutomatically: false });
     second.api.startHttpServer();
 
-    assert.deepStrictEqual(first.syncCalls, ["gemini", "cursor", "codebuddy", "kiro", "kimi", "codex", "opencode", "pi", "openclaw", "hermes"]);
-    assert.deepStrictEqual(second.syncCalls, ["gemini", "cursor", "codebuddy", "kiro", "kimi", "codex", "opencode", "pi", "openclaw", "hermes"]);
+    assert.deepStrictEqual(first.syncCalls, ["gemini", "antigravity", "cursor", "copilot", "codebuddy", "kiro", "kimi", "qwen", "codewhale", "codex", "opencode", "pi", "openclaw", "hermes", "qoder","reasonix"]);
+    assert.deepStrictEqual(second.syncCalls, ["gemini", "antigravity", "cursor", "copilot", "codebuddy", "kiro", "kimi", "qwen", "codewhale", "codex", "opencode", "pi", "openclaw", "hermes", "qoder","reasonix"]);
   });
 
   it("repairIntegrationForAgent uses the Codex official hook repair path", () => {
     const { api, syncCalls } = makeServer();
 
     const repaired = api.repairIntegrationForAgent("codex");
-    const unsupported = api.repairIntegrationForAgent("copilot-cli");
 
     assert.strictEqual(repaired, true);
-    assert.strictEqual(unsupported, false);
     assert.deepStrictEqual(syncCalls, ["codex-repair"]);
+  });
+
+  it("repairIntegrationForAgent('copilot-cli') routes through the standard sync path", () => {
+    const { api, syncCalls } = makeServer();
+
+    const repaired = api.repairIntegrationForAgent("copilot-cli");
+
+    assert.strictEqual(repaired, true);
+    assert.deepStrictEqual(syncCalls, ["copilot"]);
   });
 
   it("passes Codex repair options through to the repair implementation", () => {

@@ -3,6 +3,7 @@
 const DefaultCodexSubagentClassifier = require("../agents/codex-subagent-classifier");
 const {
   buildCodexMonitorUpdateOptions,
+  isCodexMonitorMetadataOnlyEvent,
   isCodexMonitorPermissionEvent,
 } = require("./codex-monitor-callback");
 
@@ -20,6 +21,10 @@ const CODEX_LOG_EVENTS_COVERED_BY_OFFICIAL_HOOKS = new Set([
   "event_msg:task_complete",
 ]);
 
+// Local Codex turns that are still in flight sit in one of these states. Kept in
+// sync with isWorkingLikeState() in state-stale-cleanup.js.
+const CODEX_WORKING_LIKE_STATES = new Set(["working", "thinking", "juggling"]);
+
 function createAgentRuntimeMain(options = {}) {
   const now = typeof options.now === "function" ? options.now : Date.now;
   const logWarn = typeof options.logWarn === "function" ? options.logWarn : console.warn;
@@ -31,6 +36,7 @@ function createAgentRuntimeMain(options = {}) {
   const getPermissionRuntime = options.getPermissionRuntime || (() => null);
   const isAgentEnabled = options.isAgentEnabled || (() => true);
   const updateSession = options.updateSession || (() => {});
+  const captureGhosttyTerminalId = options.captureGhosttyTerminalId || null;
   const showCodexNotifyBubble = options.showCodexNotifyBubble || (() => {});
   const clearCodexNotifyBubbles = options.clearCodexNotifyBubbles || (() => {});
 
@@ -52,17 +58,57 @@ function createAgentRuntimeMain(options = {}) {
     return true;
   }
 
+  // JSONL fallback rescue. Official Codex hooks normally emit a Stop that closes
+  // the turn, so the matching JSONL event_msg:task_complete is suppressed as a
+  // duplicate. But when the official Stop never arrives, the session stays stuck
+  // working-like while the rollout JSONL still records task_complete. Let that one
+  // JSONL completion through to close the turn — only for a local (non-remote,
+  // non-headless) Codex session the state runtime still shows as working-like.
+  // Once Stop (or this very fallback) idles the session it is no longer
+  // working-like, so a later duplicate task_complete is suppressed again and we
+  // avoid double done/celebration.
+  function shouldAllowCodexJsonlCompletionFallback(sessionId, state, event) {
+    if (event !== "event_msg:task_complete") return false;
+    // codex-log-monitor only resolves task_complete to a completion state.
+    if (state !== "attention" && state !== "idle") return false;
+    const stateRuntime = getStateRuntime();
+    const sessions = stateRuntime && stateRuntime.sessions;
+    const session = sessions && typeof sessions.get === "function" ? sessions.get(sessionId) : null;
+    if (!session || session.agentId !== "codex") return false;
+    if (session.host || session.headless) return false;
+    return CODEX_WORKING_LIKE_STATES.has(session.state);
+  }
+
   function shouldSuppressCodexLogEvent(sessionId, state, event) {
     if (state === "codex-permission") return hasRecentCodexOfficialHookSession(sessionId);
     if (!CODEX_LOG_EVENTS_COVERED_BY_OFFICIAL_HOOKS.has(event)) return false;
-    return hasRecentCodexOfficialHookSession(sessionId);
+    if (!hasRecentCodexOfficialHookSession(sessionId)) return false;
+    if (shouldAllowCodexJsonlCompletionFallback(sessionId, state, event)) return false;
+    return true;
   }
 
   function updateSessionFromServer(sessionId, state, event, opts = {}) {
     if (opts && opts.agentId === "codex" && opts.hookSource === "codex-official") {
       markCodexOfficialHookSession(sessionId);
     }
-    return updateSession(sessionId, state, event, opts);
+    const result = updateSession(sessionId, state, event, opts);
+    maybeCaptureGhosttyTerminalId(sessionId, event, opts);
+    return result;
+  }
+
+  function maybeCaptureGhosttyTerminalId(sessionId, event, opts = {}) {
+    if (typeof captureGhosttyTerminalId !== "function") return false;
+    if (!sessionId || opts.host || opts.ghosttyTerminalId || !opts.sourcePid || !opts.cwd) return false;
+    if (event !== "SessionStart" && event !== "UserPromptSubmit") return false;
+    return captureGhosttyTerminalId({ sourcePid: opts.sourcePid, cwd: opts.cwd }, (terminalId) => {
+      if (!terminalId) return;
+      const state = getStateRuntime();
+      if (!state || typeof state.updateSessionFocusMetadata !== "function") return;
+      state.updateSessionFocusMetadata(String(sessionId), {
+        sourcePid: opts.sourcePid,
+        ghosttyTerminalId: terminalId,
+      });
+    });
   }
 
   function startMonitorForAgent(agentId) {
@@ -90,6 +136,10 @@ function createAgentRuntimeMain(options = {}) {
     return callServer("stopIntegrationForAgent", agentId);
   }
 
+  function uninstallIntegrationForAgent(agentId) {
+    return callServer("uninstallIntegrationForAgent", agentId);
+  }
+
   function clearSessionsByAgent(agentId) {
     const state = getStateRuntime();
     return state && typeof state.clearSessionsByAgent === "function"
@@ -97,11 +147,11 @@ function createAgentRuntimeMain(options = {}) {
       : 0;
   }
 
-  function dismissPermissionsByAgent(agentId) {
+  function dismissPermissionsByAgent(agentId, options) {
     const perm = getPermissionRuntime();
     const state = getStateRuntime();
     const removed = perm && typeof perm.dismissPermissionsByAgent === "function"
-      ? perm.dismissPermissionsByAgent(agentId)
+      ? perm.dismissPermissionsByAgent(agentId, options)
       : 0;
     // Kimi keeps a state-side permission hold for passive notifications; when
     // an agent is disabled, dismissing the bubble must release that hold too.
@@ -124,7 +174,30 @@ function createAgentRuntimeMain(options = {}) {
       const CodexLogMonitor = loadCodexLogMonitor();
       const codexAgent = loadCodexAgent();
       codexMonitor = new CodexLogMonitor(codexAgent, (sid, state, event, extra) => {
-        if (shouldSuppressCodexLogEvent(sid, state, event)) return;
+        if (isCodexMonitorMetadataOnlyEvent(event, extra)) {
+          const metadataOptions = buildCodexMonitorUpdateOptions(extra, {
+            includeHeadless: true,
+          });
+          if (metadataOptions.contextUsage) {
+            updateSession(sid, state, event, {
+              ...metadataOptions,
+              preserveState: true,
+            });
+          }
+          return;
+        }
+        if (shouldSuppressCodexLogEvent(sid, state, event)) {
+          const metadataOptions = buildCodexMonitorUpdateOptions(extra, {
+            includeHeadless: true,
+          });
+          if (metadataOptions.contextUsage) {
+            updateSession(sid, state, event, {
+              ...metadataOptions,
+              preserveState: true,
+            });
+          }
+          return;
+        }
         if (isCodexMonitorPermissionEvent(state)) {
           updateSession(sid, "notification", event, buildCodexMonitorUpdateOptions(extra, {
             includeHeadless: false,
@@ -162,6 +235,7 @@ function createAgentRuntimeMain(options = {}) {
     syncIntegrationForAgent,
     repairIntegrationForAgent,
     stopIntegrationForAgent,
+    uninstallIntegrationForAgent,
     clearSessionsByAgent,
     dismissPermissionsByAgent,
     updateSessionFromServer,

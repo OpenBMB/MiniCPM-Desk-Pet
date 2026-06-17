@@ -1,9 +1,8 @@
 "use strict";
 
-const { DEFAULT_THEME_ID } = require("./default-theme");
-
 const defaultFs = require("fs");
 const defaultPath = require("path");
+const { DEFAULT_THEME_ID } = require("./default-theme");
 
 // Design invariant: this closure is the only active-theme owner. theme-loader
 // stays a stateless loader; legacy active facades must delegate here.
@@ -129,6 +128,7 @@ function createThemeRuntime(options = {}) {
       throw new Error("theme switch requires ready windows");
     }
 
+    const activateOptions = arguments.length >= 4 ? arguments[3] : null;
     const currentVariantMap = settingsController.get("themeVariant") || {};
     const targetVariant = (typeof variantId === "string" && variantId)
       ? variantId
@@ -141,7 +141,8 @@ function createThemeRuntime(options = {}) {
       activeTheme &&
       activeTheme._id === themeId &&
       activeTheme._variantId === targetVariant &&
-      (activeTheme._overrideSignature || "{}") === targetOverrideSignature
+      (activeTheme._overrideSignature || "{}") === targetOverrideSignature &&
+      !(activateOptions && activateOptions.forceReload === true)
     ) {
       return { themeId, variantId: activeTheme._variantId };
     }
@@ -231,6 +232,17 @@ function createThemeRuntime(options = {}) {
     return { themeId, variantId: newTheme._variantId };
   }
 
+  function reloadActiveTheme() {
+    if (!activeTheme) throw new Error("active theme is not loaded");
+    const currentOverrides = settingsController.get("themeOverrides") || {};
+    return activateTheme(
+      activeTheme._id,
+      activeTheme._variantId || "default",
+      currentOverrides[activeTheme._id] || null,
+      { forceReload: true }
+    );
+  }
+
   function refreshActiveThemeHitboxOverrides(themeId, overrideMap) {
     if (!activeTheme || activeTheme._id !== themeId) {
       throw new Error("hitbox refresh requires the requested theme to already be active");
@@ -295,6 +307,7 @@ function createThemeRuntime(options = {}) {
   return {
     loadInitialTheme,
     activateTheme,
+    reloadActiveTheme,
     refreshActiveThemeHitboxOverrides,
     getActiveTheme,
     getActiveThemeContext,
