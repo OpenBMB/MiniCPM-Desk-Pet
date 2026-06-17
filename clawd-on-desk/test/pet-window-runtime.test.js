@@ -171,6 +171,43 @@ describe("pet-window-runtime", () => {
     ]);
   });
 
+  it("creates pet windows with fully transparent native backgrounds", () => {
+    const renderInstances = [];
+    const renderHarness = createRuntime();
+    renderHarness.runtime.createRenderWindow({
+      BrowserWindow: makeBrowserWindow(renderInstances),
+      size: { width: 120, height: 120 },
+      initialWindowBounds: { x: 40, y: 0, width: 120, height: 120 },
+      initialVirtualBounds: { x: 40, y: 0, width: 120, height: 120 },
+      preloadPath: "preload.js",
+      loadFilePath: "index.html",
+      themeConfig: { ok: true },
+      setRenderWindow: renderHarness.setRenderWin,
+      isQuitting: () => false,
+    });
+
+    const hitInstances = [];
+    const hitHarness = createRuntime();
+    hitHarness.runtime.createHitWindow({
+      BrowserWindow: makeBrowserWindow(hitInstances),
+      preloadPath: "preload-hit.js",
+      loadFilePath: "hit.html",
+      hitThemeConfig: {},
+    });
+
+    assert.equal(renderInstances[0].options.transparent, true);
+    assert.equal(renderInstances[0].options.backgroundColor, "#00000000");
+    assert.equal(hitInstances[0].options.transparent, true);
+    assert.equal(hitInstances[0].options.backgroundColor, "#00000000");
+  });
+
+  it("keeps the click-capture window visually transparent", () => {
+    const hitHtml = fs.readFileSync(path.join(SRC_DIR, "hit.html"), "utf8");
+
+    assert.match(hitHtml, /background:\s*transparent/);
+    assert.doesNotMatch(hitHtml, /rgba\(0,\s*0,\s*0,\s*0\.004\)/);
+  });
+
   it("reloadWindowWebContents ignores destroyed windows and webContents", () => {
     const harness = createRuntime();
     const live = makeWindow();

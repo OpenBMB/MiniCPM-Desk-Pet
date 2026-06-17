@@ -6,13 +6,14 @@ const path = require("node:path");
 
 const ROOT = path.join(__dirname, "..");
 const MAIN = path.join(ROOT, "src", "main.js");
+const APP_ICON = path.join(ROOT, "assets", "icon.png");
 const DOCK_ICON = path.join(ROOT, "assets", "dock-icon.png");
 const DOCK_ICON_SOURCE = path.join(ROOT, "assets", "source", "dock-icon-fullbleed.png");
 const pkg = require("../package.json");
 
-// Minimal non-interlaced 8-bit RGBA PNG alpha-bounding-box reader (no deps) so the
-// dock icon can't silently regress to full-bleed (issue #416 Part B).
-function alphaContentBBox(file) {
+// Minimal non-interlaced 8-bit RGBA PNG reader (no deps) so the dock/app icon
+// cannot silently regress to full-bleed square corners.
+function readRgbaPng(file) {
   const buf = fs.readFileSync(file);
   assert.equal(buf.readUInt32BE(0), 0x89504e47, `${file} should be a PNG`);
   let off = 8;
@@ -67,13 +68,23 @@ function alphaContentBBox(file) {
       recon[y * stride + i] = v & 0xff;
     }
   }
+  return { width, height, data: recon, bpp, stride };
+}
+
+function alphaAt(file, x, y) {
+  const png = readRgbaPng(file);
+  return png.data[y * png.stride + x * png.bpp + 3];
+}
+
+function alphaContentBBox(file) {
+  const { width, height, data, bpp, stride } = readRgbaPng(file);
   let minX = width;
   let minY = height;
   let maxX = -1;
   let maxY = -1;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (recon[y * stride + x * bpp + 3] > 0) {
+      if (data[y * stride + x * bpp + 3] > 0) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -119,6 +130,25 @@ test("dock icon is padded to the macOS grid, not full-bleed (issue #416 Part B)"
   assert.ok(
     width >= 780 && height >= 780,
     `dock icon content (${width}x${height}) should not be shrunk too far`
+  );
+});
+
+test("MiniCPM app icons keep transparent rounded macOS corners", () => {
+  for (const file of [APP_ICON, DOCK_ICON]) {
+    const { canvas } = alphaContentBBox(file);
+    const last = canvas - 1;
+    assert.equal(alphaAt(file, 0, 0), 0, `${file} top-left corner should be transparent`);
+    assert.equal(alphaAt(file, last, 0), 0, `${file} top-right corner should be transparent`);
+    assert.equal(alphaAt(file, 0, last), 0, `${file} bottom-left corner should be transparent`);
+    assert.equal(alphaAt(file, last, last), 0, `${file} bottom-right corner should be transparent`);
+  }
+});
+
+test("dock icon source follows the MiniCPM app icon artwork", () => {
+  assert.deepStrictEqual(
+    fs.readFileSync(DOCK_ICON_SOURCE),
+    fs.readFileSync(APP_ICON),
+    "dock icon source should match the MiniCPM app icon, not an upstream replacement"
   );
 });
 

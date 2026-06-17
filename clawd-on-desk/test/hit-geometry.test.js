@@ -8,6 +8,7 @@ const hitGeometry = require("../src/hit-geometry");
 themeLoader.init(path.join(__dirname, "..", "src"));
 const calico = themeLoader.loadTheme("calico");
 const cloudling = themeLoader.loadTheme("cloudling");
+const hamster = themeLoader.loadTheme("hamster");
 
 function approx(actual, expected, epsilon = 0.01) {
   assert.ok(
@@ -74,6 +75,26 @@ describe("hit geometry", () => {
         `${file} bottom overflowed: ${rect.y + rect.h}`
       );
     }
+  });
+
+  it("keeps Hamster double-session working content inside the render window", () => {
+    const file = "hamster-working-2session.svg";
+    const viewBox = hamster.fileViewBoxes[file];
+    const layout = hamster.layout;
+    const fileScale = hamster.objectScale.fileScales[file];
+    const unitRatio = (layout.visibleHeightRatio * fileScale) / layout.contentBox.height;
+    const leftRatio = layout.centerXRatio - ((layout.centerX - viewBox.x) * unitRatio);
+
+    // Session bubbles are the wide visual content in this scripted SVG. The
+    // full object can still extend slightly past the clip layer, but the drawn
+    // bubbles/body must stay within the render window.
+    const visualLeft = -188;
+    const visualRight = 558;
+    const visualContentLeft = leftRatio + (visualLeft - viewBox.x) * unitRatio;
+    const visualContentRight = leftRatio + (visualRight - viewBox.x) * unitRatio;
+
+    assert.ok(visualContentLeft >= 0, `left content overflows: ${visualContentLeft}`);
+    assert.ok(visualContentRight <= 1, `right content overflows: ${visualContentRight}`);
   });
 
   it("matches APNG layout with file scale and offsets for calico mini idle", () => {

@@ -3829,6 +3829,22 @@ describe("settings renderer browser environment", () => {
     assert.strictEqual(strings.zh.themeOpenUserThemesFolder, "打开主题文件夹");
   });
 
+  it("places Cyber Cat and Hamster first in the built-in theme section", () => {
+    const { content } = loadThemeTabForTest({
+      themes: [
+        { id: "calico", name: "Calico", builtin: true, active: false },
+        { id: "cloudling", name: "Cloudling", builtin: true, active: false },
+        { id: "cybercat", name: "Cyber Cat", builtin: true, active: false },
+        { id: "hamster", name: "Hamster", builtin: true, active: true },
+      ],
+    });
+
+    const names = content
+      .querySelectorAll(".theme-section .theme-card-name-text")
+      .map((el) => el.textContent);
+    assert.deepStrictEqual(names.slice(0, 4), ["Cyber Cat", "Hamster", "Calico", "Cloudling"]);
+  });
+
   it("keeps Theme card footers reserved without leaking button keyboard events to card activation", async () => {
     const { content, commands } = loadThemeTabForTest({
       themes: [
