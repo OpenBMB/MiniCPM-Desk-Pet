@@ -62,6 +62,12 @@ Both suites must pass before opening a PR.
 # Repack dmg without rebuilding sidecar
 cd clawd-on-desk && npm run build:mac:repack
 
+# Signed + Apple-notarized dmg (requires .env.apple-notarize.local)
+cd clawd-on-desk && npm run build:mac:notarize
+
+# Regenerate app icons from the master source
+python3 clawd-on-desk/scripts/generate-icons.py
+
 # Platform-specific builds (from clawd-on-desk/)
 npm run build:win:x64
 npm run build:win:arm64
@@ -116,7 +122,7 @@ Each coding agent integrates via hooks, log monitors, or plugins. `src/agent-gat
 - **License**: AGPL-3.0-only. The `clawd-on-desk/` directory is a vendored fork — keep upstream conventions and avoid unnecessary divergence.
 - **Resource paths**: Always use `path.join(__dirname, ...)`.
 - **Hook registration**: Only append to existing Claude hook arrays, never overwrite.
-- **Assets**: To edit release assets, copy to `assets/source/` first; don't edit originals of unknown provenance.
+- **Assets**: To edit release assets, copy to `assets/source/` first; don't edit originals of unknown provenance. App icon master is `assets/source/icon-master.png`; regenerate all icon assets via `python3 scripts/generate-icons.py`. Icons must be full-bleed square (opaque into corners) so macOS Tahoe tiles them correctly.
 - **Windows builds**: Must produce separate x64/ARM64 installers (`nsis.buildUniversalInstaller: false`).
 
 ## Key Constraints

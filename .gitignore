@@ -41,6 +41,7 @@ task_plan.md
 findings.md
 progress.md
 .planning/
+CLAUDE.md
 
 # Local env / secrets
 .env
