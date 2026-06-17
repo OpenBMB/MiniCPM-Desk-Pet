@@ -28,7 +28,6 @@ describe("createSettingsController construction", () => {
 
   it("loads defaults from missing file", () => {
     const ctrl = createSettingsController({ prefsPath: makeTempPath() });
-    // Default `lang` is "system" (resolved at runtime by locale-resolver).
     assert.strictEqual(ctrl.get("lang"), "system");
     assert.strictEqual(ctrl.get("soundMuted"), false);
     assert.strictEqual(ctrl.isLocked(), false);
@@ -45,6 +44,31 @@ describe("createSettingsController construction", () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+});
+
+describe("setTextScaleForDisplay end-to-end commit", () => {
+  it("commits the per-display map through the controller and persists it", async () => {
+    // Regression: the command's commit key must pass the controller's
+    // registry validation ("unknown settings key textScaleByDisplay").
+    const ctrl = createSettingsController({
+      prefsPath: makeTempPath(),
+      injectedDeps: { resolveTextScaleDisplayKey: () => "69992868" },
+    });
+    const r = await ctrl.applyCommand("setTextScaleForDisplay", { value: 1.35 });
+    assert.strictEqual(r.status, "ok");
+    assert.deepStrictEqual(ctrl.get("textScaleByDisplay"), { "69992868": 1.35 });
+
+    const again = await ctrl.applyCommand("setTextScaleForDisplay", { value: 1 });
+    assert.strictEqual(again.status, "ok");
+    assert.deepStrictEqual(ctrl.get("textScaleByDisplay"), { "69992868": 1 });
+  });
+
+  it("falls back to the legacy global key without display context", async () => {
+    const ctrl = createSettingsController({ prefsPath: makeTempPath() });
+    const r = await ctrl.applyCommand("setTextScaleForDisplay", { value: 1.25 });
+    assert.strictEqual(r.status, "ok");
+    assert.strictEqual(ctrl.get("textScale"), 1.25);
   });
 });
 
@@ -748,5 +772,54 @@ describe("locked controller (future-version files)", () => {
     const onDisk = JSON.parse(fs.readFileSync(p, "utf8"));
     assert.strictEqual(onDisk.version, 999);
     assert.strictEqual(onDisk.lang, "en");
+  });
+});
+
+describe("sessionCleanup.setTriple via applyCommand", () => {
+  // This is the regression for v4 — applyCommand must accept a triple that
+  // would have been rejected if each key were applied separately via
+  // applyUpdate, because lowering both knobs simultaneously would otherwise
+  // hit the single-key cross-field validator with the pre-change snapshot.
+  it("commits an atomic triple that drops both stale intervals together", async () => {
+    const ctrl = createSettingsController({
+      prefsPath: makeTempPath(),
+      loadResult: {
+        snapshot: {
+          ...prefs.getDefaults(),
+          sessionStaleMs: 600_000,
+          workingStaleMs: 300_000,
+          detachedIdleStaleMs: 30_000,
+        },
+        locked: false,
+      },
+    });
+    const result = await ctrl.applyCommand("sessionCleanup.setTriple", {
+      sessionStaleMs: 120_000,
+      workingStaleMs: 60_000,
+      detachedIdleStaleMs: 30_000,
+    });
+    assert.strictEqual(result.status, "ok");
+    assert.strictEqual(ctrl.get("sessionStaleMs"), 120_000);
+    assert.strictEqual(ctrl.get("workingStaleMs"), 60_000);
+    assert.strictEqual(ctrl.get("detachedIdleStaleMs"), 30_000);
+  });
+
+  it("rejects an inverted triple without partial commit", async () => {
+    const ctrl = createSettingsController({
+      prefsPath: makeTempPath(),
+      loadResult: {
+        snapshot: { ...prefs.getDefaults() },
+        locked: false,
+      },
+    });
+    const result = await ctrl.applyCommand("sessionCleanup.setTriple", {
+      sessionStaleMs: 120_000,
+      workingStaleMs: 300_000,
+      detachedIdleStaleMs: 30_000,
+    });
+    assert.strictEqual(result.status, "error");
+    // Original defaults intact.
+    assert.strictEqual(ctrl.get("sessionStaleMs"), 600_000);
+    assert.strictEqual(ctrl.get("workingStaleMs"), 300_000);
   });
 });

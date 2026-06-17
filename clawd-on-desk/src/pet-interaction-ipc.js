@@ -1,5 +1,7 @@
 "use strict";
 
+const path = require("path");
+
 function requiredDependency(value, name) {
   if (!value) throw new Error(`registerPetInteractionIpc requires ${name}`);
   return value;
@@ -30,6 +32,10 @@ function registerPetInteractionIpc(options = {}) {
   const getCurrentPixelSize = requiredDependency(options.getCurrentPixelSize, "getCurrentPixelSize");
   const computeDragEndBounds = requiredDependency(options.computeDragEndBounds, "computeDragEndBounds");
   const applyPetWindowBounds = requiredDependency(options.applyPetWindowBounds, "applyPetWindowBounds");
+  const flushRuntimeStateToPrefs = requiredDependency(
+    options.flushRuntimeStateToPrefs,
+    "flushRuntimeStateToPrefs"
+  );
   const reassertWinTopmost = requiredDependency(options.reassertWinTopmost, "reassertWinTopmost");
   const scheduleHwndRecovery = requiredDependency(options.scheduleHwndRecovery, "scheduleHwndRecovery");
   const repositionFloatingBubbles = requiredDependency(
@@ -37,6 +43,7 @@ function registerPetInteractionIpc(options = {}) {
     "repositionFloatingBubbles"
   );
   const exitMiniMode = requiredDependency(options.exitMiniMode, "exitMiniMode");
+  const getDisableMiniMode = options.getDisableMiniMode || (() => false);
   const getFocusableLocalHudSessionIds = requiredDependency(
     options.getFocusableLocalHudSessionIds,
     "getFocusableLocalHudSessionIds"
@@ -44,10 +51,17 @@ function registerPetInteractionIpc(options = {}) {
   const focusLog = requiredDependency(options.focusLog, "focusLog");
   const showDashboard = requiredDependency(options.showDashboard, "showDashboard");
   const focusSession = requiredDependency(options.focusSession, "focusSession");
+  const revealSessionHud = requiredDependency(options.revealSessionHud, "revealSessionHud");
   const setLowPowerIdlePaused = requiredDependency(
     options.setLowPowerIdlePaused,
     "setLowPowerIdlePaused"
   );
+  const statPath = requiredDependency(options.statPath, "statPath");
+  const openTerminalAt = requiredDependency(options.openTerminalAt, "openTerminalAt");
+  const dropLog = options.dropLog || (() => {});
+  const isMacPlatform = options.isMacPlatform != null
+    ? !!options.isMacPlatform
+    : process.platform === "darwin";
   const disposers = [];
 
   function on(channel, listener) {
@@ -81,7 +95,9 @@ function registerPetInteractionIpc(options = {}) {
     }
   });
 
-  on("start-drag-reaction", () => sendToRenderer("start-drag-reaction"));
+  on("start-drag-reaction", (_event, direction) => {
+    sendToRenderer("start-drag-reaction", direction === "left" || direction === "right" ? direction : null);
+  });
   on("end-drag-reaction", () => sendToRenderer("end-drag-reaction"));
   on("play-click-reaction", (_event, svg, duration) => {
     sendToRenderer("play-click-reaction", svg, duration);
@@ -90,7 +106,7 @@ function registerPetInteractionIpc(options = {}) {
   on("drag-end", () => {
     try {
       if (!isMiniMode() && !isMiniTransitioning()) {
-        checkMiniModeSnap();
+        if (!getDisableMiniMode()) checkMiniModeSnap();
         if (isMiniMode() || isMiniTransitioning()) return;
         if (hasPetWindow()) {
           const virtualBounds = getPetWindowBounds();
@@ -98,7 +114,10 @@ function registerPetInteractionIpc(options = {}) {
             ? { width: virtualBounds.width, height: virtualBounds.height }
             : getCurrentPixelSize();
           const clamped = computeDragEndBounds(virtualBounds, size);
-          if (clamped) applyPetWindowBounds(clamped);
+          if (clamped) {
+            applyPetWindowBounds(clamped);
+            flushRuntimeStateToPrefs();
+          }
           reassertWinTopmost();
           scheduleHwndRecovery();
           syncHitWin();
@@ -113,6 +132,50 @@ function registerPetInteractionIpc(options = {}) {
 
   on("exit-mini-mode", () => {
     if (isMiniMode()) exitMiniMode();
+  });
+
+  on("pet-interaction:reveal-session-hud", () => {
+    revealSessionHud();
+  });
+
+  // OS file drop from the hit window (#459, Windows/Linux only): first path
+  // wins, files resolve to their parent directory, then open a plain terminal
+  // there (no agent). The accept ping goes back to the SENDING window (hit
+  // renderer plays its own reaction so its isReacting gate stays consistent).
+  // macOS never registers the renderer-side listeners (screen-saver-level
+  // windows are invisible to macOS drag-destination search); this guard is the
+  // second layer so a stray IPC can't open terminals there either.
+  on("pet-drop-paths", async (event, paths) => {
+    try {
+      if (isMacPlatform) {
+        dropLog("drop ignored: OS file drop is disabled on macOS");
+        return;
+      }
+      if (isMiniMode() || isMiniTransitioning()) return;
+      if (!Array.isArray(paths)) return;
+      const first = paths.find((p) => typeof p === "string" && p.length > 0);
+      if (!first) return;
+      let stats;
+      try {
+        stats = await statPath(first);
+      } catch (_) {
+        dropLog(`drop ignored: stat failed for ${first}`);
+        return;
+      }
+      const dir = stats.isDirectory() ? first : path.dirname(first);
+      const result = await openTerminalAt(dir);
+      if (result && result.ok) {
+        dropLog(`drop opened terminal=${result.terminal} dir=${dir}`);
+        const sender = event && event.sender;
+        if (sender && typeof sender.send === "function" && !(typeof sender.isDestroyed === "function" && sender.isDestroyed())) {
+          sender.send("pet-drop-accepted");
+        }
+      } else {
+        dropLog(`drop terminal launch failed: ${(result && result.message) || "unknown"}`);
+      }
+    } catch (err) {
+      dropLog(`drop error: ${(err && err.message) || err}`);
+    }
   });
 
   on("focus-terminal", () => {

@@ -2,6 +2,7 @@
 
 (function initSettingsTabTheme(root) {
   const PREVIEW_TARGET_CONTENT_RATIO = 0.55;
+  const BUILTIN_THEME_PRIORITY = ["cybercat", "hamster"];
 
   let state = null;
   let runtime = null;
@@ -74,11 +75,17 @@
       else if (theme && theme.managedCodexPet) groups.importedCodexPets.push(theme);
       else groups.user.push(theme);
     }
+    groups.builtin.sort((a, b) => getBuiltinThemePriority(a) - getBuiltinThemePriority(b));
     return [
       { id: "builtin", title: t("themeGroupBuiltIn"), themes: groups.builtin },
       { id: "imported-codex-pets", title: t("themeGroupImportedCodexPets"), themes: groups.importedCodexPets },
       { id: "user", title: t("themeGroupUserThemes"), themes: groups.user },
     ].filter((section) => section.themes.length > 0);
+  }
+
+  function getBuiltinThemePriority(theme) {
+    const idx = BUILTIN_THEME_PRIORITY.indexOf(theme && theme.id);
+    return idx >= 0 ? idx : BUILTIN_THEME_PRIORITY.length;
   }
 
   function localizeField(value) {
@@ -154,8 +161,6 @@
     else if (caps.idleMode === "animated") badges.push(t("themeCapabilityAnimated"));
     else if (caps.idleMode === "static") badges.push(t("themeCapabilityStatic"));
     if (caps.miniMode) badges.push(t("themeCapabilityMini"));
-    if (caps.sleepMode === "direct") badges.push(t("themeCapabilityDirectSleep"));
-    if (caps.reactions === false) badges.push(t("themeCapabilityNoReactions"));
     return badges;
   }
 

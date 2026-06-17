@@ -1,4 +1,4 @@
-// Clawd on Desk — opencode Plugin
+// MiniCPM Desk Pet — opencode Plugin
 // Runs inside the opencode process (Bun runtime) and forwards session/tool
 // events to the Clawd HTTP server (127.0.0.1:23333-23337).
 //
@@ -26,6 +26,16 @@ import { homedir, platform } from "os";
 import { join } from "path";
 import { randomBytes, timingSafeEqual } from "crypto";
 import { execFileSync, execSync } from "child_process";
+import {
+  DEFAULT_SESSION_ID,
+  getEventSessionId,
+  getEventParentSessionId,
+  isChildSessionId,
+  cleanupSessionParentMap,
+  normalizeOpencodeSessionId,
+  resolveOpencodeSessionId,
+  shouldDropMappedEventWithoutSessionId,
+} from "./session-ids.mjs";
 
 const CLAWD_DIR = join(homedir(), ".clawd");
 const RUNTIME_CONFIG_PATH = join(CLAWD_DIR, "runtime.json");
@@ -37,12 +47,7 @@ const STATE_PATH = "/state";
 // (main → renderer → main) ran under load and silently timed out.
 const POST_TIMEOUT_MS = 1000;
 const AGENT_ID = "opencode";
-
-// opencode emits session.status=busy between every tool call as the LLM
-// deliberates the next step; without this gate the pet would flash
-// thinking ↔ working on every invocation. Active states listed here
-// suppress the "back to thinking" regression.
-const ACTIVE_STATES_BLOCKING_THINKING = new Set(["working", "sweeping"]);
+const HOOK_SOURCE = "opencode-plugin";
 
 // Process tree walk config — mirrors hooks/clawd-hook.js exactly, minus the
 // Claude-specific detection. See docs/plans/plan-opencode-integration.md Phase 4.
@@ -76,22 +81,36 @@ const EDITOR_MAP_LINUX = { "code": "code", "cursor": "cursor", "code-insiders": 
 
 // Per plugin-instance state (scoped to one opencode process).
 let _cachedPort = null;
-let _lastState = null;
-let _lastSessionId = null;
+// Per-session last-state tracking. Keyed by sessionId so that subagent
+// sessions (spawned by the `task` tool) don't clobber the root session's
+// dedup state. Each value is the last Clawd state sent for that session.
+const _lastStatePerSession = new Map();
+// Fallback session ID for permission.asked events, which lack sessionID
+// in their properties. Updated on every session.*/message.part.updated
+// event so it stays fresh. Not used for state dedup.
+let _lastSeenSessionId = null;
 let _reqCounter = 0;
-// Phase 3: opencode subtasks are full child sessions (not subtask parts). The
-// parent session's `task` tool spawns a `session.created` with a new sessionID
-// and agent="explore"/other. Clawd's multi-session fanout already handles this
-// visually (1→typing, 2→juggling, 3+→building). The only fix needed is to
-// prevent subtask `session.idle` from firing the happy animation — only the
-// ROOT session (first seen) should do that. _rootSessionId captures the first
-// sessionID in the plugin's lifetime; all others are treated as subtasks.
+// Phase 3: opencode subtasks are full child sessions (not subtask parts). When
+// session.created carries event.properties.info.parentID, Clawd treats the
+// child as background/headless work owned by its parent: no HUD/focus/fanout,
+// and child session.idle maps to SessionEnd instead of the root happy path.
+// Root session fallback used for legacy idle/permission association.
+// Child/headless detection is explicit: _sessionParentById is populated
+// from event.properties.info.parentID on session.created.
 let _rootSessionId = null;
+// Phase 3 headless: maps child sessionID → parentID. Populated on
+// session.created (from event.properties.info.parentID), cleaned on
+// session.deleted / server.instance.disposed. Used by buildStateBody()
+// to set headless: true for child sessions and by translateEvent() to
+// map child session.idle → SessionEnd instead of Stop.
+const _sessionParentById = new Map();
 // Process tree walk results — populated once by getStablePid() at init, then
 // read by every POST to /state and /permission. null until first resolution.
 let _stablePid = null;
 let _pidChain = [];
 let _detectedEditor = null;
+let _tmuxSocket = null;
+let _tmuxClient = null;
 // Project directory — captured from ctx.directory at init, sent with every
 // POST so state.js can display path.basename(cwd) as the session menu label
 // (otherwise it falls back to the session_id prefix, e.g. "ses 2a..").
@@ -256,6 +275,26 @@ function getStablePid() {
   }
 
   _stablePid = terminalPid || lastGoodPid;
+
+  _tmuxSocket = null;
+  _tmuxClient = null;
+  if (process.env.TMUX) {
+    const socketPath = process.env.TMUX.split(",")[0];
+    if (typeof socketPath === "string" && socketPath.startsWith("/") && socketPath.length <= 4096 && !/[\0\r\n]/.test(socketPath)) {
+      _tmuxSocket = socketPath;
+    }
+    if (process.env.TMUX_PANE) {
+      try {
+        const raw = execFileSync("tmux", ["list-clients", "-t", process.env.TMUX_PANE, "-F", "#{client_tty}"],
+          { encoding: "utf8", timeout: 500 });
+        const target = raw.split("\n").map(s => s.trim()).find(Boolean) || "";
+        if (target && target.length <= 256 && !target.startsWith("-") && /^[\w./:-]+$/.test(target)) {
+          _tmuxClient = target;
+        }
+      } catch {}
+    }
+  }
+
   debugLog(`PID resolved stable=${_stablePid} editor=${_detectedEditor || "none"} chain=[${_pidChain.join(",")}]`);
   return _stablePid;
 }
@@ -271,6 +310,8 @@ function postToClawd(urlPath, body, logTag) {
     body.source_pid = _stablePid;
     if (_pidChain.length) body.pid_chain = _pidChain;
     if (_detectedEditor) body.editor = _detectedEditor;
+    if (_tmuxSocket) body.tmux_socket = _tmuxSocket;
+    if (_tmuxClient) body.tmux_client = _tmuxClient;
   }
   if (_cwd) body.cwd = _cwd;
   body.agent_pid = process.pid;
@@ -328,31 +369,43 @@ function postPermissionToClawd(body) {
   postToClawd("/permission", body, `PERM tool=${body.tool_name} req=${body.request_id}`);
 }
 
+function buildStateBody(state, eventName, sessionId) {
+  if (!state || !eventName) return null;
+  const clawdSessionId = normalizeOpencodeSessionId(sessionId) || DEFAULT_SESSION_ID;
+  const body = {
+    state,
+    session_id: clawdSessionId,
+    event: eventName,
+    agent_id: AGENT_ID,
+    hook_source: HOOK_SOURCE,
+  };
+  // Phase 3 headless: child sessions (identified by parentID in
+  // _sessionParentById) get headless: true so downstream session
+  // handling can distinguish child sessions.
+  if (isChildSessionId(clawdSessionId, _sessionParentById)) {
+    body.headless = true;
+  }
+  return body;
+}
+
 // Clawd uses PascalCase event names matching Claude Code's hook vocabulary so
 // state.js transition rules (e.g. SubagentStop → working whitelist) are
 // reusable across agents.
 function sendState(state, eventName, sessionId) {
-  if (!state || !eventName) return;
+  const body = buildStateBody(state, eventName, sessionId);
+  if (!body) return;
 
-  if (state === "thinking" && ACTIVE_STATES_BLOCKING_THINKING.has(_lastState)) {
-    debugLog(`GATE busy→thinking blocked (lastState=${_lastState}, session=${sessionId})`);
+  const lastState = _lastStatePerSession.get(body.session_id) || null;
+
+  // Per-session dedup: skip only if the SAME session repeats the SAME state.
+  if (body.state === lastState) {
     return;
   }
 
-  if (state === _lastState && sessionId === _lastSessionId) {
-    return;
-  }
+  debugLog(`SEND ${lastState || "null"} → ${body.state} event=${body.event} session=${body.session_id}`);
+  _lastStatePerSession.set(body.session_id, body.state);
 
-  debugLog(`SEND ${_lastState || "null"} → ${state} event=${eventName} session=${sessionId}`);
-  _lastState = state;
-  _lastSessionId = sessionId;
-
-  postStateToClawd({
-    state,
-    session_id: sessionId || "default",
-    event: eventName,
-    agent_id: AGENT_ID,
-  });
+  postStateToClawd(body);
 }
 
 // Translate an opencode event into a Clawd (state, eventName) pair, or null
@@ -362,6 +415,7 @@ function sendState(state, eventName, sessionId) {
 function translateEvent(event) {
   if (!event || typeof event.type !== "string") return null;
   const props = event.properties || {};
+  const sessionId = getEventSessionId(event);
 
   switch (event.type) {
     case "session.created":
@@ -401,16 +455,15 @@ function translateEvent(event) {
     case "session.compacted":
       return { state: "sweeping", event: "PreCompact" };
 
-    case "session.idle":
-      // Phase 3 (plan A): only the root session's idle fires the happy
-      // animation. Subtask sessions (spawned by the `task` tool) end with
-      // SessionEnd so Clawd removes them from its tracking map — no happy
-      // flash, no menu pollution. If _rootSessionId is null (no session
-      // seen yet, should never happen), fall through to old behavior.
-      if (_rootSessionId && props.sessionID && props.sessionID !== _rootSessionId) {
+    case "session.idle": {
+      // Phase 3 headless: child sessions (identified by parentID in
+      // _sessionParentById) end with SessionEnd so Clawd removes them
+      // from its tracking map — no happy flash, no menu pollution.
+      if (isChildSessionId(sessionId, _sessionParentById)) {
         return { state: "sleeping", event: "SessionEnd" };
       }
       return { state: "attention", event: "Stop" };
+    }
 
     case "session.error":
       return { state: "error", event: "StopFailure" };
@@ -424,6 +477,19 @@ function translateEvent(event) {
   }
 }
 
+// Test-only internals. Attached to the default export at the bottom of this
+// file — NOT a named export. opencode's plugin loader runs getLegacyPlugins()
+// over Object.values(mod) and throws "Plugin export is not a function" on ANY
+// non-function module export, which silently kills the whole plugin. The module
+// must therefore expose exactly one export: the default function. See #413.
+const __testInternals = {
+  buildStateBody,
+  translateEvent,
+  get _sessionParentById() { return _sessionParentById; },
+  get _rootSessionId() { return _rootSessionId; },
+  set _rootSessionId(v) { _rootSessionId = v; },
+};
+
 // Normalize ctx.serverUrl into a string with a trailing slash. opencode passes
 // a URL object in practice but we coerce defensively in case future versions
 // hand us a plain string. Trailing slash lets Clawd concat cleanly:
@@ -436,10 +502,10 @@ function normalizeServerUrl(raw) {
 
 // Handle v2 permission.asked event — see Phase 2 Spike in
 // docs/plans/plan-opencode-integration.md. The payload has no sessionID in its
-// properties (only `id` = requestID), so we borrow _lastSessionId which is
-// kept fresh by session.*/message.part.updated events. Phase 1 dedup/state
-// machine logic does not run for permission events — they ride a parallel
-// channel and never translate to a Clawd state transition.
+// properties (only `id` = requestID), so we use _lastSeenSessionId (the most
+// recently seen session from state events) as a fallback, then _rootSessionId.
+// Phase 1 dedup/state machine logic does not run for permission events — they
+// ride a parallel channel and never translate to a Clawd state transition.
 function handlePermissionAsked(event) {
   const p = (event && event.properties) || {};
   const requestId = p.id;
@@ -449,11 +515,12 @@ function handlePermissionAsked(event) {
   }
   postPermissionToClawd({
     agent_id: AGENT_ID,
+    hook_source: HOOK_SOURCE,
     tool_name: p.permission || "unknown",
     tool_input: p.metadata || {},
     patterns: Array.isArray(p.patterns) ? p.patterns : [],
     always: Array.isArray(p.always) ? p.always : [],
-    session_id: _lastSessionId || "default",
+    session_id: resolveOpencodeSessionId(null, _lastSeenSessionId || _rootSessionId),
     request_id: requestId,
     server_url: _serverUrl,         // debug only, not used for replies
     bridge_url: _bridgeUrl,         // ← Clawd POSTs decisions here
@@ -565,7 +632,7 @@ function startBridge() {
 }
 
 // Plugin entrypoint (opencode loads this via default export).
-export default async (ctx) => {
+const plugin = async (ctx) => {
   resetDebugLog();
   _serverUrl = normalizeServerUrl(ctx && ctx.serverUrl);
   _ctxClient = ctx && ctx.client ? ctx.client : null;
@@ -583,10 +650,32 @@ export default async (ctx) => {
         // Phase 3: capture the root session on first sighting. Any later
         // sessionID is a subtask spawned by the parent's `task` tool, and
         // its session.idle will be downgraded to SessionEnd in translateEvent.
-        const sid = event.properties && event.properties.sessionID;
+        // The session ID may be in event.properties.sessionID (most events)
+        // or event.sessionID (session.created in some runtimes).
+        const sid = getEventSessionId(event);
         if (sid && !_rootSessionId) {
           _rootSessionId = sid;
           debugLog(`ROOT session captured id=${sid}`);
+        }
+        if (sid) _lastSeenSessionId = sid;
+
+        // Phase 3 headless: on session.created, read parentID from
+        // event.properties.info.parentID (opencode SDK ≥1.15.13) and store
+        // in _sessionParentById. Child sessions get headless: true in
+        // buildStateBody().
+        if (event.type === "session.created" && sid) {
+          const parentID = getEventParentSessionId(event);
+          if (parentID) {
+            // Store with normalized keys so lookups from buildStateBody()
+            // (which uses clawdSessionId = normalizeOpencodeSessionId(sessionId))
+            // match consistently regardless of raw vs prefixed form.
+            const normChild = normalizeOpencodeSessionId(sid);
+            const normParent = normalizeOpencodeSessionId(parentID);
+            if (normChild && normParent) {
+              _sessionParentById.set(normChild, normParent);
+              debugLog(`CHILD session id=${normChild} parentId=${normParent}`);
+            }
+          }
         }
 
         // Phase 2: permission.asked rides a parallel channel — forward to Clawd
@@ -596,6 +685,13 @@ export default async (ctx) => {
           handlePermissionAsked(event);
           return;
         }
+
+        // Phase 3 headless: clean up _sessionParentById on session end
+        // events so the Map doesn't grow unboundedly across sessions.
+        // Must run BEFORE shouldDropMappedEventWithoutSessionId() because
+        // server.instance.disposed may lack a sessionID (causing the drop
+        // check to early-return) but still needs to clear the entire map.
+        cleanupSessionParentMap(event, _sessionParentById);
 
         const mapped = translateEvent(event);
         if (!mapped) {
@@ -609,7 +705,16 @@ export default async (ctx) => {
           }
           return;
         }
-        const sessionId = (event.properties && event.properties.sessionID) || "default";
+        if (shouldDropMappedEventWithoutSessionId(event, mapped)) {
+          debugLog(`DROP ${event.type} event=${mapped.event} reason=no-session-id`);
+          return;
+        }
+
+        const sessionId = resolveOpencodeSessionId(
+          getEventSessionId(event),
+          _lastSeenSessionId || _rootSessionId
+        );
+
         debugLog(`MAP ${event.type} → state=${mapped.state} event=${mapped.event}`);
         sendState(mapped.state, mapped.event, sessionId);
       } catch (err) {
@@ -618,3 +723,12 @@ export default async (ctx) => {
     },
   };
 };
+
+// Expose test internals on the default-exported function rather than as a
+// separate named export — see the note on __testInternals and issue #413.
+// Object.values(mod) must contain only functions, or opencode's legacy plugin
+// loader throws "Plugin export is not a function" and the plugin never registers.
+// Non-enumerable: it's a private test backdoor, never part of the plugin surface.
+Object.defineProperty(plugin, "__test", { value: __testInternals });
+
+export default plugin;

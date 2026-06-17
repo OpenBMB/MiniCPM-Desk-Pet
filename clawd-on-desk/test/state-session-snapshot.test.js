@@ -5,6 +5,7 @@ const assert = require("node:assert");
 
 const {
   deriveSessionBadge,
+  isSessionInProgress,
   buildSessionSnapshot,
   getActiveSessionAliasKeys,
   sessionSnapshotSignature,
@@ -34,6 +35,26 @@ function session(state, overrides = {}) {
   };
 }
 
+describe("isSessionInProgress state mapping", () => {
+  it("treats persisted running states as in-progress and idle/sleeping/headless as not", () => {
+    assert.strictEqual(isSessionInProgress(session("working")), true);
+    assert.strictEqual(isSessionInProgress(session("thinking")), true);
+    assert.strictEqual(isSessionInProgress(session("juggling")), true);
+    assert.strictEqual(isSessionInProgress(session("idle")), false);
+    assert.strictEqual(isSessionInProgress(session("sleeping")), false);
+  });
+
+  it("never counts headless sessions, even when active", () => {
+    assert.strictEqual(isSessionInProgress(session("working", { headless: true })), false);
+    assert.strictEqual(isSessionInProgress(session("thinking", { headless: true })), false);
+  });
+
+  it("returns false for nullish sessions", () => {
+    assert.strictEqual(isSessionInProgress(null), false);
+    assert.strictEqual(isSessionInProgress(undefined), false);
+  });
+});
+
 describe("state-session-snapshot badges", () => {
   it("derives running, done, interrupted, and idle badges", () => {
     assert.strictEqual(deriveSessionBadge(session("working")), "running");
@@ -42,7 +63,20 @@ describe("state-session-snapshot badges", () => {
       recentEvents: [{ event: "Stop", state: "idle", at: 1 }],
     })), "done");
     assert.strictEqual(deriveSessionBadge(session("idle", {
+      recentEvents: [{ event: "event_msg:task_complete", state: "attention", at: 1 }],
+    })), "done");
+    assert.strictEqual(deriveSessionBadge(session("idle", {
+      requiresCompletionAck: true,
+      recentEvents: [{ event: "stale-cleanup", state: "sleeping", at: 1 }],
+    })), "done");
+    assert.strictEqual(deriveSessionBadge(session("idle", {
       recentEvents: [{ event: "PostToolUseFailure", state: "idle", at: 1 }],
+    })), "interrupted");
+    assert.strictEqual(deriveSessionBadge(session("idle", {
+      recentEvents: [{ event: "StopFailure", state: "idle", at: 1 }],
+    })), "interrupted");
+    assert.strictEqual(deriveSessionBadge(session("idle", {
+      recentEvents: [{ event: "ApiError", state: "idle", at: 1 }],
     })), "interrupted");
     assert.strictEqual(deriveSessionBadge(null), "idle");
   });
@@ -55,6 +89,7 @@ describe("state-session-snapshot builder", () => {
         updatedAt: 1000,
         cwd: "/tmp/old-project",
         sessionTitle: "Fix login",
+        editor: "code",
         platform: "webui",
         model: "gpt-5.4",
         provider: "openai",
@@ -98,12 +133,52 @@ describe("state-session-snapshot builder", () => {
     assert.strictEqual(oldWorking.platform, "webui");
     assert.strictEqual(oldWorking.model, "gpt-5.4");
     assert.strictEqual(oldWorking.provider, "openai");
+    assert.strictEqual(oldWorking.editor, "code");
     assert.strictEqual(oldWorking.sessionTitle, "Fix login");
     assert.strictEqual(oldWorking.displayTitle, "Fix login");
     assert.deepStrictEqual(oldWorking.lastEvent, {
       labelKey: "eventLabelPreToolUse",
       rawEvent: "PreToolUse",
       at: 900,
+    });
+
+    const taskCompleteSnapshot = buildSessionSnapshot(new Map([
+      ["remote-complete", session("idle", {
+        agentId: "codex",
+        host: "remote-box",
+        recentEvents: [{ event: "event_msg:task_complete", state: "attention", at: 3300 }],
+      })],
+      ["local-complete", session("idle", {
+        agentId: "codex",
+        host: null,
+        recentEvents: [{ event: "event_msg:task_complete", state: "attention", at: 3400 }],
+      })],
+      ["remote-stale-complete", session("idle", {
+        agentId: "codex",
+        host: "remote-box",
+        requiresCompletionAck: true,
+        recentEvents: [
+          { event: "event_msg:task_complete", state: "attention", at: 3500 },
+          { event: "stale-cleanup", state: "sleeping", at: 3600 },
+        ],
+      })],
+    ]), { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
+    const taskComplete = taskCompleteSnapshot.sessions.find((entry) => entry.id === "remote-complete");
+    assert.strictEqual(taskComplete.badge, "done");
+    assert.deepStrictEqual(taskComplete.lastEvent, {
+      labelKey: "eventLabelStop",
+      rawEvent: "event_msg:task_complete",
+      at: 3300,
+    });
+    const localComplete = taskCompleteSnapshot.sessions.find((entry) => entry.id === "local-complete");
+    assert.strictEqual(localComplete.badge, "done");
+    assert.strictEqual(localComplete.requiresCompletionAck, false);
+    const staleComplete = taskCompleteSnapshot.sessions.find((entry) => entry.id === "remote-stale-complete");
+    assert.strictEqual(staleComplete.badge, "done");
+    assert.deepStrictEqual(staleComplete.lastEvent, {
+      labelKey: "eventLabelStop",
+      rawEvent: "event_msg:task_complete",
+      at: 3500,
     });
 
     const latestRemote = snapshot.sessions.find((entry) => entry.id === "latest-remote");
@@ -138,6 +213,53 @@ describe("state-session-snapshot builder", () => {
       url: "codex://threads/019e115a-4df2-7ed0-b90e-8e6345aca777",
     });
     assert.strictEqual(byId.get("codex:019e115a-4df2-7ed0-b90e-8e6345aca777").codexSource, "vscode");
+  });
+
+  it("downgrades Codex Desktop focus targets on Windows snapshots", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["codex:019e115a-4df2-7ed0-b90e-8e6345aca777", session("working", {
+        agentId: "codex",
+        codexOriginator: "Codex Desktop",
+        sourcePid: 123,
+      })],
+      ["codex:019e115b-4df2-7ed0-b90e-8e6345aca777", session("working", {
+        agentId: "codex",
+        codexOriginator: "Codex Desktop",
+      })],
+    ]), { focusHostPlatform: "win32" });
+
+    const byId = new Map(snapshot.sessions.map((entry) => [entry.id, entry]));
+    assert.strictEqual(byId.get("codex:019e115a-4df2-7ed0-b90e-8e6345aca777").canFocus, true);
+    assert.deepStrictEqual(byId.get("codex:019e115a-4df2-7ed0-b90e-8e6345aca777").focusTarget, {
+      type: "terminal",
+      url: null,
+    });
+    assert.strictEqual(byId.get("codex:019e115b-4df2-7ed0-b90e-8e6345aca777").canFocus, false);
+    assert.strictEqual(byId.get("codex:019e115b-4df2-7ed0-b90e-8e6345aca777").focusTarget, null);
+
+    const nonWindowsSnapshot = buildSessionSnapshot(new Map([
+      ["codex:019e115b-4df2-7ed0-b90e-8e6345aca777", session("working", {
+        agentId: "codex",
+        codexOriginator: "Codex Desktop",
+      })],
+    ]), { focusHostPlatform: "darwin" });
+    assert.deepStrictEqual(nonWindowsSnapshot.sessions[0].focusTarget, {
+      type: "codex-thread",
+      url: "codex://threads/019e115b-4df2-7ed0-b90e-8e6345aca777",
+    });
+  });
+
+  it("exposes assistant last output for completion companion consumers", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["done", session("idle", {
+        assistantLastOutput: "Final assistant text",
+        assistantLastOutputTruncated: true,
+        recentEvents: [{ event: "Stop", state: "attention", at: 1 }],
+      })],
+    ]));
+    const entry = snapshot.sessions.find((s) => s.id === "done");
+    assert.strictEqual(entry.assistantLastOutput, "Final assistant text");
+    assert.strictEqual(entry.assistantLastOutputTruncated, true);
   });
 
   it("does not expose focus targets for sessions hidden from the focusable UI surface", () => {
@@ -216,6 +338,26 @@ describe("state-session-snapshot builder", () => {
     );
   });
 
+  it("includes contextUsage in snapshot entries", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["s1", session("working", {
+        contextUsage: {
+          used: 1000,
+          limit: 200000,
+          percent: 1,
+          source: "claude",
+        },
+      })],
+    ]), { statePriority: STATE_PRIORITY });
+
+    assert.deepStrictEqual(snapshot.sessions[0].contextUsage, {
+      used: 1000,
+      limit: 200000,
+      percent: 1,
+      source: "claude",
+    });
+  });
+
   it("marks detached ended idle sessions hidden from HUD only when cleanup is enabled and pid is dead", () => {
     const sessions = new Map([
       ["done-local", session("idle", {
@@ -242,6 +384,34 @@ describe("state-session-snapshot builder", () => {
     assert.strictEqual(snapshot.sessions.find((entry) => entry.id === "idle-local").hiddenFromHud, false);
     assert.strictEqual(snapshot.hudTotalNonIdle, 1);
     assert.strictEqual(snapshot.hudLastSessionId, "idle-local");
+  });
+
+  it("hides older local Codex sessions that share one agent process from HUD", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["codex:old", session("working", {
+        agentId: "codex",
+        agentPid: 4242,
+        updatedAt: 1000,
+        cwd: "/repo/old",
+      })],
+      ["codex:new", session("idle", {
+        agentId: "codex",
+        agentPid: 4242,
+        updatedAt: 2000,
+        cwd: "/repo/new",
+        recentEvents: [{ event: "Stop", state: "attention", at: 1900 }],
+      })],
+    ]), {
+      statePriority: STATE_PRIORITY,
+      getAgentIconUrl: () => null,
+    });
+
+    assert.strictEqual(snapshot.sessions.find((entry) => entry.id === "codex:old").hiddenFromHud, true);
+    assert.strictEqual(snapshot.sessions.find((entry) => entry.id === "codex:new").hiddenFromHud, false);
+    assert.strictEqual(snapshot.hudTotalNonIdle, 1);
+    assert.strictEqual(snapshot.hudLastSessionId, "codex:new");
+    assert.deepStrictEqual(snapshot.orderedIds, ["codex:new", "codex:old"]);
+    assert.deepStrictEqual(snapshot.groups, [{ host: "", ids: ["codex:new", "codex:old"] }]);
   });
 
   it("snapshot signatures include visible fields but ignore icon URL churn", () => {
@@ -278,5 +448,48 @@ describe("state-session-snapshot builder", () => {
 
     assert.strictEqual(sessionSnapshotSignature(base), sessionSnapshotSignature(sameExceptIcon));
     assert.notStrictEqual(sessionSnapshotSignature(base), sessionSnapshotSignature(differentTitle));
+  });
+
+  // ── PR2: requiresCompletionAck exposure ──
+  it("entry includes requiresCompletionAck=false for normal sessions", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["a", session("idle", { recentEvents: [{ event: "PreToolUse", state: "idle", at: 1 }] })],
+    ]), { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
+    const entry = snapshot.sessions.find((s) => s.id === "a");
+    assert.strictEqual(entry.requiresCompletionAck, false);
+  });
+
+  it("entry includes requiresCompletionAck=true when the session flag is set", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["a", session("idle", {
+        requiresCompletionAck: true,
+        recentEvents: [{ event: "Stop", state: "idle", at: 1 }],
+      })],
+    ]), { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
+    const entry = snapshot.sessions.find((s) => s.id === "a");
+    assert.strictEqual(entry.requiresCompletionAck, true);
+  });
+
+  it("ackedAt stays internal — does NOT appear in the snapshot entry", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["a", session("idle", { ackedAt: 12345, requiresCompletionAck: false })],
+    ]), { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
+    const entry = snapshot.sessions.find((s) => s.id === "a");
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(entry, "ackedAt"), false);
+  });
+
+  it("snapshot signature changes when requiresCompletionAck flips", () => {
+    const baseSessions = new Map([
+      ["a", session("idle", { recentEvents: [{ event: "Stop", state: "idle", at: 1 }] })],
+    ]);
+    const flaggedSessions = new Map([
+      ["a", session("idle", {
+        requiresCompletionAck: true,
+        recentEvents: [{ event: "Stop", state: "idle", at: 1 }],
+      })],
+    ]);
+    const base = buildSessionSnapshot(baseSessions, { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
+    const flagged = buildSessionSnapshot(flaggedSessions, { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
+    assert.notStrictEqual(sessionSnapshotSignature(base), sessionSnapshotSignature(flagged));
   });
 });

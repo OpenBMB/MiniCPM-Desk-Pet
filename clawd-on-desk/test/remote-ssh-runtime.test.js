@@ -7,15 +7,67 @@ const { EventEmitter } = require("events");
 const {
   buildSshArgs,
   buildScpArgs,
+  parseOpenSshVersion,
+  isUnsupportedWindowsOpenSsh,
   classifyStderr,
+  looksLikeWindowsCmdStderr,
   classifyProbeExit,
   buildProbeCommand,
   backoffMsForAttempt,
-  createRemoteSshRuntime,
+  createRemoteSshRuntime: createRemoteSshRuntimeBase,
   CLAWD_SERVER_HEADER,
   CLAWD_SERVER_ID,
+  PROBE_MIN_GAP_MS,
+  PROBE_CHILD_TIMEOUT_MS,
   BACKOFF_SCHEDULE_MS,
 } = require("../src/remote-ssh-runtime");
+const { clearRemoteNodeCache } = require("../src/remote-ssh-node");
+
+const DETECT_SSH_OK = () => ({
+  available: true,
+  version: "OpenSSH_9.5p2",
+  parsedVersion: { major: 9, minor: 5, patch: 2 },
+});
+
+function createRemoteSshRuntime(deps = {}) {
+  return createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    resolveRemoteNodeBin: () => ({ ok: true, nodeBin: "/usr/bin/node", version: "v20.0.0", source: "test" }),
+    ...deps,
+  });
+}
+
+// ── ssh detection ──
+
+test("parseOpenSshVersion extracts Windows and portable OpenSSH banners", () => {
+  assert.deepEqual(
+    parseOpenSshVersion("OpenSSH_for_Windows_7.7p1, LibreSSL 2.6.5"),
+    { major: 7, minor: 7, patch: 1 }
+  );
+  assert.deepEqual(
+    parseOpenSshVersion("OpenSSH_9.5p2 Ubuntu-1, OpenSSL 3.0.13"),
+    { major: 9, minor: 5, patch: 2 }
+  );
+  assert.deepEqual(
+    parseOpenSshVersion("OpenSSH_8.8p1, OpenSSL 3.0.5"),
+    { major: 8, minor: 8, patch: 1 }
+  );
+  assert.equal(parseOpenSshVersion("not ssh"), null);
+});
+
+test("Windows OpenSSH before 8 is rejected for Remote SSH health probes", () => {
+  const legacy = { available: true, version: "OpenSSH_for_Windows_7.7p1, LibreSSL 2.6.5" };
+  const modern = { available: true, version: "OpenSSH_for_Windows_8.1p1, LibreSSL 3.0.2" };
+  const gitForWindows = { available: true, version: "OpenSSH_8.8p1, OpenSSL 3.0.5" };
+  const unknown = { available: true, version: "plink masquerading as ssh" };
+  const missing = { available: false, error: "ssh executable not found in PATH" };
+  assert.equal(isUnsupportedWindowsOpenSsh(legacy, "win32"), true);
+  assert.equal(isUnsupportedWindowsOpenSsh(legacy, "linux"), false);
+  assert.equal(isUnsupportedWindowsOpenSsh(modern, "win32"), false);
+  assert.equal(isUnsupportedWindowsOpenSsh(gitForWindows, "win32"), false);
+  assert.equal(isUnsupportedWindowsOpenSsh(unknown, "win32"), false);
+  assert.equal(isUnsupportedWindowsOpenSsh(missing, "win32"), false);
+});
 
 // ── buildSshArgs ──
 
@@ -67,20 +119,24 @@ test("buildSshArgs places extraOpts after profile defaults, before host", () => 
   assert.ok(nIdx < hostIdx, "extraOpts must appear before host");
 });
 
-test("buildSshArgs extraOpts can override default via ssh last-wins (e.g. ConnectTimeout=2)", () => {
+// NOTE: ssh -o is FIRST-WINS, not last-wins (ssh_config(5): "the first
+// obtained value will be used"). Asserting `args[lastIndex] === "Foo=bar"`
+// does NOT prove ssh ends up with Foo=bar — it only proves where the token
+// sits in the array. These tests assert effective config by counting tokens
+// and checking the FIRST one, which is what ssh actually honors.
+
+test("buildSshArgs extraOpts cannot override base BatchMode (ssh first-wins)", () => {
+  // Even though BatchMode=no is appended after BatchMode=yes, ssh resolves
+  // the first occurrence — so non-interactive callers can NOT flip BatchMode
+  // by appending. This test pins that contract so a future "just add it to
+  // extraOpts" attempt fails loudly here instead of silently in production.
   const args = buildSshArgs(
     { host: "pi" },
-    { extraOpts: ["-o", "ConnectTimeout=2", "-o", "BatchMode=no"] }
+    { extraOpts: ["-o", "BatchMode=no"] }
   );
-  // The defaults come first, the overrides come second; ssh resolves last-wins.
-  const ctIndices = [];
-  args.forEach((v, i) => { if (v.startsWith("ConnectTimeout=")) ctIndices.push(i); });
-  assert.equal(ctIndices.length, 2);
-  assert.equal(args[ctIndices[ctIndices.length - 1]], "ConnectTimeout=2");
-  const bmIndices = [];
-  args.forEach((v, i) => { if (v.startsWith("BatchMode=")) bmIndices.push(i); });
-  assert.equal(bmIndices.length, 2);
-  assert.equal(args[bmIndices[bmIndices.length - 1]], "BatchMode=no");
+  const bmTokens = args.filter((v) => typeof v === "string" && v.startsWith("BatchMode="));
+  assert.equal(bmTokens.length, 2, "both tokens present in argv");
+  assert.equal(bmTokens[0], "BatchMode=yes", "first BatchMode wins; base must come first");
 });
 
 test("buildSshArgs validates extraOpts is an array", () => {
@@ -92,24 +148,35 @@ test("buildSshArgs default keeps -T (correct for backgrounded tunnels)", () => {
   assert.ok(args.includes("-T"), "non-interactive must include -T");
 });
 
-test("buildSshArgs interactive: true drops -T (Authenticate / Open Terminal path)", () => {
+test("buildSshArgs interactive: true uses empty base (no -T, BatchMode, ConnectTimeout)", () => {
   const args = buildSshArgs({ host: "pi" }, { interactive: true });
   assert.equal(args.includes("-T"), false, "interactive must drop -T to let pty negotiate");
-  // BatchMode + ConnectTimeout still present — only -T is dropped.
-  assert.ok(args.some((v) => v && v.startsWith && v.startsWith("BatchMode=")));
-  // Order check: identityFile / extraOpts / host still in correct slots.
+  assert.equal(
+    args.some((v) => typeof v === "string" && v.startsWith("BatchMode=")),
+    false,
+    "interactive base must not carry BatchMode (would block password / passphrase / host-key prompts)"
+  );
+  assert.equal(
+    args.some((v) => typeof v === "string" && v.startsWith("ConnectTimeout=")),
+    false,
+    "interactive base must not carry ConnectTimeout (user-initiated, they can wait)"
+  );
+  // Order check: host still last.
   assert.equal(args[args.length - 1], "pi");
 });
 
-test("buildSshArgs interactive + BatchMode=no override applies last-wins", () => {
+test("buildSshArgs interactive + BatchMode=no extraOpt: BatchMode=no is the only and first token", () => {
+  // With SSH_INTERACTIVE_BASE_OPTS empty, BatchMode=no from extraOpts is the
+  // FIRST and ONLY BatchMode ssh sees → effective config is BatchMode=no, so
+  // password / passphrase / host-key prompts can fire. This is the fix for
+  // issue #348 (Authenticate / Open Terminal path).
   const args = buildSshArgs(
     { host: "pi" },
     { interactive: true, extraOpts: ["-o", "BatchMode=no"] }
   );
-  const bmIdxs = [];
-  args.forEach((v, i) => { if (v && v.startsWith && v.startsWith("BatchMode=")) bmIdxs.push(i); });
-  assert.equal(bmIdxs.length, 2, "should have 2 BatchMode entries (default + override)");
-  assert.equal(args[bmIdxs[bmIdxs.length - 1]], "BatchMode=no");
+  const bmTokens = args.filter((v) => typeof v === "string" && v.startsWith("BatchMode="));
+  assert.equal(bmTokens.length, 1, "interactive base is empty; only the extraOpt BatchMode survives");
+  assert.equal(bmTokens[0], "BatchMode=no");
 });
 
 // ── buildScpArgs ──
@@ -255,6 +322,12 @@ test("buildProbeCommand embeds remoteForwardPort + clawd header check", () => {
   assert.ok(cmd.includes("setTimeout(2000"));
 });
 
+test("buildProbeCommand can use a resolved absolute remote Node path", () => {
+  const cmd = buildProbeCommand(23335, "/home/me/.nvm/versions/node/v22/bin/node");
+  assert.ok(cmd.startsWith("'/home/me/.nvm/versions/node/v22/bin/node' -e "));
+  assert.ok(cmd.includes("23335"));
+});
+
 test("buildProbeCommand returns valid JS that exits with each code under expected condition", () => {
   // Smoke: parse the embedded JS — it should not be syntactically broken.
   const cmd = buildProbeCommand(23333);
@@ -268,6 +341,31 @@ test("buildProbeCommand returns valid JS that exits with each code under expecte
   const statusIdx = raw.indexOf("statusCode===200");
   assert.ok(headerIdx >= 0 && statusIdx >= 0);
   assert.ok(headerIdx < statusIdx, "header check must precede status check");
+});
+
+// ── looksLikeWindowsCmdStderr ──
+//
+// One-shot suppression of the "remote Node resolver failed after probe
+// success" log on Windows-cmd remotes: every reconnect would otherwise
+// reprobe and re-fail with the same "sh is not recognized" stderr.
+test("looksLikeWindowsCmdStderr matches the English cmd.exe error", () => {
+  assert.ok(looksLikeWindowsCmdStderr("'sh' is not recognized as an internal or external command, operable program or batch file."));
+  assert.ok(looksLikeWindowsCmdStderr("ssh: 'node' is NOT RECOGNIZED AS AN INTERNAL OR EXTERNAL COMMAND"));
+});
+
+test("looksLikeWindowsCmdStderr matches localized cmd.exe error (zh/zh-TW/ja/ko/de)", () => {
+  assert.ok(looksLikeWindowsCmdStderr("'sh' 不是内部或外部命令，也不是可运行的程序或批处理文件。"));
+  assert.ok(looksLikeWindowsCmdStderr("'sh' 不是內部或外部命令，也不是可執行的程式或批次檔。"));
+  assert.ok(looksLikeWindowsCmdStderr("'sh' は、内部コマンドまたは外部コマンド、操作可能なプログラムまたはバッチ ファイルとして認識されていません。"));
+  assert.ok(looksLikeWindowsCmdStderr("'sh'은(는) 내부 명령 또는 외부 명령, 실행할 수 있는 프로그램, 또는 배치 파일이 아닙니다."));
+  assert.ok(looksLikeWindowsCmdStderr("Der Befehl 'sh' ist entweder falsch geschrieben oder konnte nicht als interner oder externer Befehl gefunden werden."));
+});
+
+test("looksLikeWindowsCmdStderr ignores unrelated POSIX errors", () => {
+  assert.equal(looksLikeWindowsCmdStderr(""), false);
+  assert.equal(looksLikeWindowsCmdStderr("bash: sh: command not found"), false);
+  assert.equal(looksLikeWindowsCmdStderr("Permission denied (publickey)."), false);
+  assert.equal(looksLikeWindowsCmdStderr("sh: line 1: syntax error"), false);
 });
 
 // ── backoffMsForAttempt ──
@@ -326,12 +424,79 @@ function makeFakeTimers() {
       try { t.cb(); } catch {}
     }
   }
+  function flushWhere(predicate) {
+    const snapshot = [...pending.entries()].filter(([, t]) => predicate(t));
+    for (const [id] of snapshot) pending.delete(id);
+    for (const [, t] of snapshot) {
+      try { t.cb(); } catch {}
+    }
+  }
   function size() { return pending.size; }
-  return { setTimeoutFn, clearTimeoutFn, flush, size };
+  return { setTimeoutFn, clearTimeoutFn, flush, flushWhere, size };
 }
 
 test("createRemoteSshRuntime requires getHookServerPort dep", () => {
   assert.throws(() => createRemoteSshRuntime({}), /getHookServerPort/);
+});
+
+test("connect fails fast on legacy Windows OpenSSH before spawning tunnel", () => {
+  let spawned = false;
+  const rt = createRemoteSshRuntime({
+    platform: "win32",
+    detectSsh: () => ({
+      available: true,
+      version: "OpenSSH_for_Windows_7.7p1, LibreSSL 2.6.5",
+    }),
+    spawn: () => {
+      spawned = true;
+      return makeMockChild();
+    },
+    getHookServerPort: () => 23333,
+  });
+  const events = [];
+  rt.on("status-changed", (s) => events.push(s));
+
+  rt.connect({ id: "p1", host: "pi", remoteForwardPort: 23333 });
+
+  const failed = events.find((e) => e.status === "failed");
+  assert.ok(failed);
+  assert.equal(failed.lastErrorReason, "windows_openssh_legacy");
+  assert.equal(failed.hint, "remoteSshErrWindowsOpenSshLegacy");
+  assert.match(failed.message, /Upgrade Windows OpenSSH to 8\.x or newer/);
+  assert.equal(spawned, false);
+});
+
+test("manual reconnect reruns ssh detection after legacy Windows OpenSSH failure", () => {
+  let detectCalls = 0;
+  let spawnCalls = 0;
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntime({
+    platform: "win32",
+    detectSsh: () => {
+      detectCalls += 1;
+      return detectCalls === 1
+        ? { available: true, version: "OpenSSH_for_Windows_7.7p1, LibreSSL 2.6.5" }
+        : { available: true, version: "OpenSSH_for_Windows_8.1p1, LibreSSL 3.0.2" };
+    },
+    spawn: () => {
+      spawnCalls += 1;
+      return makeMockChild();
+    },
+    getHookServerPort: () => 23333,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+  });
+  const profile = { id: "p1", host: "pi", remoteForwardPort: 23333 };
+
+  rt.connect(profile);
+  assert.equal(rt.getProfileStatus("p1").status, "failed");
+  assert.equal(spawnCalls, 0);
+
+  const second = rt.connect(profile);
+  assert.equal(detectCalls, 2);
+  assert.equal(spawnCalls, 1);
+  assert.equal(second.status, "connecting");
+  rt.cleanup();
 });
 
 test("connect spawns ssh with main forward args + LANG=C env", async () => {
@@ -378,6 +543,364 @@ test("connect spawns ssh with main forward args + LANG=C env", async () => {
   rt.cleanup();
 });
 
+test("hung probe child is hard-timed out so the probe loop can retry", async () => {
+  const children = [];
+  const spawn = () => {
+    const c = makeMockChild();
+    children.push(c);
+    return c;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntime({
+    spawn,
+    getHookServerPort: () => 23333,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+  });
+
+  rt.connect({ id: "p1", host: "pi", remoteForwardPort: 23333 });
+  timers.flushWhere((t) => t.ms === 0);
+  assert.equal(children.length, 2, "main tunnel + first probe");
+
+  timers.flushWhere((t) => t.ms === PROBE_CHILD_TIMEOUT_MS);
+  await new Promise((r) => setImmediate(r));
+  assert.equal(children[1]._killed, true);
+
+  timers.flushWhere((t) => t.ms === PROBE_MIN_GAP_MS);
+  assert.equal(children.length, 3, "probe retry should be allowed after hard timeout");
+  rt.cleanup();
+});
+
+test("connect starts health probe immediately on remote Node cache miss", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  let resolverCalled = false;
+  let resolveNode;
+  const pendingResolver = new Promise((resolve) => { resolveNode = resolve; });
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: () => {
+      resolverCalled = true;
+      return pendingResolver;
+    },
+  });
+
+  rt.connect({ id: "p1", host: "user@pi", remoteForwardPort: 23333 });
+  assert.equal(spawnCalls.length, 1, "main tunnel should spawn first");
+
+  timers.flush();
+  assert.ok(spawnCalls.length >= 2, "probe should start before node resolver settles");
+  const probeCmd = spawnCalls[1].args[spawnCalls[1].args.length - 1];
+  assert.ok(probeCmd.startsWith("node -e "), "cache miss intentionally starts with bare node probe");
+  assert.equal(resolverCalled, false, "resolver waits until the bare node probe fails or succeeds");
+
+  resolveNode({ ok: true, nodeBin: "/usr/bin/node", version: "v20.0.0", source: "test" });
+  await new Promise((r) => setImmediate(r));
+  rt.cleanup();
+});
+
+test("bare node probe failure waits for in-flight resolver before failing", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  let resolveNode;
+  const pendingResolver = new Promise((resolve) => { resolveNode = resolve; });
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: () => pendingResolver,
+  });
+
+  rt.connect({ id: "p1", host: "user@pi", remoteForwardPort: 23333 });
+  timers.flushWhere((t) => t.ms === 0);
+  assert.ok(spawnCalls.length >= 2);
+  spawnCalls[1].child._fakeExit(127);
+  await new Promise((r) => setImmediate(r));
+
+  timers.flushWhere((t) => t.ms > 0);
+  assert.notEqual(rt.getProfileStatus("p1").status, "failed",
+    "bare node 127 should not fail while absolute-node resolver is still running");
+
+  resolveNode({ ok: true, nodeBin: "/usr/bin/node", version: "v20.0.0", source: "test" });
+  await new Promise((r) => setImmediate(r));
+  rt.cleanup();
+});
+
+test("bare node probe does not keep spawning while absolute-node resolver is in flight", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  let resolveNode;
+  const pendingResolver = new Promise((resolve) => { resolveNode = resolve; });
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: () => pendingResolver,
+  });
+
+  rt.connect({ id: "p1", host: "user@pi", remoteForwardPort: 23333 });
+  timers.flushWhere((t) => t.ms === 0);
+  assert.equal(spawnCalls.length, 2, "main tunnel + first bare-node probe");
+  spawnCalls[1].child._fakeExit(127);
+  await new Promise((r) => setImmediate(r));
+
+  timers.flushWhere((t) => t.ms === PROBE_MIN_GAP_MS);
+  assert.equal(spawnCalls.length, 2,
+    "no additional bare-node probe should spawn while resolver is pending");
+
+  resolveNode({ ok: true, nodeBin: "/usr/bin/node", version: "v20.0.0", source: "test" });
+  await new Promise((r) => setImmediate(r));
+  rt.cleanup();
+});
+
+test("disconnect followed by reconnect clears a stale in-flight node resolver gate", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  let resolveNode;
+  const pendingResolver = new Promise((resolve) => { resolveNode = resolve; });
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const profile = { id: "p1", host: "user@pi", remoteForwardPort: 23333 };
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: () => pendingResolver,
+  });
+
+  rt.connect(profile);
+  timers.flushWhere((t) => t.ms === 0);
+  assert.equal(spawnCalls.length, 2, "main tunnel + first bare-node probe");
+  spawnCalls[1].child._fakeExit(127);
+  await new Promise((r) => setImmediate(r));
+
+  rt.disconnect("p1");
+  rt.connect(profile);
+  assert.equal(spawnCalls.length, 3, "reconnect should spawn a fresh main tunnel");
+  timers.flushWhere((t) => t.ms === 0);
+  assert.equal(spawnCalls.length, 4,
+    "fresh reconnect should not be blocked by the stale resolver from the prior tunnel");
+
+  resolveNode({ ok: true, nodeBin: "/usr/bin/node", version: "v20.0.0", source: "test" });
+  await new Promise((r) => setImmediate(r));
+  rt.cleanup();
+});
+
+test("connect uses persisted remote Node path and skips background resolver", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  let resolverCalled = false;
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: () => {
+      resolverCalled = true;
+      return { ok: true, nodeBin: "/bad/node", version: "v20.0.0", source: "test" };
+    },
+  });
+
+  rt.connect({
+    id: "p1",
+    host: "user@pi",
+    remoteForwardPort: 23333,
+    detectedRemoteNodeBin: "/home/me/.nvm/versions/node/v22/bin/node",
+    detectedRemoteNodeVersion: "v22.1.0",
+    detectedRemoteNodeSource: "profile",
+  });
+  timers.flush();
+
+  assert.equal(resolverCalled, false);
+  const probeCmd = spawnCalls[1].args[spawnCalls[1].args.length - 1];
+  assert.ok(probeCmd.startsWith("'/home/me/.nvm/versions/node/v22/bin/node' -e "));
+  rt.cleanup();
+});
+
+test("cached absolute node probe failure clears cache and re-resolves", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  const resolverCalls = [];
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: (options) => {
+      resolverCalls.push(options);
+      return { ok: true, nodeBin: "/usr/bin/node", version: "v20.0.0", source: "path" };
+    },
+  });
+
+  rt.connect({
+    id: "p1",
+    host: "user@pi",
+    remoteForwardPort: 23333,
+    detectedRemoteNodeBin: "/stale/node",
+    detectedRemoteNodeVersion: "v20.0.0",
+    detectedRemoteNodeSource: "profile",
+  });
+  timers.flushWhere((t) => t.ms === 0);
+  assert.equal(spawnCalls.length, 2, "main tunnel + cached-path probe");
+  assert.ok(spawnCalls[1].args[spawnCalls[1].args.length - 1].startsWith("'/stale/node' -e "));
+
+  spawnCalls[1].child._fakeExit(127);
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(resolverCalls.length, 1);
+  assert.equal(resolverCalls[0].useCache, false);
+
+  timers.flushWhere((t) => t.ms === PROBE_MIN_GAP_MS);
+  assert.equal(spawnCalls.length, 3, "resolved path should schedule a replacement probe");
+  assert.ok(spawnCalls[2].args[spawnCalls[2].args.length - 1].startsWith("'/usr/bin/node' -e "));
+  rt.cleanup();
+});
+
+test("connect emits remote-node-detected when background resolver succeeds", async () => {
+  clearRemoteNodeCache();
+  const spawnCalls = [];
+  const spawn = (cmd, args, opts) => {
+    const child = makeMockChild();
+    spawnCalls.push({ cmd, args, opts, child });
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntimeBase({
+    detectSsh: DETECT_SSH_OK,
+    spawn,
+    getHookServerPort: () => 23333,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: async () => ({
+      ok: true,
+      nodeBin: "/usr/local/bin/node",
+      version: "v20.10.0",
+      source: "path",
+    }),
+  });
+  const events = [];
+  rt.on("remote-node-detected", (payload) => events.push(payload));
+  rt.connect({ id: "p1", host: "pi", remoteForwardPort: 23333 });
+  timers.flushWhere((t) => t.ms === 0);
+  spawnCalls[1].child._fakeExit(0);
+
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].id, "p1");
+  assert.equal(events[0].nodeBin, "/usr/local/bin/node");
+  assert.equal(events[0].expectedTarget.host, "pi");
+  rt.cleanup();
+});
+
+test("windows-cmd shell cache suppresses automatic resolver retries but clears after manual reconnect", async () => {
+  clearRemoteNodeCache();
+  const children = [];
+  let resolverCalls = 0;
+  const spawn = () => {
+    const child = makeMockChild();
+    children.push(child);
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const profile = { id: "p1", host: "user@win", remoteForwardPort: 23333 };
+  const rt = createRemoteSshRuntime({
+    spawn,
+    getHookServerPort: () => 23335,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: () => {
+      resolverCalls += 1;
+      return {
+        ok: false,
+        stderr: "'sh' is not recognized as an internal or external command",
+        message: "Remote Node.js not found",
+      };
+    },
+  });
+
+  rt.connect(profile);
+  timers.flushWhere((t) => t.ms === 0);
+  children[1]._fakeExit(0);
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(rt.getProfileStatus("p1").status, "connected");
+  assert.equal(resolverCalls, 1, "first bare-node success starts the resolver");
+
+  children[0]._fakeStderr("ssh: connect to host win port 22: Connection timed out");
+  await new Promise((r) => setImmediate(r));
+  children[0]._fakeExit(255);
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(rt.getProfileStatus("p1").status, "reconnecting");
+
+  timers.flushWhere((t) => t.ms === BACKOFF_SCHEDULE_MS[0]);
+  timers.flushWhere((t) => t.ms === 0);
+  children[3]._fakeExit(0);
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(rt.getProfileStatus("p1").status, "connected");
+  assert.equal(resolverCalls, 1,
+    "automatic reconnect keeps the one-shot windows-cmd cache");
+
+  rt.disconnect("p1");
+  rt.connect(profile);
+  timers.flushWhere((t) => t.ms === 0);
+  children[children.length - 1]._fakeExit(0);
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  assert.equal(resolverCalls, 2,
+    "manual reconnect clears the cache so a fixed remote shell can recover");
+  rt.cleanup();
+});
+
 test("connect classifies Permission denied as permanent failed (no retry)", async () => {
   const mainChild = makeMockChild();
   const spawn = () => mainChild;
@@ -401,6 +924,42 @@ test("connect classifies Permission denied as permanent failed (no retry)", asyn
   const last = events[events.length - 1];
   assert.equal(last.status, "failed");
   assert.equal(last.lastErrorReason, "auth_denied");
+  assert.equal(last.hint, "remoteSshErrAuthDenied");
+  rt.cleanup();
+});
+
+test("connect preserves auth failures reported by remote Node resolver", async () => {
+  const spawnCalls = [];
+  const spawn = () => {
+    const child = makeMockChild();
+    spawnCalls.push(child);
+    return child;
+  };
+  const timers = makeFakeTimers();
+  const rt = createRemoteSshRuntime({
+    spawn,
+    getHookServerPort: () => 23333,
+    setTimeout: timers.setTimeoutFn,
+    clearTimeout: timers.clearTimeoutFn,
+    resolveRemoteNodeBin: async () => ({
+      ok: false,
+      stderr: "ssh: Permission denied (publickey).",
+      message: "Remote Node.js not found (ssh: Permission denied)",
+    }),
+  });
+  const events = [];
+  rt.on("status-changed", (s) => events.push(s));
+  rt.connect({ id: "p1", host: "pi", remoteForwardPort: 23333 });
+  timers.flushWhere((t) => t.ms === 0);
+  spawnCalls[1]._fakeExit(127);
+
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+
+  const last = events[events.length - 1];
+  assert.equal(last.status, "failed");
+  assert.equal(last.lastErrorReason, "auth_denied");
+  assert.equal(last.hint, "remoteSshErrAuthDenied");
   rt.cleanup();
 });
 
@@ -431,6 +990,7 @@ test("connect classifies Connection timed out as transient + schedules reconnect
   const reconnectEv = events.find((e) => e.status === "reconnecting");
   assert.ok(reconnectEv, "should enter reconnecting");
   assert.equal(reconnectEv.lastErrorReason, "net_timeout");
+  assert.equal(reconnectEv.hint, "remoteSshErrNetTimeout");
   // Status is reconnecting, not failed.
   assert.equal(rt.getProfileStatus("p1").status, "reconnecting");
   rt.cleanup();
@@ -484,6 +1044,7 @@ test("disconnect tears down child, sets idle, and stops reconnect", async () => 
   rt.connect({ id: "p1", host: "pi", remoteForwardPort: 23333 });
   rt.disconnect("p1");
   assert.equal(rt.getProfileStatus("p1").status, "idle");
+  assert.equal(rt.getProfileStatus("p1").hint, null);
   assert.equal(mainChild._killed, true);
   rt.cleanup();
 });

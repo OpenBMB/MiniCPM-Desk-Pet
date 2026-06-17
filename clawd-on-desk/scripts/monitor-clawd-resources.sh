@@ -2,7 +2,8 @@
 set -euo pipefail
 
 INTERVAL="2"
-PATTERN="Clawd on Desk|clawd-on-desk|src/main.js"
+# Include the old executable name as a legacy diagnostic match only.
+PATTERN="MiniCPM Desk Pet|Clawd on Desk|clawd-on-desk|src/main.js"
 TARGET_PID=""
 OUTFILE=""
 ONCE=0
@@ -10,7 +11,7 @@ QUIET=0
 
 usage() {
   cat <<'EOF'
-Monitor Clawd on Desk CPU and memory usage and write CSV samples.
+Monitor MiniCPM Desk Pet CPU and memory usage and write CSV samples.
 
 Usage:
   bash scripts/monitor-clawd-resources.sh [options]

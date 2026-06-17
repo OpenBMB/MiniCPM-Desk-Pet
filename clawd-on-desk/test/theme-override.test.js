@@ -15,7 +15,7 @@ const path = require("path");
 
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("cybercat");
+const _defaultTheme = themeLoader.loadTheme("cloudling");
 
 const {
   commandRegistry,

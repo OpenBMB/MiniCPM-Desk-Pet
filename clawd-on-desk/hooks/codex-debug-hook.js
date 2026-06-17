@@ -14,10 +14,18 @@ const DEFAULT_LOG_PATH = path.join(os.homedir(), ".clawd", "codex-hook-debug.jso
 function readStdin() {
   return new Promise((resolve) => {
     let data = "";
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(data);
+    };
     process.stdin.setEncoding("utf8");
     process.stdin.on("data", (chunk) => { data += chunk; });
-    process.stdin.on("end", () => resolve(data));
-    process.stdin.on("error", () => resolve(data));
+    process.stdin.on("end", finish);
+    process.stdin.on("error", finish);
+    const timer = setTimeout(finish, 400);
   });
 }
 

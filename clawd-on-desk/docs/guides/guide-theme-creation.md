@@ -294,7 +294,7 @@ Click and drag response animations:
 
 ```json
 "reactions": {
-  "drag":       { "file": "react-drag.gif" },
+  "drag":       { "file": "react-drag.gif", "fileLeft": "react-drag-left.gif", "fileRight": "react-drag-right.gif" },
   "clickLeft":  { "file": "react-left.gif",  "duration": 2500 },
   "clickRight": { "file": "react-right.gif", "duration": 2500 },
   "annoyed":    { "file": "react-annoyed.gif", "duration": 3500 },
@@ -302,7 +302,7 @@ Click and drag response animations:
 }
 ```
 
-- `drag` — plays while being dragged (no duration, loops until released)
+- `drag` — plays while being dragged (no duration, loops until released). Optional `fileLeft` / `fileRight` play when dragging horizontally in that direction; omitted directions fall back to `file`.
 - `clickLeft` / `clickRight` — double-click reaction, direction-aware
 - `annoyed` — 50% chance on double-click instead of directional
 - `double` — 4-click rapid reaction, `files` array for random selection

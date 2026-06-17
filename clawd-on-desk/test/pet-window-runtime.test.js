@@ -18,8 +18,10 @@ function makeWindow(bounds = { x: 10, y: 20, width: 100, height: 100 }) {
     destroyed: false,
     visible: true,
     webContents: {
+      destroyed: false,
       on: (event, cb) => listeners.set(event, cb),
       reload: () => calls.push(["reload"]),
+      isDestroyed() { return this.destroyed; },
     },
     isDestroyed: () => win.destroyed,
     isVisible: () => win.visible,
@@ -89,8 +91,8 @@ function createRuntime(overrides = {}) {
     getCurrentHitBox: () => overrides.hitBox || null,
     getMiniMode: () => overrides.miniMode || false,
     getMiniTransitioning: () => overrides.miniTransitioning || false,
+    getMiniContainedSeam: () => overrides.miniContainedSeam || null,
     getMiniPeekOffset: () => 0,
-    getMiniRenderCrop: () => overrides.miniRenderCrop || null,
     getCurrentPixelSize: () => overrides.currentPixelSize || { width: 100, height: 100 },
     getEffectiveCurrentPixelSize: () => overrides.effectivePixelSize || { width: 100, height: 100 },
     getKeepSizeAcrossDisplays: () => overrides.keepSizeAcrossDisplays || false,
@@ -169,6 +171,70 @@ describe("pet-window-runtime", () => {
     ]);
   });
 
+  it("creates pet windows with fully transparent native backgrounds", () => {
+    const renderInstances = [];
+    const renderHarness = createRuntime();
+    renderHarness.runtime.createRenderWindow({
+      BrowserWindow: makeBrowserWindow(renderInstances),
+      size: { width: 120, height: 120 },
+      initialWindowBounds: { x: 40, y: 0, width: 120, height: 120 },
+      initialVirtualBounds: { x: 40, y: 0, width: 120, height: 120 },
+      preloadPath: "preload.js",
+      loadFilePath: "index.html",
+      themeConfig: { ok: true },
+      setRenderWindow: renderHarness.setRenderWin,
+      isQuitting: () => false,
+    });
+
+    const hitInstances = [];
+    const hitHarness = createRuntime();
+    hitHarness.runtime.createHitWindow({
+      BrowserWindow: makeBrowserWindow(hitInstances),
+      preloadPath: "preload-hit.js",
+      loadFilePath: "hit.html",
+      hitThemeConfig: {},
+    });
+
+    assert.equal(renderInstances[0].options.transparent, true);
+    assert.equal(renderInstances[0].options.backgroundColor, "#00000000");
+    assert.equal(hitInstances[0].options.transparent, true);
+    assert.equal(hitInstances[0].options.backgroundColor, "#00000000");
+  });
+
+  it("keeps the click-capture window visually transparent", () => {
+    const hitHtml = fs.readFileSync(path.join(SRC_DIR, "hit.html"), "utf8");
+
+    assert.match(hitHtml, /background:\s*transparent/);
+    assert.doesNotMatch(hitHtml, /rgba\(0,\s*0,\s*0,\s*0\.004\)/);
+  });
+
+  it("reloadWindowWebContents ignores destroyed windows and webContents", () => {
+    const harness = createRuntime();
+    const live = makeWindow();
+    const destroyedWindow = makeWindow();
+    const destroyedContents = makeWindow();
+
+    destroyedWindow.destroyed = true;
+    destroyedContents.webContents.destroyed = true;
+
+    assert.equal(harness.runtime.reloadWindowWebContents(live), true);
+    assert.equal(harness.runtime.reloadWindowWebContents(destroyedWindow), false);
+    assert.equal(harness.runtime.reloadWindowWebContents(destroyedContents), false);
+    assert.deepStrictEqual(live.calls, [["reload"]]);
+    assert.deepStrictEqual(destroyedWindow.calls, []);
+    assert.deepStrictEqual(destroyedContents.calls, []);
+  });
+
+  it("uses safe reload helpers for pet render-process-gone handlers", () => {
+    const runtimeSource = fs.readFileSync(path.join(SRC_DIR, "pet-window-runtime.js"), "utf8");
+    const mainSource = fs.readFileSync(path.join(SRC_DIR, "main.js"), "utf8");
+
+    assert.match(runtimeSource, /reloadWindowWebContents\(hitWin\)/);
+    assert.match(mainSource, /petWindowRuntime\.reloadWindowWebContents\(ownedHitWin\)/);
+    assert.match(mainSource, /petWindowRuntime\.reloadWindowWebContents\(win\)/);
+    assert.doesNotMatch(mainSource, /ownedHitWin\.webContents\.reload\(\)/);
+  });
+
   it("creates the render window as non-focusable and materializes the initial virtual bounds", () => {
     const instances = [];
     const harness = createRuntime();
@@ -198,6 +264,52 @@ describe("pet-window-runtime", () => {
       { x: 40, y: 0, width: 120, height: 120 },
     ]);
     assert.equal(harness.runtime.getViewportOffsetY(), 25);
+  });
+
+  it("flushes runtime prefs once during Windows session end", () => {
+    const instances = [];
+    const harness = createRuntime();
+
+    harness.runtime.createRenderWindow({
+      BrowserWindow: makeBrowserWindow(instances),
+      size: { width: 120, height: 120 },
+      initialWindowBounds: { x: 40, y: 0, width: 120, height: 120 },
+      initialVirtualBounds: { x: 40, y: 0, width: 120, height: 120 },
+      preloadPath: "preload.js",
+      loadFilePath: "index.html",
+      themeConfig: { ok: true },
+      setRenderWindow: harness.setRenderWin,
+      isQuitting: () => false,
+    });
+
+    instances[0].emit("query-session-end");
+    instances[0].emit("session-end");
+
+    assert.deepStrictEqual(harness.calls.filter((call) => call[0] === "flushRuntimeStateToPrefs"), [
+      ["flushRuntimeStateToPrefs"],
+    ]);
+  });
+
+  it("does not flush runtime prefs for session-end events on non-Windows platforms", () => {
+    const instances = [];
+    const harness = createRuntime({ isWin: false });
+
+    harness.runtime.createRenderWindow({
+      BrowserWindow: makeBrowserWindow(instances),
+      size: { width: 120, height: 120 },
+      initialWindowBounds: { x: 40, y: 0, width: 120, height: 120 },
+      initialVirtualBounds: { x: 40, y: 0, width: 120, height: 120 },
+      preloadPath: "preload.js",
+      loadFilePath: "index.html",
+      themeConfig: { ok: true },
+      setRenderWindow: harness.setRenderWin,
+      isQuitting: () => false,
+    });
+
+    instances[0].emit("query-session-end");
+    instances[0].emit("session-end");
+
+    assert.deepStrictEqual(harness.calls.filter((call) => call[0] === "flushRuntimeStateToPrefs"), []);
   });
 
   it("keeps Linux hit windows non-focusable", () => {
@@ -237,54 +349,6 @@ describe("pet-window-runtime", () => {
     ]);
   });
 
-  it("clips the mini hit window to the render crop", () => {
-    const harness = createRuntime({
-      renderWin: makeWindow({ x: 730, y: 180, width: 120, height: 120 }),
-      miniMode: true,
-      miniRenderCrop: { x: 0, y: 0, width: 70, height: 120 },
-    });
-
-    harness.runtime.syncHitWin();
-
-    assert.deepStrictEqual(harness.hitWin.calls.find((call) => call[0] === "setBounds"), [
-      "setBounds",
-      { x: 730, y: 180, width: 70, height: 120 },
-    ]);
-    assert.deepStrictEqual(harness.hitWin.calls.find((call) => call[0] === "setShape"), [
-      "setShape",
-      [{ x: 0, y: 0, width: 70, height: 120 }],
-    ]);
-  });
-
-  it("widens the render window for file render canvas while preserving logical pet bounds", () => {
-    const harness = createRuntime({
-      renderWin: makeWindow({ x: 10, y: 20, width: 100, height: 100 }),
-      theme: {
-        renderCanvas: {
-          fileRatios: {
-            "idle.svg": { widthRatio: 2, anchorX: 0.5 },
-          },
-        },
-      },
-    });
-
-    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "idle.svg"), true);
-    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "idle.svg"), false);
-
-    assert.deepStrictEqual(harness.renderWin.calls.filter((call) => call[0] === "setBounds"), [
-      ["setBounds", { x: -40, y: 20, width: 200, height: 100 }],
-    ]);
-    assert.deepStrictEqual(harness.runtime.getPetWindowBounds(), { x: 10, y: 20, width: 100, height: 100 });
-
-    assert.strictEqual(harness.runtime.syncRenderCanvasForState("idle", "plain.svg"), true);
-
-    const setBoundsCalls = harness.renderWin.calls.filter((call) => call[0] === "setBounds");
-    assert.deepStrictEqual(setBoundsCalls[setBoundsCalls.length - 1], [
-      "setBounds",
-      { x: 10, y: 20, width: 100, height: 100 },
-    ]);
-  });
-
   it("does not move the hit window while drag owns pointer capture", () => {
     const harness = createRuntime();
 
@@ -292,6 +356,64 @@ describe("pet-window-runtime", () => {
     harness.runtime.syncHitWin();
 
     assert.deepStrictEqual(harness.hitWin.calls, []);
+  });
+
+  it("clips the hit window to a right-side internal monitor seam", () => {
+    const renderWin = makeWindow({ x: 40, y: 0, width: 120, height: 120 });
+    const harness = createRuntime({
+      renderWin,
+      miniMode: true,
+      miniContainedSeam: { boundary: 100, edge: "right" },
+    });
+
+    harness.runtime.syncHitWin();
+
+    // Full hit rect [40,160) clipped at the seam → keep the local half [40,100).
+    assert.deepStrictEqual(
+      harness.hitWin.calls.find((call) => call[0] === "setBounds"),
+      ["setBounds", { x: 40, y: 0, width: 60, height: 120 }]
+    );
+  });
+
+  it("clips the hit window from the left at a left-side internal seam", () => {
+    const renderWin = makeWindow({ x: 40, y: 0, width: 120, height: 120 });
+    const harness = createRuntime({
+      renderWin,
+      miniMode: true,
+      miniContainedSeam: { boundary: 100, edge: "left" },
+    });
+
+    harness.runtime.syncHitWin();
+
+    // Full hit rect [40,160) clipped at the seam → keep the local half [100,160).
+    assert.deepStrictEqual(
+      harness.hitWin.calls.find((call) => call[0] === "setBounds"),
+      ["setBounds", { x: 100, y: 0, width: 60, height: 120 }]
+    );
+  });
+
+  it("leaves the hit window unclipped when no internal seam is active", () => {
+    const renderWin = makeWindow({ x: 40, y: 0, width: 120, height: 120 });
+    const harness = createRuntime({ renderWin, miniMode: true });
+
+    harness.runtime.syncHitWin();
+
+    assert.deepStrictEqual(
+      harness.hitWin.calls.find((call) => call[0] === "setBounds"),
+      ["setBounds", { x: 40, y: 0, width: 120, height: 120 }]
+    );
+  });
+
+  it("returns the seam-clipped hit rect to hover and bubble callers", () => {
+    const harness = createRuntime({
+      miniMode: true,
+      miniContainedSeam: { boundary: 100, edge: "right" },
+    });
+
+    assert.deepStrictEqual(
+      harness.runtime.getHitRectScreen({ x: 40, y: 0, width: 120, height: 120 }),
+      { left: 40, top: 0, right: 100, bottom: 120 }
+    );
   });
 
   it("reasserts Windows topmost when drag movement lands near a work-area edge", () => {
@@ -345,6 +467,19 @@ describe("pet-window-runtime", () => {
     ]);
   });
 
+  it("refreshes mini seam state when a display is added", () => {
+    const harness = createRuntime({ miniMode: true });
+
+    harness.runtime.handleDisplayAdded();
+
+    assert.deepStrictEqual(harness.renderWin.calls, []);
+    assert.deepStrictEqual(harness.calls, [
+      ["reapplyMacVisibility"],
+      ["handleMiniDisplayChange"],
+      ["repositionAnchoredSurfaces"],
+    ]);
+  });
+
   it("brings the pet to primary display and flushes runtime prefs", () => {
     const harness = createRuntime({
       effectivePixelSize: { width: 200, height: 160 },
@@ -360,5 +495,56 @@ describe("pet-window-runtime", () => {
     assert.ok(harness.calls.some((call) => call[0] === "reassertWinTopmost"));
     assert.ok(harness.calls.some((call) => call[0] === "scheduleHwndRecovery"));
     assert.ok(harness.calls.some((call) => call[0] === "flushRuntimeStateToPrefs"));
+  });
+});
+
+describe("pet-window-runtime setPetHidden contract (#416)", () => {
+  it("hides the pet and reports a real change", () => {
+    const h = createRuntime();
+    const r = h.runtime.setPetHidden(true);
+    assert.deepEqual(r, { applied: true, deferred: false, changed: true });
+    assert.equal(h.runtime.isPetHidden(), true);
+    assert.ok(h.renderWin.calls.some((c) => c[0] === "hide"));
+  });
+
+  it("is idempotent when already in the target state", () => {
+    const h = createRuntime();
+    h.runtime.setPetHidden(true);
+    const before = h.renderWin.calls.length;
+    const r = h.runtime.setPetHidden(true);
+    assert.deepEqual(r, { applied: true, deferred: false, changed: false });
+    assert.equal(h.renderWin.calls.length, before);
+  });
+
+  it("shows the pet again", () => {
+    const h = createRuntime();
+    h.runtime.setPetHidden(true);
+    const r = h.runtime.setPetHidden(false);
+    assert.deepEqual(r, { applied: true, deferred: false, changed: true });
+    assert.equal(h.runtime.isPetHidden(), false);
+    assert.ok(h.renderWin.calls.some((c) => c[0] === "showInactive"));
+  });
+
+  it("defers without changing state during a mini transition", () => {
+    const h = createRuntime({ miniTransitioning: true });
+    const r = h.runtime.setPetHidden(true);
+    assert.deepEqual(r, { applied: false, deferred: true, changed: false });
+    assert.equal(h.runtime.isPetHidden(), false);
+  });
+
+  it("reports not-applied when the render window is gone", () => {
+    const h = createRuntime();
+    h.renderWin.destroyed = true;
+    const r = h.runtime.setPetHidden(true);
+    assert.deepEqual(r, { applied: false, deferred: false, changed: false });
+  });
+
+  it("togglePetVisibility flips state through setPetHidden", () => {
+    const h = createRuntime();
+    assert.equal(h.runtime.isPetHidden(), false);
+    h.runtime.togglePetVisibility();
+    assert.equal(h.runtime.isPetHidden(), true);
+    h.runtime.togglePetVisibility();
+    assert.equal(h.runtime.isPetHidden(), false);
   });
 });

@@ -31,6 +31,12 @@ models/
 # Local scratch dir for one-off assets/exports
 temp/
 
+# Planning / agent working files
+task_plan.md
+findings.md
+progress.md
+.planning/
+
 # Local env / secrets
 .env
 .env.local

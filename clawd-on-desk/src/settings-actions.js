@@ -49,6 +49,12 @@
 // keep validate side-effect-free.
 
 const { CURRENT_VERSION } = require("./prefs");
+const {
+  TEXT_SCALE_MIN,
+  TEXT_SCALE_MAX,
+  isValidTextScale,
+  normalizeTextScaleByDisplay,
+} = require("./text-scale");
 const { isValidDisplaySnapshot } = require("./work-area");
 const {
   MAX_AUTO_CLOSE_SECONDS,
@@ -78,8 +84,14 @@ const {
   resetAllShortcuts,
 } = require("./settings-actions-shortcuts");
 const {
+  clearAgentCleanupHints,
+  clearAgentInstallHints,
+  dismissAgentCleanupHints,
+  installAgentIntegration,
+  dismissAgentInstallHints,
   setAgentFlag,
   setAgentPermissionMode,
+  uninstallAgentIntegration,
   repairAgentIntegration,
 } = require("./settings-actions-agents");
 const {
@@ -104,9 +116,47 @@ const {
 const {
   validateProfile: validateRemoteSshProfile,
   sanitizeProfile: sanitizeRemoteSshProfile,
+  isValidDetectedRemoteNodeBin,
+  isValidDetectedRemoteNodeVersion,
+  isValidDetectedRemoteNodeSource,
   deployTargetFingerprint,
   deployTargetDrift,
 } = require("./remote-ssh-profile");
+const {
+  validateTelegramApproval,
+  validateTelegramBotToken,
+} = require("./telegram-approval-settings");
+const { EVENTS: TELEGRAM_MIGRATION_EVENTS } = require("./telegram-migration-state");
+const {
+  validateHardwareBuddySettings,
+} = require("./hardware-buddy-settings");
+
+const TELEGRAM_MIGRATION_RENDERER_EVENTS = new Set([
+  TELEGRAM_MIGRATION_EVENTS.USER_TEST_NATIVE,
+  TELEGRAM_MIGRATION_EVENTS.USER_ENABLE_LEGACY,
+  TELEGRAM_MIGRATION_EVENTS.USER_ROLLBACK_TO_LEGACY,
+  TELEGRAM_MIGRATION_EVENTS.USER_DISABLE,
+]);
+
+const MANAGED_CLEANUP_AGENT_IDS = Object.freeze([
+  "claude-code",
+  "codex",
+  "copilot-cli",
+  "cursor-agent",
+  "gemini-cli",
+  "antigravity-cli",
+  "codebuddy",
+  "kiro-cli",
+  "kimi-cli",
+  "qwen-code",
+  "codewhale",
+  "opencode",
+  "pi",
+  "openclaw",
+  "hermes",
+  "qoder",
+  "reasonix",
+]);
 
 // ── updateRegistry ──
 // Maps prefs field name → validator. Controller looks up by key and runs.
@@ -146,18 +196,42 @@ const updateRegistry = {
   savedPixelHeight: requireNonNegativeFiniteNumber("savedPixelHeight"),
 
   // ── Pure data prefs (function-form: validator only) ──
-  lang: requireEnum("lang", ["system", "en", "zh", "zh-TW", "ko", "ja"]),
+  lang: requireEnum("lang", ["en", "zh", "zh-TW", "ko", "ja"]),
   soundMuted: requireBoolean("soundMuted"),
   soundVolume: requireNumberInRange("soundVolume", 0, 1),
+  textScale: requireNumberInRange("textScale", TEXT_SCALE_MIN, TEXT_SCALE_MAX),
+  // Committed by the setTextScaleForDisplay command (the controller requires
+  // every commit key to have a registry entry). Strict per-entry validation
+  // so a direct settings:update can't park junk in the in-memory store.
+  textScaleByDisplay: (value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { status: "error", message: "textScaleByDisplay must be an object map" };
+    }
+    for (const [key, raw] of Object.entries(value)) {
+      if (typeof key !== "string" || !key.trim() || !isValidTextScale(raw)) {
+        return {
+          status: "error",
+          message: `textScaleByDisplay entry "${key}" must map a display id to ${TEXT_SCALE_MIN}–${TEXT_SCALE_MAX}`,
+        };
+      }
+    }
+    return { status: "ok" };
+  },
+  flashTaskbarOnComplete: requireBoolean("flashTaskbarOnComplete"),
+  flashIntervalMs: requireNumberInRange("flashIntervalMs", 200, 2000),
+  flashDurationMs: requireNumberInRange("flashDurationMs", 0, 60000),
   lowPowerIdleMode: requireBoolean("lowPowerIdleMode"),
+  keepAwakeWhileWorking: requireBoolean("keepAwakeWhileWorking"),
   bubbleFollowPet: requireBoolean("bubbleFollowPet"),
   sessionHudEnabled: requireBoolean("sessionHudEnabled"),
+  sessionHudShowStateLabels: requireBoolean("sessionHudShowStateLabels"),
   sessionHudShowElapsed: requireBoolean("sessionHudShowElapsed"),
+  sessionHudShowContextUsage: requireBoolean("sessionHudShowContextUsage"),
   sessionHudCleanupDetached: requireBoolean("sessionHudCleanupDetached"),
-  sessionHudAutoHide: requireBoolean("sessionHudAutoHide"),
   sessionHudPinned: requireBoolean("sessionHudPinned"),
   hideBubbles: requireBoolean("hideBubbles"),
   permissionBubblesEnabled: requireBoolean("permissionBubblesEnabled"),
+  autoApproveAllPermissions: requireBoolean("autoApproveAllPermissions"),
   notificationBubbleAutoCloseSeconds: requireIntegerInRange(
     "notificationBubbleAutoCloseSeconds",
     0,
@@ -173,8 +247,46 @@ const updateRegistry = {
     0,
     MAX_AUTO_CLOSE_SECONDS
   ),
+  // Session stale-cleanup intervals. Cross-field invariant
+  // (sessionStaleMs > 0 -> workingStaleMs <= sessionStaleMs) is enforced
+  // here against the live snapshot AND atomically through the
+  // `sessionCleanup.setTriple` command below. Hand-edit fallback lives in
+  // prefs.normalizeStaleTriple.
+  sessionStaleMs(value, deps = {}) {
+    if (value === 0) return { status: "ok" };
+    const base = requireIntegerInRange("sessionStaleMs", 60_000, 86_400_000)(value);
+    if (base.status !== "ok") return base;
+    const snapshot = (deps && deps.snapshot) || {};
+    const currentWorking = Number(snapshot.workingStaleMs);
+    if (Number.isFinite(currentWorking) && currentWorking > value) {
+      return {
+        status: "error",
+        message:
+          `sessionStaleMs (${value}) must be >= workingStaleMs (${currentWorking}). ` +
+          "To lower both, use the Reset / paired control.",
+      };
+    }
+    return { status: "ok" };
+  },
+  workingStaleMs(value, deps = {}) {
+    const base = requireIntegerInRange("workingStaleMs", 30_000, 86_400_000)(value);
+    if (base.status !== "ok") return base;
+    const snapshot = (deps && deps.snapshot) || {};
+    const currentSession = Number(snapshot.sessionStaleMs);
+    if (Number.isFinite(currentSession) && currentSession > 0 && value > currentSession) {
+      return {
+        status: "error",
+        message: `workingStaleMs (${value}) must be <= sessionStaleMs (${currentSession}).`,
+      };
+    }
+    return { status: "ok" };
+  },
+  detachedIdleStaleMs: requireIntegerInRange("detachedIdleStaleMs", 5_000, 300_000),
   allowEdgePinning: requireBoolean("allowEdgePinning"),
+  disableMiniMode: requireBoolean("disableMiniMode"),
+  freeRoam: requireBoolean("freeRoam"),
   keepSizeAcrossDisplays: requireBoolean("keepSizeAcrossDisplays"),
+  mobilePreviewEnabled: requireBoolean("mobilePreviewEnabled"),
 
   // ── System-backed prefs (object-form: validate + effect pre-commit gate) ──
   autoStartWithClaude,
@@ -238,6 +350,52 @@ const updateRegistry = {
     },
   },
 
+  // ── #329 background update check (Phase 4) ──
+  autoUpdateCheck: requireBoolean("autoUpdateCheck"),
+  pendingUpdateVersion: requireString("pendingUpdateVersion", { allowEmpty: true }),
+  dismissedUpdateVersions(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { status: "error", message: "dismissedUpdateVersions must be a plain object" };
+    }
+    for (const key of Object.keys(value)) {
+      if (typeof key !== "string" || !key) {
+        return { status: "error", message: "dismissedUpdateVersions keys must be non-empty strings" };
+      }
+      if (value[key] !== true) {
+        return { status: "error", message: `dismissedUpdateVersions["${key}"] must be the literal true` };
+      }
+    }
+    return { status: "ok" };
+  },
+  dismissedAgentInstallHints(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { status: "error", message: "dismissedAgentInstallHints must be a plain object" };
+    }
+    for (const key of Object.keys(value)) {
+      if (typeof key !== "string" || !key) {
+        return { status: "error", message: "dismissedAgentInstallHints keys must be non-empty strings" };
+      }
+      if (value[key] !== true) {
+        return { status: "error", message: `dismissedAgentInstallHints["${key}"] must be the literal true` };
+      }
+    }
+    return { status: "ok" };
+  },
+  dismissedAgentCleanupHints(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { status: "error", message: "dismissedAgentCleanupHints must be a plain object" };
+    }
+    for (const key of Object.keys(value)) {
+      if (typeof key !== "string" || !key) {
+        return { status: "error", message: "dismissedAgentCleanupHints keys must be non-empty strings" };
+      }
+      if (value[key] !== true) {
+        return { status: "error", message: `dismissedAgentCleanupHints["${key}"] must be the literal true` };
+      }
+    }
+    return { status: "ok" };
+  },
+
   // ── Phase 2/3 placeholders — schema reserves these so applyUpdate accepts them ──
   agents: requirePlainObject("agents"),
   themeOverrides: requirePlainObject("themeOverrides"),
@@ -277,6 +435,40 @@ const updateRegistry = {
       }
     }
     return { status: "ok" };
+  },
+  tgApproval(value) {
+    return validateTelegramApproval(value);
+  },
+
+  // v0.9.0 spike: persisted migration state across restarts. Shape:
+  //   { transport?: "legacy"|"native"|"off", nativeVerifiedAt?: number|null,
+  //     legacyEnabled?: boolean|null,
+  //     migration?: { importedAt: number|null, importError: string|null } }
+  tgMigration(value) {
+    if (value == null || typeof value !== "object") {
+      return { status: "error", message: "tgMigration must be a plain object" };
+    }
+    const allowed = new Set(["transport", "nativeVerifiedAt", "legacyEnabled", "migration"]);
+    for (const k of Object.keys(value)) {
+      if (!allowed.has(k)) return { status: "error", message: `tgMigration.${k} not supported` };
+    }
+    if (value.transport != null && !["legacy", "native", "off"].includes(value.transport)) {
+      return { status: "error", message: "tgMigration.transport must be legacy|native|off" };
+    }
+    if (value.nativeVerifiedAt != null && (typeof value.nativeVerifiedAt !== "number" || !Number.isFinite(value.nativeVerifiedAt))) {
+      return { status: "error", message: "tgMigration.nativeVerifiedAt must be a finite number" };
+    }
+    if (value.legacyEnabled != null && typeof value.legacyEnabled !== "boolean") {
+      return { status: "error", message: "tgMigration.legacyEnabled must be boolean" };
+    }
+    if (value.migration != null && typeof value.migration !== "object") {
+      return { status: "error", message: "tgMigration.migration must be an object" };
+    }
+    return { status: "ok" };
+  },
+
+  hardwareBuddy(value) {
+    return validateHardwareBuddySettings(value);
   },
 
   shortcuts: {
@@ -321,6 +513,31 @@ function setAllBubblesHidden(payload, deps) {
   return { status: "ok", commit: buildAggregateHideCommit(hidden, deps && deps.snapshot) };
 }
 
+// DANGER "auto-pilot" writer. Enabling auto-approve-everything is a one-way
+// trust decision, so this command — not a raw settings:update — is the only
+// path allowed to flip it ON, and it requires an explicit confirmed:true.
+// The settings:update IPC handler rejects the field directly (see
+// settings-ipc.js), so the confirmation dialog is a real gate, not just UI
+// decoration: anything reaching the data layer must carry proof the user
+// confirmed. Disabling needs no confirmation (turning a danger toggle off is
+// always safe).
+function setAutoApproveAll(payload, _deps) {
+  if (!payload || typeof payload !== "object") {
+    return { status: "error", message: "setAutoApproveAll: payload must be an object" };
+  }
+  const enabled = payload.enabled;
+  if (typeof enabled !== "boolean") {
+    return { status: "error", message: "setAutoApproveAll.enabled must be a boolean" };
+  }
+  if (enabled && payload.confirmed !== true) {
+    return {
+      status: "error",
+      message: "setAutoApproveAll: enabling requires confirmed:true (user must confirm the danger dialog)",
+    };
+  }
+  return { status: "ok", commit: { autoApproveAllPermissions: enabled } };
+}
+
 function setBubbleCategoryEnabled(payload, deps) {
   if (!payload || typeof payload !== "object") {
     return { status: "error", message: "setBubbleCategoryEnabled: payload must be an object" };
@@ -329,6 +546,70 @@ function setBubbleCategoryEnabled(payload, deps) {
   const result = buildCategoryEnabledCommit((deps && deps.snapshot) || {}, category, enabled);
   if (result.error) return { status: "error", message: result.error };
   return { status: "ok", commit: result.commit };
+}
+
+// Atomic three-key writer for the session-cleanup intervals. Lives as a
+// command (not as `applyBulk`) because applyBulk runs each single-key
+// validator against the PRE-bulk snapshot, which would reject a Reset that
+// lowers both knobs simultaneously. The controller's command path re-runs
+// validators against the merged snapshot, so the cross-field invariant is
+// checked against the values being written together rather than mixed
+// with the current state.
+function setSessionCleanupTriple(payload, deps) {
+  if (!payload || typeof payload !== "object") {
+    return { status: "error", message: "sessionCleanup.setTriple: payload must be an object" };
+  }
+  const snapshot = (deps && deps.snapshot) || {};
+
+  // Strict presence check: a present-but-wrong-type value is a programmer
+  // error and must surface, not silently fall back to the snapshot.
+  function pick(key) {
+    if (key in payload) {
+      const v = payload[key];
+      if (!Number.isInteger(v)) {
+        return { error: `${key} must be an integer (received ${typeof v})` };
+      }
+      return { value: v };
+    }
+    const fallback = Number(snapshot[key]);
+    if (!Number.isFinite(fallback)) {
+      return { error: `${key} missing from payload and not present in snapshot` };
+    }
+    return { value: fallback };
+  }
+
+  const s = pick("sessionStaleMs");
+  if (s.error) return { status: "error", message: s.error };
+  const w = pick("workingStaleMs");
+  if (w.error) return { status: "error", message: w.error };
+  const d = pick("detachedIdleStaleMs");
+  if (d.error) return { status: "error", message: d.error };
+
+  const sessionStaleMs = s.value;
+  const workingStaleMs = w.value;
+  const detachedIdleStaleMs = d.value;
+
+  if (!(sessionStaleMs === 0 || (sessionStaleMs >= 60_000 && sessionStaleMs <= 86_400_000))) {
+    return { status: "error", message: `sessionStaleMs out of range: ${sessionStaleMs}` };
+  }
+  if (!(workingStaleMs >= 30_000 && workingStaleMs <= 86_400_000)) {
+    return { status: "error", message: `workingStaleMs out of range: ${workingStaleMs}` };
+  }
+  if (!(detachedIdleStaleMs >= 5_000 && detachedIdleStaleMs <= 300_000)) {
+    return { status: "error", message: `detachedIdleStaleMs out of range: ${detachedIdleStaleMs}` };
+  }
+
+  if (sessionStaleMs > 0 && workingStaleMs > sessionStaleMs) {
+    return {
+      status: "error",
+      message: `workingStaleMs (${workingStaleMs}) must be <= sessionStaleMs (${sessionStaleMs}).`,
+    };
+  }
+
+  return {
+    status: "ok",
+    commit: { sessionStaleMs, workingStaleMs, detachedIdleStaleMs },
+  };
 }
 
 function sessionAliasMapEqual(a, b) {
@@ -545,6 +826,45 @@ function _remoteSshSnapshot(deps) {
   return { profiles };
 }
 
+function normalizeRemoteNodeDetection(input, detectedAtFallback = Date.now()) {
+  if (!input || typeof input !== "object") return null;
+  const nodeBin = input.nodeBin || input.detectedRemoteNodeBin;
+  if (!isValidDetectedRemoteNodeBin(nodeBin)) return null;
+
+  const out = {
+    detectedRemoteNodeBin: nodeBin,
+  };
+  const version = input.version || input.detectedRemoteNodeVersion;
+  if (isValidDetectedRemoteNodeVersion(version)) {
+    out.detectedRemoteNodeVersion = version;
+  }
+  const source = input.source || input.detectedRemoteNodeSource;
+  if (isValidDetectedRemoteNodeSource(source)) {
+    out.detectedRemoteNodeSource = source;
+  }
+  const detectedAt = Number.isFinite(input.detectedAt)
+    ? input.detectedAt
+    : (Number.isFinite(input.detectedRemoteNodeAt) ? input.detectedRemoteNodeAt : detectedAtFallback);
+  if (Number.isFinite(detectedAt) && detectedAt > 0) {
+    out.detectedRemoteNodeAt = detectedAt;
+  }
+  return out;
+}
+
+function copyRemoteNodeDetection(target, source) {
+  if (!target || !source || !isValidDetectedRemoteNodeBin(source.detectedRemoteNodeBin)) return;
+  target.detectedRemoteNodeBin = source.detectedRemoteNodeBin;
+  if (isValidDetectedRemoteNodeVersion(source.detectedRemoteNodeVersion)) {
+    target.detectedRemoteNodeVersion = source.detectedRemoteNodeVersion;
+  }
+  if (isValidDetectedRemoteNodeSource(source.detectedRemoteNodeSource)) {
+    target.detectedRemoteNodeSource = source.detectedRemoteNodeSource;
+  }
+  if (Number.isFinite(source.detectedRemoteNodeAt) && source.detectedRemoteNodeAt > 0) {
+    target.detectedRemoteNodeAt = source.detectedRemoteNodeAt;
+  }
+}
+
 function remoteSshAddProfile(payload, deps) {
   const profile = sanitizeRemoteSshProfile(payload);
   if (!profile) {
@@ -592,9 +912,14 @@ function remoteSshUpdateProfile(payload, deps) {
   // optional strings before comparing — naive prev[f] === profile[f] would
   // false-flag "port drift" when prev had port:22 and the UI saveBtn omitted
   // the default 22 from the payload.
-  if (Number.isFinite(prev.lastDeployedAt) && !Number.isFinite(payload.lastDeployedAt)) {
-    const drift = deployTargetDrift(deployTargetFingerprint(prev), deployTargetFingerprint(profile));
-    if (drift === null) profile.lastDeployedAt = prev.lastDeployedAt;
+  const drift = deployTargetDrift(deployTargetFingerprint(prev), deployTargetFingerprint(profile));
+  if (drift === null) {
+    if (Number.isFinite(prev.lastDeployedAt) && !Number.isFinite(payload.lastDeployedAt)) {
+      profile.lastDeployedAt = prev.lastDeployedAt;
+    }
+    if (profile.detectedRemoteNodeBin === undefined) {
+      copyRemoteNodeDetection(profile, prev);
+    }
   }
   next.profiles[idx] = profile;
   return { status: "ok", commit: { remoteSsh: next } };
@@ -649,9 +974,52 @@ function remoteSshMarkDeployed(payload, deps) {
       };
     }
   }
-  // Only mutate lastDeployedAt — every other field stays as-is so concurrent
-  // user edits (label / autoStartCodexMonitor / connectOnLaunch) survive.
+  // Only mutate deployment metadata — every other field stays as-is so
+  // concurrent user edits (label / autoStartCodexMonitor / connectOnLaunch)
+  // survive.
   const updatedProfile = { ...current, lastDeployedAt: deployedAt };
+  const remoteNode = normalizeRemoteNodeDetection(payload.remoteNode || payload, deployedAt);
+  if (remoteNode) copyRemoteNodeDetection(updatedProfile, remoteNode);
+  const newProfiles = next.profiles.slice();
+  newProfiles[idx] = updatedProfile;
+  return { status: "ok", commit: { remoteSsh: { profiles: newProfiles } } };
+}
+
+function remoteSshMarkRemoteNode(payload, deps) {
+  if (!payload || typeof payload !== "object") {
+    return { status: "error", message: "remoteSsh.markRemoteNode: payload must be an object" };
+  }
+  const { id, expectedTarget } = payload;
+  if (typeof id !== "string" || !id) {
+    return { status: "error", message: "remoteSsh.markRemoteNode.id must be a non-empty string" };
+  }
+  const remoteNode = normalizeRemoteNodeDetection(payload);
+  if (!remoteNode) {
+    return { status: "error", message: "remoteSsh.markRemoteNode.nodeBin must be an absolute POSIX path" };
+  }
+  const next = _remoteSshSnapshot(deps);
+  const idx = next.profiles.findIndex((p) => p.id === id);
+  if (idx === -1) {
+    return { status: "ok", noop: true, reason: "profile_deleted" };
+  }
+  const current = next.profiles[idx];
+  if (expectedTarget && typeof expectedTarget === "object") {
+    const drift = deployTargetDrift(
+      deployTargetFingerprint(current),
+      deployTargetFingerprint(expectedTarget)
+    );
+    if (drift) {
+      return {
+        status: "ok",
+        noop: true,
+        reason: "target_drift",
+        targetDrift: drift,
+        message: `remoteSsh.markRemoteNode: profile ${id}.${drift} changed during detection; not stamping`,
+      };
+    }
+  }
+  const updatedProfile = { ...current };
+  copyRemoteNodeDetection(updatedProfile, remoteNode);
   const newProfiles = next.profiles.slice();
   newProfiles[idx] = updatedProfile;
   return { status: "ok", commit: { remoteSsh: { profiles: newProfiles } } };
@@ -674,6 +1042,190 @@ function remoteSshDeleteProfile(payload, deps) {
   return { status: "ok", commit: { remoteSsh: next } };
 }
 
+async function telegramApprovalSetToken(payload, deps = {}) {
+  const token = typeof payload === "string"
+    ? payload
+    : (payload && typeof payload === "object" ? payload.token : "");
+  const valid = validateTelegramBotToken(token);
+  if (valid.status !== "ok") return valid;
+  if (!deps || typeof deps.writeTelegramApprovalToken !== "function") {
+    return { status: "error", message: "telegramApproval.setToken requires writeTelegramApprovalToken dep" };
+  }
+  const result = await deps.writeTelegramApprovalToken(valid.token);
+  if (!result || result.status !== "ok") {
+    return result || { status: "error", message: "Telegram bot token write failed" };
+  }
+  return { status: "ok", tokenStored: true };
+}
+
+async function telegramApprovalDeleteTokenFile(_payload, deps = {}) {
+  if (!deps || typeof deps.deleteTelegramApprovalTokenFile !== "function") {
+    return { status: "error", message: "telegramApproval.deleteTokenFile requires deleteTelegramApprovalTokenFile dep" };
+  }
+  const result = await deps.deleteTelegramApprovalTokenFile();
+  return result || { status: "error", message: "Telegram token file delete returned no result" };
+}
+
+function telegramApprovalStatus(_payload, deps = {}) {
+  if (!deps || typeof deps.getTelegramApprovalStatus !== "function") {
+    return { status: "error", message: "telegramApproval.status requires getTelegramApprovalStatus dep" };
+  }
+  const status = deps.getTelegramApprovalStatus();
+  return { status: "ok", state: status || { status: "stopped" } };
+}
+
+function telegramApprovalTokenInfo(_payload, deps = {}) {
+  if (!deps || typeof deps.getTelegramApprovalTokenInfo !== "function") {
+    return { status: "error", message: "telegramApproval.tokenInfo requires getTelegramApprovalTokenInfo dep" };
+  }
+  const info = deps.getTelegramApprovalTokenInfo() || { configured: false, masked: "" };
+  return {
+    status: "ok",
+    configured: info.configured === true,
+    masked: typeof info.masked === "string" ? info.masked : "",
+  };
+}
+
+// v0.9.0 migration: native-vs-sidecar transport controller.
+// All telegramMigration.* commands lock on the same `tgApproval` domain as the
+// legacy approval commands so they can't race against token writes.
+function telegramMigrationSnapshot(_payload, deps = {}) {
+  if (!deps || !deps.telegramMigration) {
+    return { status: "error", message: "telegramMigration.snapshot requires controller dep" };
+  }
+  return { status: "ok", snapshot: deps.telegramMigration.getSnapshot() };
+}
+
+async function telegramMigrationDispatch(payload, deps = {}) {
+  if (!deps || !deps.telegramMigration) {
+    return { status: "error", message: "telegramMigration.dispatch requires controller dep" };
+  }
+  if (!payload || typeof payload.type !== "string") {
+    return { status: "error", message: "telegramMigration.dispatch requires event.type" };
+  }
+  if (!TELEGRAM_MIGRATION_RENDERER_EVENTS.has(payload.type)) {
+    return {
+      status: "error",
+      errorCode: "EVENT_NOT_ALLOWED",
+      message: `telegramMigration.dispatch event ${payload.type} is not renderer-callable`,
+      snapshot: deps.telegramMigration.getSnapshot(),
+    };
+  }
+  const res = await deps.telegramMigration.dispatch(payload);
+  return res && res.ok
+    ? { status: "ok", state: res.state, snapshot: deps.telegramMigration.getSnapshot() }
+    : {
+        status: "error",
+        errorCode: res ? res.errorCode : "UNKNOWN",
+        message: res && res.message,
+        snapshot: deps.telegramMigration.getSnapshot(),
+      };
+}
+
+telegramMigrationDispatch.lockKey = "tgApproval";
+telegramApprovalDeleteTokenFile.lockKey = "tgApproval";
+
+async function telegramApprovalSendTest(_payload, deps = {}) {
+  if (!deps || typeof deps.sendTelegramApprovalTest !== "function") {
+    return { status: "error", message: "telegramApproval.test requires sendTelegramApprovalTest dep" };
+  }
+  const result = await deps.sendTelegramApprovalTest();
+  return result || { status: "error", message: "Telegram approval test returned no result" };
+}
+
+function cleanupMessage(result) {
+  const summary = result && result.summary;
+  if (!summary) return "Integration cleanup finished";
+  const failed = Number(summary.failed || 0);
+  const affected = Number(summary.agentsAffected || 0);
+  const removed = Number(summary.entriesRemoved || 0);
+  return failed > 0
+    ? `Integration cleanup finished with ${failed} failure(s); removed ${removed} item(s) from ${affected} integration(s).`
+    : `Integration cleanup finished; removed ${removed} item(s) from ${affected} integration(s).`;
+}
+
+function normalizeAgentDismissMapForCommit(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const key of Object.keys(value)) {
+    if (typeof key === "string" && key && value[key] === true) out[key] = true;
+  }
+  return out;
+}
+
+function markDismissedAgentInstallHints(snapshot, agentIds) {
+  const next = normalizeAgentDismissMapForCommit(snapshot && snapshot.dismissedAgentInstallHints);
+  for (const agentId of agentIds) next[agentId] = true;
+  return next;
+}
+
+function clearDismissedAgentCleanupHints(snapshot, agentIds) {
+  const next = normalizeAgentDismissMapForCommit(snapshot && snapshot.dismissedAgentCleanupHints);
+  for (const agentId of agentIds) delete next[agentId];
+  return next;
+}
+
+async function cleanupIntegrationsCommand(_payload, deps = {}) {
+  if (!deps || typeof deps.cleanupIntegrations !== "function") {
+    return { status: "error", message: "cleanupIntegrations requires cleanupIntegrations dep" };
+  }
+
+  const snapshot = deps.snapshot || {};
+  let agents = { ...((snapshot && snapshot.agents) || {}) };
+  let agentsChanged = false;
+
+  for (const agentId of MANAGED_CLEANUP_AGENT_IDS) {
+    const flagDeps = {
+      ...deps,
+      snapshot: { ...snapshot, agents },
+    };
+    const result = setAgentFlag({ agentId, flag: "enabled", value: false }, flagDeps);
+    if (!result || result.status !== "ok") {
+      return result || { status: "error", message: `Failed to disable ${agentId}` };
+    }
+    if (result.commit && result.commit.agents) {
+      agents = result.commit.agents;
+      agentsChanged = true;
+    }
+    const currentEntry = agents[agentId] && typeof agents[agentId] === "object"
+      ? agents[agentId]
+      : {};
+    if (currentEntry.integrationInstalled !== false) {
+      agents = {
+        ...agents,
+        [agentId]: {
+          ...currentEntry,
+          integrationInstalled: false,
+        },
+      };
+      agentsChanged = true;
+    }
+  }
+
+  let cleanup;
+  try {
+    cleanup = await deps.cleanupIntegrations({ source: "about", backup: true });
+  } catch (err) {
+    cleanup = {
+      status: "error",
+      message: err && err.message ? err.message : String(err),
+      summary: { agentsChecked: 0, agentsAffected: 0, entriesRemoved: 0, skipped: 0, failed: 1 },
+    };
+  }
+
+  const response = {
+    status: "ok",
+    cleanup,
+    message: cleanup.status === "error" ? cleanup.message : cleanupMessage(cleanup),
+    commit: {
+      dismissedAgentInstallHints: markDismissedAgentInstallHints(snapshot, MANAGED_CLEANUP_AGENT_IDS),
+      dismissedAgentCleanupHints: clearDismissedAgentCleanupHints(snapshot, MANAGED_CLEANUP_AGENT_IDS),
+    },
+  };
+  if (agentsChanged) response.commit.agents = agents;
+  return response;
+}
+
 // Share a domain lock across all four remoteSsh.* commands so concurrent
 // invocations against the same prefs field serialize. Without this, the
 // controller assigns each command its own lock by name, and two commands
@@ -691,17 +1243,57 @@ remoteSshAddProfile.lockKey = "remoteSsh";
 remoteSshUpdateProfile.lockKey = "remoteSsh";
 remoteSshDeleteProfile.lockKey = "remoteSsh";
 remoteSshMarkDeployed.lockKey = "remoteSsh";
+remoteSshMarkRemoteNode.lockKey = "remoteSsh";
+telegramApprovalSetToken.lockKey = "tgApproval";
+telegramApprovalSendTest.lockKey = "tgApproval";
+cleanupIntegrationsCommand.lockKey = "agentIntegration";
 
 const repairDoctorIssue = createRepairDoctorIssue({
   repairAgentIntegration,
   setBubbleCategoryEnabled,
 });
 
+// textScale is per-display: the slider edits the entry for the display the
+// settings window currently sits on (what you see is what you tune). The
+// renderer can't know which display that is, so the key is resolved
+// main-side via the injected resolveTextScaleDisplayKey dep. Without display
+// context (tests, headless) fall back to committing the legacy global so the
+// slider still works.
+function setTextScaleForDisplay(payload, deps) {
+  const value = Number(payload && payload.value);
+  if (!isValidTextScale(value)) {
+    return {
+      status: "error",
+      message: `textScale must be a number between ${TEXT_SCALE_MIN} and ${TEXT_SCALE_MAX}`,
+    };
+  }
+  const key = deps && typeof deps.resolveTextScaleDisplayKey === "function"
+    ? deps.resolveTextScaleDisplayKey()
+    : null;
+  if (typeof key !== "string" || !key) {
+    return { status: "ok", commit: { textScale: value } };
+  }
+  const snapshot = (deps && deps.snapshot) || {};
+  // New key goes first so the normalize cap can only trim stale displays,
+  // never the entry being written.
+  const prev = { ...(snapshot.textScaleByDisplay || {}) };
+  delete prev[key];
+  const next = normalizeTextScaleByDisplay({ [key]: value, ...prev });
+  return { status: "ok", commit: { textScaleByDisplay: next } };
+}
+
 const commandRegistry = {
   removeTheme,
   installHooks,
   uninstallHooks,
+  cleanupIntegrations: cleanupIntegrationsCommand,
+  clearAgentCleanupHints,
+  clearAgentInstallHints,
+  dismissAgentCleanupHints,
+  dismissAgentInstallHints,
+  installAgentIntegration,
   repairAgentIntegration,
+  uninstallAgentIntegration,
   repairLocalServer,
   repairDoctorIssue,
   resizePet,
@@ -711,8 +1303,11 @@ const commandRegistry = {
   setAgentFlag,
   setAgentPermissionMode,
   setAllBubblesHidden,
+  setAutoApproveAll,
   setBubbleCategoryEnabled,
+  "sessionCleanup.setTriple": setSessionCleanupTriple,
   setSessionAlias,
+  setTextScaleForDisplay,
   setAnimationOverride,
   setSoundOverride,
   setThemeOverrideDisabled,
@@ -724,6 +1319,14 @@ const commandRegistry = {
   "remoteSsh.update": remoteSshUpdateProfile,
   "remoteSsh.delete": remoteSshDeleteProfile,
   "remoteSsh.markDeployed": remoteSshMarkDeployed,
+  "remoteSsh.markRemoteNode": remoteSshMarkRemoteNode,
+  "telegramApproval.setToken": telegramApprovalSetToken,
+  "telegramApproval.deleteTokenFile": telegramApprovalDeleteTokenFile,
+  "telegramApproval.status": telegramApprovalStatus,
+  "telegramApproval.tokenInfo": telegramApprovalTokenInfo,
+  "telegramApproval.test": telegramApprovalSendTest,
+  "telegramMigration.snapshot": telegramMigrationSnapshot,
+  "telegramMigration.dispatch": telegramMigrationDispatch,
 };
 
 module.exports = {
@@ -731,6 +1334,7 @@ module.exports = {
   commandRegistry,
   ONESHOT_OVERRIDE_STATES,
   ANIMATION_OVERRIDES_EXPORT_VERSION,
+  MANAGED_CLEANUP_AGENT_IDS,
   // Exposed for tests
   requireBoolean,
   requireFiniteNumber,

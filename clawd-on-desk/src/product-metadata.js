@@ -2,8 +2,8 @@
 
 const pkg = require("../package.json");
 
-const DEFAULT_UPSTREAM_URL = "https://github.com/rullerzhou-afk/clawd-on-desk";
 const DEFAULT_UPSTREAM_LABEL = "clawd-on-desk";
+const DEFAULT_UPSTREAM_URL = "https://github.com/rullerzhou-afk/" + DEFAULT_UPSTREAM_LABEL;
 const MODEL_REPO_URL = "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF";
 
 function normalizeRepoUrl(url) {
@@ -30,9 +30,11 @@ const repoUrl = normalizeRepoUrl(pkg.homepage) || normalizeRepoUrl(pkg.repositor
 const githubRepo = parseGitHubRepo(repoUrl);
 const upstreamRepoUrl = normalizeRepoUrl(pkg.upstreamRepository) || DEFAULT_UPSTREAM_URL;
 const upstreamMatch = parseGitHubRepo(upstreamRepoUrl);
+const productName = (pkg.build && pkg.build.productName) || "MiniCPM Desk Pet";
+const userAgent = productName.replace(/\s+/g, "-");
 
 module.exports = {
-  appDisplayName: (pkg.build && pkg.build.productName) || "MiniCPM Desk Pet",
+  appDisplayName: productName,
   licenseId: pkg.license || "AGPL-3.0-only",
   copyrightLine: extractCopyrightShort(pkg.build && pkg.build.copyright),
   repoUrl,
@@ -45,5 +47,5 @@ module.exports = {
     : null,
   upstreamRepoUrl,
   upstreamLabel: (upstreamMatch && upstreamMatch.repo) || DEFAULT_UPSTREAM_LABEL,
-  userAgent: (pkg.build && pkg.build.productName) || "MiniCPM-Desk-Pet",
+  userAgent,
 };

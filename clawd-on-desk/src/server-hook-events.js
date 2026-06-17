@@ -1,5 +1,7 @@
 "use strict";
 
+const { resolveHookAgentId } = require("./server-agent-id");
+
 const HOOK_EVENT_RING_SIZE_PER_AGENT = 50;
 const HOOK_EVENT_OUTCOMES = new Set([
   "accepted",
@@ -9,9 +11,7 @@ const HOOK_EVENT_OUTCOMES = new Set([
 const HOOK_EVENT_ROUTES = new Set(["state", "permission"]);
 
 function normalizeHookEventAgentId(data) {
-  return data && typeof data.agent_id === "string" && data.agent_id
-    ? data.agent_id
-    : "claude-code";
+  return resolveHookAgentId(data).agentId;
 }
 
 function normalizeHookEventType(data, route) {

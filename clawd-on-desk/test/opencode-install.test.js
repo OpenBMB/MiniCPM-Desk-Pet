@@ -165,6 +165,7 @@ describe("opencode plugin installer", () => {
       const result = registerOpencodePlugin({ silent: true });
       assert.strictEqual(result.skipped, true);
       assert.strictEqual(result.added, false);
+      assert.strictEqual(result.reason, "opencode-not-found");
     } finally {
       if (prevHome !== undefined) process.env.HOME = prevHome; else delete process.env.HOME;
       if (prevUserProfile !== undefined) process.env.USERPROFILE = prevUserProfile;

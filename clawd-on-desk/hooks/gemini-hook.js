@@ -105,6 +105,8 @@ function buildStateBody(hookName, payload, options = {}) {
   if (pidMeta.detectedEditor) body.editor = pidMeta.detectedEditor;
   if (Number.isFinite(pidMeta.agentPid) && pidMeta.agentPid > 0) body.agent_pid = Math.floor(pidMeta.agentPid);
   if (Array.isArray(pidMeta.pidChain) && pidMeta.pidChain.length) body.pid_chain = pidMeta.pidChain;
+  if (pidMeta.tmuxSocket) body.tmux_socket = pidMeta.tmuxSocket;
+  if (pidMeta.tmuxClient) body.tmux_client = pidMeta.tmuxClient;
   return body;
 }
 
@@ -133,23 +135,55 @@ function sendHookEvent(payload, argvEvent, deps = {}) {
   });
 }
 
+// Safety timeout: guarantee valid JSON on stdout even if stdin never arrives.
+const SAFETY_TIMEOUT_MS = 800;
+let _wrote = false;
+let _exited = false;
+let safetyTimer = null;
+
+// Write the stdout response exactly once. Kept separate from process exit so the
+// hook can answer Gemini immediately yet still let the fire-and-forget POST to
+// Clawd leave the process before it tears down.
+function writeStdoutOnce(outLine) {
+  if (_wrote) return;
+  _wrote = true;
+  process.stdout.write(outLine + "\n");
+}
+
+function finish(outLine) {
+  writeStdoutOnce(outLine);
+  if (_exited) return;
+  _exited = true;
+  if (safetyTimer) clearTimeout(safetyTimer);
+  process.exit(0);
+}
+
 async function main(argvEvent = process.argv[2], deps = {}) {
   const payload = deps.payload !== undefined
     ? deps.payload
     : await (deps.readStdinJson || readStdinJson)();
-  const result = await sendHookEvent(payload, argvEvent, {
+  const hookName = resolveHookName(payload, argvEvent);
+  const outLine = stdoutForEvent(hookName);
+
+  // Answer Gemini immediately so it never sees empty stdout, but do NOT exit
+  // here — exiting would kill the POST below before it leaves the process.
+  writeStdoutOnce(outLine);
+
+  await sendHookEvent(payload, argvEvent, {
     env: deps.env || process.env,
     postState: deps.postState || postStateToRunningServer,
     readHostPrefix: deps.readHostPrefix || readHostPrefix,
     resolvePid: deps.resolvePid || resolve,
-  });
-  process.stdout.write(result.stdout + "\n");
+  }).catch(() => {});
+
+  finish(outLine);
 }
 
 if (require.main === module) {
-  main().then(() => {
-    process.exit(0);
-  });
+  // Arm the safety timer only on the CLI path so importing this module in tests
+  // never leaves a stray timer that pollutes stdout or kills the test runner.
+  safetyTimer = setTimeout(() => finish("{}"), SAFETY_TIMEOUT_MS);
+  main().catch(() => finish("{}"));
 }
 
 module.exports = {

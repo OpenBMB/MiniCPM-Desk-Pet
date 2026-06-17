@@ -29,7 +29,6 @@ const LOW_POWER_MINI_IDLE_TICK_MS = 2000;
 const REACTION_TICK_MS = 500;
 const BACKGROUND_TICK_MS = 750;
 const RECENT_MOUSE_MS = 2000;
-const RENDER_CANVAS_RESIZE_SETTLE_MS = 0;
 const POINTER_BRIDGE_STATES = new Set(["idle", "mini-idle", "mini-peek"]);
 const LOW_POWER_PAUSE_STATES = new Set(["idle", "mini-idle", "dozing"]);
 const POINTER_BRIDGE_EPSILON = 0.001;
@@ -116,20 +115,6 @@ function pointerBridgePayloadChanged(key, payload) {
   return payload.inside !== lastPointerBridgePayload.inside
     || Math.abs(payload.x - lastPointerBridgePayload.x) > POINTER_BRIDGE_EPSILON
     || Math.abs(payload.y - lastPointerBridgePayload.y) > POINTER_BRIDGE_EPSILON;
-}
-
-function sendIdleSvg(svg, shouldSend = () => true) {
-  let renderCanvasChanged = false;
-  if (typeof ctx.syncRenderCanvasForState === "function") {
-    renderCanvasChanged = ctx.syncRenderCanvasForState("idle", svg) === true;
-  }
-  const send = () => {
-    if (!shouldSend()) return;
-    ctx.sendToRenderer("state-change", "idle", svg);
-    ctx.sendToHitWin("hit-state-sync", { currentSvg: svg });
-  };
-  if (renderCanvasChanged && RENDER_CANVAS_RESIZE_SETTLE_MS > 0) setTimeout(send, RENDER_CANVAS_RESIZE_SETTLE_MS);
-  else send();
 }
 
 function sendPointerBridge(cursor, bounds) {
@@ -227,17 +212,15 @@ function runMainTickOnce() {
     // ── Mini mode peek hover ──
     if (ctx.miniMode && !ctx.miniTransitioning && !ctx.dragLocked && !ctx.menuOpen) {
       const canPeek = ctx.currentState === "mini-idle" || ctx.currentState === "mini-peek"
-        || ctx.currentState === "mini-sleep" || ctx.currentState === "mini-sleep-peek";
+        || ctx.currentState === "mini-sleep";
       if (!ctx.isAnimating && canPeek) {
         if (ctx.mouseOverPet && ctx.currentState === "mini-sleep" && !ctx.miniSleepPeeked) {
           ctx.miniPeekIn();
           ctx.miniSleepPeeked = true;
-          ctx.applyState("mini-sleep-peek");
-        } else if (!ctx.mouseOverPet && (ctx.currentState === "mini-sleep-peek" || (ctx.currentState === "mini-sleep" && ctx.miniSleepPeeked))) {
+        } else if (!ctx.mouseOverPet && ctx.currentState === "mini-sleep" && ctx.miniSleepPeeked) {
           ctx.miniPeekOut();
           ctx.miniSleepPeeked = false;
-          if (ctx.currentState !== "mini-sleep") ctx.applyState("mini-sleep");
-        } else if (ctx.mouseOverPet && ctx.currentState !== "mini-peek" && ctx.currentState !== "mini-sleep" && ctx.currentState !== "mini-sleep-peek" && !ctx.miniPeeked) {
+        } else if (ctx.mouseOverPet && ctx.currentState !== "mini-peek" && ctx.currentState !== "mini-sleep" && !ctx.miniPeeked) {
           ctx.miniPeekIn();
           ctx.applyState("mini-peek");
         } else if (!ctx.mouseOverPet && (ctx.currentState === "mini-peek" || ctx.miniPeeked)) {
@@ -252,6 +235,13 @@ function runMainTickOnce() {
 
     if (!idleNow && !miniIdleNow) return nextDelay();
 
+    // ── Free roam: cancel roaming when mouse moves ──
+    if (ctx.roam) {
+      if (moved && ctx.roam.enabled) {
+        ctx.roam.cancelRoam();
+      }
+    }
+
     // ── Below: idle or mini-idle logic ──
     // Normal idle: mouse idle detection + sleep sequence
     if (idleNow) {
@@ -263,7 +253,7 @@ function runMainTickOnce() {
         if (yawnDelayTimer) { clearTimeout(yawnDelayTimer); yawnDelayTimer = null; }
         if (isMouseIdle) {
           isMouseIdle = false;
-          sendIdleSvg(SVG_IDLE_FOLLOW, () => ctx.currentState === "idle");
+          ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
         }
       }
 
@@ -298,19 +288,24 @@ function runMainTickOnce() {
         if (!shouldSuppressPassiveIpc()) ctx.sendToRenderer("eye-move", 0, 0);
         setTimeout(() => {
           if (isMouseIdle && ctx.currentState === "idle") {
-            sendIdleSvg(pick.svg, () => isMouseIdle && ctx.currentState === "idle");
+            ctx.sendToRenderer("state-change", "idle", pick.svg);
+            ctx.sendToHitWin("hit-state-sync", { currentSvg: pick.svg });
           }
         }, 250);
         idleLookReturnTimer = setTimeout(() => {
           idleLookReturnTimer = null;
           if (isMouseIdle && ctx.currentState === "idle") {
             isMouseIdle = false;
-            sendIdleSvg(SVG_IDLE_FOLLOW, () => ctx.currentState === "idle");
+            ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
+            ctx.sendToHitWin("hit-state-sync", { currentSvg: SVG_IDLE_FOLLOW });
             setTimeout(() => { ctx.forceEyeResend = true; }, 200);
           }
         }, 250 + pick.duration);
         return nextDelay();
       }
+
+      // Free roam tick: wander around when idle long enough
+      if (ctx.roam) ctx.roam.tick();
     }
 
     const trackEyesNow = (idleNow && ctx.currentSvg === SVG_IDLE_FOLLOW && !isMouseIdle) || miniIdleNow;
@@ -354,6 +349,8 @@ function runMainTickOnce() {
     eyeDx = Math.round(eyeDx * 2) / 2;
     eyeDy = Math.round(eyeDy * 2) / 2;
     const yClamp = MAX_OFFSET * 0.5;
+    const xClamp = MAX_OFFSET * 0.85;
+    eyeDx = Math.max(-xClamp, Math.min(xClamp, eyeDx));
     eyeDy = Math.max(-yClamp, Math.min(yClamp, eyeDy));
 
     if (skipDedup || eyeDx !== lastEyeDx || eyeDy !== lastEyeDy) {

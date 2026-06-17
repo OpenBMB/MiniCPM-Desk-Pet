@@ -1,7 +1,7 @@
 {
   "name": "clawd-opencode-plugin",
   "version": "0.1.0",
-  "description": "Clawd on Desk plugin for opencode — reports session/tool events to the Clawd desktop pet",
+  "description": "MiniCPM Desk Pet plugin for opencode — reports session/tool events to the desktop pet",
   "type": "module",
   "main": "index.mjs",
   "private": true,

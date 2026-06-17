@@ -312,14 +312,22 @@ describe("cmux panel focus (macOS)", () => {
       if (cb) cb(null, "", "");
     }, { platform: "linux" });
 
-    const { focusTerminalWindow } = initFocus({});
+    const focusInstance = initFocus({});
+    // Disable the tmux bridge so a real tmux binary on the host doesn't trigger
+    // `ps -o pid=,comm=` from scheduleTmuxPaneFocus — that probe is legitimate
+    // on Linux now, so we assert on the actual cmux probes (mdfind, AppleScript)
+    // instead of the old "no ps -o comm=" invariant.
+    focusInstance.__test.__setTmuxBin("");
+    const { focusTerminalWindow } = focusInstance;
     focusTerminalWindow(501, "/test/cwd", null, [501, 502]);
 
     setTimeout(() => {
       cleanup();
 
-      const psCommCalls = calls.filter(c => c.cmd === "ps" && c.args.join(" ").includes("comm="));
-      assert.strictEqual(psCommCalls.length, 0, "Should not call ps -o comm= on non-macOS");
+      const mdfindCalls = calls.filter(c => c.cmd === "mdfind");
+      assert.strictEqual(mdfindCalls.length, 0, "Should not run cmux mdfind on non-macOS");
+      const cmuxOsa = calls.filter(c => c.cmd === "osascript" && c.args.some(a => /cmux/i.test(a)));
+      assert.strictEqual(cmuxOsa.length, 0, "Should not run cmux AppleScript on non-macOS");
 
       done();
     }, 1000);

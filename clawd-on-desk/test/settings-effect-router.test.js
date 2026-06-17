@@ -48,8 +48,6 @@ function createHarness(options = {}) {
     sendToRenderer: (...args) => calls.push(["sendToRenderer", ...args]),
     sendDashboardI18n: () => calls.push(["sendDashboardI18n"]),
     sendSessionHudI18n: () => calls.push(["sendSessionHudI18n"]),
-    sendMinicpmChatI18n: () => calls.push(["sendMinicpmChatI18n"]),
-    sendMinicpmOnboardingI18n: () => calls.push(["sendMinicpmOnboardingI18n"]),
     emitSessionSnapshot: (...args) => calls.push(["emitSessionSnapshot", ...args]),
     cleanStaleSessions: () => calls.push(["cleanStaleSessions"]),
     syncPermissionShortcuts: () => calls.push(["syncPermissionShortcuts"]),
@@ -60,9 +58,12 @@ function createHarness(options = {}) {
     hideUpdateBubbleForPolicy: () => calls.push(["hideUpdateBubbleForPolicy"]),
     refreshUpdateBubbleAutoClose: () => calls.push(["refreshUpdateBubbleAutoClose"]),
     repositionFloatingBubbles: () => calls.push(["repositionFloatingBubbles"]),
+    applyTextScale: () => calls.push(["applyTextScale"]),
     syncSessionHudVisibility: () => calls.push(["syncSessionHudVisibility"]),
+    handleSessionHudPinnedChanged: (next) => calls.push(["handleSessionHudPinnedChanged", next]),
     reclampPetAfterEdgePinningChange: () => calls.push(["reclampPetAfterEdgePinningChange"]),
     rebuildAllMenus: () => calls.push(["rebuildAllMenus"]),
+    reconcilePowerSaveBlocker: () => calls.push(["reconcilePowerSaveBlocker"]),
     logWarn: (...args) => logs.push(args),
     ...(options.routerOptions || {}),
   });
@@ -141,6 +142,40 @@ describe("settings-effect-router", () => {
     ]);
   });
 
+  it("routes textScale and textScaleByDisplay changes to applyTextScale without a menu rebuild", () => {
+    const { calls, emit } = createHarness();
+
+    emit({ textScale: 1.25 });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { textScale: 1.25 }],
+      ["applyTextScale"],
+    ]);
+
+    calls.length = 0;
+    emit({ textScaleByDisplay: { "1": 1.35 } });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { textScaleByDisplay: { "1": 1.35 } }],
+      ["applyTextScale"],
+    ]);
+  });
+
+  it("reconciles the power save blocker when keepAwakeWhileWorking changes", () => {
+    const { calls, emit } = createHarness();
+
+    emit({ keepAwakeWhileWorking: true });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { keepAwakeWhileWorking: true }],
+      ["reconcilePowerSaveBlocker"],
+    ]);
+
+    calls.length = 0;
+    emit({ keepAwakeWhileWorking: false });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { keepAwakeWhileWorking: false }],
+      ["reconcilePowerSaveBlocker"],
+    ]);
+  });
+
   it("routes language, session alias, and session HUD effects", () => {
     const { calls, emit } = createHarness();
 
@@ -149,8 +184,6 @@ describe("settings-effect-router", () => {
       ["updateMirrors", { lang: "zh", sessionAliases: { "local|claude|1": "work" } }],
       ["sendDashboardI18n"],
       ["sendSessionHudI18n"],
-      ["sendMinicpmChatI18n"],
-      ["sendMinicpmOnboardingI18n"],
       ["emitSessionSnapshot", { force: true }],
       ["rebuildAllMenus"],
     ]);
@@ -159,6 +192,22 @@ describe("settings-effect-router", () => {
     emit({ sessionHudEnabled: false });
     assert.deepStrictEqual(calls, [
       ["updateMirrors", { sessionHudEnabled: false }],
+      ["syncSessionHudVisibility"],
+      ["repositionFloatingBubbles"],
+    ]);
+
+    calls.length = 0;
+    emit({ sessionHudShowStateLabels: false });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { sessionHudShowStateLabels: false }],
+      ["syncSessionHudVisibility"],
+      ["repositionFloatingBubbles"],
+    ]);
+
+    calls.length = 0;
+    emit({ sessionHudShowContextUsage: false });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { sessionHudShowContextUsage: false }],
       ["syncSessionHudVisibility"],
       ["repositionFloatingBubbles"],
     ]);
@@ -179,17 +228,27 @@ describe("settings-effect-router", () => {
     ]);
 
     calls.length = 0;
-    emit({ sessionHudAutoHide: true });
-    assert.deepStrictEqual(calls, [
-      ["updateMirrors", { sessionHudAutoHide: true }],
-      ["syncSessionHudVisibility"],
-      ["repositionFloatingBubbles"],
-    ]);
-
-    calls.length = 0;
     emit({ sessionHudPinned: true });
     assert.deepStrictEqual(calls, [
       ["updateMirrors", { sessionHudPinned: true }],
+      ["handleSessionHudPinnedChanged", true],
+    ]);
+
+    calls.length = 0;
+    emit({ sessionHudPinned: false });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { sessionHudPinned: false }],
+      ["handleSessionHudPinnedChanged", false],
+    ]);
+  });
+
+  it("orders combined HUD changes as handlePinnedChanged before generic sync", () => {
+    const { calls, emit } = createHarness();
+
+    emit({ sessionHudPinned: true, sessionHudEnabled: true });
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { sessionHudPinned: true, sessionHudEnabled: true }],
+      ["handleSessionHudPinnedChanged", true],
       ["syncSessionHudVisibility"],
       ["repositionFloatingBubbles"],
     ]);
@@ -203,6 +262,39 @@ describe("settings-effect-router", () => {
     assert.deepStrictEqual(calls, [
       ["updateMirrors", { allowEdgePinning: false }],
       ["reclampPetAfterEdgePinningChange"],
+    ]);
+  });
+
+  it("exits current mini mode when mini mode is disabled", () => {
+    const { calls, emit } = createHarness({
+      routerOptions: {
+        getMiniMode: () => true,
+        exitMiniMode: () => calls.push(["exitMiniMode"]),
+      },
+    });
+
+    emit({ disableMiniMode: true });
+
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { disableMiniMode: true }],
+      ["exitMiniMode"],
+      ["rebuildAllMenus"],
+    ]);
+  });
+
+  it("does not enter mini mode when mini mode is re-enabled", () => {
+    const { calls, emit } = createHarness({
+      routerOptions: {
+        getMiniMode: () => false,
+        exitMiniMode: () => calls.push(["exitMiniMode"]),
+      },
+    });
+
+    emit({ disableMiniMode: false });
+
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { disableMiniMode: false }],
+      ["rebuildAllMenus"],
     ]);
   });
 
@@ -283,6 +375,18 @@ describe("settings-effect-router", () => {
       ["updateMirrors", { showTray: true }],
       ["rebuildAllMenus"],
     ]);
+  });
+
+  it("triggers a cleanup sweep + forced snapshot when any stale-cleanup config key changes", () => {
+    for (const key of ["sessionStaleMs", "workingStaleMs", "detachedIdleStaleMs"]) {
+      const { calls, emit } = createHarness();
+      emit({ [key]: key === "detachedIdleStaleMs" ? 60_000 : 900_000 });
+      assert.deepStrictEqual(calls, [
+        ["updateMirrors", { [key]: key === "detachedIdleStaleMs" ? 60_000 : 900_000 }],
+        ["cleanStaleSessions"],
+        ["emitSessionSnapshot", { force: true }],
+      ], `expected stale-cleanup branch to fire for ${key}`);
+    }
   });
 
   it("dispose unsubscribes both settings routes", () => {

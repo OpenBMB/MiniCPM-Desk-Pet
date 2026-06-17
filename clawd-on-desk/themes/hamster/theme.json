@@ -455,6 +455,7 @@
     "objBottom": 0.05,
     "imgBottom": 0.05,
     "fileScales": {
+      "hamster-working-2session.svg": 0.92,
       "hamster-attention.svg": 0.924,
       "hamster-sleeping.svg": 0.947,
       "hamster-dozing.svg": 0.947,

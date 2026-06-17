@@ -6,10 +6,14 @@ const path = require("path");
 const os = require("os");
 const { resolveNodeBin } = require("./server-config");
 const {
+  readJsonFile,
   writeJsonAtomic,
+  writeJsonAtomicWithBackup,
   asarUnpackedPath,
+  commandMatchesMarker,
   extractExistingNodeBin,
   formatNodeHookCommand,
+  removeMatchingCommandHooks,
 } = require("./json-utils");
 const MARKER = "cursor-hook.js";
 const DEFAULT_PARENT_DIR = path.join(os.homedir(), ".cursor");
@@ -137,17 +141,56 @@ function registerCursorHooks(options = {}) {
   return { added, skipped, updated };
 }
 
+function unregisterCursorHooks(options = {}) {
+  const homeDir = options.homeDir || os.homedir();
+  const hooksPath = options.hooksPath || path.join(homeDir, ".cursor", "hooks.json");
+
+  let settings = {};
+  try {
+    settings = readJsonFile(hooksPath);
+  } catch (err) {
+    if (err.code === "ENOENT") return { removed: 0, changed: false, hooksPath };
+    throw new Error(`Failed to read hooks.json: ${err.message}`);
+  }
+
+  if (!settings.hooks || typeof settings.hooks !== "object") {
+    return { removed: 0, changed: false, hooksPath };
+  }
+
+  let removed = 0;
+  let changed = false;
+  for (const event of CURSOR_HOOK_EVENTS) {
+    const entries = settings.hooks[event];
+    if (!Array.isArray(entries)) continue;
+    const result = removeMatchingCommandHooks(entries, (command) => commandMatchesMarker(command, MARKER));
+    if (!result.changed) continue;
+    removed += result.removed;
+    changed = true;
+    if (result.entries.length > 0) settings.hooks[event] = result.entries;
+    else delete settings.hooks[event];
+  }
+
+  let backupPath = null;
+  if (changed) backupPath = writeJsonAtomicWithBackup(hooksPath, settings, options);
+  if (!options.silent) console.log(`Clawd Cursor hooks removed: ${removed}`);
+  const result = { removed, changed, hooksPath };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
+}
+
 module.exports = {
   DEFAULT_PARENT_DIR,
   DEFAULT_CONFIG_PATH,
   registerCursorHooks,
+  unregisterCursorHooks,
   CURSOR_HOOK_EVENTS,
   buildCursorHookCommand,
 };
 
 if (require.main === module) {
   try {
-    registerCursorHooks({});
+    if (process.argv.includes("--uninstall")) unregisterCursorHooks({});
+    else registerCursorHooks({});
   } catch (err) {
     console.error(err.message);
     process.exit(1);

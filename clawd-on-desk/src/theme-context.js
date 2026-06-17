@@ -67,7 +67,6 @@ function createThemeContext(theme, options = {}) {
     return {
       viewBox: theme.viewBox,
       miniModeViewBox: theme.miniMode ? theme.miniMode.viewBox : null,
-      miniModeScale: theme.miniMode ? theme.miniMode.scale : 1,
       fileViewBoxes: { ...(theme.fileViewBoxes || {}) },
       layout: theme.layout,
       assetsPath: getRendererAssetsPath(),
@@ -76,11 +75,14 @@ function createThemeContext(theme, options = {}) {
       glyphFlips: theme.miniMode ? theme.miniMode.glyphFlips : {},
       miniFlipAssets: theme.miniMode ? !!theme.miniMode.flipAssets : false,
       dragSvg: theme.reactions && theme.reactions.drag ? theme.reactions.drag.file : null,
+      dragSvgs: theme.reactions && theme.reactions.drag ? {
+        left: theme.reactions.drag.fileLeft || null,
+        right: theme.reactions.drag.fileRight || null,
+      } : null,
       idleFollowSvg: theme.states.idle[0],
       eyeTrackingStates: theme.eyeTracking.enabled ? theme.eyeTracking.states : [],
       trustedScriptedSvgFiles: [...trustedScriptedSvgFiles],
       rendering: theme.rendering || { svgChannel: "auto" },
-      renderCanvas: theme.renderCanvas || { fileRatios: {} },
       objectScale: theme.objectScale,
       transitions: theme.transitions || {},
     };

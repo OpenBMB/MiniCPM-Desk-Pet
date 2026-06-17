@@ -6,7 +6,7 @@ const themeLoader = require("../src/theme-loader");
 const { createTranslator } = require("../src/i18n");
 
 themeLoader.init(path.join(__dirname, "..", "src"));
-const defaultTheme = themeLoader.loadTheme("cybercat");
+const defaultTheme = themeLoader.loadTheme("cloudling");
 
 function makeCtx(overrides = {}) {
   const ctx = {
@@ -60,7 +60,7 @@ describe("detectRunningAgentProcesses() agent coverage", () => {
     api.cleanup();
   });
 
-  it("includes kimi.exe and pi.exe in the Windows PowerShell process query", async () => {
+  it("includes agy.exe, kimi.exe, and pi.exe in the Windows PowerShell process query", async () => {
     let seenFile = "";
     let seenScript = "";
     childProcess.execFile = (file, args, opts, cb) => {
@@ -76,12 +76,19 @@ describe("detectRunningAgentProcesses() agent coverage", () => {
 
     assert.strictEqual(found, true);
     assert.strictEqual(seenFile, "powershell.exe");
+    assert.match(seenScript, /'agy\.exe'/);
     assert.match(seenScript, /'kimi\.exe'/);
+    assert.match(seenScript, /'codewhale\.exe'/);
     assert.match(seenScript, /'pi\.exe'/);
+    assert.match(seenScript, /'qodercli\.exe'/);
+    assert.match(seenScript, /'qoder-cli\.exe'/);
+    // Conservative: only the Qoder CLI counts as active agent work. The IDE
+    // process (qoder.exe) must NOT trigger startup recovery.
+    assert.doesNotMatch(seenScript, /'qoder\.exe'/);
     assert.match(seenScript, /Get-CimInstance Win32_Process/);
   });
 
-  it("includes kimi and Pi package markers in macOS/Linux pgrep query", async () => {
+  it("includes agy, kimi, and Pi package markers in macOS/Linux pgrep query", async () => {
     let seenCommand = "";
     childProcess.exec = (cmd, opts, cb) => {
       seenCommand = cmd;
@@ -95,7 +102,11 @@ describe("detectRunningAgentProcesses() agent coverage", () => {
 
     assert.strictEqual(found, true);
     assert.match(seenCommand, /claude-code\|codex\|copilot\|codebuddy\|kimi/);
+    assert.match(seenCommand, /pgrep -x 'agy'/);
+    assert.match(seenCommand, /pgrep -x 'codewhale'/);
     assert.match(seenCommand, /pi-coding-agent/);
+    assert.match(seenCommand, /pgrep -x 'qodercli'/);
+    assert.match(seenCommand, /pgrep -x 'qoder-cli'/);
     assert.doesNotMatch(seenCommand, /pgrep -x 'pi'/);
   });
 });

@@ -9,12 +9,73 @@ const {
   normalizeHookToolUseId,
   findPendingPermissionForStateEvent,
 } = require("./server-permission-utils");
+const { resolveHookAgentId } = require("./server-agent-id");
 const { resolveCodexOfficialHookState } = require("./server-codex-official-turns");
 
 // /state POST body size cap. Raised from 1024 to 4096 to give new fields
 // (session_title) headroom on top of cwd / pid_chain / host / etc. Still a
 // local-only 127.0.0.1 endpoint - not an Internet DoS concern.
 const MAX_STATE_BODY_BYTES = 4096;
+const ASSISTANT_LAST_OUTPUT_MAX = 2400;
+
+function normalizeHwndString(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!/^[1-9]\d{0,18}$/.test(text)) return null;
+  try {
+    return BigInt(text) <= 9223372036854775807n ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeTmuxSocket(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text.length > 4096 || /[\0\r\n]/.test(text)) return null;
+  if (text.startsWith("/")) return text;
+  return text !== "default" && /^[\w.-]{1,64}$/.test(text) ? text : null;
+}
+
+function normalizeTmuxClient(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text || text.length > 256 || text.startsWith("-")) return null;
+  return /^[\w./:-]+$/.test(text) ? text : null;
+}
+
+function normalizeAssistantLastOutput(value) {
+  if (typeof value !== "string") return null;
+  const text = value
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]+/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+  if (!text) return null;
+  return text.length > ASSISTANT_LAST_OUTPUT_MAX
+    ? text.slice(0, ASSISTANT_LAST_OUTPUT_MAX)
+    : text;
+}
+
+function normalizeContextUsage(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const used = Number(value.used);
+  if (!Number.isFinite(used) || used < 0) return null;
+
+  const out = { used };
+  const limit = Number(value.limit);
+  if (Number.isFinite(limit) && limit > 0) out.limit = limit;
+
+  const percent = Number(value.percent);
+  if (Number.isFinite(percent)) {
+    out.percent = Math.max(0, Math.min(100, Math.round(percent)));
+  } else if (out.limit) {
+    out.percent = Math.max(0, Math.min(100, Math.round((used / out.limit) * 100)));
+  }
+
+  if (value.source === "claude" || value.source === "codex") out.source = value.source;
+  return out;
+}
 
 function sendStateHealthResponse(res, options) {
   const body = JSON.stringify({ ok: true, app: CLAWD_SERVER_ID, port: options.getHookServerPort() });
@@ -50,17 +111,6 @@ function handleStatePost(req, res, options) {
     }
     try {
       const data = JSON.parse(body);
-      try {
-        const peek = {
-          state: data.state, event: data.event, agent_id: data.agent_id,
-          session_id: (data.session_id || "").slice(0, 18),
-          ...(data.derived ? { derived: true } : {}),
-        };
-        console.log("[state-tap]", JSON.stringify(peek));
-      } catch {}
-      if (typeof ctx.onStateEvent === "function") {
-        try { ctx.onStateEvent(data); } catch (err) { console.warn("onStateEvent error:", err && err.message); }
-      }
       const recordRequestHookEvent = createRequestHookRecorder(data, "state");
       let { state, svg, session_id, event } = data;
       let display_svg;
@@ -68,12 +118,16 @@ function handleStatePost(req, res, options) {
       else if (typeof data.display_svg === "string") display_svg = pathApi.basename(data.display_svg);
       else display_svg = undefined;
       const source_pid = Number.isFinite(data.source_pid) && data.source_pid > 0 ? Math.floor(data.source_pid) : null;
+      const wtHwnd = normalizeHwndString(data.wt_hwnd ?? data.wtHwnd);
       const cwd = typeof data.cwd === "string" ? data.cwd : "";
       const editor = (data.editor === "code" || data.editor === "cursor") ? data.editor : null;
       const pidChain = Array.isArray(data.pid_chain) ? data.pid_chain.filter(n => Number.isFinite(n) && n > 0) : null;
+      const tmuxSocket = normalizeTmuxSocket(data.tmux_socket);
+      const tmuxClient = normalizeTmuxClient(data.tmux_client);
       const rawAgentPid = data.agent_pid ?? data.claude_pid ?? data.cursor_pid;
       const agentPid = Number.isFinite(rawAgentPid) && rawAgentPid > 0 ? Math.floor(rawAgentPid) : null;
-      const agentId = typeof data.agent_id === "string" ? data.agent_id : "claude-code";
+      const agentIdentity = resolveHookAgentId(data);
+      const agentId = agentIdentity.agentId;
       const host = typeof data.host === "string" ? data.host : null;
       const headless = data.headless === true;
       const platform = typeof data.platform === "string" && data.platform.trim()
@@ -91,6 +145,9 @@ function handleStatePost(req, res, options) {
       const codexSource = typeof data.codex_source === "string" && data.codex_source.trim()
         ? data.codex_source.trim()
         : null;
+      const ghosttyTerminalId = typeof data.ghostty_terminal_id === "string" && data.ghostty_terminal_id.trim()
+        ? data.ghostty_terminal_id.trim()
+        : null;
       const toolName = typeof data.tool_name === "string" && data.tool_name ? data.tool_name : null;
       const toolUseId = normalizeHookToolUseId(
         data.tool_use_id ?? data.toolUseId ?? data.toolUseID
@@ -103,9 +160,19 @@ function handleStatePost(req, res, options) {
       // "ignore + fall back" pattern used by cwd / agent_id above.
       const rawTitle = typeof data.session_title === "string" ? data.session_title.trim() : "";
       const sessionTitle = rawTitle || null;
+      const contextUsage = normalizeContextUsage(data.context_usage);
+      const assistantLastOutput = normalizeAssistantLastOutput(data.assistant_last_output);
+      const assistantLastOutputTruncated = data.assistant_last_output_truncated === true;
       const permissionSuspect = data.permission_suspect === true;
       const preserveState = data.preserve_state === true;
       const hookSource = typeof data.hook_source === "string" ? data.hook_source : null;
+      // #406 completion-gate inputs from the Claude Stop hook. Counts / boolean
+      // only — the hook never forwards task command or description text.
+      const backgroundTasksCount = Number.isFinite(data.background_tasks_count)
+        ? data.background_tasks_count : 0;
+      const sessionCronsCount = Number.isFinite(data.session_crons_count)
+        ? data.session_crons_count : 0;
+      const stopHookActive = data.stop_hook_active === true;
       // Agent gate: user disabled this agent in the settings panel. Drop
       // with 204 so hook scripts get a quick no-op response instead of
       // hanging on our HTTP connection. Still surfaces as a success code
@@ -115,6 +182,9 @@ function handleStatePost(req, res, options) {
         res.writeHead(204, { [CLAWD_SERVER_HEADER]: CLAWD_SERVER_ID });
         res.end();
         return;
+      }
+      if (typeof ctx.onStateEvent === "function") {
+        try { ctx.onStateEvent(data); } catch {}
       }
       if (ctx.STATE_SVGS[state]) {
         const sid = session_id || "default";
@@ -143,16 +213,43 @@ function handleStatePost(req, res, options) {
             toolInputFingerprint,
             allowSingletonFallback: event === "Stop",
           });
-          if (perm) ctx.resolvePermissionEntry(perm, "deny", "User answered in terminal");
-          // Stale elicitation sweep: AskUserQuestion is a blocking tool
-          // call, so any forward progress in the same session means the
-          // user already answered in the terminal.  The exact-match above
-          // may miss the elicitation entry when the /state PostToolUse
-          // carries a different tool_input fingerprint from the original
-          // /permission request, or when tool_use_id is absent.
+          if (perm) {
+            const behavior = perm.isQwenCode ? "no-decision" : "deny";
+            ctx.resolvePermissionEntry(perm, behavior, "User answered in terminal");
+          }
+          // Stale blocking-tool sweep: both AskUserQuestion (elicitation) and
+          // ExitPlanMode (plan review) are blocking tool calls. Any forward
+          // progress in the same session means the user already answered in the
+          // terminal. The exact-match above may miss the entry when tool_use_id
+          // or tool_input_fingerprint diverge between /permission and /state.
           for (const stale of [...ctx.pendingPermissions]) {
-            if (stale !== perm && stale.isElicitation && stale.res && stale.sessionId === sid) {
+            if (
+              stale !== perm
+              && stale.res
+              && stale.sessionId === sid
+              && (stale.isElicitation || stale.toolName === "ExitPlanMode")
+            ) {
               ctx.resolvePermissionEntry(stale, "deny", "User answered in terminal");
+            }
+          }
+        }
+        // Stale ExitPlanMode sweep for events outside the PostToolUse/Stop block:
+        // UserPromptSubmit = user typed feedback in plan TUI ("Tell Claude what to
+        // change"); PreToolUse(non-ExitPlanMode) = Claude started executing after
+        // plan approval; SessionEnd = session torn down.
+        if (
+          event === "UserPromptSubmit"
+          || event === "SessionEnd"
+          || (event === "PreToolUse" && toolName !== "ExitPlanMode")
+        ) {
+          for (const stale of [...ctx.pendingPermissions]) {
+            if (
+              stale
+              && stale.res
+              && stale.sessionId === sid
+              && stale.toolName === "ExitPlanMode"
+            ) {
+              ctx.resolvePermissionEntry(stale, "deny", "Plan dialog dismissed in terminal");
             }
           }
         }
@@ -163,9 +260,12 @@ function handleStatePost(req, res, options) {
         } else {
           ctx.updateSession(sid, state, event, {
             sourcePid: source_pid,
+            wtHwnd,
             cwd,
             editor,
             pidChain,
+            tmuxSocket,
+            tmuxClient,
             agentPid,
             agentId,
             host,
@@ -175,11 +275,19 @@ function handleStatePost(req, res, options) {
             provider,
             codexOriginator,
             codexSource,
+            ghosttyTerminalId,
             displayHint: display_svg,
             sessionTitle,
+            contextUsage,
+            assistantLastOutput,
+            assistantLastOutputTruncated,
             permissionSuspect,
             preserveState,
             hookSource,
+            backgroundTasksCount,
+            sessionCronsCount,
+            stopHookActive,
+            ...(agentIdentity.defaulted ? { agentIdDefaulted: true } : {}),
           });
         }
         res.writeHead(200, { [CLAWD_SERVER_HEADER]: CLAWD_SERVER_ID });

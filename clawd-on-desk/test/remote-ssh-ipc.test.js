@@ -278,7 +278,14 @@ test("remoteSsh:deploy stamps via markDeployed (not full update) on success", as
     spawn: makeSucceedingSpawn().spawn,
     // Inject a fake deploy that just resolves ok — we're testing the
     // post-success commit, not the deploy steps themselves.
-    deployFn: async () => ({ ok: true }),
+    deployFn: async () => ({
+      ok: true,
+      remoteNode: {
+        nodeBin: "/usr/local/bin/node",
+        version: "v20.10.0",
+        source: "path",
+      },
+    }),
   });
   const r = await ipcMain.invoke("remoteSsh:deploy", "p1");
   assert.equal(r.status, "ok");
@@ -296,10 +303,44 @@ test("remoteSsh:deploy stamps via markDeployed (not full update) on success", as
   assert.ok(args.expectedTarget, "must pass expectedTarget for drift detection");
   assert.equal(args.expectedTarget.host, "user@pi");
   assert.equal(args.expectedTarget.remoteForwardPort, 23333);
+  assert.equal(args.remoteNode.nodeBin, "/usr/local/bin/node");
+  assert.equal(args.remoteNode.version, "v20.10.0");
   // The full profile snapshot must NOT be in the args — that would defeat
   // the lost-update fix.
   assert.equal(args.label, undefined,
     "markDeployed args must not carry full profile fields like label");
+  ipc.dispose();
+});
+
+test("runtime remote-node-detected event stamps profile node metadata", async () => {
+  const ipcMain = mockIpcMain();
+  const { BrowserWindow } = mockBrowserWindow();
+  const rt = mockRuntime();
+  const settingsController = mockSettingsController([baseProfile]);
+  const ipc = registerRemoteSshIpc({
+    ipcMain,
+    settingsController,
+    remoteSshRuntime: rt,
+    BrowserWindow,
+    spawn: makeSucceedingSpawn().spawn,
+  });
+
+  rt.emit("remote-node-detected", {
+    id: "p1",
+    nodeBin: "/home/me/.nvm/versions/node/v22/bin/node",
+    version: "v22.1.0",
+    source: "shell:/bin/bash",
+    detectedAt: 12345,
+    expectedTarget: {
+      host: "user@pi",
+      remoteForwardPort: 23333,
+    },
+  });
+  await new Promise((r) => setImmediate(r));
+
+  assert.equal(settingsController._commandCalls.length, 1);
+  assert.equal(settingsController._commandCalls[0].action, "remoteSsh.markRemoteNode");
+  assert.equal(settingsController._commandCalls[0].args.nodeBin, "/home/me/.nvm/versions/node/v22/bin/node");
   ipc.dispose();
 });
 
@@ -427,7 +468,7 @@ test("remoteSsh:deploy on unknown profile id → error, no stamp", async () => {
 
 // ── Authenticate / Open Terminal ──
 
-test("remoteSsh:authenticate spawns interactive ssh args (no -T, BatchMode=no override)", async () => {
+test("remoteSsh:authenticate spawns interactive ssh args (no -T, only BatchMode=no, no ConnectTimeout)", async () => {
   const ipcMain = mockIpcMain();
   const { BrowserWindow } = mockBrowserWindow();
   const calls = [];
@@ -452,11 +493,53 @@ test("remoteSsh:authenticate spawns interactive ssh args (no -T, BatchMode=no ov
   assert.equal(calls[0].args[1], "ssh");
   // Interactive ssh args MUST NOT include -T (would break remote pty).
   assert.equal(calls[0].args.includes("-T"), false, "Authenticate must drop -T");
-  // BatchMode=no must override BatchMode=yes (extraOpts after defaults).
-  const bmIndices = [];
-  calls[0].args.forEach((v, i) => { if (v && v.startsWith && v.startsWith("BatchMode=")) bmIndices.push(i); });
-  assert.equal(bmIndices.length, 2);
-  assert.equal(calls[0].args[bmIndices[bmIndices.length - 1]], "BatchMode=no");
+  // ssh -o is first-wins (see remote-ssh-runtime.js for the long comment).
+  // Interactive base is empty, so BatchMode=no from extraOpts is the ONLY
+  // BatchMode token AND the first one ssh sees → effective config allows
+  // password / passphrase / host-key prompts. This is the #348 fix.
+  const bmTokens = calls[0].args.filter((v) => typeof v === "string" && v.startsWith("BatchMode="));
+  assert.equal(bmTokens.length, 1, "interactive must carry only the explicit BatchMode=no");
+  assert.equal(bmTokens[0], "BatchMode=no");
+  // ConnectTimeout must NOT be in the interactive base — user controls the
+  // pace, and we don't want a 15s ssh-level timeout fighting their typing.
+  assert.equal(
+    calls[0].args.some((v) => typeof v === "string" && v.startsWith("ConnectTimeout=")),
+    false,
+    "interactive must not carry ConnectTimeout"
+  );
+  ipc.dispose();
+});
+
+test("remoteSsh:open-terminal uses the same interactive ssh args contract as Authenticate", async () => {
+  // open-terminal and authenticate share spawnSystemTerminalWithSsh, but pin
+  // the contract on the open-terminal IPC entry so a future split can't
+  // silently regress one without the other.
+  const ipcMain = mockIpcMain();
+  const { BrowserWindow } = mockBrowserWindow();
+  const calls = [];
+  const spawn = (cmd, args, opts) => {
+    calls.push({ cmd, args, opts });
+    return makeFakeSpawnChild();
+  };
+  const ipc = registerRemoteSshIpc({
+    ipcMain,
+    settingsController: mockSettingsController([baseProfile]),
+    remoteSshRuntime: mockRuntime(),
+    BrowserWindow,
+    platform: "win32",
+    spawn,
+  });
+  const r = await ipcMain.invoke("remoteSsh:open-terminal", "p1");
+  assert.equal(r.status, "ok");
+  assert.equal(calls[0].cmd, "wt.exe");
+  assert.equal(calls[0].args.includes("-T"), false);
+  const bmTokens = calls[0].args.filter((v) => typeof v === "string" && v.startsWith("BatchMode="));
+  assert.equal(bmTokens.length, 1);
+  assert.equal(bmTokens[0], "BatchMode=no");
+  assert.equal(
+    calls[0].args.some((v) => typeof v === "string" && v.startsWith("ConnectTimeout=")),
+    false
+  );
   ipc.dispose();
 });
 

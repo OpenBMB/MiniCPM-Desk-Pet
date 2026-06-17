@@ -76,11 +76,24 @@ function registerRemoteSshIpc(options = {}) {
   const onProgress = (payload) => {
     broadcast(BrowserWindow, "remoteSsh:progress", payload);
   };
+  const onRemoteNodeDetected = (payload) => {
+    settingsController.applyCommand("remoteSsh.markRemoteNode", payload)
+      .then((r) => {
+        if (r && r.noop && r.reason === "target_drift") {
+          log("remote-ssh: remote node stamp skipped due to target drift on", r.targetDrift);
+        } else if (!r || r.status !== "ok") {
+          log("remote-ssh: failed to stamp remote node:", (r && r.message) || "non-ok result");
+        }
+      })
+      .catch((err) => log("remote-ssh: failed to stamp remote node:", err && err.message));
+  };
   remoteSshRuntime.on("status-changed", onStatusChanged);
   remoteSshRuntime.on("progress", onProgress);
+  remoteSshRuntime.on("remote-node-detected", onRemoteNodeDetected);
   disposers.push(() => {
     remoteSshRuntime.off("status-changed", onStatusChanged);
     remoteSshRuntime.off("progress", onProgress);
+    remoteSshRuntime.off("remote-node-detected", onRemoteNodeDetected);
   });
 
   // ── Status / list ──
@@ -173,6 +186,7 @@ function registerRemoteSshIpc(options = {}) {
             id: profile.id,
             deployedAt: Date.now(),
             expectedTarget,
+            remoteNode: result.remoteNode,
           });
           if (stamp && stamp.noop && stamp.reason === "target_drift") {
             log("remote-ssh: deploy stamp skipped due to target drift on", stamp.targetDrift);
@@ -199,7 +213,13 @@ function registerRemoteSshIpc(options = {}) {
         }
         return { status: "ok" };
       }
-      return { status: "error", message: result.message, step: result.step };
+      return {
+        status: "error",
+        message: result.message,
+        step: result.step,
+        reason: result.reason || null,
+        hint: result.hint || null,
+      };
     } catch (err) {
       return { status: "error", message: (err && err.message) || "deploy threw" };
     }
@@ -212,9 +232,12 @@ function registerRemoteSshIpc(options = {}) {
   // Open Terminal is the same command path with a "general use" framing.
 
   function buildInteractiveSshArgs(profile) {
-    // interactive: true drops -T so the remote shell gets a proper pty.
-    // BatchMode=no overrides the BatchMode=yes from base opts via ssh's
-    // last-wins semantics, allowing host key prompts / passphrase entry.
+    // interactive: true uses SSH_INTERACTIVE_BASE_OPTS (empty) so there's no
+    // BatchMode=yes / ConnectTimeout / -T in the base. The explicit
+    // `-o BatchMode=no` here is the FIRST BatchMode token ssh sees and wins
+    // (ssh -o is first-wins; see buildSshArgs comment). That also beats a
+    // `BatchMode yes` in the user's ~/.ssh/config, since command-line -o
+    // precedes config file entries in the resolution order.
     return buildSshArgs(profile, {
       extraOpts: ["-o", "BatchMode=no"],
       interactive: true,

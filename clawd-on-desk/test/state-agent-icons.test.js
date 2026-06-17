@@ -2,15 +2,47 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert");
+const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { fileURLToPath } = require("url");
 
+const { getAllAgents } = require("../agents/registry");
+const {
+  getElectronBinary,
+  hashSvgSource,
+  readSourceManifest,
+  normalizeTextLineEndings,
+  updateSvgSourceHashes,
+} = require("../scripts/export-agent-icons");
 const {
   AGENT_ICON_DIR,
   getAgentIconPath,
   getAgentIcon,
   getAgentIconUrl,
 } = require("../src/state-agent-icons");
+
+function readPngSize(filePath) {
+  const buffer = fs.readFileSync(filePath);
+  assert.strictEqual(buffer.toString("ascii", 1, 4), "PNG");
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function shouldCheckRuntimeIconEntry(entry) {
+  return entry.isFile() && !entry.name.startsWith(".");
+}
+
+const MIGRATED_AGENT_PNG_ICONS = new Set([
+  "antigravity-cli.png",
+  "codewhale.png",
+  "kiro-cli.png",
+  "qoder.png",
+  "qwen-code.png",
+  "reasonix.png",
+]);
 
 describe("state agent icons", () => {
   it("returns undefined for BrowserWindow menu icons when nativeImage is unavailable", () => {
@@ -34,7 +66,18 @@ describe("state agent icons", () => {
     );
   });
 
-  it("supports bundled SVG agent icons", () => {
+  it("returns the bundled Kiro PNG icon", () => {
+    const iconUrl = getAgentIconUrl("kiro-cli");
+
+    assert.strictEqual(new URL(iconUrl).protocol, "file:");
+    assert.strictEqual(
+      path.normalize(fileURLToPath(iconUrl)),
+      path.join(AGENT_ICON_DIR, "kiro-cli.png")
+    );
+    assert.strictEqual(getAgentIconPath("kiro-cli"), path.join(AGENT_ICON_DIR, "kiro-cli.png"));
+  });
+
+  it("keeps existing Pi and OpenClaw SVG icons from the MiniCPM baseline", () => {
     const iconUrl = getAgentIconUrl("pi");
 
     assert.strictEqual(new URL(iconUrl).protocol, "file:");
@@ -43,17 +86,89 @@ describe("state agent icons", () => {
       path.join(AGENT_ICON_DIR, "pi.svg")
     );
     assert.strictEqual(getAgentIconPath("pi"), path.join(AGENT_ICON_DIR, "pi.svg"));
-  });
 
-  it("returns the bundled OpenClaw SVG icon", () => {
-    const iconUrl = getAgentIconUrl("openclaw");
-
-    assert.strictEqual(new URL(iconUrl).protocol, "file:");
+    const openClawIconUrl = getAgentIconUrl("openclaw");
+    assert.strictEqual(new URL(openClawIconUrl).protocol, "file:");
     assert.strictEqual(
-      path.normalize(fileURLToPath(iconUrl)),
+      path.normalize(fileURLToPath(openClawIconUrl)),
       path.join(AGENT_ICON_DIR, "openclaw.svg")
     );
     assert.strictEqual(getAgentIconPath("openclaw"), path.join(AGENT_ICON_DIR, "openclaw.svg"));
+  });
+
+  it("has runtime icons for every registered agent", () => {
+    const runtimeIconFiles = new Set(
+      fs.readdirSync(AGENT_ICON_DIR, { withFileTypes: true })
+        .filter(shouldCheckRuntimeIconEntry)
+        .map((entry) => entry.name)
+    );
+
+    for (const agent of getAllAgents()) {
+      assert.ok(
+        runtimeIconFiles.has(`${agent.id}.png`) || runtimeIconFiles.has(`${agent.id}.svg`),
+        `Missing exact runtime icon for ${agent.id}`
+      );
+    }
+  });
+
+  it("keeps migrated agent PNG icons at 64x64 while preserving baseline icon formats", () => {
+    for (const entry of fs.readdirSync(AGENT_ICON_DIR, { withFileTypes: true })) {
+      if (!shouldCheckRuntimeIconEntry(entry)) continue;
+      if (path.extname(entry.name).toLowerCase() !== ".png") {
+        assert.ok(["openclaw.svg", "pi.svg"].includes(entry.name), `${entry.name} should be a baseline SVG icon`);
+        continue;
+      }
+      if (!MIGRATED_AGENT_PNG_ICONS.has(entry.name)) continue;
+      const iconPath = path.join(AGENT_ICON_DIR, entry.name);
+      const size = readPngSize(iconPath);
+      assert.deepStrictEqual(size, { width: 64, height: 64 }, `${entry.name} should be 64x64`);
+    }
+  });
+
+  it("ignores local dotfiles and directories when checking runtime icon dimensions", () => {
+    const entries = [
+      { name: ".DS_Store", isFile: () => true },
+      { name: "scratch", isFile: () => false },
+      { name: "codex.png", isFile: () => true },
+    ];
+
+    assert.deepStrictEqual(
+      entries
+        .filter(shouldCheckRuntimeIconEntry)
+        .map((entry) => entry.name),
+      ["codex.png"]
+    );
+  });
+
+  it("keeps source SVG hashes aligned with the source manifest", () => {
+    const expectedManifest = updateSvgSourceHashes({ svgSources: {} }, getAllAgents());
+    assert.deepStrictEqual(readSourceManifest(), expectedManifest);
+  });
+
+  it("normalizes SVG source line endings before hashing", () => {
+    assert.strictEqual(
+      normalizeTextLineEndings("<svg>\r\n  <path />\r\n</svg>\r"),
+      "<svg>\n  <path />\n</svg>\n"
+    );
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "clawd-svg-hash-"));
+    try {
+      const lfPath = path.join(tempDir, "lf.svg");
+      const crlfPath = path.join(tempDir, "crlf.svg");
+      fs.writeFileSync(lfPath, "<svg>\n  <path />\n</svg>\n");
+      fs.writeFileSync(crlfPath, "<svg>\r\n  <path />\r\n</svg>\r\n");
+      assert.strictEqual(hashSvgSource(crlfPath), hashSvgSource(lfPath));
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves the real Electron binary for the exporter entrypoint", () => {
+    const electronBinary = getElectronBinary();
+    assert.ok(path.isAbsolute(electronBinary), "Electron binary path should be absolute");
+    if (process.platform === "win32") {
+      assert.strictEqual(path.basename(electronBinary).toLowerCase(), "electron.exe");
+    }
   });
 
   it("returns the cached URL value for repeated lookups", () => {

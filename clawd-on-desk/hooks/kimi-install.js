@@ -5,7 +5,12 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { resolveNodeBin } = require("./server-config");
-const { asarUnpackedPath } = require("./json-utils");
+const {
+  asarUnpackedPath,
+  extractExistingNodeBinFromCommands,
+  readTextFileStripBom,
+  writeTextAtomicWithBackup,
+} = require("./json-utils");
 const MARKER = "kimi-hook.js";
 const MODE_EXPLICIT = "explicit";
 const MODE_SUSPECT = "suspect";
@@ -144,8 +149,6 @@ function registerKimiHooks(options = {}) {
   }
 
   const hookScript = asarUnpackedPath(path.resolve(__dirname, "kimi-hook.js").replace(/\\/g, "/"));
-  const resolved = options.nodeBin !== undefined ? options.nodeBin : resolveNodeBin();
-  const nodeBin = resolved || "node";
 
   let content = "";
   try {
@@ -157,6 +160,15 @@ function registerKimiHooks(options = {}) {
     // Create a minimal config.toml if it doesn't exist
     content = 'default_model = "kimi-for-coding"\n';
   }
+
+  // Preserve a user-repaired absolute Node path baked into the existing TOML
+  // when fresh detection fails. Without this, startup auto-sync would overwrite
+  // a working `C:\Program Files\nodejs\node.exe` back to bare `"node"` — the
+  // same regression mode #317 reported for Claude's settings.json.
+  const resolved = options.nodeBin !== undefined ? options.nodeBin : resolveNodeBin();
+  const nodeBin = resolved
+    || extractExistingNodeBinFromCommands(findKimiHookCommands(content, MARKER), MARKER)
+    || "node";
 
   // Priority: explicit caller option → env var → mode already baked into the
   // existing config.toml hook command. The fallback is critical for the
@@ -235,10 +247,32 @@ timeout = 30
   return { added: KIMI_HOOK_EVENTS.length, skipped: 0, updated: 0 };
 }
 
+function unregisterKimiHooks(options = {}) {
+  const settingsPath = options.settingsPath || path.join(os.homedir(), ".kimi", "config.toml");
+
+  let content = "";
+  try {
+    content = readTextFileStripBom(settingsPath, "utf-8");
+  } catch (err) {
+    if (err.code === "ENOENT") return { removed: 0, changed: false, settingsPath };
+    throw new Error(`Failed to read config.toml: ${err.message}`);
+  }
+
+  const stripped = stripClawdKimiHookBlocks(content);
+  const changed = stripped.content !== content;
+  let backupPath = null;
+  if (changed) backupPath = writeTextAtomicWithBackup(settingsPath, stripped.content, options);
+  if (!options.silent) console.log(`Clawd Kimi hooks removed: ${stripped.removed}`);
+  const result = { removed: stripped.removed, changed, settingsPath };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
+}
+
 module.exports = {
   DEFAULT_PARENT_DIR,
   DEFAULT_CONFIG_PATH,
   registerKimiHooks,
+  unregisterKimiHooks,
   KIMI_HOOK_EVENTS,
   normalizePermissionMode,
   extractExistingPermissionMode,
@@ -250,7 +284,8 @@ module.exports = {
 
 if (require.main === module) {
   try {
-    registerKimiHooks({});
+    if (process.argv.includes("--uninstall")) unregisterKimiHooks({});
+    else registerKimiHooks({});
   } catch (err) {
     console.error(err.message);
     process.exit(1);

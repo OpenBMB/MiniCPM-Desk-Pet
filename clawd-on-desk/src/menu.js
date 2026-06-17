@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, screen, Menu, Tray, nativeImage } = require("electron");
+const { app, BrowserWindow, screen, Menu, Tray, nativeImage, dialog } = require("electron");
 const path = require("path");
 const { keepOutOfTaskbar } = require("./taskbar");
 
@@ -40,11 +40,61 @@ module.exports = function initMenu(ctx) {
   function buildMiniModeMenuItem() {
     const miniSupported = isMiniSupported();
     const inMiniMode = ctx.getMiniMode();
+    const miniDisabled = typeof ctx.getDisableMiniMode === "function" && ctx.getDisableMiniMode();
     return {
       label: inMiniMode ? t("exitMiniMode") : t("miniMode"),
       enabled: !ctx.getMiniTransitioning()
-        && (inMiniMode || (miniSupported && !(ctx.doNotDisturb && !inMiniMode))),
-      click: () => inMiniMode ? ctx.exitMiniMode() : ctx.enterMiniViaMenu(),
+        && (inMiniMode || (!miniDisabled && miniSupported && !(ctx.doNotDisturb && !inMiniMode))),
+      click: () => {
+        if (inMiniMode) return ctx.exitMiniMode();
+        if (miniDisabled) return undefined;
+        return ctx.enterMiniViaMenu();
+      },
+    };
+  }
+
+  // DANGER "auto-pilot" quick toggle. Enabling auto-approves EVERY agent
+  // permission request with no prompt, so the enable path is gated behind a
+  // native modal confirm. Disabling is immediate. After either decision we
+  // rebuild menus so the checkbox reflects the committed value (Electron has
+  // already flipped the visual optimistically on click).
+  function buildAutoApproveMenuItem() {
+    return {
+      label: t("menuAutoApproveAll"),
+      type: "checkbox",
+      checked: !!ctx.autoApproveAllPermissions,
+      click: (menuItem) => {
+        const wantOn = menuItem.checked;
+        if (!wantOn) {
+          ctx.autoApproveAllPermissions = false;
+          return;
+        }
+        // Revert the optimistic check until the user confirms.
+        menuItem.checked = false;
+        // No parent window: attaching the dialog to ctx.win (the small pet
+        // window) makes macOS render it as a sheet centered on the pet. A
+        // parentless dialog is a standalone window centered on the screen,
+        // which is what a danger confirmation should be.
+        Promise.resolve(
+          dialog.showMessageBox({
+            type: "warning",
+            buttons: [t("autoApproveAllConfirmEnable"), t("autoApproveAllConfirmCancel")],
+            defaultId: 1,
+            cancelId: 1,
+            title: t("autoApproveAllConfirmTitle"),
+            message: t("autoApproveAllConfirmTitle"),
+            detail: t("autoApproveAllConfirmDetail"),
+          })
+        ).then((res) => {
+          if (res && res.response === 0) {
+            ctx.autoApproveAllPermissions = true;
+          }
+          rebuildAllMenus();
+        }).catch((err) => {
+          console.warn("Clawd: auto-pilot confirm failed:", err && err.message);
+          rebuildAllMenus();
+        });
+      },
     };
   }
 
@@ -114,6 +164,7 @@ module.exports = function initMenu(ctx) {
         checked: ctx.hideBubbles,
         click: (menuItem) => { ctx.hideBubbles = menuItem.checked; },
       },
+      buildAutoApproveMenuItem(),
       {
         label: t("soundEffects"),
         type: "checkbox",
@@ -172,6 +223,15 @@ module.exports = function initMenu(ctx) {
         },
       },
       buildBringToPrimaryDisplayMenuItem(),
+    );
+    // #329: surface the update item in the tray menu. The label switches
+    // to "Update available · vX" / "Update Ready" when applicable. Click
+    // routes to checkForUpdates / quitAndInstall via getUpdateMenuItem.
+    if (typeof ctx.getUpdateMenuItem === "function") {
+      const updateItem = ctx.getUpdateMenuItem();
+      if (updateItem) items.push({ type: "separator" }, updateItem);
+    }
+    items.push(
       { type: "separator" },
       {
         label: ctx.petHidden ? t("showPet") : t("hidePet"),
@@ -256,7 +316,14 @@ module.exports = function initMenu(ctx) {
       callback: () => {
         ctx.menuOpen = false;
         if (owner && !owner.isDestroyed()) owner.hide();
-        if (ctx.win && !ctx.win.isDestroyed()) {
+        // ctx.petHidden guard: the menu's own Hide item may have just hidden
+        // the pet, and the click handler can fire on either side of this close
+        // callback — an unconditional showInactive() would resurrect a window
+        // setPetHidden() just hid. Skipping is safe: showPetWindows() re-asserts
+        // taskbar/mac flags on the next show, and Windows topmost is held by
+        // the window's alwaysOnTop flag plus the topmost-runtime watchdog, not
+        // by this callback.
+        if (ctx.win && !ctx.win.isDestroyed() && !ctx.petHidden) {
           ctx.win.showInactive();
           keepOutOfTaskbar(ctx.win);
           if (isMac) {
@@ -317,6 +384,8 @@ module.exports = function initMenu(ctx) {
         click: () => ctx.doNotDisturb ? ctx.disableDoNotDisturb() : ctx.enableDoNotDisturb(),
       },
       { type: "separator" },
+      buildAutoApproveMenuItem(),
+      { type: "separator" },
       {
         label: t("menuMinicpmChat"),
         click: () => {
@@ -369,6 +438,18 @@ module.exports = function initMenu(ctx) {
         label: t("settings"),
         click: () => ctx.openSettingsWindow(),
       },
+    );
+    // #329: surface the update item in the right-click context menu too.
+    if (typeof ctx.getUpdateMenuItem === "function") {
+      const updateItem = ctx.getUpdateMenuItem();
+      if (updateItem) template.push({ type: "separator" }, updateItem);
+    }
+    template.push(
+      { type: "separator" },
+      {
+        label: ctx.petHidden ? t("showPet") : t("hidePet"),
+        click: () => ctx.togglePetVisibility(),
+      },
       { type: "separator" },
       { label: t("quit"), click: () => requestAppQuit() },
     );
@@ -412,6 +493,7 @@ module.exports = function initMenu(ctx) {
     rebuildAllMenus,
     createTray,
     destroyTray,
+    getTray: () => ctx.tray,
     applyDockVisibility,
     ensureContextMenuOwner,
     popupMenuAt,
@@ -420,4 +502,3 @@ module.exports = function initMenu(ctx) {
     requestAppQuit,
   };
 };
-

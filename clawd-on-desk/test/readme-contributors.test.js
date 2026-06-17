@@ -6,62 +6,62 @@ const path = require("node:path");
 const test = require("node:test");
 
 const ROOT = path.join(__dirname, "..");
-const TABLE_READMES = ["README.md", "README.ko-KR.md", "README.ja-JP.md"];
+const ALL_READMES = [
+  "README.md",
+  "README.zh-CN.md",
+  "README.zh-TW.md",
+  "README.ko-KR.md",
+  "README.ja-JP.md",
+];
 
-function extractContributorTable(markdown, filename) {
-  const tables = [...markdown.matchAll(/<table>[\s\S]*?<\/table>/g)]
-    .map((match) => match[0])
-    .map((table) => ({
-      table,
-      cellCount: countCells(table),
-      githubAvatarCount: (table.match(/https:\/\/github\.com\/[^"\s]+\.png/g) || [])
-        .length,
-    }))
-    .filter((candidate) => candidate.githubAvatarCount > 0)
-    .sort((left, right) => right.cellCount - left.cellCount);
-  assert.ok(tables.length > 0, `${filename} should contain a contributors table`);
-  return tables[0].table;
+function readReadme(filename) {
+  return fs.readFileSync(path.join(ROOT, filename), "utf8");
 }
 
-function getRows(table) {
-  return [...table.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((match) => match[1]);
-}
-
-function countCells(row) {
-  return (row.match(/<td\s/g) || []).length;
-}
-
-function getContributorShape(filename) {
-  const markdown = fs.readFileSync(path.join(ROOT, filename), "utf8");
-  const rows = getRows(extractContributorTable(markdown, filename));
-  const cellCounts = rows.map(countCells);
-  const totalCells = cellCounts.reduce((sum, count) => sum + count, 0);
-
-  assert.ok(rows.length >= 2, `${filename} should have at least two contributor rows`);
-  assert.ok(totalCells > 0, `${filename} should contain contributor cells`);
-
-  for (const [index, count] of cellCounts.slice(0, -1).entries()) {
-    assert.strictEqual(count, 7, `${filename} row ${index + 1} should be full`);
+test("README files keep MiniCPM Desk Pet as the product identity", () => {
+  for (const filename of ALL_READMES) {
+    const markdown = readReadme(filename);
+    assert.match(markdown, /<h1 align="center">MiniCPM Desk Pet<\/h1>/, `${filename} should use the MiniCPM product title`);
+    assert.ok(markdown.includes("assets/tray-icon.png"), `${filename} should use the MiniCPM tray icon asset`);
+    assert.ok(markdown.includes("MiniCPM5-1B-GGUF"), `${filename} should describe the MiniCPM model`);
+    assert.ok(markdown.includes("OpenBMB/MiniCPM-Desk-Pet"), `${filename} should link to the OpenBMB repository or releases`);
   }
+});
 
-  const finalRowCount = cellCounts[cellCounts.length - 1];
-  assert.ok(
-    finalRowCount >= 1 && finalRowCount <= 7,
-    `${filename} final row should contain between 1 and 7 contributors`,
-  );
+test("README files do not regress to upstream Clawd product copy", () => {
+  const forbidden = [
+    /<h1[^>]*>Clawd(?: on Desk| 桌宠| 桌寵)?<\/h1>/i,
+    /Clawd lives on your desktop/i,
+    /Clawd 住在你的桌面上/,
+    /像素螃蟹/,
+    /pixel crab/i,
+    /Clawd-on-Desk-Setup/i,
+    /awesome-claude-code/i,
+    /Anthropic/i,
+  ];
 
-  return cellCounts;
-}
+  for (const filename of ALL_READMES) {
+    const markdown = readReadme(filename);
+    for (const pattern of forbidden) {
+      assert.doesNotMatch(markdown, pattern, `${filename} should not contain upstream product copy: ${pattern}`);
+    }
+  }
+});
 
-test("table-based README contributor grids are filled consistently", () => {
-  const [baselineFile, ...localizedFiles] = TABLE_READMES;
-  const baselineShape = getContributorShape(baselineFile);
+test("README files keep remote and human-control features gated off by default", () => {
+  const gatedFeatures = [
+    "Telegram",
+    "Direct Send",
+    "mobile PWA",
+    "Hardware Buddy",
+    "auto-pilot",
+  ];
 
-  for (const filename of localizedFiles) {
-    assert.deepStrictEqual(
-      getContributorShape(filename),
-      baselineShape,
-      `${filename} should match ${baselineFile}'s contributor row shape`,
-    );
+  for (const filename of ALL_READMES) {
+    const markdown = readReadme(filename);
+    for (const feature of gatedFeatures) {
+      assert.ok(markdown.includes(feature), `${filename} should mention ${feature}`);
+    }
+    assert.match(markdown, /default|默认|預設|既定|기본/i, `${filename} should document default gating`);
   }
 });

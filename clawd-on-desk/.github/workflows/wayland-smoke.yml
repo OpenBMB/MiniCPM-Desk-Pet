@@ -1,0 +1,85 @@
+# Headless-Wayland smoke test for the XWayland auto-relaunch (issue #441, PR #443).
+#
+# We have no Linux/Wayland hardware to verify on — this job stands in: it
+# builds the AppImage from source, boots a REAL Wayland compositor (weston
+# headless) + Xwayland on the runner, and asserts the app relaunches itself
+# onto XWayland and comes up healthy. See ci/wayland-smoke.sh for the exact
+# assertions.
+#
+# History: the first revision of this job ran the v3 (app.relaunch) build that
+# had been posted to the #441 reporter — run 27110582080 — and caught it red:
+# Electron's relauncher helper runs from the AppImage FUSE mount, which dies
+# with the first process, so the helper never launches the replacement (run
+# 27248005113). The spawn()-based fix this job verifies went green in run
+# 27248372732.
+#
+# Triggers: Electron upgrades are the main regression vector (the Ozone
+# default flipped in Electron 38, which caused #441), hence the
+# package.json/package-lock.json paths. src/main.js hosts the relaunch block
+# but changes in nearly every PR, so it is deliberately NOT a path trigger —
+# use workflow_dispatch after touching that block.
+name: Wayland smoke (issue 441)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/linux-wayland-xwayland-default]
+  pull_request:
+    paths:
+      - src/linux-ozone.js
+      - ci/wayland-smoke.sh
+      - .github/workflows/wayland-smoke.yml
+      - package.json
+      - package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wayland-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  xwayland-relaunch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build the AppImage from this ref
+        run: |
+          npm install
+          node --test test/linux-ozone.test.js
+          npm run fetch:sidecars -- --target linux-x64
+          node scripts/verify-sidecar-binaries.js prebuild:linux
+          npx electron-builder --linux AppImage --publish never
+          ls -l dist/*.AppImage
+
+      - name: Install headless Wayland stack
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            weston xwayland libfuse2t64 x11-utils xdotool
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces (AppArmor), which
+      # breaks Chromium's sandbox. Relax the restriction instead of passing
+      # --no-sandbox: the test must run the AppImage exactly as a user does —
+      # no extra argv.
+      - name: Allow Chromium userns sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Smoke test
+        run: bash ci/wayland-smoke.sh dist/*.AppImage
+
+      # The smoke-tested binary, ready to hand to Wayland users on #441.
+      # Same artifact name as build.yml so download instructions stay familiar.
+      - name: Upload tested AppImage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installer
+          path: dist/*.AppImage
+          if-no-files-found: ignore

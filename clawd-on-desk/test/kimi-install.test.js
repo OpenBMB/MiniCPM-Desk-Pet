@@ -5,6 +5,7 @@ const path = require("path");
 const os = require("os");
 const {
   registerKimiHooks,
+  unregisterKimiHooks,
   KIMI_HOOK_EVENTS,
   normalizePermissionMode,
   extractExistingPermissionMode,
@@ -20,6 +21,12 @@ function makeTempKimiHome() {
   fs.mkdirSync(kimiDir, { recursive: true });
   tempDirs.push(root);
   return { root, kimiDir, settingsPath: path.join(kimiDir, "config.toml") };
+}
+
+function listCleanupBackups(filePath) {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  return fs.readdirSync(dir).filter((name) => name.startsWith(`${base}.clawd-cleanup-`));
 }
 
 afterEach(() => {
@@ -215,6 +222,80 @@ timeout = 30
     assert.ok(after.includes("enabled = true"), "[mcp] content must survive");
     const markerLines = after.match(/command\s*=.*kimi-hook\.js/g) || [];
     assert.strictEqual(markerLines.length, KIMI_HOOK_EVENTS.length);
+  });
+
+  it("unregister removes only Clawd blocks and preserves following TOML sections", () => {
+    const { settingsPath } = makeTempKimiHome();
+    const content = [
+      'default_model = "kimi-for-coding"',
+      "",
+      "[[hooks]]",
+      'event = "SessionStart"',
+      'command = \'"node" "/opt/clawd/hooks/kimi-hook.js"\'',
+      'matcher = ""',
+      "timeout = 30",
+      "",
+      "[[hooks]]",
+      'event = "SessionStart"',
+      'command = "echo user hook"',
+      'matcher = ""',
+      "timeout = 10",
+      "",
+      "[server]",
+      "port = 8080",
+      "",
+      "[mcp]",
+      "enabled = true",
+      "",
+      "[[tools]]",
+      'name = "example"',
+      "",
+    ].join("\n");
+    fs.writeFileSync(settingsPath, content, "utf8");
+
+    const result = unregisterKimiHooks({ silent: true, settingsPath, backup: true });
+
+    assert.strictEqual(result.removed, 1);
+    assert.strictEqual(result.changed, true);
+    const after = fs.readFileSync(settingsPath, "utf8");
+    assert.ok(!after.includes("kimi-hook.js"));
+    assert.ok(after.includes('command = "echo user hook"'));
+    assert.ok(after.includes("[server]"));
+    assert.ok(after.includes("port = 8080"));
+    assert.ok(after.includes("[mcp]"));
+    assert.ok(after.includes("enabled = true"));
+    assert.ok(after.includes("[[tools]]"));
+    assert.ok(after.includes('name = "example"'));
+    assert.strictEqual(listCleanupBackups(settingsPath).length, 1);
+
+    const second = unregisterKimiHooks({ silent: true, settingsPath, backup: true });
+    assert.deepStrictEqual(second, { removed: 0, changed: false, settingsPath, backupPath: null });
+    assert.strictEqual(listCleanupBackups(settingsPath).length, 1);
+  });
+
+  it("preserves an existing absolute Windows node path when detection fails", () => {
+    // Issue #317 follow-up: Kimi TOML used to lose the user's manual
+    // C:\Program Files\nodejs\node.exe repair on startup auto-sync because
+    // no preservation chain existed for the kimi-install path.
+    const { settingsPath } = makeTempKimiHome();
+    const existingWinPath = "C:\\Program Files\\nodejs\\node.exe";
+    const initial = [
+      'default_model = "kimi-for-coding"',
+      "",
+      "[[hooks]]",
+      'event = "PreToolUse"',
+      `command = '"${existingWinPath}" "/opt/clawd/hooks/kimi-hook.js"'`,
+      'matcher = ""',
+      "timeout = 30",
+      "",
+    ].join("\n");
+    fs.writeFileSync(settingsPath, initial, "utf8");
+
+    registerKimiHooks({ silent: true, settingsPath, nodeBin: null });
+
+    const after = fs.readFileSync(settingsPath, "utf8");
+    assert.ok(after.includes(existingWinPath), `expected ${existingWinPath} to be preserved`);
+    assert.ok(!/command\s*=\s*'"node"/.test(after), "should not downgrade to bare node");
   });
 
   it("skips when ~/.kimi/ does not exist", () => {

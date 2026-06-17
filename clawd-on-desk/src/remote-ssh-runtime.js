@@ -8,12 +8,12 @@
 //
 // Pure data → safe to require under tests:
 //
-//   detectSsh()                — `where|which ssh` + `ssh -V` parse
+//   detectSsh()                — `ssh -V` parse
 //   buildSshArgs(profile, opt) — shared arg constructor for ALL ssh calls
 //   buildScpArgs(profile, opt) — same for scp (note: scp port flag is `-P`)
 //   classifyStderr(stderr)     — pure error classifier
 //   classifyProbeExit(code)    — pure probe-exit-code classifier
-//   buildProbeCommand(port)    — builds the `node -e ...` remote command
+//   buildProbeCommand(port)    — builds the remote Node health probe command
 //
 // Stateful (factory):
 //
@@ -31,12 +31,41 @@
 
 const childProcess = require("child_process");
 const { EventEmitter } = require("events");
+const {
+  resolveRemoteNodeBin,
+  getCachedRemoteNodeBin,
+  clearCachedRemoteNodeBin,
+  buildRemoteNodeEvalCommand,
+} = require("./remote-ssh-node");
+const { decodeShellBytes } = require("./remote-ssh-decode");
 
 const SSH_BASE_OPTS = ["-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"];
 const SCP_BASE_OPTS = ["-q", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15"];
+// Interactive base intentionally empty: no -T (pty needed), no BatchMode=yes
+// (must allow password / passphrase / host-key prompts), no ConnectTimeout=15
+// (user-initiated; they can wait). Callers add `-o BatchMode=no` via extraOpts
+// to also beat any `BatchMode yes` in the user's ~/.ssh/config — command-line
+// -o wins because it's the FIRST BatchMode token ssh sees.
+const SSH_INTERACTIVE_BASE_OPTS = [];
+
+// "cmd is not recognized" — emitted by Windows OpenSSH when the remote
+// default shell is cmd.exe and our `sh -c <script>` probe lands on it.
+// Multi-language because the Windows console respects the user locale
+// (zh-CN/zh-TW/ja/ko/de). When the resolver fails with this pattern we
+// know the host is windows-cmd and there's no point retrying the resolver
+// or logging the same expected failure on every reconnect — the bare
+// `node` health probe already keeps the tunnel green on Windows hosts
+// that happen to have node.exe on PATH.
+const WINDOWS_CMD_STDERR_RX =
+  /not recognized as an internal or external command|不是内部或外部命令|不是內部或外部命令|内部コマンドまたは外部コマンド|내부 명령 또는 외부 명령|nicht als interner oder externer/i;
+
+function looksLikeWindowsCmdStderr(stderr) {
+  return WINDOWS_CMD_STDERR_RX.test(String(stderr || ""));
+}
 
 const PROBE_WINDOW_MS = 12000;
 const PROBE_MIN_GAP_MS = 250;
+const PROBE_CHILD_TIMEOUT_MS = 5000;
 const BACKOFF_SCHEDULE_MS = [5000, 15000, 45000, 120000, 300000];
 const UNKNOWN_STRIKES_LIMIT = 3;
 
@@ -45,33 +74,58 @@ const CLAWD_SERVER_ID = "clawd-on-desk";
 
 // ── Detect ssh client ──
 //
-// Cheap one-shot at runtime construction. Returns
-//   { available: true, version: "OpenSSH_9.5p2 ..." }
+// Cheap one-shot. Returns
+//   { available: true, version: "OpenSSH_9.5p2 ...", parsedVersion: { ... } }
 // or { available: false, error: "..." } on failure / not found.
-//
-// Stays small (<30 lines) and inlined per plan v6 (folding detect into runtime).
-function detectSsh({ exec = childProcess.execFileSync } = {}) {
+
+function parseOpenSshVersion(version) {
+  const text = (version || "").toString();
+  const match = text.match(/OpenSSH(?:_for_Windows)?_(\d+)\.(\d+)(?:p(\d+))?/i);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: match[3] == null ? null : Number(match[3]),
+  };
+}
+
+function isUnsupportedWindowsOpenSsh(sshInfo, platform = process.platform) {
+  if (platform !== "win32") return false;
+  if (!sshInfo || sshInfo.available !== true) return false;
+  const parsed = sshInfo.parsedVersion || parseOpenSshVersion(sshInfo.version);
+  return !!parsed && parsed.major < 8;
+}
+
+function detectSsh({ spawnSync = childProcess.spawnSync } = {}) {
   try {
-    // ssh -V writes to STDERR on every implementation. Capture both streams
-    // and merge for resilience against future behavior changes.
-    const out = exec("ssh", ["-V"], {
+    // ssh -V writes to stderr on most OpenSSH builds. spawnSync lets us read
+    // both streams even on success, unlike execFileSync's stdout-only return.
+    const result = spawnSync("ssh", ["-V"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 5000,
       windowsHide: true,
     });
-    // Some platforms put the banner on stderr only — execFileSync returns
-    // stdout. If empty, fall back to a flag-less invocation that should fail
-    // gracefully but still returns. We accept whatever ssh wrote.
-    const version = (out || "").toString().trim() || "(no version banner)";
-    return { available: true, version };
+
+    if (result && result.error) {
+      const msg = result.error.code === "ENOENT"
+        ? "ssh executable not found in PATH"
+        : result.error.message || "ssh detect failed";
+      return { available: false, error: msg };
+    }
+
+    const stdout = result && result.stdout ? result.stdout.toString().trim() : "";
+    const stderr = result && result.stderr ? result.stderr.toString().trim() : "";
+    const version = stderr || stdout || "(no version banner)";
+    const parsedVersion = parseOpenSshVersion(version);
+    return { available: true, version, parsedVersion };
   } catch (err) {
     if (err && err.stderr) {
       const stderr = err.stderr.toString().trim();
-      // Older ssh writes -V to stderr and exits 0 — execFileSync treats that
-      // as success. If it landed in catch we have an actual problem (ENOENT).
+      // Defensive: unusual spawnSync implementations can throw after producing
+      // stderr, while stock Node reports most failures via result.error.
       if (stderr && err.code !== "ENOENT") {
-        return { available: true, version: stderr };
+        return { available: true, version: stderr, parsedVersion: parseOpenSshVersion(stderr) };
       }
     }
     const msg = err && err.code === "ENOENT"
@@ -87,12 +141,22 @@ function detectSsh({ exec = childProcess.execFileSync } = {}) {
 // authenticate, and open-terminal paths MUST go through these. They guarantee:
 //
 //   1. Non-interactive defaults (-T, BatchMode=yes, ConnectTimeout=15) so
-//      the spawned process never wedges on a prompt.
+//      backgrounded tunnels / probes / deploys never wedge on a prompt.
 //   2. Profile's `-i identityFile` / `-p port` (scp: `-P port`) are always
 //      injected, so non-default-port / specified-key profiles work for
 //      Deploy, Codex monitor, Authenticate — not just Connect.
-//   3. extraOpts append AFTER profile defaults so `-o BatchMode=no` and
-//      `-o ConnectTimeout=2` overrides can win via ssh's last-wins semantics.
+//   3. Interactive callers (`interactive: true`) get an empty base via
+//      `SSH_INTERACTIVE_BASE_OPTS`, since `-T` breaks remote pty, and
+//      `BatchMode=yes` would suppress the very prompts (password,
+//      passphrase, host-key confirm) the user opened the terminal to answer.
+//
+// FIRST-WINS, NOT LAST-WINS. ssh_config(5): "For each parameter, the first
+// obtained value will be used." This applies to command-line `-o` too:
+// `-o BatchMode=yes -o BatchMode=no` resolves to BatchMode=yes, not no
+// (verified with `ssh -G` on OpenSSH 9.5p2 / 10.0p2). Consequence: a future
+// `extraOpts` `-o Foo=bar` only wins if Foo is NOT already in the base opt
+// list. If you need to override a base opt, change the base or add a
+// separate base array — appending in extraOpts is a no-op.
 //
 // Host is appended last for ssh; scp callers add `host:path` themselves.
 function buildSshArgs(profile, { extraOpts = [], interactive = false } = {}) {
@@ -102,15 +166,9 @@ function buildSshArgs(profile, { extraOpts = [], interactive = false } = {}) {
   if (!Array.isArray(extraOpts)) {
     throw new TypeError("buildSshArgs: extraOpts must be an array");
   }
-  // `-T` (no pseudo-tty) is correct for backgrounded tunnels, deploys, and
-  // probes — but **wrong** for Authenticate / Open Terminal: those land the
-  // user in an interactive shell, where -T breaks vim/less/bash readline.
-  // Caller passes interactive: true to drop -T, letting ssh negotiate a pty
-  // by default (terminal emulator already provides a local tty).
-  const baseOpts = interactive
-    ? SSH_BASE_OPTS.filter((opt) => opt !== "-T")
+  const args = interactive
+    ? SSH_INTERACTIVE_BASE_OPTS.slice()
     : SSH_BASE_OPTS.slice();
-  const args = baseOpts;
   if (profile.identityFile) args.push("-i", profile.identityFile);
   if (profile.port && profile.port !== 22) args.push("-p", String(profile.port));
   args.push(...extraOpts);
@@ -216,7 +274,7 @@ function classifyProbeExit(code) {
 // argument: the remoteForwardPort (NOT localRuntimePort — probe runs from
 // remote and hits 127.0.0.1:<remoteForwardPort> which is the bound side of
 // the reverse tunnel).
-function buildProbeCommand(remoteForwardPort) {
+function buildProbeCommand(remoteForwardPort, nodeBin = "node") {
   if (!Number.isInteger(remoteForwardPort)) {
     throw new TypeError("buildProbeCommand: remoteForwardPort must be an integer");
   }
@@ -232,7 +290,8 @@ function buildProbeCommand(remoteForwardPort) {
     `});` +
     `r.on('error',()=>process.exit(2));` +
     `r.setTimeout(2000,()=>{r.destroy();process.exit(4);});`;
-  return `node -e ${JSON.stringify(js)}`;
+  if (nodeBin === "node") return `node -e ${JSON.stringify(js)}`;
+  return buildRemoteNodeEvalCommand(nodeBin, js);
 }
 
 // ── Backoff helper ──
@@ -250,6 +309,10 @@ function createRemoteSshRuntime(deps = {}) {
   const log = deps.log || (() => {});
   const setTimeoutFn = deps.setTimeout || setTimeout;
   const clearTimeoutFn = deps.clearTimeout || clearTimeout;
+  const resolveRemoteNode = deps.resolveRemoteNodeBin || resolveRemoteNodeBin;
+  const detectSshClient = deps.detectSsh || (() => detectSsh());
+  const platform = deps.platform || process.platform;
+  let sshDetectionCache = null;
 
   if (typeof getHookServerPort !== "function") {
     throw new Error("createRemoteSshRuntime: deps.getHookServerPort is required");
@@ -264,16 +327,31 @@ function createRemoteSshRuntime(deps = {}) {
       profile,
       status: "idle",
       message: null,
+      hint: null,
       lastError: null,
       lastErrorReason: null,
       sshChild: null,
-      stderrBuf: "",
+      // Accumulated raw stderr bytes — decoded once on read so a GBK/CP936
+      // remote (Windows cmd, zh-locale Linux) doesn't show up as mojibake.
+      stderrBuf: Buffer.alloc(0),
       probeChild: null,
       probeInFlight: false,
       probeStartedAt: 0,
       probeWindowDeadline: 0,
       probeIntervalTimer: null,
       probeWindowTimer: null,
+      probeChildTimer: null,
+      remoteNodeBin: null,
+      remoteNodeSource: null,
+      allowBareNodeProbe: false,
+      remoteNodeResolveInFlight: false,
+      // Set to "windows-cmd" the first time the resolver fails with the
+      // "is not recognized" stderr pattern. Acts as a one-shot negative
+      // cache for the background resolver and any future resolver retry
+      // call site, so we don't spam the user with the same expected
+      // failure every time the tunnel reconnects.
+      remoteShell: null,
+      remoteShellTarget: null,
       backoffTimer: null,
       retryAttempt: 0,
       unknownStrikes: 0,
@@ -284,6 +362,7 @@ function createRemoteSshRuntime(deps = {}) {
   function setStatus(state, status, extra = {}) {
     state.status = status;
     if ("message" in extra) state.message = extra.message;
+    if ("hint" in extra) state.hint = extra.hint;
     if ("lastError" in extra) state.lastError = extra.lastError;
     if ("lastErrorReason" in extra) state.lastErrorReason = extra.lastErrorReason;
     emitStatus(state);
@@ -298,6 +377,7 @@ function createRemoteSshRuntime(deps = {}) {
       profileId: state.profile.id,
       status: state.status,
       message: state.message,
+      hint: state.hint,
       lastError: state.lastError,
       lastErrorReason: state.lastErrorReason,
       retryAttempt: state.retryAttempt,
@@ -306,7 +386,7 @@ function createRemoteSshRuntime(deps = {}) {
 
   function getProfileStatus(profileId) {
     const state = states.get(profileId);
-    if (!state) return { profileId, status: "idle", message: null, lastError: null };
+    if (!state) return { profileId, status: "idle", message: null, hint: null, lastError: null };
     return snapshotState(state);
   }
 
@@ -322,8 +402,12 @@ function createRemoteSshRuntime(deps = {}) {
     if (!profile || !profile.id) throw new Error("connect: profile.id required");
     let state = states.get(profile.id);
     if (state) {
+      const targetChanged = remoteShellCacheKey(state.profile) !== remoteShellCacheKey(profile);
       // Replace profile snapshot — caller may have just edited fields.
       state.profile = profile;
+      if (targetChanged) {
+        clearRemoteShellCache(state);
+      }
       // If already connecting / connected, no-op (idempotent).
       if (state.status === "connecting" || state.status === "connected"
           || state.status === "reconnecting") {
@@ -333,21 +417,33 @@ function createRemoteSshRuntime(deps = {}) {
       state.retryAttempt = 0;
       state.unknownStrikes = 0;
       state.stopped = false;
+      clearRemoteShellCache(state);
     } else {
       state = newState(profile);
       states.set(profile.id, state);
     }
+    // A manual Connect is the user's chance to recover after installing or
+    // upgrading ssh.exe. Keep detection cached only within automatic retries.
+    sshDetectionCache = null;
     startConnect(state);
     return snapshotState(state);
   }
 
   function startConnect(state) {
     if (state.stopped) return;
+    state.remoteNodeResolveInFlight = false;
     setStatus(state, state.status === "reconnecting" ? "reconnecting" : "connecting", {
       message: null,
+      hint: null,
       lastError: null,
       lastErrorReason: null,
     });
+
+    const sshPreflight = getSshPreflightFailure();
+    if (sshPreflight) {
+      finishFailure(state, sshPreflight);
+      return;
+    }
 
     let localPort;
     try {
@@ -401,7 +497,7 @@ function createRemoteSshRuntime(deps = {}) {
     }
 
     state.sshChild = child;
-    state.stderrBuf = "";
+    state.stderrBuf = Buffer.alloc(0);
 
     // All handlers below identity-gate against `child` (closure-captured) so
     // a stale exit/error from a previous Disconnect→Connect cycle can't
@@ -426,7 +522,10 @@ function createRemoteSshRuntime(deps = {}) {
     if (child.stderr) {
       child.stderr.on("data", (chunk) => {
         if (state.sshChild !== child) return;
-        state.stderrBuf += chunk.toString();
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+        state.stderrBuf = state.stderrBuf.length === 0
+          ? buf
+          : Buffer.concat([state.stderrBuf, buf]);
         // Cap buffer at 8KB to avoid unbounded growth on noisy hosts.
         if (state.stderrBuf.length > 8192) {
           state.stderrBuf = state.stderrBuf.slice(-8192);
@@ -438,8 +537,207 @@ function createRemoteSshRuntime(deps = {}) {
       onSshExit(state, child, code, signal);
     });
 
-    // Start probe loop immediately — don't wait for ConnectTimeout to elapse.
+    startProbeLoopWithRemoteNode(state, child);
+  }
+
+  function remoteNodeExpectedTarget(profile) {
+    return {
+      host: profile && profile.host,
+      port: profile && profile.port,
+      identityFile: profile && profile.identityFile,
+      remoteForwardPort: profile && profile.remoteForwardPort,
+      hostPrefix: profile && profile.hostPrefix,
+    };
+  }
+
+  function remoteShellCacheKey(profile) {
+    return JSON.stringify({
+      host: profile && profile.host || "",
+      port: Number.isInteger(profile && profile.port) ? profile.port : 22,
+      identityFile: profile && profile.identityFile || "",
+    });
+  }
+
+  function clearRemoteShellCache(state) {
+    if (!state) return;
+    state.remoteShell = null;
+    state.remoteShellTarget = null;
+  }
+
+  function markRemoteShell(state, shell, target) {
+    state.remoteShell = shell;
+    state.remoteShellTarget = target || remoteShellCacheKey(state.profile);
+  }
+
+  function startProbeLoopWithRemoteNode(state, child) {
+    const cached = getCachedRemoteNodeBin(state.profile);
+    if (cached && cached.nodeBin) {
+      state.remoteNodeBin = cached.nodeBin;
+      state.remoteNodeSource = cached.source || "cache";
+      state.allowBareNodeProbe = false;
+      startProbeLoop(state);
+      return;
+    }
+
+    // Cache miss: start the health probe immediately with the legacy bare
+    // node command while resolving an absolute Node path in the background.
+    // Once the resolver returns, subsequent probes switch to the absolute
+    // path and the result is emitted for profile persistence.
+    state.remoteNodeBin = null;
+    state.remoteNodeSource = null;
+    state.allowBareNodeProbe = true;
     startProbeLoop(state);
+  }
+
+  function getSshDetection() {
+    if (sshDetectionCache) return sshDetectionCache;
+    try {
+      sshDetectionCache = detectSshClient() || { available: false, error: "ssh detect failed" };
+    } catch (err) {
+      sshDetectionCache = {
+        available: false,
+        error: (err && err.message) || "ssh detect failed",
+      };
+    }
+    return sshDetectionCache;
+  }
+
+  function getSshPreflightFailure() {
+    const info = getSshDetection();
+    if (isUnsupportedWindowsOpenSsh(info, platform)) {
+      const version = info.version || "OpenSSH 7.x";
+      return {
+        kind: "permanent",
+        reason: "windows_openssh_legacy",
+        hint: "remoteSshErrWindowsOpenSshLegacy",
+        message: `${version} has a broken ConnectTimeout implementation on Windows. Upgrade Windows OpenSSH to 8.x or newer.`,
+      };
+    }
+    return null;
+  }
+
+  function emitRemoteNodeDetected(state, resolved) {
+    emitter.emit("remote-node-detected", {
+      id: state.profile.id,
+      nodeBin: resolved.nodeBin,
+      version: resolved.version || null,
+      source: resolved.source || null,
+      detectedAt: Date.now(),
+      expectedTarget: remoteNodeExpectedTarget(state.profile),
+    });
+  }
+
+  function resolveRemoteNodeInBackground(state, child) {
+    if (state.remoteNodeResolveInFlight) return;
+    const shellTarget = remoteShellCacheKey(state.profile);
+    // One-shot negative cache: once we've seen this remote reject `sh`,
+    // every later resolver call is guaranteed to fail the same way.
+    // Stay on bare-node-probe mode and don't bother (or spam log).
+    if (state.remoteShell === "windows-cmd") {
+      if (state.remoteShellTarget === shellTarget) return;
+      clearRemoteShellCache(state);
+    }
+    state.remoteNodeResolveInFlight = true;
+    const finish = (resolved) => {
+      if (state.sshChild !== child) return;
+      if (state.stopped) {
+        state.remoteNodeResolveInFlight = false;
+        return;
+      }
+      state.remoteNodeResolveInFlight = false;
+      if (!resolved || resolved.ok !== true || !resolved.nodeBin) {
+        const cls = classifyStderr((resolved && resolved.stderr) || "");
+        if (cls.kind === "permanent") {
+          finishFailure(state, {
+            kind: "permanent",
+            reason: cls.reason,
+            hint: cls.hint,
+            message: stderrSummary(resolved.stderr) || (resolved && resolved.message) || "Remote SSH failed.",
+          });
+          return;
+        }
+        if (state.status === "connected") {
+          // Stay connected — bare `node` health probe is already keeping
+          // the tunnel green. Only log this once-per-host: if the stderr
+          // is the Windows-cmd "is not recognized" pattern, flip the
+          // one-shot cache so we don't repeat this every reconnect.
+          if (looksLikeWindowsCmdStderr(resolved && resolved.stderr)) {
+            markRemoteShell(state, "windows-cmd", shellTarget);
+          } else {
+            log("remote-ssh: remote Node resolver failed after probe success:", resolved && resolved.message);
+          }
+          return;
+        }
+        finishFailure(state, {
+          kind: "permanent",
+          reason: "probe_node_missing",
+          hint: "remoteSshProbeNodeMissing",
+          message: (resolved && resolved.message) || "Remote Node.js not found.",
+        });
+        return;
+      }
+      state.remoteNodeBin = resolved.nodeBin;
+      state.remoteNodeSource = resolved.source || null;
+      state.allowBareNodeProbe = false;
+      emitRemoteNodeDetected(state, resolved);
+      if (state.status !== "connected" && state.sshChild && !state.probeInFlight) {
+        schedNextProbe(state, 0);
+      }
+    };
+    const fail = (err) => {
+      if (state.sshChild !== child) return;
+      if (state.stopped) {
+        state.remoteNodeResolveInFlight = false;
+        return;
+      }
+      state.remoteNodeResolveInFlight = false;
+      const cls = classifyStderr((err && err.stderr) || "");
+      if (cls.kind === "permanent") {
+        finishFailure(state, {
+          kind: "permanent",
+          reason: cls.reason,
+          hint: cls.hint,
+          message: stderrSummary(err.stderr) || (err && err.message) || "Remote SSH failed.",
+        });
+        return;
+      }
+      if (state.status === "connected") {
+        // Same one-shot suppression as finish(): if the throw came from
+        // a Windows-cmd remote rejecting `sh`, flip the cache silently.
+        if (looksLikeWindowsCmdStderr(err && err.stderr)) {
+          markRemoteShell(state, "windows-cmd", shellTarget);
+        } else {
+          log("remote-ssh: remote Node resolver threw after probe success:", err && err.message);
+        }
+        return;
+      }
+      finishFailure(state, {
+        kind: "permanent",
+        reason: "probe_node_missing",
+        hint: "remoteSshProbeNodeMissing",
+        message: (err && err.message) || "Remote Node.js probe failed.",
+      });
+    };
+
+    try {
+      const result = resolveRemoteNode({
+        profile: state.profile,
+        spawn,
+        buildSshArgs,
+        runtime: {
+          registerChild,
+          unregisterChild,
+        },
+        useCache: false,
+      });
+      if (result && typeof result.then === "function") {
+        result.then(finish, fail);
+      } else {
+        finish(result);
+      }
+    } catch (err) {
+      fail(err);
+    }
   }
 
   function onSshExit(state, child, code, signal) {
@@ -458,7 +756,7 @@ function createRemoteSshRuntime(deps = {}) {
     //   (a) connect attempt failed before probe succeeded
     //   (b) connected → ssh died (ServerAlive timed out, network drop)
     //   (c) immediate failure (ENOENT-by-other-means caught here)
-    const stderr = state.stderrBuf || "";
+    const stderr = decodeShellBytes(state.stderrBuf);
     const cls = classifyStderr(stderr);
     const wasConnected = state.status === "connected";
 
@@ -491,6 +789,7 @@ function createRemoteSshRuntime(deps = {}) {
     // Transient (or unknown under strike-limit): backoff + reconnect.
     scheduleReconnect(state, {
       message: stderrSummary(stderr) || `ssh exited ${formatExit(code, signal)}`,
+      hint: cls.hint || null,
       lastErrorReason: cls.reason || (cls.kind === "unknown" ? "unknown" : null),
       wasConnected,
     });
@@ -533,13 +832,28 @@ function createRemoteSshRuntime(deps = {}) {
   function runProbe(state) {
     if (state.probeInFlight) return;
     if (Date.now() >= state.probeWindowDeadline) return;
+    if (state.allowBareNodeProbe && state.remoteNodeResolveInFlight && !state.remoteNodeBin) {
+      return;
+    }
     state.probeInFlight = true;
 
     const profile = state.profile;
-    const probeCmd = buildProbeCommand(profile.remoteForwardPort);
-    const probeArgs = buildSshArgs(profile, {
-      extraOpts: ["-o", "ConnectTimeout=2"],
-    }).concat([probeCmd]);
+    const nodeBin = state.remoteNodeBin || (state.allowBareNodeProbe ? "node" : null);
+    if (!nodeBin) {
+      state.probeInFlight = false;
+      finishFailure(state, {
+        kind: "permanent",
+        reason: "probe_node_missing",
+        hint: "remoteSshProbeNodeMissing",
+        message: "Remote Node.js path has not been resolved.",
+      });
+      return;
+    }
+    const probeCmd = buildProbeCommand(profile.remoteForwardPort, nodeBin);
+    // No extraOpts override for ConnectTimeout: ssh -o is first-wins, so the
+    // base's ConnectTimeout=15 would always win anyway. PROBE_CHILD_TIMEOUT_MS
+    // (5s) is the real upper bound on each probe attempt.
+    const probeArgs = buildSshArgs(profile).concat([probeCmd]);
 
     let probe;
     try {
@@ -556,6 +870,19 @@ function createRemoteSshRuntime(deps = {}) {
     }
 
     state.probeChild = probe;
+    state.probeChildTimer = setTimeoutFn(() => {
+      if (state.probeChild !== probe) return;
+      state.probeInFlight = false;
+      state.probeChild = null;
+      state.probeChildTimer = null;
+      state.probeLastExitCode = -1;
+      killChild(probe);
+      log("remote-ssh probe child timed out");
+      if (state.stopped) return;
+      if (Date.now() < state.probeWindowDeadline && state.sshChild) {
+        schedNextProbe(state, PROBE_MIN_GAP_MS);
+      }
+    }, PROBE_CHILD_TIMEOUT_MS);
 
     // Identity-gate both handlers: if probeChild has rotated to a newer
     // probe (or been cleared by cleanupProbeLoop / disconnect), this stale
@@ -567,6 +894,7 @@ function createRemoteSshRuntime(deps = {}) {
     // work the exit handler would have, so the lock can't deadlock.
     probe.on("error", (err) => {
       if (state.probeChild !== probe) return;
+      clearProbeChildTimer(state);
       state.probeInFlight = false;
       state.probeChild = null;
       // Synthetic exit code so classifyProbeExit treats this as transient.
@@ -580,11 +908,23 @@ function createRemoteSshRuntime(deps = {}) {
 
     probe.on("exit", (code, signal) => {
       if (state.probeChild !== probe) return;
+      clearProbeChildTimer(state);
       state.probeInFlight = false;
       state.probeChild = null;
       const exitCode = signalToExitCode(code, signal);
       state.probeLastExitCode = exitCode;
       if (state.stopped) return;
+      if ((exitCode === 126 || exitCode === 127)
+          && state.sshChild
+          && !state.remoteNodeResolveInFlight) {
+        if (state.remoteNodeBin) {
+          clearCachedRemoteNodeBin(state.profile);
+          state.remoteNodeBin = null;
+          state.remoteNodeSource = null;
+          state.allowBareNodeProbe = true;
+        }
+        resolveRemoteNodeInBackground(state, state.sshChild);
+      }
       if (exitCode === 0 && state.sshChild) {
         onProbeSuccess(state);
         return;
@@ -597,14 +937,23 @@ function createRemoteSshRuntime(deps = {}) {
   }
 
   function onProbeSuccess(state) {
+    const child = state.sshChild;
+    const shouldResolveBareNode = state.allowBareNodeProbe
+      && !state.remoteNodeBin
+      && child
+      && !state.remoteNodeResolveInFlight;
     cleanupProbeLoop(state);
     state.retryAttempt = 0;
     state.unknownStrikes = 0;
     setStatus(state, "connected", {
       message: null,
+      hint: null,
       lastError: null,
       lastErrorReason: null,
     });
+    if (shouldResolveBareNode) {
+      resolveRemoteNodeInBackground(state, child);
+    }
   }
 
   function onProbeWindowTimeout(state) {
@@ -632,6 +981,25 @@ function createRemoteSshRuntime(deps = {}) {
       return;
     }
     if (cls.kind === "permanent") {
+      if ((cls.reason === "probe_node_missing" || cls.reason === "probe_node_not_exec")
+          && (state.allowBareNodeProbe || state.remoteNodeBin)) {
+        if (state.remoteNodeBin) {
+          clearCachedRemoteNodeBin(state.profile);
+          state.remoteNodeBin = null;
+          state.remoteNodeSource = null;
+          state.allowBareNodeProbe = true;
+        }
+        if (!state.remoteNodeResolveInFlight && state.sshChild) {
+          resolveRemoteNodeInBackground(state, state.sshChild);
+        }
+        if (state.stopped) return;
+        if (state.remoteNodeResolveInFlight) {
+          state.probeWindowDeadline = Date.now() + PROBE_WINDOW_MS;
+          state.probeWindowTimer = setTimeoutFn(() => onProbeWindowTimeout(state), PROBE_WINDOW_MS);
+          schedNextProbe(state, PROBE_MIN_GAP_MS);
+          return;
+        }
+      }
       // Tear down main ssh and mark failed.
       killChild(state.sshChild);
       state.sshChild = null;
@@ -658,6 +1026,7 @@ function createRemoteSshRuntime(deps = {}) {
       clearTimeoutFn(state.probeWindowTimer);
       state.probeWindowTimer = null;
     }
+    clearProbeChildTimer(state);
     if (state.probeChild) {
       killChild(state.probeChild);
       state.probeChild = null;
@@ -665,17 +1034,25 @@ function createRemoteSshRuntime(deps = {}) {
     state.probeInFlight = false;
   }
 
+  function clearProbeChildTimer(state) {
+    if (!state.probeChildTimer) return;
+    clearTimeoutFn(state.probeChildTimer);
+    state.probeChildTimer = null;
+  }
+
   // ── Reconnect / failure paths ──
 
-  function scheduleReconnect(state, { message, lastErrorReason, wasConnected }) {
+  function scheduleReconnect(state, { message, hint, lastErrorReason, wasConnected }) {
     if (state.stopped) return;
     state.lastError = message;
     state.lastErrorReason = lastErrorReason;
     state.message = message;
+    state.hint = hint || null;
     const delay = backoffMsForAttempt(state.retryAttempt);
     state.retryAttempt += 1;
     setStatus(state, "reconnecting", {
       message,
+      hint: hint || null,
       lastError: message,
       lastErrorReason,
     });
@@ -700,9 +1077,11 @@ function createRemoteSshRuntime(deps = {}) {
       clearTimeoutFn(state.backoffTimer);
       state.backoffTimer = null;
     }
+    state.remoteNodeResolveInFlight = false;
     state.stopped = true;
     setStatus(state, "failed", {
       message: message || hint || reason,
+      hint: hint || null,
       lastError: message || hint || reason,
       lastErrorReason: reason,
     });
@@ -725,8 +1104,11 @@ function createRemoteSshRuntime(deps = {}) {
     }
     state.retryAttempt = 0;
     state.unknownStrikes = 0;
+    state.remoteNodeResolveInFlight = false;
+    clearRemoteShellCache(state);
     setStatus(state, "idle", {
       message: null,
+      hint: null,
       lastError: null,
       lastErrorReason: null,
     });
@@ -758,6 +1140,7 @@ function createRemoteSshRuntime(deps = {}) {
       cleanupProbeLoop(state);
       if (state.backoffTimer) clearTimeoutFn(state.backoffTimer);
       state.backoffTimer = null;
+      state.remoteNodeResolveInFlight = false;
       if (state.sshChild) killChild(state.sshChild);
       state.sshChild = null;
     }
@@ -792,7 +1175,12 @@ function killChild(child) {
 }
 
 function stderrSummary(stderr) {
-  const text = (stderr || "").toString().trim();
+  let text;
+  if (Buffer.isBuffer(stderr)) {
+    text = decodeShellBytes(stderr).trim();
+  } else {
+    text = (stderr || "").toString().trim();
+  }
   if (!text) return null;
   return text.length > 200 ? text.slice(0, 200) + "..." : text;
 }
@@ -814,18 +1202,24 @@ function signalToExitCode(code, signal) {
 module.exports = {
   // pure helpers — stable surface for tests
   detectSsh,
+  parseOpenSshVersion,
+  isUnsupportedWindowsOpenSsh,
   buildSshArgs,
   buildScpArgs,
   classifyStderr,
   classifyProbeExit,
   buildProbeCommand,
   backoffMsForAttempt,
+  looksLikeWindowsCmdStderr,
+  WINDOWS_CMD_STDERR_RX,
   // factory
   createRemoteSshRuntime,
   // constants
   CLAWD_SERVER_HEADER,
   CLAWD_SERVER_ID,
   PROBE_WINDOW_MS,
+  PROBE_MIN_GAP_MS,
+  PROBE_CHILD_TIMEOUT_MS,
   BACKOFF_SCHEDULE_MS,
   UNKNOWN_STRIKES_LIMIT,
 };

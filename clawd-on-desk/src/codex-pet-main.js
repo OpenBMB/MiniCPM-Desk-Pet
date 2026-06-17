@@ -1,13 +1,12 @@
 "use strict";
 
-const { DEFAULT_THEME_ID } = require("./default-theme");
-
 const defaultFs = require("fs");
 const defaultPath = require("path");
 const { pathToFileURL } = require("url");
 
 const defaultCodexPetAdapter = require("./codex-pet-adapter");
 const defaultCodexPetImporter = require("./codex-pet-importer");
+const { DEFAULT_THEME_ID } = require("./default-theme");
 
 const REGISTER_PROTOCOL_DEV_ARG = "--register-protocol";
 const CLAWD_PROTOCOL_SCHEME = "clawd";
@@ -161,6 +160,25 @@ function createCodexPetMain(options = {}) {
     lastSyncSummary = summary;
   }
 
+  function reloadActiveThemeIfUpdated(summary, activeThemeId) {
+    if (
+      !activeThemeId
+      || !summary
+      || !Array.isArray(summary.themes)
+      || typeof options.reloadActiveTheme !== "function"
+    ) {
+      return false;
+    }
+    const updatedActiveTheme = summary.themes.some((theme) => (
+      theme
+      && theme.themeId === activeThemeId
+      && theme.operation === "updated"
+    ));
+    if (!updatedActiveTheme) return false;
+    options.reloadActiveTheme();
+    return true;
+  }
+
   function getManagedThemeDir(themeId) {
     if (typeof themeId !== "string" || !themeId) return null;
     let userThemesDir;
@@ -237,6 +255,17 @@ function createCodexPetMain(options = {}) {
       if (cleanup.error) {
         return { status: "error", message: cleanup.error, summary, switchedToFallback };
       }
+    }
+
+    try {
+      reloadActiveThemeIfUpdated(summary, activeId);
+    } catch (err) {
+      return {
+        status: "error",
+        message: (err && err.message) || String(err),
+        summary,
+        switchedToFallback,
+      };
     }
 
     rebuildMenusBestEffort();
@@ -478,6 +507,7 @@ function createCodexPetMain(options = {}) {
     if (!result || result.status !== "ok") {
       throw new Error((result && result.message) || "failed to switch to imported theme");
     }
+    reloadActiveThemeIfUpdated(summary, activeId);
     rebuildMenusBestEffort({ logFailure: false });
     return { themeId: generated.themeId, summary };
   }

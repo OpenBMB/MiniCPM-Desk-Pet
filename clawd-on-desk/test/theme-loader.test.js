@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+const { DEFAULT_THEME_ID } = require("../src/default-theme");
 const themeLoader = require("../src/theme-loader");
 
 afterEach(() => {
@@ -95,9 +96,8 @@ describe("theme-loader strict mode", () => {
   let fixture;
   before(() => {
     fixture = makeFixture([
-      { id: "cybercat", builtin: true, json: validThemeJson({ name: "Cyber Cat" }) },
       { id: "clawd", builtin: true, json: validThemeJson({ name: "Clawd" }) },
-      { id: "calico", builtin: true, json: validThemeJson({ name: "Calico" }) },
+      { id: DEFAULT_THEME_ID, builtin: true, json: validThemeJson({ name: "CyberCat" }) },
       { id: "good", builtin: true, json: validThemeJson({ name: "Good" }) },
       {
         id: "updatevisuals",
@@ -145,14 +145,14 @@ describe("theme-loader strict mode", () => {
   });
   after(() => fixture && fixture.cleanup());
 
-  it("lenient load falls back to cybercat when theme missing", () => {
+  it("lenient load falls back to the MiniCPM default theme when theme missing", () => {
     const theme = themeLoader.loadTheme("doesNotExist");
-    assert.strictEqual(theme._id, "cybercat");
+    assert.strictEqual(theme._id, DEFAULT_THEME_ID);
   });
 
   it("lenient load falls back when theme validation fails", () => {
     const theme = themeLoader.loadTheme("broken");
-    assert.strictEqual(theme._id, "cybercat");
+    assert.strictEqual(theme._id, DEFAULT_THEME_ID);
   });
 
   it("strict load throws when theme is missing", () => {
@@ -236,7 +236,6 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
             "../nested/mini-special.svg": { x: -12, y: -12, width: 48, height: 48 },
           },
           miniMode: fullMiniMode({
-            scale: 0.84,
             viewBox: { x: -12, y: -12, width: 48, height: 48 },
           }),
         }),
@@ -287,7 +286,6 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
     assert.deepStrictEqual(rendererConfig.rendering, { svgChannel: "auto" });
     assert.deepStrictEqual(theme.fileViewBoxes, {});
     assert.strictEqual(theme.miniMode.viewBox, null);
-    assert.strictEqual(theme.miniMode.scale, 1);
   });
 
   it("preserves trustedRuntime only for built-in themes and sanitizes filenames", () => {
@@ -307,12 +305,10 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
       "mini-special.svg": { x: -12, y: -12, width: 48, height: 48 },
     });
     assert.deepStrictEqual(rendererConfig.miniModeViewBox, { x: -12, y: -12, width: 48, height: 48 });
-    assert.strictEqual(rendererConfig.miniModeScale, 0.84);
     assert.deepStrictEqual(theme.fileViewBoxes, {
       "mini-special.svg": { x: -12, y: -12, width: 48, height: 48 },
     });
     assert.deepStrictEqual(theme.miniMode.viewBox, { x: -12, y: -12, width: 48, height: 48 });
-    assert.strictEqual(theme.miniMode.scale, 0.84);
   });
 
   it("does not let external themes forge trustedRuntime into renderer config", () => {
@@ -328,7 +324,6 @@ describe("theme-loader trusted runtime and schema v1 defaults", () => {
       "mini-special.svg": { x: -10, y: -10, width: 40, height: 40 },
     });
     assert.deepStrictEqual(rendererConfig.miniModeViewBox, { x: -10, y: -10, width: 40, height: 40 });
-    assert.strictEqual(rendererConfig.miniModeScale, 1);
     assert.strictEqual(warn.mock.callCount(), 1);
     assert.match(warn.mock.calls[0].arguments[0], /trustedRuntime ignored for non-builtin theme "forged"/);
     assert.deepStrictEqual(theme.fileViewBoxes, {

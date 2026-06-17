@@ -19,9 +19,11 @@
   --accent: #373ED8;
   --accent-hover: #2D34C4;
   --running: #16803c;
-  --done: #71717a;
-  --interrupted: #b45309;
+  --done: #2563eb;
+  --interrupted: #dc2626;
   --idle: #71717a;
+  --scroll-thumb: rgba(0, 0, 0, 0.15);
+  --scroll-thumb-hover: rgba(0, 0, 0, 0.25);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,9 +37,11 @@
     --border: rgba(255, 255, 255, 0.08);
     --row-border: rgba(255, 255, 255, 0.06);
     --running: #22c55e;
-    --done: #a1a1aa;
-    --interrupted: #f59e0b;
+    --done: #60a5fa;
+    --interrupted: #f87171;
     --idle: #a1a1aa;
+    --scroll-thumb: rgba(255, 255, 255, 0.1);
+    --scroll-thumb-hover: rgba(255, 255, 255, 0.2);
   }
 }
 
@@ -57,7 +61,8 @@ body { user-select: none; }
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* 100% (zoom-aware), not viewport units — see settings.css .app for why. */
+  height: 100%;
   min-width: 0;
 }
 
@@ -95,6 +100,10 @@ h1 {
   min-height: 0;
   padding: 16px 18px 20px;
 }
+.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
+.content::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
 
 .group {
   margin: 0 0 18px;
@@ -203,7 +212,8 @@ h1 {
 
 .meta,
 .path,
-.event-row {
+.event-row,
+.context-usage-row {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -218,6 +228,11 @@ h1 {
 
 .event-row {
   color: var(--muted);
+}
+
+.context-usage-row {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .badge {
@@ -241,6 +256,19 @@ h1 {
 .actions {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
+}
+
+.mark-read-button {
+  background: var(--surface-alt);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.mark-read-button:hover:not(:disabled) {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: transparent;
 }
 
 button {

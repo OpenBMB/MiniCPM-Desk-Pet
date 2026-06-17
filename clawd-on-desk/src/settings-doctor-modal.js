@@ -39,6 +39,7 @@
     "disabled",
     "manual-managed",
     "manual-only",
+    "not-managed",
     "not-installed",
   ]);
   const AGENT_ATTENTION_NAME_LIMIT = 3;
@@ -166,6 +167,14 @@
       error: "doctorConnectionError",
     };
     return t(core, map[test.status] || "doctorConnectionError");
+  }
+
+  function connectionDetailText(core, test) {
+    // no-activity is the common "no agent enabled / no message sent yet" case,
+    // not a server fault — replace the raw technical detail with actionable
+    // guidance so the test doesn't read as "broken" (#490).
+    if (test && test.status === "no-activity") return t(core, "doctorConnectionNoActivityHint");
+    return (test && test.detail) || t(core, "doctorConnectionInstruction");
   }
 
   function pushIfValue(lines, label, value) {
@@ -378,6 +387,12 @@
     if (attentionDetails.length) parts.push(formatAgentAttentionNames(core, attentionDetails));
     if (ok) parts.push(formatCount(core, "doctorAgentSummaryOk", ok));
     if (skipped) parts.push(formatCount(core, "doctorAgentSummarySkipped", skipped));
+    // No active integration at all (every agent disabled / manual-managed / not
+    // installed): lead with an info nudge so the green status doesn't read as
+    // "nothing to do" (#490).
+    if (!ok && !attentionDetails.length && skipped) {
+      parts.unshift(t(core, "doctorAgentSummaryNoneActive"));
+    }
     return parts.join(" · ");
   }
 
@@ -504,7 +519,7 @@
     const cls = `${connectionStatusClass(test)}${state.connectionTesting ? " testing" : ""}`;
     const detail = state.connectionTesting
       ? t(core, "doctorConnectionInstruction")
-      : (test && test.detail) || t(core, "doctorConnectionInstruction");
+      : connectionDetailText(core, test);
     const progress = state.connectionTesting
       ? `<div class="doctor-connection-progress" aria-hidden="true"><span style="width: ${escape(core, String(connectionProgressPercent()))}%"></span></div>`
       : "";

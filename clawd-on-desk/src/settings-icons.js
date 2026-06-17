@@ -66,12 +66,24 @@ const ICONS = {
     '<path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h12"/>' +
     '</svg>',
 
+  "telegram-approval":
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<path d="M21 4 3.8 11.2c-.8.3-.8 1.5.1 1.8l4.4 1.5 1.8 5c.3.8 1.4.9 1.8.2L21 4Z"/>' +
+    '<path d="m8.3 14.5 5.2-4.2"/>' +
+    '</svg>',
+
   // 🔌 — plug
   "remote-ssh":
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
     '<path d="M9 2v6M15 2v6"/>' +
     '<path d="M7 8h10v3a5 5 0 0 1-5 5 5 5 0 0 1-5-5V8Z"/>' +
     '<path d="M12 16v6"/>' +
+    '</svg>',
+
+  mobile:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
+    '<rect x="7" y="2.5" width="10" height="19" rx="2"/>' +
+    '<path d="M10.5 18.5h3"/>' +
     '</svg>',
 
   // ℹ — info circle

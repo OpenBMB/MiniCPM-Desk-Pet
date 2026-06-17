@@ -126,7 +126,7 @@ body { padding: 6px; }
 }
 .pill[data-mode="checking"] { background: #5a9eab; }
 .pill[data-mode="available"] { background: #5b8dd9; }
-.pill[data-mode="downloading"] { background: #373ED8; }
+.pill[data-mode="downloading"] { background: var(--primary-bg); }
 .pill[data-mode="ready"] { background: #5a9e6f; }
 .pill[data-mode="error"] { background: #d15a5a; }
 
@@ -200,7 +200,7 @@ body { padding: 6px; }
 .btn:active:not(:disabled) { transform: scale(0.96); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-primary {
-  background: #373ED8;
+  background: var(--primary-bg);
   color: #fff;
 }
 .btn-primary:hover:not(:disabled) {

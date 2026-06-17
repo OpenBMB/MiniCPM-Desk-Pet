@@ -9,7 +9,7 @@ const registry = require("../agents/registry");
 // Load default theme for test ctx
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("cybercat");
+const _defaultTheme = themeLoader.loadTheme("cloudling");
 
 // Instantiate state.js to get the authoritative STATE_PRIORITY
 const state = require("../src/state.js")({
@@ -131,11 +131,27 @@ describe("Agent config modules — data integrity", () => {
     assert.strictEqual(codex.capabilities.interactiveBubble, true);
   });
 
-  it("pi has interactiveBubble=true so settings UI renders its bubble sub-toggle", () => {
+  it("pi is state-only and does not expose a bubble sub-toggle", () => {
     const pi = agents.find((a) => a.id === "pi");
     assert.ok(pi);
-    assert.strictEqual(pi.capabilities.permissionApproval, true);
-    assert.strictEqual(pi.capabilities.interactiveBubble, true);
+    assert.strictEqual(pi.capabilities.permissionApproval, false);
+    assert.strictEqual(pi.capabilities.interactiveBubble, false);
+  });
+
+  it("qoder is state-only and does not expose a bubble sub-toggle", () => {
+    const qoder = agents.find((a) => a.id === "qoder");
+    assert.ok(qoder);
+    assert.strictEqual(qoder.capabilities.permissionApproval, false);
+    assert.strictEqual(qoder.capabilities.interactiveBubble, false);
+    assert.strictEqual(qoder.capabilities.notificationHook, true);
+  });
+
+  it("codewhale is state-only and exposes only passive notifications", () => {
+    const codewhale = agents.find((a) => a.id === "codewhale");
+    assert.ok(codewhale);
+    assert.strictEqual(codewhale.capabilities.permissionApproval, false);
+    assert.strictEqual(codewhale.capabilities.interactiveBubble, false);
+    assert.strictEqual(codewhale.capabilities.notificationHook, true);
   });
 
 });

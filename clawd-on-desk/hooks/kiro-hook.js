@@ -20,36 +20,40 @@ const resolve = createPidResolver({
   platformConfig: config,
 });
 
-readStdinJson().then((payload) => {
-  const hookName = (payload && payload.hook_event_name) || "";
-  const mapped = HOOK_MAP[hookName];
-  if (!mapped) {
-    process.exit(0);
-    return;
-  }
+readStdinJson()
+  .then((payload) => {
+    const hookName = (payload && payload.hook_event_name) || "";
+    const mapped = HOOK_MAP[hookName];
+    if (!mapped) {
+      process.exit(0);
+      return;
+    }
 
-  const { state, event } = mapped;
-  if (hookName === "agentSpawn" && !process.env.CLAWD_REMOTE) resolve();
+    const { state, event } = mapped;
+    if (hookName === "agentSpawn" && !process.env.CLAWD_REMOTE) resolve();
 
-  // Kiro CLI stdin has no session_id — use "default" (all sessions merged)
-  const sessionId = "default";
-  const cwd = (payload && payload.cwd) || "";
+    // Kiro CLI stdin has no session_id — use "default" (all sessions merged)
+    const sessionId = "default";
+    const cwd = (payload && payload.cwd) || "";
 
-  const { stablePid, agentPid, detectedEditor, pidChain } = resolve();
+    const { stablePid, agentPid, detectedEditor, pidChain, tmuxSocket, tmuxClient } = resolve();
 
-  const body = { state, session_id: sessionId, event };
-  body.agent_id = "kiro-cli";
-  if (cwd) body.cwd = cwd;
-  if (process.env.CLAWD_REMOTE) {
-    body.host = readHostPrefix();
-  } else {
-    body.source_pid = stablePid;
-    if (detectedEditor) body.editor = detectedEditor;
-    if (agentPid) body.agent_pid = agentPid;
-    if (pidChain.length) body.pid_chain = pidChain;
-  }
+    const body = { state, session_id: sessionId, event };
+    body.agent_id = "kiro-cli";
+    if (cwd) body.cwd = cwd;
+    if (process.env.CLAWD_REMOTE) {
+      body.host = readHostPrefix();
+    } else {
+      body.source_pid = stablePid;
+      if (detectedEditor) body.editor = detectedEditor;
+      if (agentPid) body.agent_pid = agentPid;
+      if (pidChain.length) body.pid_chain = pidChain;
+      if (tmuxSocket) body.tmux_socket = tmuxSocket;
+      if (tmuxClient) body.tmux_client = tmuxClient;
+    }
 
-  postStateToRunningServer(JSON.stringify(body), { timeoutMs: 100 }, () => {
-    process.exit(0);
-  });
-});
+    postStateToRunningServer(JSON.stringify(body), { timeoutMs: 100 }, () => {
+      process.exit(0);
+    });
+  })
+  .catch(() => process.exit(0));

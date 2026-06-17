@@ -14,6 +14,16 @@ html, body {
   background: transparent;
 }
 
+/* Seam clip layer — wraps #pet-container so the multi-monitor seam
+   clip-path is applied in screen space. #pet-container itself carries
+   transform: scaleX(-1) in left-edge mini mode, which would mirror a
+   clip-path applied directly to it; this outer layer is never flipped. */
+#pet-clip {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
 #pet-container {
   width: 100%;
   height: 100%;
@@ -23,6 +33,7 @@ html, body {
   cursor: grab;
   position: relative;
   overflow: hidden;
+  background: transparent;
 }
 
 #pet-container.dragging {
@@ -36,8 +47,26 @@ html, body {
   left: -45%;
   top: -25%;
   pointer-events: none;
+  background: transparent;
 }
 
 #pet-container.mini-left {
   transform: scaleX(-1);
+}
+
+/* ── Roam walk animation ──
+   When the pet is roaming (free-roam mode), add a subtle horizontal bob
+   to simulate walking even if the theme doesn't have a dedicated roam SVG.
+   The animation is a gentle sway that makes the idle pose look alive. */
+#pet-container.roam-walk #clawd {
+  animation: roam-walk-bob 0.4s ease-in-out infinite;
+}
+
+@keyframes roam-walk-bob {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
 }

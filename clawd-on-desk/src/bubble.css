@@ -27,6 +27,8 @@
   --sug-hover-border: #d1d5db;
   --sug-hover-color: #374151;
   --sug-arrow: #9ca3af;
+  --accent: #373ED8;
+  --accent-hover: #2D34C4;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -147,14 +149,14 @@ body { padding: 6px; }
   from { transform: translateX(0); }
   to   { transform: translateX(var(--marquee-shift, 0)); }
 }
-.tool-pill[data-tool="Bash"]  { background: #d97757; }
+.tool-pill[data-tool="Bash"]  { background: #373ED8; }
 .tool-pill[data-tool="Edit"]  { background: #5b8dd9; }
 .tool-pill[data-tool="Write"] { background: #8b7ec7; }
 .tool-pill[data-tool="Read"]  { background: #5a9e6f; }
 .tool-pill[data-tool="Glob"]  { background: #5a9eab; }
 .tool-pill[data-tool="Grep"]  { background: #5a9eab; }
 .tool-pill[data-tool="Agent"] { background: #c47a9a; }
-.tool-pill[data-tool="Shell"] { background: #d97757; }
+.tool-pill[data-tool="Shell"] { background: #373ED8; }
 .tool-pill[data-tool="CodexExec"] { background: #2563eb; }
 .tool-pill[data-tool="KimiPermission"] { background: #3b82f6; }
 
@@ -321,7 +323,7 @@ body { padding: 6px; }
 
 .option-item input {
   margin-top: 2px;
-  accent-color: #373ED8;
+  accent-color: var(--accent);
 }
 
 .option-item-copy {
@@ -365,7 +367,7 @@ body { padding: 6px; }
 }
 .option-item-textarea.visible { display: block; }
 .option-item-textarea:focus {
-  border-color: #373ED8;
+  border-color: var(--accent);
 }
 
 /* ── Action buttons ── */
@@ -389,12 +391,12 @@ body { padding: 6px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-allow {
-  background: #373ED8;
+  background: var(--accent);
   color: #fff;
   border: 1px solid transparent;
 }
 .btn-allow:hover:not(:disabled) {
-  background: #2D34C4;
+  background: var(--accent-hover);
 }
 
 .btn-deny {
@@ -456,3 +458,39 @@ body { padding: 6px; }
 
 .btn-suggestion:active:not(:disabled) { transform: scale(0.98); }
 .btn-suggestion:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Plan feedback form ── */
+.plan-feedback-form {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+.plan-feedback-form.visible { display: flex; }
+
+.plan-feedback-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-primary);
+  background: var(--cmd-bg);
+  border: 1px solid var(--cmd-border);
+  border-radius: 8px;
+  resize: vertical;
+  min-height: 48px;
+  max-height: 120px;
+  outline: none;
+  box-sizing: border-box;
+}
+.plan-feedback-textarea:focus {
+  border-color: var(--accent);
+}
+
+.plan-feedback-actions {
+  display: flex;
+  gap: 8px;
+}
+.plan-feedback-actions .btn {
+  flex: 1;
+}

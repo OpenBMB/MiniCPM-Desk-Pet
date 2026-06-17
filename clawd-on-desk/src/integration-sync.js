@@ -1,10 +1,80 @@
 "use strict";
 
+function hasPositiveCount(value) {
+  return Number.isFinite(value) && value > 0;
+}
+
+function asOk(result, fallback = {}) {
+  if (result && typeof result === "object") {
+    if (typeof result.status === "string") return result;
+    return { status: "ok", ...result };
+  }
+  return { status: "ok", ...fallback };
+}
+
+function asSkipped(result, reason, message) {
+  const base = result && typeof result === "object" ? result : {};
+  return {
+    status: "skipped",
+    ...base,
+    reason: (base.reason || reason),
+    message: (base.message || message),
+  };
+}
+
+function normalizeCountSyncResult(result, agentName, reason) {
+  if (!result || typeof result !== "object") return { status: "ok" };
+  if (typeof result.status === "string") return result;
+  const changed =
+    hasPositiveCount(result.added)
+    || hasPositiveCount(result.updated)
+    || hasPositiveCount(result.removed)
+    || result.changed === true
+    || result.created === true
+    || result.configChanged === true;
+  const alreadyCurrent = hasPositiveCount(result.skipped);
+  if (!changed && !alreadyCurrent) {
+    return asSkipped(result, reason, `${agentName} is not installed; skipped integration sync`);
+  }
+  return asOk(result);
+}
+
+function normalizeInstalledFlagResult(result, agentName, reason) {
+  if (!result || typeof result !== "object") return { status: "ok" };
+  if (typeof result.status === "string") return result;
+  if (result.installed === false) {
+    const skipReason = result.reason || reason;
+    return asSkipped(result, skipReason, result.message || defaultInstalledFlagSkipMessage(agentName, skipReason));
+  }
+  return asOk(result);
+}
+
+function isNotInstalledReason(reason) {
+  return reason === "not-found"
+    || reason === "not-installed"
+    || (typeof reason === "string" && (
+      reason.endsWith("-not-found")
+      || reason.endsWith("-not-installed")
+    ));
+}
+
+function defaultInstalledFlagSkipMessage(agentName, reason) {
+  if (isNotInstalledReason(reason)) {
+    return `${agentName} is not installed; skipped integration sync`;
+  }
+  return reason
+    ? `${agentName} integration sync skipped: ${reason}`
+    : `${agentName} integration sync skipped`;
+}
+
 function createIntegrationSyncRuntime(options = {}) {
   const ctx = options.ctx || {};
   const getHookServerPort = options.getHookServerPort;
   const shouldManageClaudeHooks = options.shouldManageClaudeHooks;
-  const isAgentEnabled = options.isAgentEnabled;
+  const isAgentEnabled = typeof options.isAgentEnabled === "function" ? options.isAgentEnabled : (() => true);
+  const shouldSyncAgentIntegration = typeof options.shouldSyncAgentIntegration === "function"
+    ? options.shouldSyncAgentIntegration
+    : isAgentEnabled;
   const startClaudeSettingsWatcher = options.startClaudeSettingsWatcher;
   const stopClaudeSettingsWatcher = options.stopClaudeSettingsWatcher;
 
@@ -36,14 +106,29 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncGeminiHooksImpl === "function") return ctx.syncGeminiHooksImpl();
       const { registerGeminiHooks } = require("../hooks/gemini-install.js");
-      const { added, updated } = registerGeminiHooks({ silent: true });
-      if (added > 0 || updated > 0) {
-        console.log(`Clawd: synced Gemini hooks (added ${added}, updated ${updated})`);
+      const result = registerGeminiHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Gemini hooks (added ${result.added}, updated ${result.updated})`);
       }
-      return { status: "ok", added, updated };
+      return normalizeCountSyncResult(result, "Gemini CLI", "gemini-not-installed");
     } catch (err) {
       console.warn("Clawd: failed to sync Gemini hooks:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Gemini hooks" };
+    }
+  }
+
+  function syncAntigravityHooks() {
+    try {
+      if (typeof ctx.syncAntigravityHooksImpl === "function") return ctx.syncAntigravityHooksImpl();
+      const { registerAntigravityHooks } = require("../hooks/antigravity-install.js");
+      const result = registerAntigravityHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Antigravity hooks (added ${result.added}, updated ${result.updated})`);
+      }
+      return normalizeInstalledFlagResult(result, "Antigravity CLI", "antigravity-not-installed");
+    } catch (err) {
+      console.warn("Clawd: failed to sync Antigravity hooks:", err.message);
+      return { status: "error", message: err && err.message ? err.message : "Failed to sync Antigravity hooks" };
     }
   }
 
@@ -51,11 +136,11 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncCodeBuddyHooksImpl === "function") return ctx.syncCodeBuddyHooksImpl();
       const { registerCodeBuddyHooks } = require("../hooks/codebuddy-install.js");
-      const { added, updated } = registerCodeBuddyHooks({ silent: true });
-      if (added > 0 || updated > 0) {
-        console.log(`Clawd: synced CodeBuddy hooks (added ${added}, updated ${updated})`);
+      const result = registerCodeBuddyHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced CodeBuddy hooks (added ${result.added}, updated ${result.updated})`);
       }
-      return { status: "ok", added, updated };
+      return normalizeCountSyncResult(result, "CodeBuddy", "codebuddy-not-installed");
     } catch (err) {
       console.warn("Clawd: failed to sync CodeBuddy hooks:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync CodeBuddy hooks" };
@@ -66,11 +151,11 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncKiroHooksImpl === "function") return ctx.syncKiroHooksImpl();
       const { registerKiroHooks } = require("../hooks/kiro-install.js");
-      const { added, updated } = registerKiroHooks({ silent: true });
-      if (added > 0 || updated > 0) {
-        console.log(`Clawd: synced Kiro hooks (added ${added}, updated ${updated})`);
+      const result = registerKiroHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Kiro hooks (added ${result.added}, updated ${result.updated})`);
       }
-      return { status: "ok", added, updated };
+      return normalizeCountSyncResult(result, "Kiro CLI", "kiro-not-installed");
     } catch (err) {
       console.warn("Clawd: failed to sync Kiro hooks:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Kiro hooks" };
@@ -81,14 +166,29 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncKimiHooksImpl === "function") return ctx.syncKimiHooksImpl();
       const { registerKimiHooks } = require("../hooks/kimi-install.js");
-      const { added, updated } = registerKimiHooks({ silent: true });
-      if (added > 0 || updated > 0) {
-        console.log(`Clawd: synced Kimi hooks (added ${added}, updated ${updated})`);
+      const result = registerKimiHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Kimi hooks (added ${result.added}, updated ${result.updated})`);
       }
-      return { status: "ok", added, updated };
+      return normalizeCountSyncResult(result, "Kimi Code", "kimi-not-installed");
     } catch (err) {
       console.warn("Clawd: failed to sync Kimi hooks:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Kimi hooks" };
+    }
+  }
+
+  function syncQwenHooks() {
+    try {
+      if (typeof ctx.syncQwenHooksImpl === "function") return ctx.syncQwenHooksImpl();
+      const { registerQwenCodeHooks } = require("../hooks/qwen-code-install.js");
+      const result = registerQwenCodeHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Qwen hooks (added ${result.added}, updated ${result.updated})`);
+      }
+      return normalizeCountSyncResult(result, "Qwen Code", "qwen-not-installed");
+    } catch (err) {
+      console.warn("Clawd: failed to sync Qwen hooks:", err.message);
+      return { status: "error", message: err && err.message ? err.message : "Failed to sync Qwen hooks" };
     }
   }
 
@@ -96,14 +196,14 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncCodexHooksImpl === "function") return ctx.syncCodexHooksImpl();
       const { registerCodexHooks } = require("../hooks/codex-install.js");
-      const { added, updated, warnings } = registerCodexHooks({ silent: true });
-      if (added > 0 || updated > 0) {
-        console.log(`Clawd: synced Codex hooks (added ${added}, updated ${updated})`);
+      const result = registerCodexHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Codex hooks (added ${result.added}, updated ${result.updated})`);
       }
-      if (Array.isArray(warnings)) {
-        for (const warning of warnings) console.warn(`Clawd: Codex hook sync warning: ${warning}`);
+      if (Array.isArray(result.warnings)) {
+        for (const warning of result.warnings) console.warn(`Clawd: Codex hook sync warning: ${warning}`);
       }
-      return { status: "ok", added, updated, warnings };
+      return normalizeCountSyncResult(result, "Codex CLI", "codex-not-installed");
     } catch (err) {
       console.warn("Clawd: failed to sync Codex hooks:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Codex hooks" };
@@ -149,14 +249,29 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncCursorHooksImpl === "function") return ctx.syncCursorHooksImpl();
       const { registerCursorHooks } = require("../hooks/cursor-install.js");
-      const { added, updated } = registerCursorHooks({ silent: true });
-      if (added > 0 || updated > 0) {
-        console.log(`Clawd: synced Cursor hooks (added ${added}, updated ${updated})`);
+      const result = registerCursorHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Cursor hooks (added ${result.added}, updated ${result.updated})`);
       }
-      return { status: "ok", added, updated };
+      return normalizeCountSyncResult(result, "Cursor Agent", "cursor-not-installed");
     } catch (err) {
       console.warn("Clawd: failed to sync Cursor hooks:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Cursor hooks" };
+    }
+  }
+
+  function syncCopilotHooks() {
+    try {
+      if (typeof ctx.syncCopilotHooksImpl === "function") return ctx.syncCopilotHooksImpl();
+      const { registerCopilotHooks } = require("../hooks/copilot-install.js");
+      const result = registerCopilotHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Copilot hooks (added ${result.added}, updated ${result.updated})`);
+      }
+      return normalizeCountSyncResult(result, "Copilot CLI", "copilot-not-installed");
+    } catch (err) {
+      console.warn("Clawd: failed to sync Copilot hooks:", err.message);
+      return { status: "error", message: err && err.message ? err.message : "Failed to sync Copilot hooks" };
     }
   }
 
@@ -164,11 +279,14 @@ function createIntegrationSyncRuntime(options = {}) {
     try {
       if (typeof ctx.syncOpencodePluginImpl === "function") return ctx.syncOpencodePluginImpl();
       const { registerOpencodePlugin } = require("../hooks/opencode-install.js");
-      const { added, created } = registerOpencodePlugin({ silent: true });
-      if (added || created) {
-        console.log(`Clawd: synced opencode plugin (added=${added}, created=${created})`);
+      const result = registerOpencodePlugin({ silent: true });
+      if (result.added || result.created) {
+        console.log(`Clawd: synced opencode plugin (added=${result.added}, created=${result.created})`);
       }
-      return { status: "ok", added, created };
+      if (result && result.reason === "opencode-not-found") {
+        return asSkipped(result, "opencode-not-found", "opencode is not installed; skipped plugin sync");
+      }
+      return asOk(result);
     } catch (err) {
       console.warn("Clawd: failed to sync opencode plugin:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync opencode plugin" };
@@ -183,7 +301,7 @@ function createIntegrationSyncRuntime(options = {}) {
       if (result.installed && result.updated) {
         console.log("Clawd: synced Pi extension");
       }
-      return { status: "ok", ...result };
+      return normalizeInstalledFlagResult(result, "Pi", "pi-not-found");
     } catch (err) {
       console.warn("Clawd: failed to sync Pi extension:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Pi extension" };
@@ -198,7 +316,7 @@ function createIntegrationSyncRuntime(options = {}) {
       if (result.installed && result.updated) {
         console.log("Clawd: synced OpenClaw plugin");
       }
-      return { status: "ok", ...result };
+      return normalizeInstalledFlagResult(result, "OpenClaw", "openclaw-not-found");
     } catch (err) {
       console.warn("Clawd: failed to sync OpenClaw plugin:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync OpenClaw plugin" };
@@ -239,30 +357,88 @@ function createIntegrationSyncRuntime(options = {}) {
       }
       const result = registerHermesPlugin({ silent: true });
       if (result && result.status === "error") {
+        if (result.reason === "hermes-cli-unavailable") {
+          return {
+            ...result,
+            status: "skipped",
+            message: result.message || "Hermes CLI is unavailable; skipped plugin sync",
+          };
+        }
         console.warn("Clawd: failed to sync Hermes plugin:", result.message);
         return result;
       }
       if (result && (result.installed > 0 || result.updated > 0)) {
         console.log(`Clawd: synced Hermes plugin (installed=${result.installed}, updated=${result.updated})`);
       }
-      return result && typeof result === "object" ? result : { status: "ok" };
+      return asOk(result);
     } catch (err) {
       console.warn("Clawd: failed to sync Hermes plugin:", err.message);
       return { status: "error", message: err && err.message ? err.message : "Failed to sync Hermes plugin" };
     }
   }
 
+  function syncQoderHooks() {
+    try {
+      if (typeof ctx.syncQoderHooksImpl === "function") return ctx.syncQoderHooksImpl();
+      const { registerQoderHooks } = require("../hooks/qoder-install.js");
+      const result = registerQoderHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Qoder hooks (added ${result.added}, updated ${result.updated})`);
+      }
+      return normalizeCountSyncResult(result, "Qoder", "qoder-not-installed");
+    } catch (err) {
+      console.warn("Clawd: failed to sync Qoder hooks:", err.message);
+      return { status: "error", message: err && err.message ? err.message : "Failed to sync Qoder hooks" };
+    }
+  }
+
+  function syncCodewhaleHooks() {
+    try {
+      if (typeof ctx.syncCodewhaleHooksImpl === "function") return ctx.syncCodewhaleHooksImpl();
+      const { registerCodewhaleHooks } = require("../hooks/codewhale-install.js");
+      const result = registerCodewhaleHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced CodeWhale hooks (added ${result.added}, updated ${result.updated})`);
+      }
+      return normalizeCountSyncResult(result, "CodeWhale", "codewhale-not-installed");
+    } catch (err) {
+      console.warn("Clawd: failed to sync CodeWhale hooks:", err.message);
+      return { status: "error", message: err && err.message ? err.message : "Failed to sync CodeWhale hooks" };
+    }
+  }
+
+  function syncReasonixHooks() {
+    try {
+      if (typeof ctx.syncReasonixHooksImpl === "function") return ctx.syncReasonixHooksImpl();
+      const { registerReasonixHooks } = require("../hooks/reasonix-install.js");
+      const result = registerReasonixHooks({ silent: true });
+      if (hasPositiveCount(result.added) || hasPositiveCount(result.updated)) {
+        console.log(`Clawd: synced Reasonix hooks (added ${result.added}, updated ${result.updated})`);
+      }
+      return normalizeCountSyncResult(result, "Reasonix", "reasonix-not-installed");
+    } catch (err) {
+      console.warn("Clawd: failed to sync Reasonix hooks:", err.message);
+      return { status: "error", message: err && err.message ? err.message : "Failed to sync Reasonix hooks" };
+    }
+  }
+
   const AGENT_INTEGRATION_SYNCERS = Object.freeze({
     "gemini-cli": syncGeminiHooks,
+    "antigravity-cli": syncAntigravityHooks,
     "cursor-agent": syncCursorHooks,
+    "copilot-cli": syncCopilotHooks,
     codebuddy: syncCodeBuddyHooks,
     "kiro-cli": syncKiroHooks,
     "kimi-cli": syncKimiHooks,
+    "qwen-code": syncQwenHooks,
+    codewhale: syncCodewhaleHooks,
     codex: syncCodexHooks,
     opencode: syncOpencodePlugin,
     pi: syncPiExtension,
     openclaw: syncOpenClawPlugin,
     hermes: syncHermesPlugin,
+    qoder: syncQoderHooks,
+    reasonix: syncReasonixHooks,
   });
 
   const AGENT_INTEGRATION_REPAIRERS = Object.freeze({
@@ -291,8 +467,7 @@ function createIntegrationSyncRuntime(options = {}) {
     const repair = AGENT_INTEGRATION_REPAIRERS[agentId];
     if (typeof repair !== "function") return false;
     const result = repair(options);
-    if (result && typeof result === "object" && result.status === "error") return result;
-    if (result && typeof result === "object" && result.status === "ok") return result;
+    if (result && typeof result === "object" && typeof result.status === "string") return result;
     return true;
   }
 
@@ -301,33 +476,74 @@ function createIntegrationSyncRuntime(options = {}) {
     return stopClaudeSettingsWatcher();
   }
 
+  function uninstallIntegrationForAgent(agentId) {
+    try {
+      if (
+        ctx.uninstallIntegrationImpls
+        && typeof ctx.uninstallIntegrationImpls === "object"
+        && typeof ctx.uninstallIntegrationImpls[agentId] === "function"
+      ) {
+        if (agentId === "claude-code") stopClaudeSettingsWatcher();
+        return ctx.uninstallIntegrationImpls[agentId]({ silent: true });
+      }
+      const {
+        AGENT_CLEANERS,
+        buildCleanupOptionsForHome,
+      } = require("../hooks/cleanup-integrations.js");
+      const uninstall = AGENT_CLEANERS && AGENT_CLEANERS[agentId];
+      if (typeof uninstall !== "function") return false;
+      if (agentId === "claude-code") stopClaudeSettingsWatcher();
+      const cleanupOptions = ctx.cleanupOptions && typeof ctx.cleanupOptions === "object"
+        ? ctx.cleanupOptions
+        : {};
+      const plan = buildCleanupOptionsForHome(ctx.cleanupHomeDir || ctx.homeDir, cleanupOptions);
+      const agentOptions = plan.byAgent && plan.byAgent[agentId];
+      if (!agentOptions) return false;
+      const result = uninstall({ ...agentOptions, silent: true });
+      return result && typeof result === "object" ? result : true;
+    } catch (err) {
+      console.warn(`Clawd: failed to uninstall ${agentId} integration:`, err.message);
+      return {
+        status: "error",
+        message: err && err.message ? err.message : `Failed to uninstall ${agentId} integration`,
+      };
+    }
+  }
+
   function syncEnabledStartupIntegrations() {
-    if (shouldManageClaudeHooks() && isAgentEnabled("claude-code")) {
+    if (shouldManageClaudeHooks() && shouldSyncAgentIntegration("claude-code")) {
       syncClawdHooks();
       startClaudeSettingsWatcher();
     }
     for (const [agentId, sync] of Object.entries(AGENT_INTEGRATION_SYNCERS)) {
-      if (isAgentEnabled(agentId)) sync();
+      if (shouldSyncAgentIntegration(agentId)) sync();
     }
   }
 
   return {
     syncClawdHooks,
     syncGeminiHooks,
+    syncAntigravityHooks,
     syncCursorHooks,
+    syncCopilotHooks,
     syncCodeBuddyHooks,
     syncKiroHooks,
     syncKimiHooks,
+    syncQwenHooks,
+    syncCodewhaleHooks,
     syncCodexHooks,
     syncOpencodePlugin,
     syncPiExtension,
     syncOpenClawPlugin,
     syncHermesPlugin,
+    syncQoderHooks,
+    syncReasonixHooks,
     repairCodexHooks,
     repairOpenClawPlugin,
     syncIntegrationForAgent,
     repairIntegrationForAgent,
     stopIntegrationForAgent,
+    uninstallIntegrationForAgent,
     syncEnabledStartupIntegrations,
   };
 }

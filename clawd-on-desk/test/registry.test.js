@@ -11,14 +11,19 @@ describe("Agent Registry", () => {
       "codex",
       "copilot-cli",
       "gemini-cli",
+      "antigravity-cli",
       "cursor-agent",
       "codebuddy",
       "kiro-cli",
       "kimi-cli",
+      "qwen-code",
+      "codewhale",
       "opencode",
       "pi",
       "openclaw",
       "hermes",
+      "qoder",
+      "reasonix",
     ]);
   });
 
@@ -27,12 +32,17 @@ describe("Agent Registry", () => {
     assert.strictEqual(registry.getAgent("codex").name, "Codex CLI");
     assert.strictEqual(registry.getAgent("copilot-cli").name, "Copilot CLI");
     assert.strictEqual(registry.getAgent("gemini-cli").name, "Gemini CLI");
+    assert.strictEqual(registry.getAgent("antigravity-cli").name, "Antigravity CLI");
     assert.strictEqual(registry.getAgent("cursor-agent").name, "Cursor Agent");
     assert.strictEqual(registry.getAgent("codebuddy").name, "CodeBuddy");
     assert.strictEqual(registry.getAgent("kiro-cli").name, "Kiro CLI");
+    assert.strictEqual(registry.getAgent("qwen-code").name, "Qwen Code");
+    assert.strictEqual(registry.getAgent("codewhale").name, "CodeWhale");
     assert.strictEqual(registry.getAgent("pi").name, "Pi");
     assert.strictEqual(registry.getAgent("openclaw").name, "OpenClaw");
     assert.strictEqual(registry.getAgent("hermes").name, "Hermes Agent");
+    assert.strictEqual(registry.getAgent("qoder").name, "Qoder");
+    assert.strictEqual(registry.getAgent("reasonix").name, "Reasonix CLI");
     assert.strictEqual(registry.getAgent("nonexistent"), undefined);
   });
 
@@ -51,6 +61,9 @@ describe("Agent Registry", () => {
     const gemini = registry.getAgent("gemini-cli");
     assert.deepStrictEqual(gemini.processNames.win, ["gemini.exe"]);
 
+    const antigravity = registry.getAgent("antigravity-cli");
+    assert.deepStrictEqual(antigravity.processNames.win, ["agy.exe"]);
+
     const cursor = registry.getAgent("cursor-agent");
     assert.deepStrictEqual(cursor.processNames.win, ["Cursor.exe"]);
 
@@ -62,6 +75,18 @@ describe("Agent Registry", () => {
 
     const hermes = registry.getAgent("hermes");
     assert.deepStrictEqual(hermes.processNames.win, ["hermes.exe"]);
+
+    const qwen = registry.getAgent("qwen-code");
+    assert.deepStrictEqual(qwen.processNames.win, ["qwen.exe"]);
+
+    const codewhale = registry.getAgent("codewhale");
+    assert.deepStrictEqual(codewhale.processNames.win, ["codewhale.exe"]);
+
+    const qoder = registry.getAgent("qoder");
+    assert.deepStrictEqual(qoder.processNames.win, ["qoder.exe", "qodercli.exe", "qoder-cli.exe"]);
+
+    const reasonix = registry.getAgent("reasonix");
+    assert.deepStrictEqual(reasonix.processNames.win, ["reasonix.exe"]);
   });
 
   it("should include explicit Linux process names", () => {
@@ -77,6 +102,9 @@ describe("Agent Registry", () => {
     const gemini = registry.getAgent("gemini-cli");
     assert.deepStrictEqual(gemini.processNames.linux, ["gemini"]);
 
+    const antigravity = registry.getAgent("antigravity-cli");
+    assert.deepStrictEqual(antigravity.processNames.linux, ["agy"]);
+
     const cursor = registry.getAgent("cursor-agent");
     assert.deepStrictEqual(cursor.processNames.linux, ["cursor", "Cursor"]);
 
@@ -91,6 +119,18 @@ describe("Agent Registry", () => {
 
     const hermes = registry.getAgent("hermes");
     assert.deepStrictEqual(hermes.processNames.linux, ["hermes"]);
+
+    const qwen = registry.getAgent("qwen-code");
+    assert.deepStrictEqual(qwen.processNames.linux, ["qwen"]);
+
+    const codewhale = registry.getAgent("codewhale");
+    assert.deepStrictEqual(codewhale.processNames.linux, ["codewhale"]);
+
+    const qoder = registry.getAgent("qoder");
+    assert.deepStrictEqual(qoder.processNames.linux, ["qoder", "qodercli", "qoder-cli"]);
+
+    const reasonix = registry.getAgent("reasonix");
+    assert.deepStrictEqual(reasonix.processNames.linux, ["reasonix"]);
   });
 
   it("should keep Kiro CLI process names narrowed to kiro-cli only", () => {
@@ -110,8 +150,11 @@ describe("Agent Registry", () => {
     assert.ok(agentIds.includes("codex"));
     assert.ok(agentIds.includes("copilot-cli"));
     assert.ok(agentIds.includes("gemini-cli"));
+    assert.ok(agentIds.includes("antigravity-cli"));
     assert.ok(agentIds.includes("cursor-agent"));
     assert.ok(agentIds.includes("kiro-cli"));
+    assert.ok(agentIds.includes("qwen-code"));
+    assert.ok(agentIds.includes("codewhale"));
     assert.ok(agentIds.includes("pi"));
     assert.ok(agentIds.includes("pi"));
     assert.ok(agentIds.includes("hermes"));
@@ -132,7 +175,8 @@ describe("Agent Registry", () => {
 
     const copilot = registry.getAgent("copilot-cli");
     assert.strictEqual(copilot.capabilities.httpHook, false);
-    assert.strictEqual(copilot.capabilities.permissionApproval, false);
+    assert.strictEqual(copilot.capabilities.permissionApproval, true);
+    assert.strictEqual(copilot.capabilities.interactiveBubble, true);
     assert.strictEqual(copilot.capabilities.sessionEnd, true);
     assert.strictEqual(copilot.capabilities.subagent, true);
 
@@ -142,6 +186,15 @@ describe("Agent Registry", () => {
     assert.strictEqual(gemini.capabilities.notificationHook, true);
     assert.strictEqual(gemini.capabilities.sessionEnd, true);
     assert.strictEqual(gemini.capabilities.subagent, false);
+
+    const antigravity = registry.getAgent("antigravity-cli");
+    assert.strictEqual(antigravity.capabilities.httpHook, false);
+    // D2: state-only integration, agy native menu owns permission flow.
+    assert.strictEqual(antigravity.capabilities.permissionApproval, false);
+    assert.strictEqual(antigravity.capabilities.interactiveBubble, false);
+    assert.strictEqual(antigravity.capabilities.notificationHook, false);
+    assert.strictEqual(antigravity.capabilities.sessionEnd, true);
+    assert.strictEqual(antigravity.capabilities.subagent, true);
 
     const cursor = registry.getAgent("cursor-agent");
     assert.strictEqual(cursor.capabilities.httpHook, false);
@@ -157,8 +210,8 @@ describe("Agent Registry", () => {
 
     const pi = registry.getAgent("pi");
     assert.strictEqual(pi.capabilities.httpHook, false);
-    assert.strictEqual(pi.capabilities.permissionApproval, true);
-    assert.strictEqual(pi.capabilities.interactiveBubble, true);
+    assert.strictEqual(pi.capabilities.permissionApproval, false);
+    assert.strictEqual(pi.capabilities.interactiveBubble, false);
     assert.strictEqual(pi.capabilities.sessionEnd, true);
     assert.strictEqual(pi.capabilities.subagent, false);
 
@@ -172,10 +225,43 @@ describe("Agent Registry", () => {
 
     const hermes = registry.getAgent("hermes");
     assert.strictEqual(hermes.capabilities.httpHook, false);
-    assert.strictEqual(hermes.capabilities.permissionApproval, false);
-    assert.strictEqual(hermes.capabilities.interactiveBubble, false);
+    assert.strictEqual(hermes.capabilities.permissionApproval, true);
+    assert.strictEqual(hermes.capabilities.interactiveBubble, true);
     assert.strictEqual(hermes.capabilities.sessionEnd, true);
     assert.strictEqual(hermes.capabilities.subagent, false);
+
+    const qwen = registry.getAgent("qwen-code");
+    assert.strictEqual(qwen.capabilities.httpHook, false);
+    assert.strictEqual(qwen.capabilities.permissionApproval, true);
+    assert.strictEqual(qwen.capabilities.interactiveBubble, true);
+    assert.strictEqual(qwen.capabilities.notificationHook, true);
+    assert.strictEqual(qwen.capabilities.sessionEnd, true);
+    assert.strictEqual(qwen.capabilities.subagent, false);
+
+    const codewhale = registry.getAgent("codewhale");
+    assert.strictEqual(codewhale.capabilities.httpHook, false);
+    assert.strictEqual(codewhale.capabilities.permissionApproval, false);
+    assert.strictEqual(codewhale.capabilities.interactiveBubble, false);
+    assert.strictEqual(codewhale.capabilities.notificationHook, true);
+    assert.strictEqual(codewhale.capabilities.sessionEnd, true);
+    assert.strictEqual(codewhale.capabilities.subagent, false);
+
+    const qoder = registry.getAgent("qoder");
+    assert.strictEqual(qoder.capabilities.httpHook, false);
+    // Phase 1 state-only: no permission approval, no interactive bubble.
+    assert.strictEqual(qoder.capabilities.permissionApproval, false);
+    assert.strictEqual(qoder.capabilities.interactiveBubble, false);
+    assert.strictEqual(qoder.capabilities.notificationHook, true);
+    assert.strictEqual(qoder.capabilities.sessionEnd, true);
+    assert.strictEqual(qoder.capabilities.subagent, false);
+
+    const reasonix = registry.getAgent("reasonix");
+    assert.strictEqual(reasonix.capabilities.httpHook, false);
+    assert.strictEqual(reasonix.capabilities.permissionApproval, false);
+    assert.strictEqual(reasonix.capabilities.interactiveBubble, false);
+    assert.strictEqual(reasonix.capabilities.notificationHook, true);
+    assert.strictEqual(reasonix.capabilities.sessionEnd, true);
+    assert.strictEqual(reasonix.capabilities.subagent, true);
   });
 
   it("should have eventMap for hook-based agents", () => {
@@ -194,6 +280,13 @@ describe("Agent Registry", () => {
     assert.strictEqual(gemini.eventMap.BeforeTool, "working");
     assert.strictEqual(gemini.eventMap.AfterAgent, "idle");
     assert.strictEqual(gemini.eventMap.PreCompress, "idle");
+
+    const antigravity = registry.getAgent("antigravity-cli");
+    assert.strictEqual(antigravity.eventMap.PreInvocation, "thinking");
+    // D2: PreToolUse intentionally absent — agy native menu handles permission.
+    assert.strictEqual(antigravity.eventMap.PreToolUse, undefined);
+    assert.strictEqual(antigravity.eventMap.PostToolUse, "working");
+    assert.strictEqual(antigravity.eventMap.Stop, "attention");
 
     const cursor = registry.getAgent("cursor-agent");
     assert.strictEqual(cursor.eventMap.sessionStart, "idle");
@@ -220,6 +313,46 @@ describe("Agent Registry", () => {
     assert.strictEqual(hermes.eventMap.PreToolUse, "working");
     assert.strictEqual(hermes.eventMap.Stop, "attention");
     assert.strictEqual(hermes.eventMap.SessionEnd, "sleeping");
+
+    const qwen = registry.getAgent("qwen-code");
+    assert.strictEqual(qwen.eventMap.SessionStart, "idle");
+    assert.strictEqual(qwen.eventMap.PreToolUse, "working");
+    assert.strictEqual(qwen.eventMap.PermissionRequest, "notification");
+    // qwen Stop plays the happy end-of-turn animation like other hook agents.
+    // The PostToolUse → UserPromptSubmit self-submit that used to clobber it
+    // is dropped by src/state.js's lastBoundaryAt filter.
+    assert.strictEqual(qwen.eventMap.Stop, "attention");
+
+    const codewhale = registry.getAgent("codewhale");
+    assert.strictEqual(codewhale.eventSource, "hook");
+    assert.strictEqual(codewhale.eventMap.SessionStart, "idle");
+    assert.strictEqual(codewhale.eventMap.UserPromptSubmit, "thinking");
+    assert.strictEqual(codewhale.eventMap.PostToolUseFailure, "error");
+    assert.strictEqual(codewhale.eventMap.Notification, "attention");
+    assert.strictEqual(codewhale.eventMap.Stop, undefined);
+    assert.strictEqual(codewhale.eventMap.PreCompact, "sweeping");
+    assert.strictEqual(codewhale.eventMap.SessionEnd, "sleeping");
+
+    const qoder = registry.getAgent("qoder");
+    assert.strictEqual(qoder.eventMap.SessionStart, "idle");
+    assert.strictEqual(qoder.eventMap.PreToolUse, "working");
+    assert.strictEqual(qoder.eventMap.PostToolUseFailure, "error");
+    assert.strictEqual(qoder.eventMap.Stop, "attention");
+    assert.strictEqual(qoder.eventMap.PermissionRequest, "notification");
+    assert.strictEqual(qoder.eventMap.PermissionDenied, "notification");
+    assert.strictEqual(qoder.eventMap.SessionEnd, "sleeping");
+
+    const reasonix = registry.getAgent("reasonix");
+    assert.strictEqual(reasonix.eventSource, "hook");
+    assert.strictEqual(reasonix.eventMap.SessionStart, "idle");
+    assert.strictEqual(reasonix.eventMap.UserPromptSubmit, "thinking");
+    assert.strictEqual(reasonix.eventMap.PreToolUse, "working");
+    assert.strictEqual(reasonix.eventMap.PostToolUse, "working");
+    assert.strictEqual(reasonix.eventMap.Stop, "attention");
+    assert.strictEqual(reasonix.eventMap.SubagentStop, "working");
+    assert.strictEqual(reasonix.eventMap.Notification, "notification");
+    assert.strictEqual(reasonix.eventMap.PreCompact, "sweeping");
+    assert.strictEqual(reasonix.eventMap.SessionEnd, "sleeping");
   });
 
   it("treats Gemini CLI as a hook-only agent", () => {
@@ -229,6 +362,15 @@ describe("Agent Registry", () => {
     assert.ok(gemini.hookConfig);
     assert.strictEqual(gemini.hookConfig.configFormat, "gemini-settings-json");
     assert.strictEqual(gemini.logConfig, undefined);
+  });
+
+  it("treats Antigravity CLI as a hook-only agent", () => {
+    const antigravity = registry.getAgent("antigravity-cli");
+
+    assert.strictEqual(antigravity.eventSource, "hook");
+    assert.ok(antigravity.hookConfig);
+    assert.strictEqual(antigravity.hookConfig.configFormat, "antigravity-hooks-json");
+    assert.strictEqual(antigravity.logConfig, undefined);
   });
 
   it("should have logEventMap for poll-based agents", () => {

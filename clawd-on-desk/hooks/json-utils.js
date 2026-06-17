@@ -5,6 +5,27 @@
 const fs = require("fs");
 const path = require("path");
 
+function stripUtf8Bom(text) {
+  const value = String(text || "");
+  return value.charCodeAt(0) === 0xFEFF ? value.slice(1) : value;
+}
+
+function readTextFileStripBom(filePath, encoding = "utf-8") {
+  return stripUtf8Bom(fs.readFileSync(filePath, encoding));
+}
+
+async function readTextFileStripBomAsync(filePath, encoding = "utf-8") {
+  return stripUtf8Bom(await fs.promises.readFile(filePath, encoding));
+}
+
+function readJsonFile(filePath) {
+  return JSON.parse(readTextFileStripBom(filePath, "utf-8"));
+}
+
+async function readJsonFileAsync(filePath) {
+  return JSON.parse(await readTextFileStripBomAsync(filePath, "utf-8"));
+}
+
 function isAbsoluteCommandToken(token) {
   if (typeof token !== "string" || !token) return false;
   if (path.isAbsolute(token)) return true;
@@ -45,6 +66,73 @@ async function writeJsonAtomicAsync(filePath, data) {
   }
 }
 
+function cleanupBackupPath(filePath, options = {}) {
+  if (typeof options.backupPath === "string" && options.backupPath) return options.backupPath;
+  const now = typeof options.now === "function" ? options.now() : new Date();
+  const stamp = now instanceof Date && !Number.isNaN(now.getTime())
+    ? now.toISOString().replace(/[-:TZ.]/g, "").slice(0, 17)
+    : String(Date.now());
+  return `${filePath}.clawd-cleanup-${stamp}.bak`;
+}
+
+function uniqueBackupPath(filePath, options = {}) {
+  const requested = cleanupBackupPath(filePath, options);
+  if (typeof options.backupPath === "string" && options.backupPath) return requested;
+  if (!fs.existsSync(requested)) return requested;
+  const stem = requested.endsWith(".bak") ? requested.slice(0, -4) : requested;
+  for (let i = 1; i < 1000; i++) {
+    const candidate = `${stem}.${i}.bak`;
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  return `${stem}.${process.pid}.${Date.now()}.bak`;
+}
+
+function createBackup(filePath, options = {}) {
+  if (options.backup !== true) return null;
+  const backupPath = uniqueBackupPath(filePath, options);
+  fs.copyFileSync(filePath, backupPath);
+  return backupPath;
+}
+
+async function createBackupAsync(filePath, options = {}) {
+  if (options.backup !== true) return null;
+  const backupPath = uniqueBackupPath(filePath, options);
+  await fs.promises.copyFile(filePath, backupPath);
+  return backupPath;
+}
+
+function writeJsonAtomicWithBackup(filePath, data, options = {}) {
+  const backupPath = createBackup(filePath, options);
+  writeJsonAtomic(filePath, data);
+  return backupPath;
+}
+
+async function writeJsonAtomicWithBackupAsync(filePath, data, options = {}) {
+  const backupPath = await createBackupAsync(filePath, options);
+  await writeJsonAtomicAsync(filePath, data);
+  return backupPath;
+}
+
+function writeTextAtomic(filePath, text, encoding = "utf-8") {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const tmpPath = path.join(dir, `.${base}.${process.pid}.${Date.now()}.tmp`);
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    fs.writeFileSync(tmpPath, text, encoding);
+    fs.renameSync(tmpPath, filePath);
+  } catch (err) {
+    try { fs.unlinkSync(tmpPath); } catch {}
+    throw err;
+  }
+}
+
+function writeTextAtomicWithBackup(filePath, text, options = {}) {
+  const backupPath = createBackup(filePath, options);
+  writeTextAtomic(filePath, text, options.encoding || "utf-8");
+  return backupPath;
+}
+
 /**
  * Rewrite a path so it points at the asar.unpacked mirror instead of asar.
  * In packaged builds, __dirname resolves to the virtual app.asar/ tree, but
@@ -60,18 +148,75 @@ function quoteHookCommandArg(value) {
   return `"${String(value).replace(/"/g, '\\"')}"`;
 }
 
+function quotePowerShellSingleArg(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function windowsPowerShellBin(options = {}) {
+  if (options.powerShellBin) return options.powerShellBin;
+  const root = (options.env && options.env.SystemRoot) || process.env.SystemRoot || "C:\\Windows";
+  return path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+}
+
+/**
+ * Build a PowerShell -EncodedCommand hook command. The node bin and every
+ * argv are single-quoted at the PS level then base64 utf-16le encoded, so
+ * the resulting flat command line survives both cmd.exe quote stripping
+ * (qwen uses `cmd /d /s /c <command>`, which strips outer quotes under /s
+ * and breaks any path with a space) and any agent that wraps the command
+ * once more in its own shell. Used by Antigravity and Qwen Code installers.
+ */
+function buildWindowsEncodedNodeHookCommand(nodeBin, scriptPath, args, options = {}) {
+  const argv = Array.isArray(args) ? args : [];
+  const psCommand = [
+    "&",
+    quotePowerShellSingleArg(nodeBin),
+    quotePowerShellSingleArg(scriptPath),
+    ...argv.map((a) => quotePowerShellSingleArg(a)),
+  ].join(" ");
+  const encodedCommand = Buffer.from(psCommand, "utf16le").toString("base64");
+  return `${windowsPowerShellBin(options)} -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${encodedCommand}`;
+}
+
+function decodeWindowsEncodedCommand(command) {
+  const match = String(command || "").match(/(?:^|\s)-(?:EncodedCommand|enc|e)\s+([A-Za-z0-9+/=]+)/i);
+  if (!match) return null;
+  try {
+    const decoded = Buffer.from(match[1], "base64").toString("utf16le").trim();
+    return decoded || null;
+  } catch {
+    return null;
+  }
+}
+
+function extractFirstQuotedToken(command) {
+  const text = String(command || "").trim().replace(/^&\s+/, "");
+  const single = text.match(/^'((?:''|[^'])*)'/);
+  if (single) return single[1].replace(/''/g, "'");
+  const double = text.match(/^"((?:\\"|[^"])*)"/);
+  if (double) return double[1].replace(/\\"/g, "\"").replace(/\\\\/g, "\\");
+  const bare = text.match(/^(\S+)/);
+  return bare ? bare[1] : null;
+}
+
 /**
  * Format a Node-based hook command consistently across installers.
  *
  * POSIX hook launchers can execute a plain quoted command. On Windows, some
  * launchers run through PowerShell, where a bare quoted executable is treated
- * as a string literal and must be prefixed with `&`; others are more reliable
- * when explicitly routed through cmd.exe. Callers choose the wrapper that
- * matches the target agent while sharing the quoting rules.
+ * as a string literal and must be prefixed with `&`; others (Qwen Code,
+ * Antigravity) shell out through `cmd.exe /d /s /c <command>`, which mangles
+ * any quoted path with a space — those use windowsWrapper:"encoded" to wrap
+ * everything in PowerShell -EncodedCommand and bypass cmd's parser entirely.
+ * Callers choose the wrapper that matches the target agent while sharing
+ * the quoting rules.
  */
 function formatNodeHookCommand(nodeBin, scriptPath, options = {}) {
   const platform = options.platform || process.platform;
   const args = Array.isArray(options.args) ? options.args : [];
+  if (platform === "win32" && options.windowsWrapper === "encoded") {
+    return buildWindowsEncodedNodeHookCommand(nodeBin, scriptPath, args, options);
+  }
   const command = [nodeBin, scriptPath, ...args].map(quoteHookCommandArg).join(" ");
   if (platform !== "win32") return command;
 
@@ -79,6 +224,41 @@ function formatNodeHookCommand(nodeBin, scriptPath, options = {}) {
   if (wrapper === "cmd") return `cmd /d /s /c "${command}"`;
   if (wrapper === "none") return command;
   return `& ${command}`;
+}
+
+/**
+ * Extract the first absolute node binary path from a list of command strings.
+ * Scans each command for double-quoted tokens, ignores the hook script marker
+ * itself, and returns the first token that looks like an absolute path
+ * (POSIX `/`, Windows `C:\`, or UNC `\\server`).
+ *
+ * Used as a shared primitive so installers that don't share a settings.hooks
+ * shape (e.g. Kimi's TOML) can still preserve a user-repaired Node path.
+ *
+ * @param {string[]} commands - Raw command strings (already unescaped)
+ * @param {string}   marker   - Hook script filename to skip
+ * @returns {string|null}
+ */
+function extractExistingNodeBinFromCommands(commands, marker) {
+  if (!Array.isArray(commands) || typeof marker !== "string" || !marker) return null;
+  for (const cmd of commands) {
+    if (typeof cmd !== "string") continue;
+    // Windows encoded-command form: decode first so we can extract the
+    // single-quoted PowerShell token (`& 'C:\path\node.exe' '...'`).
+    const decoded = decodeWindowsEncodedCommand(cmd);
+    if (decoded) {
+      const token = extractFirstQuotedToken(decoded);
+      if (token && !token.includes(marker) && isAbsoluteCommandToken(token)) return token;
+      continue;
+    }
+    const matches = cmd.matchAll(/"([^"]+)"/g);
+    for (const match of matches) {
+      const token = match && match[1];
+      if (!token || token.includes(marker)) continue;
+      if (isAbsoluteCommandToken(token)) return token;
+    }
+  }
+  return null;
 }
 
 /**
@@ -95,16 +275,7 @@ function formatNodeHookCommand(nodeBin, scriptPath, options = {}) {
  * @returns {string|null}
  */
 function extractExistingNodeBin(settings, marker, options) {
-  const commands = findHookCommands(settings, marker, options);
-  for (const cmd of commands) {
-    const matches = cmd.matchAll(/"([^"]+)"/g);
-    for (const match of matches) {
-      const token = match && match[1];
-      if (!token || token.includes(marker)) continue;
-      if (isAbsoluteCommandToken(token)) return token;
-    }
-  }
-  return null;
+  return extractExistingNodeBinFromCommands(findHookCommands(settings, marker, options), marker);
 }
 
 /**
@@ -118,6 +289,100 @@ function extractExistingNodeBin(settings, marker, options) {
  * @param {boolean} [options.nested] - Also check entry.hooks[].command
  * @returns {string[]}
  */
+function commandMatchesMarker(command, marker) {
+  if (typeof command !== "string") return false;
+  if (command.includes(marker)) return true;
+  const decoded = decodeWindowsEncodedCommand(command);
+  return !!(decoded && decoded.includes(marker));
+}
+
+function removeMatchingCommandHooks(entries, predicate) {
+  if (!Array.isArray(entries)) return { entries, removed: 0, changed: false };
+
+  let removed = 0;
+  let changed = false;
+  const nextEntries = [];
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    if (typeof entry.command === "string" && predicate(entry.command)) {
+      removed++;
+      changed = true;
+      continue;
+    }
+
+    if (!Array.isArray(entry.hooks)) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    const nextHooks = entry.hooks.filter((hook) => {
+      if (!hook || typeof hook.command !== "string") return true;
+      if (!predicate(hook.command)) return true;
+      removed++;
+      changed = true;
+      return false;
+    });
+
+    if (nextHooks.length === entry.hooks.length) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    if (nextHooks.length === 0 && typeof entry.command !== "string") continue;
+    nextEntries.push({ ...entry, hooks: nextHooks });
+  }
+
+  return { entries: nextEntries, removed, changed };
+}
+
+function removeMatchingHttpHooks(entries, predicate) {
+  if (!Array.isArray(entries)) return { entries, removed: 0, changed: false };
+
+  let removed = 0;
+  let changed = false;
+  const nextEntries = [];
+
+  for (const entry of entries) {
+    if (!entry || typeof entry !== "object") {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    if (predicate(entry)) {
+      removed++;
+      changed = true;
+      continue;
+    }
+
+    if (!Array.isArray(entry.hooks)) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    const nextHooks = entry.hooks.filter((hook) => {
+      if (!predicate(hook)) return true;
+      removed++;
+      changed = true;
+      return false;
+    });
+
+    if (nextHooks.length === entry.hooks.length) {
+      nextEntries.push(entry);
+      continue;
+    }
+
+    if (nextHooks.length === 0 && typeof entry.command !== "string" && entry.type !== "http") continue;
+    nextEntries.push({ ...entry, hooks: nextHooks });
+  }
+
+  return { entries: nextEntries, removed, changed };
+}
+
 function findHookCommands(settings, marker, options) {
   if (!settings || !settings.hooks || typeof marker !== "string" || !marker) return [];
   const nested = options && options.nested;
@@ -129,12 +394,12 @@ function findHookCommands(settings, marker, options) {
       if (!entry || typeof entry !== "object") continue;
       if (nested && Array.isArray(entry.hooks)) {
         for (const h of entry.hooks) {
-          if (h && typeof h.command === "string" && h.command.includes(marker)) {
+          if (h && commandMatchesMarker(h.command, marker)) {
             commands.push(h.command);
           }
         }
       }
-      if (typeof entry.command === "string" && entry.command.includes(marker)) {
+      if (commandMatchesMarker(entry.command, marker)) {
         commands.push(entry.command);
       }
     }
@@ -143,10 +408,30 @@ function findHookCommands(settings, marker, options) {
 }
 
 module.exports = {
+  stripUtf8Bom,
+  readTextFileStripBom,
+  readTextFileStripBomAsync,
+  readJsonFile,
+  readJsonFileAsync,
   writeJsonAtomic,
   writeJsonAtomicAsync,
+  writeJsonAtomicWithBackup,
+  writeJsonAtomicWithBackupAsync,
+  writeTextAtomic,
+  writeTextAtomicWithBackup,
+  createBackup,
+  createBackupAsync,
   asarUnpackedPath,
+  commandMatchesMarker,
   extractExistingNodeBin,
+  extractExistingNodeBinFromCommands,
   findHookCommands,
+  removeMatchingCommandHooks,
+  removeMatchingHttpHooks,
   formatNodeHookCommand,
+  buildWindowsEncodedNodeHookCommand,
+  decodeWindowsEncodedCommand,
+  extractFirstQuotedToken,
+  quotePowerShellSingleArg,
+  windowsPowerShellBin,
 };

@@ -1,12 +1,7 @@
 "use strict";
 
 (function initSettingsTabAnimOverrides(root) {
-  // Renderer context (nodeIntegration: false) — read the shared constant
-  // from the global exposed by default-theme.js, which is loaded earlier
-  // in settings.html. Keep a literal fallback so unit tests that eval
-  // this file in isolation still work.
-  const { DEFAULT_THEME_ID } = (typeof globalThis !== "undefined" && globalThis.ClawdDefaultTheme)
-    || { DEFAULT_THEME_ID: "cybercat" };
+  const DEFAULT_ANIM_THEME_NAME = "Cyber Cat";
   const animMergeApi = root.ClawdSettingsAnimOverridesMerge || {};
   const getAssetPreviewUrl = animMergeApi.getAssetPreviewUrl || ((asset) => {
     if (!asset) return null;
@@ -629,14 +624,6 @@
     return true;
   }
 
-  function applyPreviewCanvasWidth(parent, item, baseWidth) {
-    const ratio = item && Number.isFinite(item.previewCanvasWidthRatio)
-      ? Math.max(1, Math.min(3, item.previewCanvasWidthRatio))
-      : 1;
-    if (!parent || ratio <= 1) return;
-    parent.style.width = `${Math.round(baseWidth * ratio)}px`;
-  }
-
   function captureAssetPickerScrollState() {
     if (!runtime.assetPicker.state) return;
     const list = document.querySelector(".asset-picker-list");
@@ -816,11 +803,12 @@
       case "idleTracked": return "Idle follow";
       case "idleStatic": return "Idle";
       case "idleAnimation": return `Idle random #${card.poolIndex || 1}`;
-      case "thinking": return "UserPromptSubmit";
+      case "roam": return "Free roam walk";
+      case "thinking": return "UserPromptSubmit / PostCompact";
       case "working": return `PreToolUse (${formatSessionRange(card.minSessions, card.maxSessions)})`;
       case "juggling": return `SubagentStart (${formatSessionRange(card.minSessions, card.maxSessions)})`;
       case "error": return "PostToolUseFailure";
-      case "attention": return "Stop / PostCompact";
+      case "attention": return "Stop";
       case "notification": return "PermissionRequest";
       case "sweeping": return "PreCompact";
       case "carrying": return "WorktreeCreate";
@@ -1152,7 +1140,7 @@
     themeMeta.className = "anim-override-meta";
     const themeLabel = document.createElement("div");
     themeLabel.className = "anim-override-meta-label";
-    themeLabel.textContent = `${t("animOverridesCurrentTheme")}: ${(data.theme && data.theme.name) || DEFAULT_THEME_ID}`;
+    themeLabel.textContent = `${t("animOverridesCurrentTheme")}: ${(data.theme && data.theme.name) || DEFAULT_ANIM_THEME_NAME}`;
     themeMeta.appendChild(themeLabel);
 
     const primaryActions = document.createElement("div");
@@ -1338,7 +1326,6 @@
     const thumb = document.createElement("div");
     thumb.className = "anim-override-thumb";
     thumb.title = t("animOverridesPreview");
-    applyPreviewCanvasWidth(thumb, card, 40);
     if (!appendAnimationPreviewMedia(thumb, getCardPreviewUrl(card)) && (card.previewPosterPending || card.needsScriptedPreviewPoster)) {
       appendAnimationPreviewPending(thumb);
     }
@@ -1594,7 +1581,6 @@
     const bigPreview = document.createElement("div");
     bigPreview.className = "anim-override-drawer-preview";
     bigPreview.title = t("animOverridesPreview");
-    applyPreviewCanvasWidth(bigPreview, card, 120);
     if (!appendAnimationPreviewMedia(bigPreview, getCardPreviewUrl(card)) && (card.previewPosterPending || card.needsScriptedPreviewPoster)) {
       appendAnimationPreviewPending(bigPreview);
     }

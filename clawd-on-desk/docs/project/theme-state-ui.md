@@ -21,7 +21,8 @@ This document holds the state machine, theme system, UI runtime, and platform ca
 - 一次性状态：`attention/error/sweeping/notification/carrying` 显示后自动回退（`AUTO_RETURN_MS`）
 - 睡眠序列：20s 鼠标静止 → idle-look → 60s → yawning(3s) → dozing → 10min → collapsing(0.8s) → sleeping；鼠标移动触发 waking(1.5s) → 恢复
 - DND 模式：跳过 dozing，直接 yawning → collapsing → sleeping；同时屏蔽 hook 事件
-- working 子动画：1 个会话 → typing，2 个 → juggling，3+ → building
+- 隐藏桌宠（petHidden，入口：托盘 / 右键菜单 / 快捷键）：语义是「看不见宠物」而非免打扰——隐藏时收起宠物、Session HUD、update bubble 和当时 pending 的权限气泡（恢复显示时回来），但隐藏期间新到的权限请求仍照常弹气泡，这是有意设计、不要当 bug 修；要连权限气泡都静默是 DND 的职责（它有回终端确认的 fallback）。petHidden 不持久化，重启恢复显示
+- working 子动画：Clawd 主题为 1 个会话 → typing，2 个 → headphones groove，3+ → building；Calico / Cloudling 仍为 typing / juggling / building
 - juggling 子动画：1 个 subagent → juggling，2+ → conducting
 
 ## Theme System
@@ -99,7 +100,7 @@ Mini 状态映射：
 
 权威表格见 `docs/guides/state-mapping.md`。这里只保留实现层面的补充：
 
-- working 子动画：1 会话 → typing，2 → juggling，3+ → building
+- working 子动画：Clawd 主题为 1 会话 → typing，2 → headphones groove，3+ → building；Calico / Cloudling 仍为 typing / juggling / building
 - juggling 子动画：1 subagent → juggling，2+ → conducting
 - mini 状态有独立动画槽；`mini-working` 是可选能力
 - 睡眠序列和 DND 行为见上面的 State Machine
@@ -166,9 +167,9 @@ Mini 状态映射：
 - hook 脚本依赖 Node.js
 - Windows 终端聚焦依赖 `koffi`；macOS 依赖 `osascript`
 - Codex CLI 以 official hooks 为主、JSONL 轮询为 fallback；WebSearch / compaction / abort 等 hook 未覆盖事件仍可能有轮询延迟
-- Copilot CLI 需要手动创建 `~/.copilot/hooks/hooks.json`
+- Copilot CLI 自动同步 `<COPILOT_HOME 或 ~/.copilot>/hooks/hooks.json`；`disableAllHooks: true` 时 doctor warning 且不挂 Fix 按钮
 - Gemini 无权限气泡，除非未来提供兼容的阻塞式审批协议；Cursor 权限走 stdout；Kiro 没有 global hooks；opencode 权限只能走 event hook + bridge
-- opencode 子会话会短暂出现在 Sessions 菜单里
+- opencode child / subtask session 只有在 `session.created` 明确带 `event.properties.info.parentID` 时才会被标记为 headless；这类后台 child 不进入 HUD / focus / 多会话 fanout
 - 进程存活检测依赖进程名匹配，非标准进程名可能漏检
 
 ## Do Not Fix This Again

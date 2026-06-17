@@ -2,11 +2,6 @@
 
 const core = globalThis.ClawdSettingsCore;
 
-// Order matters — this is the visible sidebar order. MiniCPM is the
-// front-and-centre product feature of this fork, so it sits right under
-// 通用 / General. Icons resolve via settings-icons.js at render time,
-// not as emoji or unicode glyphs (those rendered inconsistently across
-// system fonts and didn't dark-mode well).
 const SIDEBAR_TABS = [
   { id: "general", labelKey: "sidebarGeneral", available: true },
   { id: "minicpm", labelKey: "sidebarMinicpm", available: true },
@@ -16,6 +11,8 @@ const SIDEBAR_TABS = [
   { id: "animOverrides", labelKey: "sidebarAnimOverrides", available: true },
   { id: "shortcuts", labelKey: "sidebarShortcuts", available: true },
   { id: "remote-ssh", labelKey: "sidebarRemoteSsh", available: true },
+  { id: "telegram-approval", labelKey: "sidebarTelegramApproval", available: true },
+  { id: "mobile", labelKey: "sidebarMobile", available: true },
   { id: "about", labelKey: "sidebarAbout", available: true },
 ];
 
@@ -40,12 +37,7 @@ function renderSidebar() {
     item.className = "sidebar-item";
     if (!tab.available) item.classList.add("disabled");
     if (tab.id === core.state.activeTab) item.classList.add("active");
-    // Prefer an inline `label` (no i18n key) when present; fall back to
-    // the i18n key. New tabs that don't yet have translations can pass a
-    // hard-coded label to avoid showing the raw key in non-en locales.
     const labelText = tab.label ? tab.label : core.helpers.t(tab.labelKey);
-    // Icon HTML is trusted (it comes from our own settings-icons.js
-    // module, not user input), so we drop it in as-is.
     item.innerHTML =
       `<span class="sidebar-item-icon">${getTabIcon(tab.id)}</span>` +
       `<span class="sidebar-item-label">${core.helpers.escapeHtml(labelText)}</span>` +
@@ -93,8 +85,10 @@ globalThis.ClawdSettingsTabTheme.init(core);
 globalThis.ClawdSettingsTabAnimMap.init(core);
 globalThis.ClawdSettingsTabAnimOverrides.init(core);
 globalThis.ClawdSettingsTabShortcuts.init(core);
+if (globalThis.ClawdSettingsTabTelegramApproval) globalThis.ClawdSettingsTabTelegramApproval.init(core);
 globalThis.ClawdSettingsTabAbout.init(core);
 if (globalThis.ClawdSettingsTabRemoteSsh) globalThis.ClawdSettingsTabRemoteSsh.init(core);
+if (globalThis.ClawdSettingsTabMobile) globalThis.ClawdSettingsTabMobile.init(core);
 if (globalThis.ClawdSettingsTabMinicpm) globalThis.ClawdSettingsTabMinicpm.init(core);
 
 if (window.settingsAPI && typeof window.settingsAPI.onChanged === "function") {

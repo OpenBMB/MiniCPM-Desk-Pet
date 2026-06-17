@@ -156,6 +156,78 @@ test("Codex Pet main runtime records sync summaries and normalizes adapter failu
   assert.strictEqual(failingRuntime.getLastSyncSummary(), failed);
 });
 
+test("Codex Pet settings refresh hot reloads an updated active managed theme", async () => {
+  let reloadCalls = 0;
+  let syncCalls = 0;
+  const runtime = createCodexPetMain({
+    app: {
+      getPath: () => "user-data",
+      isReady: () => false,
+    },
+    dialog: {},
+    shell: {},
+    settingsController: {
+      get: () => "codex-pet-live",
+    },
+    themeLoader: {},
+    codexPetAdapter: {
+      syncCodexPetThemes() {
+        syncCalls += 1;
+        return {
+          updated: 1,
+          themes: [{ themeId: "codex-pet-live", operation: "updated" }],
+        };
+      },
+    },
+    codexPetImporter: {},
+    getActiveTheme: () => ({ _id: "codex-pet-live" }),
+    reloadActiveTheme: () => {
+      reloadCalls += 1;
+    },
+  });
+
+  assert.deepStrictEqual(await runtime.refreshFromSettings(), {
+    status: "ok",
+    summary: {
+      updated: 1,
+      themes: [{ themeId: "codex-pet-live", operation: "updated" }],
+    },
+    switchedToFallback: false,
+  });
+  assert.strictEqual(syncCalls, 1);
+  assert.strictEqual(reloadCalls, 1);
+});
+
+test("Codex Pet settings refresh leaves an unchanged active theme alone", async () => {
+  let reloadCalls = 0;
+  const runtime = createCodexPetMain({
+    app: {
+      getPath: () => "user-data",
+      isReady: () => false,
+    },
+    dialog: {},
+    shell: {},
+    settingsController: {
+      get: () => "codex-pet-live",
+    },
+    themeLoader: {},
+    codexPetAdapter: {
+      syncCodexPetThemes: () => ({
+        unchanged: 1,
+        themes: [{ themeId: "codex-pet-live", operation: "unchanged" }],
+      }),
+    },
+    codexPetImporter: {},
+    getActiveTheme: () => ({ _id: "codex-pet-live" }),
+    reloadActiveTheme: () => {
+      reloadCalls += 1;
+    },
+  });
+
+  assert.strictEqual((await runtime.refreshFromSettings()).status, "ok");
+  assert.strictEqual(reloadCalls, 0);
+});
+
 test("Codex Pet import URLs queued before app ready do not flush until explicitly drained", async () => {
   const originalSetImmediate = global.setImmediate;
   let immediateCalls = 0;

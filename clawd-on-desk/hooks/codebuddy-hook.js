@@ -39,39 +39,73 @@ function stdoutForEvent(hookName) {
   return "{}";
 }
 
-readStdinJson().then((payload) => {
-  const hookName = (payload && payload.hook_event_name) || "";
-  const mapped = HOOK_MAP[hookName];
+// Safety timeout: guarantee valid JSON on stdout even if stdin never arrives
+// or the process tree walk hangs. Without this CodeBuddy would see empty stdout
+// which is invalid JSON and logs an error on every hook invocation.
+const SAFETY_TIMEOUT_MS = 800;
+let _wrote = false;
+let _exited = false;
+let safetyTimer = null;
 
-  if (!mapped) {
-    process.stdout.write(stdoutForEvent(hookName) + "\n");
-    process.exit(0);
-    return;
-  }
+// Write the stdout response exactly once. Kept separate from process exit so the
+// hook can answer CodeBuddy immediately yet still let the fire-and-forget POST
+// to Clawd leave the process before it exits.
+function writeStdoutOnce(outLine) {
+  if (_wrote) return;
+  _wrote = true;
+  process.stdout.write(outLine + "\n");
+}
 
-  const { state, event } = mapped;
-  if (hookName === "SessionStart" && !process.env.CLAWD_REMOTE) resolve();
+function finish(outLine) {
+  writeStdoutOnce(outLine);
+  if (_exited) return;
+  _exited = true;
+  if (safetyTimer) clearTimeout(safetyTimer);
+  process.exit(0);
+}
 
-  const sessionId = (payload && payload.session_id) || "default";
-  const cwd = (payload && payload.cwd) || "";
+safetyTimer = setTimeout(() => finish("{}"), SAFETY_TIMEOUT_MS);
 
-  const { stablePid, agentPid, detectedEditor, pidChain } = resolve();
+readStdinJson()
+  .then((payload) => {
+    const hookName = (payload && payload.hook_event_name) || "";
+    const mapped = HOOK_MAP[hookName];
+    const outLine = stdoutForEvent(hookName);
 
-  const body = { state, session_id: sessionId, event };
-  body.agent_id = "codebuddy";
-  if (cwd) body.cwd = cwd;
-  if (process.env.CLAWD_REMOTE) {
-    body.host = readHostPrefix();
-  } else {
-    body.source_pid = stablePid;
-    if (detectedEditor) body.editor = detectedEditor;
-    if (agentPid) body.agent_pid = agentPid;
-    if (pidChain.length) body.pid_chain = pidChain;
-  }
+    if (!mapped) {
+      finish(outLine);
+      return;
+    }
 
-  const outLine = stdoutForEvent(hookName);
-  postStateToRunningServer(JSON.stringify(body), { timeoutMs: 100 }, () => {
-    process.stdout.write(outLine + "\n");
-    process.exit(0);
-  });
-});
+    const { state, event } = mapped;
+    if (hookName === "SessionStart" && !process.env.CLAWD_REMOTE) resolve();
+
+    const sessionId = (payload && payload.session_id) || "default";
+    const cwd = (payload && payload.cwd) || "";
+
+    const { stablePid, agentPid, detectedEditor, pidChain, tmuxSocket, tmuxClient } = resolve();
+
+    const body = { state, session_id: sessionId, event };
+    body.agent_id = "codebuddy";
+    if (cwd) body.cwd = cwd;
+    if (process.env.CLAWD_REMOTE) {
+      body.host = readHostPrefix();
+    } else {
+      body.source_pid = stablePid;
+      if (detectedEditor) body.editor = detectedEditor;
+      if (agentPid) body.agent_pid = agentPid;
+      if (pidChain.length) body.pid_chain = pidChain;
+      if (tmuxSocket) body.tmux_socket = tmuxSocket;
+      if (tmuxClient) body.tmux_client = tmuxClient;
+    }
+
+    // Answer CodeBuddy immediately so it never sees empty stdout, but don't
+    // exit yet — the fire-and-forget POST below still needs to leave the
+    // process, so we exit in its callback (with the safety timer as backstop).
+    writeStdoutOnce(outLine);
+
+    postStateToRunningServer(JSON.stringify(body), { timeoutMs: 100 }, () => {
+      finish(outLine);
+    });
+  })
+  .catch(() => finish("{}"));

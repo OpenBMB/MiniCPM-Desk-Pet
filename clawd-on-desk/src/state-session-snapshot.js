@@ -3,6 +3,10 @@
 const path = require("path");
 const { sessionAliasKey } = require("./session-alias");
 const { getSessionFocusTarget } = require("./session-focus");
+const {
+  buildLatestLocalCodexProcessIds,
+  isSupersededLocalCodexProcessSession,
+} = require("./state-session-dedupe");
 const { readCodexThreadName } = require("../hooks/codex-session-index");
 
 const EVENT_LABEL_KEYS = {
@@ -15,6 +19,7 @@ const EVENT_LABEL_KEYS = {
   AfterAgent: "eventLabelAfterAgent",
   Stop: "eventLabelStop",
   StopFailure: "eventLabelStopFailure",
+  ApiError: "eventLabelApiError",
   SubagentStart: "eventLabelSubagentStart",
   SubagentStop: "eventLabelSubagentStop",
   PreCompress: "eventLabelPreCompress",
@@ -23,8 +28,17 @@ const EVENT_LABEL_KEYS = {
   Notification: "eventLabelNotification",
   Elicitation: "eventLabelElicitation",
   WorktreeCreate: "eventLabelWorktreeCreate",
+  "event_msg:task_complete": "eventLabelStop",
   "stale-cleanup": "eventLabelStaleCleanup",
 };
+
+// PostCompact intentionally excluded (#406): compaction finishing is not turn
+// completion, so it must not raise the "done" badge.
+const DONE_EVENTS = new Set(["Stop", "event_msg:task_complete"]);
+
+function isDoneEvent(event) {
+  return DONE_EVENTS.has(event);
+}
 
 const SESSION_TITLE_CONTROL_RE = /[\u0000-\u001F\u007F-\u009F]+/g;
 const SESSION_TITLE_MAX = 80;
@@ -46,16 +60,38 @@ function sessionUpdatedAt(session) {
   return Number.isFinite(updatedAt) ? updatedAt : 0;
 }
 
+// A persisted session counts as "in progress" when it is non-headless and its
+// stored state is anything other than idle/sleeping (mirrors deriveSessionBadge's
+// "running" semantics). One-shot visuals like attention/notification are
+// normally stored as idle by updateSession(); permission prompts stay awake by
+// preserving the prior working/thinking state.
+function isSessionInProgress(session) {
+  if (!session || session.headless) return false;
+  if (session.state === "idle" || session.state === "sleeping") return false;
+  return true;
+}
+
 function deriveSessionBadge(session) {
   if (!session) return "idle";
   if (session.state !== "idle" && session.state !== "sleeping") return "running";
   if (session.state === "sleeping") return "idle";
+  if (session.requiresCompletionAck === true) return "done";
   const events = Array.isArray(session.recentEvents) ? session.recentEvents : [];
   const latest = events.length ? events[events.length - 1] : null;
   const latestEvent = latest && latest.event;
-  if (latestEvent === "StopFailure" || latestEvent === "PostToolUseFailure") return "interrupted";
-  if (latestEvent === "Stop" || latestEvent === "PostCompact") return "done";
+  if (latestEvent === "StopFailure" || latestEvent === "PostToolUseFailure" || latestEvent === "ApiError") return "interrupted";
+  if (isDoneEvent(latestEvent)) return "done";
   return "idle";
+}
+
+function getDisplayLastEvent(session, recentEvents) {
+  const latestEvent = recentEvents.length ? recentEvents[recentEvents.length - 1] : null;
+  if (!(session && session.requiresCompletionAck === true)) return latestEvent;
+  for (let i = recentEvents.length - 1; i >= 0; i--) {
+    const event = recentEvents[i];
+    if (event && isDoneEvent(event.event)) return event;
+  }
+  return latestEvent;
 }
 
 function isEndedSessionBadge(badge) {
@@ -130,7 +166,7 @@ function buildSessionSnapshotEntry(id, session, sessionAliases = {}, options = {
   const recentEvents = Array.isArray(session && session.recentEvents)
     ? session.recentEvents
     : [];
-  const latestEvent = recentEvents.length ? recentEvents[recentEvents.length - 1] : null;
+  const latestEvent = getDisplayLastEvent(session, recentEvents);
   const rawEvent = latestEvent && latestEvent.event ? latestEvent.event : null;
   const eventAt = Number(latestEvent && latestEvent.at);
   const badge = deriveSessionBadge(session);
@@ -138,9 +174,12 @@ function buildSessionSnapshotEntry(id, session, sessionAliases = {}, options = {
     ? options.getAgentIconUrl
     : () => null;
   const state = (session && session.state) || "idle";
-  const hiddenFromHud = shouldAutoClearDetachedSession(session, badge, options);
+  const hiddenFromHud = shouldAutoClearDetachedSession(session, badge, options)
+    || isSupersededLocalCodexProcessSession(id, session, options.latestLocalCodexProcessIds);
   const focusTarget = session && !session.headless && state !== "sleeping" && !hiddenFromHud
-    ? getSessionFocusTarget({ ...(session || {}), id })
+    ? getSessionFocusTarget({ ...(session || {}), id }, {
+      osPlatform: options.focusHostPlatform || options.osPlatform,
+    })
     : { canFocus: false, type: null, url: null };
   return {
     id,
@@ -155,6 +194,8 @@ function buildSessionSnapshotEntry(id, session, sessionAliases = {}, options = {
     cwd: (session && session.cwd) || "",
     updatedAt: sessionUpdatedAt(session),
     sourcePid: (session && session.sourcePid) || null,
+    wtHwnd: (session && session.wtHwnd) || null,
+    editor: (session && session.editor) || null,
     canFocus: focusTarget.canFocus === true,
     focusTarget: focusTarget.type ? { type: focusTarget.type, url: focusTarget.url || null } : null,
     host: (session && session.host) || null,
@@ -164,12 +205,34 @@ function buildSessionSnapshotEntry(id, session, sessionAliases = {}, options = {
     provider: (session && session.provider) || null,
     codexOriginator: (session && session.codexOriginator) || null,
     codexSource: (session && session.codexSource) || null,
+    contextUsage: snapshotContextUsage(session),
+    assistantLastOutput: (session && typeof session.assistantLastOutput === "string")
+      ? session.assistantLastOutput
+      : null,
+    assistantLastOutputTruncated: !!(session && session.assistantLastOutputTruncated === true),
     lastEvent: latestEvent ? {
       labelKey: rawEvent ? (EVENT_LABEL_KEYS[rawEvent] || null) : null,
       rawEvent,
       at: Number.isFinite(eventAt) ? eventAt : 0,
     } : null,
+    // Lifecycle flag for the Dashboard "Mark read" button visibility (PR2).
+    // ackedAt stays internal — only the boolean reaches renderers.
+    requiresCompletionAck: !!(session && session.requiresCompletionAck === true),
   };
+}
+
+function snapshotContextUsage(session) {
+  const usage = session && session.contextUsage;
+  if (!usage || typeof usage !== "object") return null;
+  const used = Number(usage.used);
+  if (!Number.isFinite(used) || used < 0) return null;
+  const out = { used };
+  const limit = Number(usage.limit);
+  if (Number.isFinite(limit) && limit > 0) out.limit = limit;
+  const percent = Number(usage.percent);
+  if (Number.isFinite(percent)) out.percent = Math.max(0, Math.min(100, Math.round(percent)));
+  if (usage.source === "claude" || usage.source === "codex") out.source = usage.source;
+  return out;
 }
 
 function normalizeSessionsIterable(sessions) {
@@ -184,8 +247,12 @@ function buildSessionSnapshot(sessions, options = {}) {
   const sessionAliases = options.sessionAliases && typeof options.sessionAliases === "object"
     ? options.sessionAliases
     : {};
+  const latestLocalCodexProcessIds = buildLatestLocalCodexProcessIds(sessions);
   for (const [id, session] of normalizeSessionsIterable(sessions)) {
-    entries.push(buildSessionSnapshotEntry(id, session, sessionAliases, options));
+    entries.push(buildSessionSnapshotEntry(id, session, sessionAliases, {
+      ...options,
+      latestLocalCodexProcessIds,
+    }));
   }
 
   const dashboardEntries = entries.slice().sort(sessionUpdatedAtComparator);
@@ -258,6 +325,7 @@ function sessionSnapshotSignature(snapshot) {
       cwd: entry.cwd,
       agentId: entry.agentId,
       sourcePid: entry.sourcePid,
+      wtHwnd: entry.wtHwnd,
       canFocus: entry.canFocus,
       focusTarget: entry.focusTarget,
       headless: entry.headless,
@@ -268,9 +336,13 @@ function sessionSnapshotSignature(snapshot) {
       provider: entry.provider,
       codexOriginator: entry.codexOriginator,
       codexSource: entry.codexSource,
+      contextUsage: entry.contextUsage,
+      assistantLastOutput: entry.assistantLastOutput,
+      assistantLastOutputTruncated: !!entry.assistantLastOutputTruncated,
       lastEventLabelKey: entry.lastEvent ? entry.lastEvent.labelKey : null,
       lastEventRawEvent: entry.lastEvent ? entry.lastEvent.rawEvent : null,
       lastEventAt: entry.lastEvent ? entry.lastEvent.at : null,
+      requiresCompletionAck: !!entry.requiresCompletionAck,
     })),
   });
 }
@@ -280,6 +352,7 @@ module.exports = {
   SESSION_TITLE_MAX,
   normalizeTitle,
   sessionUpdatedAt,
+  isSessionInProgress,
   deriveSessionBadge,
   shouldAutoClearDetachedSession,
   getSessionAliasEntry,

@@ -1,6 +1,8 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert");
+const path = require("path");
 
+const themeLoader = require("../src/theme-loader");
 const hitGeometry = require("../src/hit-geometry");
 const {
   getThemeMarginBox,
@@ -11,140 +13,117 @@ const {
   getRestClampMargins,
 } = require("../src/visible-margins");
 
-function makeLayoutTheme(overrides = {}) {
-  return {
-    viewBox: { x: -15, y: -25, width: 45, height: 45 },
-    layout: {
-      contentBox: { x: -4, y: -3, width: 23, height: 20 },
-      marginBox: { x: -8, y: -7, width: 30, height: 24 },
-      centerX: 7.5,
-      baselineY: 17,
-      visibleHeightRatio: 0.58,
-      baselineBottomRatio: 0.05,
-    },
-    states: {
-      idle: ["theme-idle.svg"],
-      thinking: ["theme-thinking.svg"],
-      notification: ["theme-notification.svg"],
-    },
-    reactions: { drag: { file: "theme-react-drag.svg" } },
-    objectScale: { widthRatio: 1.9, heightRatio: 1.3, offsetX: -0.45, offsetY: -0.25 },
-    eyeTracking: { enabled: true, states: ["idle"] },
-    hitBoxes: {
-      default: { x: -1, y: 5, w: 17, h: 12 },
-      wide: { x: -2, y: 4, w: 19, h: 14 },
-    },
-    wideHitboxFiles: ["theme-notification.svg"],
-    ...overrides,
-  };
-}
+themeLoader.init(path.join(__dirname, "..", "src"));
 
 describe("visible margin envelopes", () => {
   const bounds = { x: 0, y: 0, width: 280, height: 280 };
 
   it("prefers layout.marginBox over contentBox when present", () => {
-    const theme = makeLayoutTheme();
-    assert.deepStrictEqual(getThemeMarginBox(theme), theme.layout.marginBox);
+    const cloudling = themeLoader.loadTheme("cloudling");
+    assert.deepStrictEqual(getThemeMarginBox(cloudling), cloudling.layout.marginBox);
 
-    const idleFile = theme.states.idle[0];
-    const contentRect = hitGeometry.getContentRectScreen(theme, bounds, "idle", idleFile, {
-      box: theme.layout.contentBox,
+    const idleFile = cloudling.states.idle[0];
+    const contentRect = hitGeometry.getContentRectScreen(cloudling, bounds, "idle", idleFile, {
+      box: cloudling.layout.contentBox,
     });
-    const marginRect = hitGeometry.getContentRectScreen(theme, bounds, "idle", idleFile, {
-      box: theme.layout.marginBox,
+    const marginRect = hitGeometry.getContentRectScreen(cloudling, bounds, "idle", idleFile, {
+      box: cloudling.layout.marginBox,
     });
 
     assert.ok(marginRect.top < contentRect.top);
-    assert.strictEqual(
-      Math.round(bounds.y + bounds.height - marginRect.bottom),
-      Math.round(bounds.y + bounds.height - contentRect.bottom)
-    );
+    assert.ok(marginRect.bottom >= contentRect.bottom);
   });
 
   it("collects a non-mini envelope file set", () => {
-    const theme = makeLayoutTheme();
-    const files = collectThemeEnvelopeFiles(theme);
+    const cloudling = themeLoader.loadTheme("cloudling");
+    const files = collectThemeEnvelopeFiles(cloudling);
 
-    assert.ok(files.includes("theme-thinking.svg"));
-    assert.ok(files.includes("theme-react-drag.svg"));
-    assert.ok(!files.includes("theme-mini-idle.svg"));
+    assert.ok(files.includes("cloudling-typing.svg"));
+    assert.ok(files.includes("cloudling-idle-reading.svg"));
+    assert.ok(!files.includes("cloudling-mini-idle.svg"));
     assert.ok(!files.some((file) => file.startsWith("mini-")));
   });
 
   it("uses the minimum top and bottom margins across a theme envelope", () => {
-    const theme = makeLayoutTheme();
-    const stable = computeStableVisibleContentMargins(theme, bounds);
-    const again = computeStableVisibleContentMargins(theme, bounds);
+    const calico = themeLoader.loadTheme("calico");
+    const files = collectThemeEnvelopeFiles(calico);
+    const expected = files.reduce((acc, file) => {
+      const rect = hitGeometry.getContentRectScreen(calico, bounds, null, file, {
+        box: calico.layout.contentBox,
+      });
+      if (!rect) return acc;
+      return {
+        top: Math.min(acc.top, Math.max(0, Math.round(rect.top - bounds.y))),
+        bottom: Math.min(acc.bottom, Math.max(0, Math.round(bounds.y + bounds.height - rect.bottom))),
+      };
+    }, { top: Infinity, bottom: Infinity });
 
-    assert.deepStrictEqual(stable, again);
-    assert.ok(stable.top >= 0);
-    assert.ok(stable.bottom >= 0);
+    const stable = computeStableVisibleContentMargins(calico, bounds);
+    assert.deepStrictEqual(stable, expected);
+
+    const idleRect = hitGeometry.getContentRectScreen(calico, bounds, "idle", calico.states.idle[0], {
+      box: calico.layout.contentBox,
+    });
+    assert.ok(stable.top < Math.round(idleRect.top - bounds.y));
+    assert.ok(stable.bottom <= Math.round(bounds.y + bounds.height - idleRect.bottom));
   });
 
   it("builds the update anchor from marginBox and the idle file", () => {
-    const theme = makeLayoutTheme();
-    const expected = hitGeometry.getContentRectScreen(theme, bounds, "idle", theme.states.idle[0], {
-      box: theme.layout.marginBox,
+    const cloudling = themeLoader.loadTheme("cloudling");
+    const expected = hitGeometry.getContentRectScreen(cloudling, bounds, "idle", cloudling.states.idle[0], {
+      box: cloudling.layout.marginBox,
     });
 
-    assert.deepStrictEqual(computeThemeAnchorRect(theme, bounds), expected);
+    assert.deepStrictEqual(computeThemeAnchorRect(cloudling, bounds), expected);
   });
 
   it("prefers updateBubbleAnchorBox over layout-derived boxes when present", () => {
-    const theme = structuredClone(makeLayoutTheme());
-    theme.updateBubbleAnchorBox = { x: -2, y: -1, width: 12, height: 11 };
+    const cloudling = structuredClone(themeLoader.loadTheme("cloudling"));
+    cloudling.updateBubbleAnchorBox = { x: -2, y: -1, width: 12, height: 11 };
 
     assert.deepStrictEqual(
-      computeThemeAnchorRect(theme, bounds),
-      hitGeometry.getContentRectScreen(theme, bounds, "idle", theme.states.idle[0], {
-        box: theme.updateBubbleAnchorBox,
+      computeThemeAnchorRect(cloudling, bounds),
+      hitGeometry.getContentRectScreen(cloudling, bounds, "idle", cloudling.states.idle[0], {
+        box: cloudling.updateBubbleAnchorBox,
       })
     );
   });
 
-  it("keeps a stable update anchor even though per-state hit bottoms differ", () => {
-    const theme = makeLayoutTheme({
-      hitBoxes: {
-        default: { x: -1, y: 5, w: 17, h: 12 },
-        wide: { x: -1, y: 2, w: 17, h: 18 },
-      },
-      wideHitboxFiles: ["theme-notification.svg"],
-    });
-    const anchor = computeThemeAnchorRect(theme, bounds);
+  it("keeps a stable update anchor for calico even though per-state hit bottoms differ", () => {
+    const calico = themeLoader.loadTheme("calico");
+    const anchor = computeThemeAnchorRect(calico, bounds);
     const thinkingHit = hitGeometry.getHitRectScreen(
-      theme,
+      calico,
       bounds,
       "thinking",
-      "theme-thinking.svg",
-      theme.hitBoxes.default
+      "calico-thinking.apng",
+      calico.hitBoxes.default
     );
     const notificationHit = hitGeometry.getHitRectScreen(
-      theme,
+      calico,
       bounds,
       "notification",
-      "theme-notification.svg",
-      theme.hitBoxes.wide
+      "calico-notification.apng",
+      calico.hitBoxes.wide
     );
 
-    assert.ok(Number.isFinite(thinkingHit.bottom));
-    assert.ok(Number.isFinite(notificationHit.bottom));
     assert.notStrictEqual(Math.round(thinkingHit.bottom), Math.round(notificationHit.bottom));
     assert.deepStrictEqual(
       anchor,
-      hitGeometry.getContentRectScreen(theme, bounds, "idle", theme.states.idle[0], {
-        box: theme.layout.marginBox,
+      hitGeometry.getContentRectScreen(calico, bounds, "idle", calico.states.idle[0], {
+        box: calico.layout.contentBox,
       })
     );
   });
 
   it("returns null for the update anchor when the theme has no layout", () => {
-    const theme = structuredClone(makeLayoutTheme());
+    const theme = structuredClone(themeLoader.loadTheme("cloudling"));
     delete theme.layout;
     assert.strictEqual(computeThemeAnchorRect(theme, bounds), null);
   });
 
   it("still returns an anchor without layout when updateBubbleAnchorBox is present", () => {
-    const theme = structuredClone(makeLayoutTheme());
+    const theme = structuredClone(themeLoader.loadTheme("cloudling"));
     delete theme.layout;
     theme.updateBubbleAnchorBox = { x: 0, y: 0, width: 20, height: 10 };
 

@@ -80,6 +80,7 @@ function startServer(overrides = {}) {
     syncCursorHooksImpl: () => {},
     syncCodeBuddyHooksImpl: () => {},
     syncKiroHooksImpl: () => {},
+    syncQwenHooksImpl: () => {},
     syncCodexHooksImpl: () => {},
     syncOpencodePluginImpl: () => {},
     pendingPermissions,
@@ -205,8 +206,27 @@ describe("Codex official /permission path", () => {
         model: "gpt-5.4",
         codexOriginator: "Codex Desktop",
         codexSource: "vscode",
+        transientPermissionEvent: true,
       },
     ]);
+  });
+
+  it("marks native PermissionRequest notification sound muted when the Codex switch is off", async () => {
+    const { handler, updates } = startServer({
+      isCodexPermissionInterceptEnabled: () => false,
+      isCodexNativeNotificationSoundEnabled: () => false,
+    });
+    const res = await callPermission(handler, {
+      agent_id: "codex",
+      hook_source: "codex-official",
+      session_id: "codex:silent",
+      tool_name: "Bash",
+      tool_input: { command: "whoami /all" },
+    });
+
+    assert.strictEqual(res.statusCode, 204);
+    assert.strictEqual(updates.length, 1);
+    assert.strictEqual(updates[0][3].muteNotificationSound, true);
   });
 
   it("enqueues a real Codex approval bubble in intercept mode without suggestions or elicitation", async () => {
@@ -252,34 +272,22 @@ describe("Codex official /permission path", () => {
     res.destroy();
   });
 
-  it("does not suppress subagent PermissionRequest or pass headless", async () => {
+  it("returns no-decision for subagent PermissionRequest before auto-pilot can allow", async () => {
     const { handler, pendingPermissions, updates, shown } = startServer({
       isCodexPermissionInterceptEnabled: () => true,
     });
-    const req = makeReq({
-      agent_id: "codex",
+    const res = await callPermission(handler, {
       hook_source: "codex-official",
       codex_session_role: "subagent",
       session_id: "codex:sub",
       tool_name: "Bash",
       tool_input: { command: "npm test" },
     });
-    const res = makeRes();
 
-    handler(req, res);
-    await new Promise((resolve) => setImmediate(resolve));
-
-    assert.strictEqual(res.writableEnded, false);
-    assert.strictEqual(pendingPermissions.length, 1);
-    assert.strictEqual(shown.length, 1);
-    assert.deepStrictEqual(updates[0], [
-      "codex:sub",
-      "notification",
-      "PermissionRequest",
-      { agentId: "codex", hookSource: "codex-official" },
-    ]);
-    assert.strictEqual(Object.prototype.hasOwnProperty.call(updates[0][3], "headless"), false);
-
-    res.destroy();
+    assert.strictEqual(res.statusCode, 204);
+    assert.strictEqual(res.body, "");
+    assert.strictEqual(pendingPermissions.length, 0);
+    assert.strictEqual(shown.length, 0);
+    assert.deepStrictEqual(updates, []);
   });
 });

@@ -1,3 +1,4 @@
+const { formatDetail, truncate, parseMcpToolName } = window.ClawdBubbleFormat;
 const card = document.getElementById("card");
 const toolPill = document.getElementById("toolPill");
 const toolPillText = document.getElementById("toolPillText");
@@ -16,6 +17,10 @@ toolPill.addEventListener("mouseleave", stopMarquee);
 const commandBlock = document.getElementById("commandBlock");
 const elicitationForm = document.getElementById("elicitationForm");
 const elicitationProgress = document.getElementById("elicitationProgress");
+const planFeedbackForm = document.getElementById("planFeedbackForm");
+const planFeedbackTextarea = document.getElementById("planFeedbackTextarea");
+const planFeedbackBack = document.getElementById("planFeedbackBack");
+const planFeedbackSubmit = document.getElementById("planFeedbackSubmit");
 const btnAllow = document.getElementById("btnAllow");
 const btnDeny = document.getElementById("btnDeny");
 const suggestionsContainer = document.getElementById("suggestions");
@@ -46,24 +51,6 @@ function setSessionTag(data) {
   }
 }
 
-function formatDetail(name, input) {
-  if (!input || typeof input !== "object") return "";
-  if (typeof input.description === "string" && input.description.trim()) return truncate(input.description.trim(), 120);
-  if (name === "Bash" && input.command) return truncate(input.command, 120);
-  if ((name === "Edit" || name === "Write" || name === "Read") && input.file_path)
-    return truncate(input.file_path, 120);
-  if ((name === "Glob" || name === "Grep") && input.pattern)
-    return truncate(input.pattern, 120);
-  for (const v of Object.values(input)) {
-    if (typeof v === "string") return truncate(v, 100);
-  }
-  return truncate(JSON.stringify(input), 100);
-}
-
-function truncate(s, max) {
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + "\u2026";
-}
 
 const BUBBLE_STRINGS = {
   en: {
@@ -89,12 +76,17 @@ const BUBBLE_STRINGS = {
     other: "Other",
     otherPlaceholder: "Type your answer…",
     codexPermission: "Codex Permission",
+    codexToolApproval: "Codex Tool Approval",
     kimiPermission: "Kimi Permission",
     checkKimiTerminal: "Approve or reject this request in the Kimi terminal.",
     gotIt: "Got it",
     planReview: "Plan Review",
     approve: "Approve",
     reject: "Reject",
+    tellClaudeWhatToChange: "Suggest changes",
+    planFeedbackPlaceholder: "What should be changed?",
+    submitFeedback: "Send",
+    back: "Back",
   },
   zh: {
     autoAcceptEdits: "\u81EA\u52A8\u63A5\u53D7\u7F16\u8F91",
@@ -119,12 +111,17 @@ const BUBBLE_STRINGS = {
     other: "\u5176\u4ED6",
     otherPlaceholder: "\u8F93\u5165\u4F60\u7684\u56DE\u7B54\u2026",
     codexPermission: "Codex \u6743\u9650\u8BF7\u6C42",
+    codexToolApproval: "Codex \u5DE5\u5177\u8C03\u7528\u5BA1\u6279",
     kimiPermission: "Kimi \u6743\u9650\u8BF7\u6C42",
     checkKimiTerminal: "\u8BF7\u5728 Kimi \u7EC8\u7AEF\u4E2D\u6279\u51C6\u6216\u62D2\u7EDD\u8BE5\u8BF7\u6C42\u3002",
     gotIt: "\u77E5\u9053\u4E86",
     planReview: "\u8BA1\u5212\u5BA1\u6279",
     approve: "\u6279\u51C6",
     reject: "\u62D2\u7EDD",
+    tellClaudeWhatToChange: "\u63D0\u4FEE\u6539\u610F\u89C1",
+    planFeedbackPlaceholder: "\u54EA\u91CC\u9700\u8981\u6539?",
+    submitFeedback: "\u53D1\u9001",
+    back: "\u8FD4\u56DE",
   },
   "zh-TW": {
     autoAcceptEdits: "自動接受編輯",
@@ -149,12 +146,17 @@ const BUBBLE_STRINGS = {
     other: "其他",
     otherPlaceholder: "輸入你的回答…",
     codexPermission: "Codex 權限請求",
+    codexToolApproval: "Codex 工具呼叫審批",
     kimiPermission: "Kimi 權限請求",
     checkKimiTerminal: "請在 Kimi 終端機中允許或拒絕此請求。",
     gotIt: "了解",
     planReview: "計畫審查",
     approve: "允許",
     reject: "拒絕",
+    tellClaudeWhatToChange: "提修改意見",
+    planFeedbackPlaceholder: "哪裡需要改?",
+    submitFeedback: "傳送",
+    back: "返回",
   },
   ko: {
     autoAcceptEdits: "\uD3B8\uC9D1 \uC790\uB3D9 \uC2B9\uC778",
@@ -179,12 +181,17 @@ const BUBBLE_STRINGS = {
     other: "\uAE30\uD0C0",
     otherPlaceholder: "\uC9C1\uC811 \uC785\uB825\u2026",
     codexPermission: "Codex \uAD8C\uD55C \uC694\uCCAD",
+    codexToolApproval: "Codex \uB3C4\uAD6C \uD638\uCD9C \uC2B9\uC778",
     kimiPermission: "Kimi \uAD8C\uD55C \uC694\uCCAD",
     checkKimiTerminal: "Kimi \uD130\uBBF8\uB110\uC5D0\uC11C \uC774 \uC694\uCCAD\uC744 \uD5C8\uC6A9\uD558\uAC70\uB098 \uAC70\uBD80\uD558\uC138\uC694.",
     gotIt: "\uD655\uC778",
     planReview: "\uACC4\uD68D \uAC80\uD1A0",
     approve: "\uC2B9\uC778",
     reject: "\uAC70\uBD80",
+    tellClaudeWhatToChange: "\uC218\uC815 \uC694\uCCAD",
+    planFeedbackPlaceholder: "\uC5B4\uB514\uB97C \uBC14\uAFD4\uC57C \uD558\uB098\uC694?",
+    submitFeedback: "\uBCF4\uB0B4\uAE30",
+    back: "\uB4A4\uB85C",
   },
   ja: {
     autoAcceptEdits: "編集を自動承認",
@@ -209,12 +216,17 @@ const BUBBLE_STRINGS = {
     other: "その他",
     otherPlaceholder: "回答を入力…",
     codexPermission: "Codex 権限リクエスト",
+    codexToolApproval: "Codex ツール呼び出しの承認",
     kimiPermission: "Kimi 権限リクエスト",
     checkKimiTerminal: "Kimi ターミナルでこのリクエストを許可または拒否してください。",
     gotIt: "了解",
     planReview: "計画レビュー",
     approve: "承認",
     reject: "却下",
+    tellClaudeWhatToChange: "修正を提案",
+    planFeedbackPlaceholder: "どこを変更すべき?",
+    submitFeedback: "送信",
+    back: "戻る",
   },
 };
 
@@ -333,6 +345,15 @@ function resetBubbleContent() {
   elicitationForm.classList.remove("visible");
   elicitationProgress.textContent = "";
   elicitationProgress.classList.remove("visible");
+  // NOTE: this resets the feedback form's visibility + textarea value only, not
+  // the other side effects of enterPlanFeedbackMode() (suggestionsContainer
+  // display:none and the disabled flags on textarea/back/submit). That's safe
+  // today because every ExitPlanMode bubble is a fresh BrowserWindow/document —
+  // show() runs once per window so resetBubbleContent never has to undo a prior
+  // feedback session. If plan bubbles ever start reusing a window, restore those
+  // here too (suggestionsContainer.style.display + the disabled flags).
+  planFeedbackForm.classList.remove("visible");
+  planFeedbackTextarea.value = "";
   toolPill.style.display = "";
   stopMarquee();
   btnAllow.style.display = "";
@@ -797,20 +818,27 @@ function show(data) {
   }
 
   const isPlanReview = data.toolName === "ExitPlanMode";
+  // Issue #445: an MCP tool call (e.g. Codex + Vercel MCP) is not an OS
+  // permission. For Codex MCP approvals, relabel the title and show a friendly
+  // "server · tool" pill so "MCP__CODEX_APPS__VERCEL__LIST_PROJECTS" reads as
+  // "vercel · list_projects". Parsing is display-only — Allow/Deny semantics and
+  // the no-decision fallback are untouched.
+  const mcp = parseMcpToolName(data.toolName);
 
   // Header
-  headerTitle.textContent = isPlanReview
-    ? bubbleText(data.lang, "planReview")
-    : bubbleText(data.lang, "permissionRequest");
+  let titleKey = "permissionRequest";
+  if (isPlanReview) titleKey = "planReview";
+  else if (mcp && data.isCodex) titleKey = "codexToolApproval";
+  headerTitle.textContent = bubbleText(data.lang, titleKey);
   toolPill.style.display = isPlanReview ? "none" : "";
   btnDeny.style.display = isPlanReview ? "none" : "";
 
-  // Tool pill
-  toolPillText.textContent = data.toolName || "Unknown";
+  // Tool pill — friendly "server · tool" for MCP, raw tool name otherwise
+  toolPillText.textContent = mcp ? mcp.display : (data.toolName || "Unknown");
   toolPill.setAttribute("data-tool", data.toolName || "");
 
   // Command block (textContent only — never innerHTML)
-  commandBlock.textContent = formatDetail(data.toolName, data.toolInput);
+  commandBlock.textContent = formatDetail(data.toolName, data.toolInput, { isAntigravity: !!data.isAntigravity });
 
   // Button labels
   btnAllow.textContent = isPlanReview ? bubbleText(data.lang, "approve") : bubbleText(data.lang, "allow");
@@ -819,6 +847,12 @@ function show(data) {
   // Dynamic suggestion buttons
   suggestionsContainer.innerHTML = "";
   if (isPlanReview) {
+    // "Tell Claude what to change" button — opens feedback textarea
+    const tellBtn = document.createElement("button");
+    tellBtn.className = "btn-suggestion";
+    tellBtn.textContent = bubbleText(data.lang, "tellClaudeWhatToChange");
+    tellBtn.addEventListener("click", () => enterPlanFeedbackMode(data.lang));
+    suggestionsContainer.appendChild(tellBtn);
     // "Go to Terminal" button — deny + focus terminal
     const btn = document.createElement("button");
     btn.className = "btn-suggestion";
@@ -844,7 +878,6 @@ function show(data) {
       suggestionsContainer.appendChild(btn);
     });
   }
-
   // Re-enable buttons
   btnAllow.disabled = false;
   btnDeny.disabled = false;
@@ -923,5 +956,64 @@ document.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("resize", applyElicitationViewport);
+
+// ── Plan Feedback Mode ──
+
+function enterPlanFeedbackMode(lang) {
+  // Hide action buttons and suggestions
+  btnAllow.style.display = "none";
+  btnDeny.style.display = "none";
+  suggestionsContainer.style.display = "none";
+  // Setup and show feedback form
+  planFeedbackTextarea.placeholder = bubbleText(lang, "planFeedbackPlaceholder");
+  planFeedbackSubmit.textContent = bubbleText(lang, "submitFeedback");
+  planFeedbackBack.textContent = bubbleText(lang, "back");
+  planFeedbackSubmit.disabled = true;
+  planFeedbackForm.classList.add("visible");
+  scheduleBubbleHeightReport();
+  // Focus textarea after DOM settles (web-level focus, not window focus)
+  requestAnimationFrame(() => planFeedbackTextarea.focus());
+}
+
+function exitPlanFeedbackMode() {
+  planFeedbackForm.classList.remove("visible");
+  planFeedbackTextarea.value = "";
+  // Restore plan review layout: Approve visible, Deny hidden, suggestions visible
+  btnAllow.style.display = "";
+  btnDeny.style.display = "none";
+  suggestionsContainer.style.display = "";
+  scheduleBubbleHeightReport();
+}
+
+planFeedbackTextarea.addEventListener("input", () => {
+  planFeedbackSubmit.disabled = !planFeedbackTextarea.value.trim();
+  scheduleBubbleHeightReport();
+});
+
+planFeedbackTextarea.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    if (!planFeedbackSubmit.disabled) planFeedbackSubmit.click();
+    return;
+  }
+  if (e.key === "Escape") {
+    e.preventDefault();
+    exitPlanFeedbackMode();
+  }
+});
+
+planFeedbackSubmit.addEventListener("click", () => {
+  const feedback = planFeedbackTextarea.value.trim();
+  if (!feedback) return;
+  planFeedbackSubmit.disabled = true;
+  planFeedbackBack.disabled = true;
+  planFeedbackTextarea.disabled = true;
+  window.bubbleAPI.decide({ type: "plan-feedback", feedback });
+});
+
+planFeedbackBack.addEventListener("click", () => {
+  exitPlanFeedbackMode();
+});
+
 window.bubbleAPI.onPermissionShow(show);
 window.bubbleAPI.onPermissionHide(hide);

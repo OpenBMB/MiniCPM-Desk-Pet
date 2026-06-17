@@ -5,8 +5,24 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { resolveNodeBin, buildPermissionUrl, DEFAULT_SERVER_PORT, readRuntimePort } = require("./server-config");
-const { writeJsonAtomic, asarUnpackedPath, extractExistingNodeBin } = require("./json-utils");
+const {
+  resolveNodeBin,
+  buildPermissionUrl,
+  DEFAULT_SERVER_PORT,
+  PERMISSION_PATH,
+  readRuntimePort,
+  SERVER_PORTS,
+} = require("./server-config");
+const {
+  readJsonFile,
+  writeJsonAtomic,
+  writeJsonAtomicWithBackup,
+  asarUnpackedPath,
+  commandMatchesMarker,
+  extractExistingNodeBin,
+  removeMatchingCommandHooks,
+  removeMatchingHttpHooks,
+} = require("./json-utils");
 const MARKER = "codebuddy-hook.js";
 const HTTP_MARKER = "/permission";
 const DEFAULT_PARENT_DIR = path.join(os.homedir(), ".codebuddy");
@@ -23,6 +39,22 @@ const CODEBUDDY_HOOK_EVENTS = [
   "Notification",
   "PreCompact",
 ];
+
+function isManagedPermissionUrl(value) {
+  if (typeof value !== "string") return false;
+  try {
+    const parsed = new URL(value);
+    const port = Number(parsed.port);
+    return parsed.protocol === "http:"
+      && parsed.hostname === "127.0.0.1"
+      && parsed.pathname === PERMISSION_PATH
+      && parsed.search === ""
+      && parsed.hash === ""
+      && SERVER_PORTS.includes(port);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Register Clawd hooks into ~/.codebuddy/settings.json
@@ -46,7 +78,7 @@ function registerCodeBuddyHooks(options = {}) {
 
   let settings = {};
   try {
-    settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    settings = readJsonFile(settingsPath);
   } catch (err) {
     if (err.code !== "ENOENT") {
       throw new Error(`Failed to read settings.json: ${err.message}`);
@@ -171,16 +203,67 @@ function registerCodeBuddyHooks(options = {}) {
   return { added, skipped, updated };
 }
 
+function unregisterCodeBuddyHooks(options = {}) {
+  const settingsPath = options.settingsPath || path.join(os.homedir(), ".codebuddy", "settings.json");
+
+  let settings = {};
+  try {
+    settings = readJsonFile(settingsPath);
+  } catch (err) {
+    if (err.code === "ENOENT") return { removed: 0, changed: false, settingsPath };
+    throw new Error(`Failed to read settings.json: ${err.message}`);
+  }
+
+  if (!settings.hooks || typeof settings.hooks !== "object") {
+    return { removed: 0, changed: false, settingsPath };
+  }
+
+  let removed = 0;
+  let changed = false;
+  for (const event of CODEBUDDY_HOOK_EVENTS) {
+    const entries = settings.hooks[event];
+    if (!Array.isArray(entries)) continue;
+    const result = removeMatchingCommandHooks(entries, (command) => commandMatchesMarker(command, MARKER));
+    if (!result.changed) continue;
+    removed += result.removed;
+    changed = true;
+    if (result.entries.length > 0) settings.hooks[event] = result.entries;
+    else delete settings.hooks[event];
+  }
+
+  if (Array.isArray(settings.hooks.PermissionRequest)) {
+    const result = removeMatchingHttpHooks(settings.hooks.PermissionRequest, (hook) =>
+      hook && hook.type === "http" && isManagedPermissionUrl(hook.url)
+    );
+    if (result.changed) {
+      removed += result.removed;
+      changed = true;
+      if (result.entries.length > 0) settings.hooks.PermissionRequest = result.entries;
+      else delete settings.hooks.PermissionRequest;
+    }
+  }
+
+  let backupPath = null;
+  if (changed) backupPath = writeJsonAtomicWithBackup(settingsPath, settings, options);
+  if (!options.silent) console.log(`Clawd CodeBuddy hooks removed: ${removed}`);
+  const result = { removed, changed, settingsPath };
+  if (options.backup === true) result.backupPath = backupPath;
+  return result;
+}
+
 module.exports = {
   DEFAULT_PARENT_DIR,
   DEFAULT_CONFIG_PATH,
   registerCodeBuddyHooks,
+  unregisterCodeBuddyHooks,
   CODEBUDDY_HOOK_EVENTS,
+  __test: { isManagedPermissionUrl },
 };
 
 if (require.main === module) {
   try {
-    registerCodeBuddyHooks({});
+    if (process.argv.includes("--uninstall")) unregisterCodeBuddyHooks({});
+    else registerCodeBuddyHooks({});
   } catch (err) {
     console.error(err.message);
     process.exit(1);
