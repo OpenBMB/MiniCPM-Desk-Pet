@@ -8,7 +8,12 @@ const path = require("node:path");
 // Load default theme for test ctx
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("clawd");
+const _defaultTheme = themeLoader.loadTheme("cloudling");
+_defaultTheme.timings.yawnDuration = 3000;
+_defaultTheme.timings.collapseDuration = 0;
+_defaultTheme.timings.wakeDuration = 1500;
+_defaultTheme.timings.dndSleepTransitionSvg = null;
+_defaultTheme.timings.dndSleepTransitionDuration = 0;
 const _calicoTheme = themeLoader.loadTheme("calico");
 const { createTranslator } = require("../src/i18n");
 
@@ -181,7 +186,7 @@ describe("resolveDisplayState()", () => {
 
     api.setUpdateVisualState("checking");
     assert.strictEqual(api.resolveDisplayState(), "thinking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cloudling-thinking.svg");
 
     api.setUpdateVisualState("available");
     assert.strictEqual(api.resolveDisplayState(), "notification");
@@ -213,7 +218,7 @@ describe("resolveDisplayState()", () => {
     api = require("../src/state")(ctx);
 
     api.setUpdateVisualState("checking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cloudling-thinking.svg");
 
     ctx.theme = _calicoTheme;
     api.refreshTheme();
@@ -221,7 +226,7 @@ describe("resolveDisplayState()", () => {
 
     ctx.theme = _defaultTheme;
     api.refreshTheme();
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cloudling-thinking.svg");
   });
 
   it("update overlay does not override higher-priority agent states", () => {
@@ -269,7 +274,7 @@ describe("resolveDisplayState()", () => {
   it("update overlay wins when no sessions exist", () => {
     api.setUpdateVisualState("checking");
     assert.strictEqual(api.resolveDisplayState(), "thinking");
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-debugger.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cloudling-thinking.svg");
     api.setUpdateVisualState("available");
     assert.strictEqual(api.resolveDisplayState(), "notification");
     api.setUpdateVisualState(null);
@@ -363,35 +368,35 @@ describe("working sub-animations", () => {
 
   it("1 working session → typing SVG", () => {
     api.sessions.set("s1", rawSession("working"));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-typing.svg");
   });
 
   it("2 working sessions → headphones groove SVG", () => {
     api.sessions.set("s1", rawSession("working"));
     api.sessions.set("s2", rawSession("working"));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-headphones-groove.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-juggling.svg");
   });
 
   it("3+ working sessions → building SVG", () => {
     api.sessions.set("s1", rawSession("working"));
     api.sessions.set("s2", rawSession("thinking"));
     api.sessions.set("s3", rawSession("working"));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-building.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-building.svg");
   });
 
   it("1 juggling session → headphones groove SVG", () => {
     api.sessions.set("s1", rawSession("juggling"));
-    assert.strictEqual(api.getSvgOverride("juggling"), "clawd-headphones-groove.svg");
+    assert.strictEqual(api.getSvgOverride("juggling"), "cloudling-juggling.svg");
   });
 
   it("2+ juggling sessions → three-ball juggling SVG", () => {
     api.sessions.set("s1", rawSession("juggling"));
     api.sessions.set("s2", rawSession("juggling"));
-    assert.strictEqual(api.getSvgOverride("juggling"), "clawd-working-juggling.svg");
+    assert.strictEqual(api.getSvgOverride("juggling"), "cloudling-conducting.svg");
   });
 
   it("idle → follow SVG", () => {
-    assert.strictEqual(api.getSvgOverride("idle"), "clawd-idle-follow.svg");
+    assert.strictEqual(api.getSvgOverride("idle"), "cloudling-idle.svg");
   });
 });
 
@@ -403,10 +408,10 @@ describe("hitbox selection", () => {
   it("uses a file-specific hitbox for the displayed SVG", () => {
     const theme = cloneTheme(_defaultTheme);
     const fileBox = { x: 10, y: 11, w: 12, h: 13 };
-    theme.fileHitBoxes = { "clawd-working-typing.svg": fileBox };
+    theme.fileHitBoxes = { "cloudling-typing.svg": fileBox };
     api = require("../src/state")(makeCtx({ theme }));
 
-    api.applyState("working", "clawd-working-typing.svg");
+    api.applyState("working", "cloudling-typing.svg");
 
     assert.deepStrictEqual(api.getCurrentHitBox(), fileBox);
   });
@@ -416,10 +421,10 @@ describe("hitbox selection", () => {
     theme.fileHitBoxes = {};
     api = require("../src/state")(makeCtx({ theme }));
 
-    api.applyState("error", "clawd-error.svg");
+    api.applyState("error", "cloudling-error.svg");
     assert.deepStrictEqual(api.getCurrentHitBox(), theme.hitBoxes.wide);
 
-    api.applyState("working", "clawd-working-typing.svg");
+    api.applyState("working", "cloudling-typing.svg");
     assert.deepStrictEqual(api.getCurrentHitBox(), theme.hitBoxes.default);
   });
 });
@@ -443,7 +448,7 @@ describe("visual fallback resolution", () => {
   it("keeps the logical state while resolving visuals through fallbackTo", () => {
     api.applyState("error");
     assert.strictEqual(api.getCurrentState(), "error");
-    assert.strictEqual(api.getCurrentSvg(), "clawd-happy.svg");
+    assert.strictEqual(api.getCurrentSvg(), "cloudling-attention.svg");
 
     mock.timers.tick(5000);
     assert.strictEqual(api.getCurrentState(), "idle");
@@ -595,7 +600,7 @@ describe("wake poll behavior", () => {
     fakeCursor.x = 200;
     mock.timers.tick(200);
     assert.strictEqual(api.getCurrentState(), "idle");
-    assert.strictEqual(api.getCurrentSvg(), "clawd-idle-follow.svg");
+    assert.strictEqual(api.getCurrentSvg(), "cloudling-idle.svg");
   });
 
   it("dozing + still > DEEP_SLEEP_TIMEOUT → collapsing", () => {
@@ -2773,7 +2778,7 @@ describe("refreshTheme()", () => {
   });
 
   it("updates idle svg and DND sleep path after hot theme switch", () => {
-    assert.strictEqual(api.getSvgOverride("idle"), "clawd-idle-follow.svg");
+    assert.strictEqual(api.getSvgOverride("idle"), "cloudling-idle.svg");
 
     ctx.theme = _calicoTheme;
     api.refreshTheme();

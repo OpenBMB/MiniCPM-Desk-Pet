@@ -10,18 +10,19 @@
   --muted: #a1a1aa;
   --faint: #52525b;
   --subtle: #71717a;
-  --accent: #d97757;
+  --accent: #373ED8;
+  --accent-rgb: 55, 62, 216;
   --green: #22c55e;
   --green-dim: rgba(22, 128, 60, 0.18);
   --green-border: rgba(22, 128, 60, 0.25);
   --blue: #3b82f6;
   --blue-dim: rgba(59, 130, 246, 0.15);
   --blue-border: rgba(59, 130, 246, 0.3);
-  --orange: #d97757;
-  --orange-dim: rgba(217, 119, 87, 0.15);
-  --orange-border: rgba(217, 119, 87, 0.3);
+  --attention: #373ED8;
+  --attention-dim: rgba(var(--accent-rgb), 0.15);
+  --attention-border: rgba(var(--accent-rgb), 0.3);
   --red: #ef4444;
-  --amber: #b45309;
+  --connecting: #373ED8;
   --badge-bg: rgba(255, 255, 255, 0.06);
   --badge-border: var(--card-border);
   --scroll-thumb: rgba(255, 255, 255, 0.1);
@@ -61,7 +62,7 @@ body { display: flex; flex-direction: column; height: 100%; }
 .top-bar-spacer { flex: 1; }
 .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); transition: background 0.3s; flex-shrink: 0; }
 .connection-dot.connected { background: var(--green); }
-.connection-dot.connecting { background: var(--amber); animation: pulse 1.5s infinite; }
+.connection-dot.connecting { background: var(--connecting); animation: pulse 1.5s infinite; }
 .connection-dot.reconnecting { background: var(--red); animation: pulse 1.5s infinite; }
 .connection-text { font-size: 11px; font-weight: 500; margin-left: 6px; color: var(--faint); transition: color 0.3s; }
 .connection-text.connected { color: var(--green); }
@@ -97,10 +98,10 @@ body { display: flex; flex-direction: column; height: 100%; }
 .agent-name { font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.4px; text-transform: uppercase; }
 .state-badge { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; padding: 3px 8px; border-radius: var(--radius-sm); border: 0.5px solid var(--badge-border); background: var(--badge-bg); color: var(--muted); }
 .state-badge.working, .state-badge.juggling { color: var(--green); background: var(--green-dim); border-color: var(--green-border); }
-.state-badge.notification { color: var(--orange); background: var(--orange-dim); border-color: var(--orange-border); }
+.state-badge.notification { color: var(--attention); background: var(--attention-dim); border-color: var(--attention-border); }
 .state-badge.thinking { color: var(--blue); background: var(--blue-dim); border-color: var(--blue-border); }
 .state-badge.error { color: var(--red); background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.25); }
-.state-badge.attention { color: #f59e0b; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.25); }
+.state-badge.attention { color: var(--attention); background: rgba(var(--accent-rgb), 0.12); border-color: rgba(var(--accent-rgb), 0.25); }
 .card-title { font-size: 15px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 8px; margin-bottom: 4px; }
 .card-meta { display: flex; align-items: center; gap: 8px; }
 .meta-item { display: flex; align-items: center; gap: 3px; font-size: 11px; color: var(--faint); }
@@ -162,7 +163,7 @@ body { display: flex; flex-direction: column; height: 100%; }
 .conn-status { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding: 10px; background: var(--bg); border-radius: 8px; }
 .conn-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex-shrink: 0; }
 .conn-status-dot.connected { background: var(--green); }
-.conn-status-dot.connecting { background: var(--amber); animation: pulse 1.5s infinite; }
+.conn-status-dot.connecting { background: var(--connecting); animation: pulse 1.5s infinite; }
 .conn-status-dot.reconnecting { background: var(--red); animation: pulse 1.5s infinite; }
 .conn-status-text { font-size: 13px; color: var(--text); }
 .conn-status-addr { font-size: 12px; color: var(--faint); font-family: ui-monospace, Menlo, Consolas, monospace; margin-left: auto; }

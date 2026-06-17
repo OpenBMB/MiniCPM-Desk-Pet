@@ -1,6 +1,7 @@
 "use strict";
 
 (function initSettingsTabAnimOverrides(root) {
+  const DEFAULT_ANIM_THEME_NAME = "Cyber Cat";
   const animMergeApi = root.ClawdSettingsAnimOverridesMerge || {};
   const getAssetPreviewUrl = animMergeApi.getAssetPreviewUrl || ((asset) => {
     if (!asset) return null;
@@ -1139,7 +1140,7 @@
     themeMeta.className = "anim-override-meta";
     const themeLabel = document.createElement("div");
     themeLabel.className = "anim-override-meta-label";
-    themeLabel.textContent = `${t("animOverridesCurrentTheme")}: ${(data.theme && data.theme.name) || "clawd"}`;
+    themeLabel.textContent = `${t("animOverridesCurrentTheme")}: ${(data.theme && data.theme.name) || DEFAULT_ANIM_THEME_NAME}`;
     themeMeta.appendChild(themeLabel);
 
     const primaryActions = document.createElement("div");

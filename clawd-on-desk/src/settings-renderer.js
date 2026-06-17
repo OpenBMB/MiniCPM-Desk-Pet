@@ -3,18 +3,24 @@
 const core = globalThis.ClawdSettingsCore;
 
 const SIDEBAR_TABS = [
-  { id: "general", icon: "\u2699", labelKey: "sidebarGeneral", available: true },
-  { id: "agents", icon: "\u26A1", labelKey: "sidebarAgents", available: true },
-  { id: "theme", icon: "\u{1F3A8}", labelKey: "sidebarTheme", available: true },
-  { id: "animMap", icon: "\u{1F3AC}", labelKey: "sidebarAnimMap", available: true },
-  { id: "animOverrides", icon: "\u{1F39E}", labelKey: "sidebarAnimOverrides", available: true },
-  { id: "shortcuts", icon: "\u2328", labelKey: "sidebarShortcuts", available: true },
-  { id: "telegram-approval", icon: "\u2708", labelKey: "sidebarTelegramApproval", available: true },
-  { id: "remote-ssh", icon: "\u{1F50C}", labelKey: "sidebarRemoteSsh", available: true },
-  { id: "mobile", icon: "\u{1F4F1}", labelKey: "sidebarMobile", available: true },
-  { id: "minicpm", icon: "\u2726", labelKey: "sidebarMinicpm", available: true },
-  { id: "about", icon: "\u2139", labelKey: "sidebarAbout", available: true },
+  { id: "general", labelKey: "sidebarGeneral", available: true },
+  { id: "minicpm", labelKey: "sidebarMinicpm", available: true },
+  { id: "agents", labelKey: "sidebarAgents", available: true },
+  { id: "theme", labelKey: "sidebarTheme", available: true },
+  { id: "animMap", labelKey: "sidebarAnimMap", available: true },
+  { id: "animOverrides", labelKey: "sidebarAnimOverrides", available: true },
+  { id: "shortcuts", labelKey: "sidebarShortcuts", available: true },
+  { id: "remote-ssh", labelKey: "sidebarRemoteSsh", available: true },
+  { id: "telegram-approval", labelKey: "sidebarTelegramApproval", available: true },
+  { id: "mobile", labelKey: "sidebarMobile", available: true },
+  { id: "about", labelKey: "sidebarAbout", available: true },
 ];
+
+function getTabIcon(tabId) {
+  const icons = globalThis.ClawdSettingsIcons;
+  if (icons && typeof icons.getIcon === "function") return icons.getIcon(tabId);
+  return "";
+}
 
 function renderSidebar() {
   const sidebar = document.getElementById("sidebar");
@@ -31,9 +37,10 @@ function renderSidebar() {
     item.className = "sidebar-item";
     if (!tab.available) item.classList.add("disabled");
     if (tab.id === core.state.activeTab) item.classList.add("active");
+    const labelText = tab.label ? tab.label : core.helpers.t(tab.labelKey);
     item.innerHTML =
-      `<span class="sidebar-item-icon">${tab.icon}</span>` +
-      `<span class="sidebar-item-label">${core.helpers.escapeHtml(core.helpers.t(tab.labelKey))}</span>` +
+      `<span class="sidebar-item-icon">${getTabIcon(tab.id)}</span>` +
+      `<span class="sidebar-item-label">${core.helpers.escapeHtml(labelText)}</span>` +
       (tab.available ? "" : `<span class="sidebar-item-soon">${core.helpers.escapeHtml(core.helpers.t("sidebarSoon"))}</span>`);
     if (tab.available) {
       item.addEventListener("click", () => {
@@ -48,7 +55,7 @@ function renderPlaceholder(parent) {
   const div = document.createElement("div");
   div.className = "placeholder";
   div.innerHTML =
-    `<div class="placeholder-icon">\u{1F6E0}</div>` +
+    `<div class="placeholder-icon">${getTabIcon("placeholder")}</div>` +
     `<div class="placeholder-title">${core.helpers.escapeHtml(core.helpers.t("placeholderTitle"))}</div>` +
     `<div class="placeholder-desc">${core.helpers.escapeHtml(core.helpers.t("placeholderDesc"))}</div>`;
   parent.appendChild(div);

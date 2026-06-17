@@ -2264,7 +2264,8 @@ describe("settings renderer browser environment", () => {
     assert.ok(css.includes("--doctor-pass"));
     assert.ok(css.includes("--doctor-warning"));
     assert.ok(css.includes("--doctor-critical"));
-    assert.ok(css.includes("--doctor-critical-rgb: 220, 38, 38;"));
+    assert.ok(css.includes("--status-critical-rgb: 220, 38, 38;"));
+    assert.ok(css.includes("--doctor-critical-rgb: var(--status-critical-rgb);"));
     assert.ok(css.includes(".doctor-check-skeleton"));
     assert.ok(css.includes("@keyframes doctor-skeleton-sheen"));
     assert.ok(css.includes(".doctor-connection-panel.testing"));
@@ -2279,7 +2280,7 @@ describe("settings renderer browser environment", () => {
     assert.ok(/\.doctor-agent-collapsible\.expanded \.doctor-agent-body\s*\{[\s\S]*grid-template-rows:\s*1fr;/.test(css));
     assert.ok(/\.doctor-check-row\s*\{[\s\S]*border-left-width:\s*3px;/.test(css));
     assert.ok(/\.doctor-check-status\s*\{[\s\S]*border-radius:\s*999px;/.test(css));
-    assert.ok(/\.doctor-close:hover\s*\{[\s\S]*background:\s*rgba\(217,\s*119,\s*87,\s*0\.1\);[\s\S]*transform:\s*scale\(1\.04\);/.test(css));
+    assert.ok(/\.doctor-close:hover\s*\{[\s\S]*background:\s*rgba\(var\(--accent-rgb\),\s*0\.1\);[\s\S]*transform:\s*scale\(1\.04\);/.test(css));
     assert.ok(/\.doctor-close:focus-visible\s*\{[\s\S]*outline:\s*2px solid var\(--accent\);/.test(css));
     assert.ok(/\.doctor-agent-toggle:focus-visible\s*\{[\s\S]*outline:\s*2px solid var\(--accent\);/.test(css));
     assert.ok(/@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*\.doctor-modal-entering[\s\S]*animation:\s*none;/.test(css));
@@ -4097,6 +4098,32 @@ describe("settings renderer browser environment", () => {
     const desc = harness.content.querySelector(".agent-install-hint-desc").textContent;
     assert.match(desc, /Qwen Code/);
     assert.doesNotMatch(desc, /Hermes/);
+  });
+
+  it("does not recommend Hermes from config-only detection without a CLI runtime", () => {
+    const harness = loadAgentsTabForTest({
+      snapshot: {
+        agents: {
+          hermes: { integrationInstalled: false, enabled: false },
+        },
+        dismissedAgentInstallHints: {},
+      },
+      agentMetadata: [
+        { id: "hermes", name: "Hermes Agent", eventSource: "plugin-event", capabilities: {} },
+      ],
+    });
+    harness.core.runtime.agentInstallationHints = {
+      checkedAt: 1,
+      agents: [{ agentId: "hermes", detectedInstalled: true, confidence: "high", reason: "config-file" }],
+      skippedAgentIds: [],
+    };
+    harness.core.runtime.agentInstallationHintsFetched = true;
+
+    harness.core.ops.requestRender({ content: true });
+
+    assert.strictEqual(harness.content.querySelector(".agent-install-hint-banner"), null);
+    const recommended = harness.content.querySelector(".agent-section-recommended");
+    assert.strictEqual(recommended, null);
   });
 
   it("hides install hint banners after the agent is dismissed", () => {

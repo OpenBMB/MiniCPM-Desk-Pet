@@ -6,6 +6,7 @@ const { pathToFileURL } = require("url");
 
 const defaultCodexPetAdapter = require("./codex-pet-adapter");
 const defaultCodexPetImporter = require("./codex-pet-importer");
+const { DEFAULT_THEME_ID } = require("./default-theme");
 
 const REGISTER_PROTOCOL_DEV_ARG = "--register-protocol";
 const CLAWD_PROTOCOL_SCHEME = "clawd";
@@ -110,7 +111,7 @@ function createCodexPetMain(options = {}) {
 
   function getActiveThemeId() {
     const activeTheme = typeof options.getActiveTheme === "function" ? options.getActiveTheme() : null;
-    return activeTheme ? activeTheme._id : (settingsController.get("theme") || "clawd");
+    return activeTheme ? activeTheme._id : (settingsController.get("theme") || DEFAULT_THEME_ID);
   }
 
   function getDialogParent() {
@@ -239,16 +240,16 @@ function createCodexPetMain(options = {}) {
     }
 
     if (summaryHasActiveCodexPetOrphan(summary, activeId)) {
-      const result = await settingsController.applyCommand("setThemeSelection", { themeId: "clawd" });
+      const result = await settingsController.applyCommand("setThemeSelection", { themeId: DEFAULT_THEME_ID });
       if (!result || result.status !== "ok") {
         return {
           status: "error",
-          message: (result && result.message) || "failed to switch active orphan Codex Pet theme back to clawd",
+          message: (result && result.message) || `failed to switch active orphan Codex Pet theme back to ${DEFAULT_THEME_ID}`,
           summary,
         };
       }
       switchedToFallback = true;
-      const cleanup = syncThemes("clawd");
+      const cleanup = syncThemes(DEFAULT_THEME_ID);
       summary = mergeCodexPetSyncSummaries(summary, cleanup);
       lastSyncSummary = summary;
       if (cleanup.error) {

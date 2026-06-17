@@ -5,7 +5,7 @@ const path = require("path");
 // Load default theme for test ctx
 const themeLoader = require("../src/theme-loader");
 themeLoader.init(path.join(__dirname, "..", "src"));
-const _defaultTheme = themeLoader.loadTheme("clawd");
+const _defaultTheme = themeLoader.loadTheme("cloudling");
 
 function makeCtx() {
   return {
@@ -52,35 +52,35 @@ describe("display_svg session hints (updateSession path)", () => {
 
   it("uses allowlisted display_svg for working state", () => {
     api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "clawd-working-building.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-building.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-building.svg");
   });
 
   it("falls back to getWorkingSvg when no hint", () => {
     api.updateSession("c1", "working", "PreToolUse", baseOpts());
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-typing.svg");
   });
 
   it("ignores non-allowlisted svg and falls back", () => {
     api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "evil.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-typing.svg");
   });
 
   it("picks the most recently updated session among working sessions", async () => {
     api.updateSession("a", "working", "PreToolUse", baseOpts({ cwd: "/a", displayHint: "clawd-working-building.svg" }));
     await new Promise((r) => setTimeout(r, 5));
-    api.updateSession("b", "working", "PostToolUse", baseOpts({ cwd: "/b", displayHint: "clawd-idle-reading.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-idle-reading.svg");
+    api.updateSession("b", "working", "PostToolUse", baseOpts({ cwd: "/b", displayHint: "clawd-headphones-groove.svg" }));
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-juggling.svg");
   });
 
   it("clears hint when display_svg is null", () => {
     api.updateSession("c1", "working", "PreToolUse", baseOpts({ displayHint: "clawd-working-building.svg" }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-building.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-building.svg");
     api.updateSession("c1", "working", "PostToolUse", baseOpts({ displayHint: null }));
-    assert.strictEqual(api.getSvgOverride("working"), "clawd-working-typing.svg");
+    assert.strictEqual(api.getSvgOverride("working"), "cloudling-typing.svg");
   });
 
   it("applies thinking hint for thinking state", () => {
     api.updateSession("c1", "thinking", "AfterAgentThought", baseOpts({ displayHint: "clawd-working-thinking.svg" }));
-    assert.strictEqual(api.getSvgOverride("thinking"), "clawd-working-thinking.svg");
+    assert.strictEqual(api.getSvgOverride("thinking"), "cloudling-thinking.svg");
   });
 });

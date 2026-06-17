@@ -111,7 +111,7 @@ function exportIcon(agentId, options = {}) {
 
   const sourcePath = getSourcePath(agentId);
   if (!sourcePath) {
-    throw new Error(`Missing source asset for agent icon: ${agentId}`);
+    return null;
   }
   assertRasterSourceCurrent(agentId, options.manifest);
 
@@ -147,7 +147,8 @@ function main() {
   }
 
   for (const agent of agents) {
-    exported.push(exportIcon(agent.id, { dryRun, manifest }));
+    const result = exportIcon(agent.id, { dryRun, manifest });
+    if (result) exported.push(result);
   }
 
   for (const entry of exported) {

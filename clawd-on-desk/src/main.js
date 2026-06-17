@@ -1038,7 +1038,7 @@ function flashTaskbar() {
     }
   }
 
-  // Cache the highlight icon (orange circle) on first call
+  // Cache the highlight icon on first call
   if (!trayFlashHighlightIcon) {
     const flashPath = path.join(__dirname, "../assets/tray-icon-flash.png");
     if (fs.existsSync(flashPath)) {

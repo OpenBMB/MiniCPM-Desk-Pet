@@ -7,7 +7,7 @@ const themeLoader = require("../src/theme-loader");
 const { createTranslator } = require("../src/i18n");
 
 themeLoader.init(path.join(__dirname, "..", "src"));
-const defaultTheme = themeLoader.loadTheme("clawd");
+const defaultTheme = themeLoader.loadTheme("cloudling");
 
 function makeCtx({ notificationHookEnabled = true } = {}) {
   const rendererEvents = [];

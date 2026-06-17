@@ -27,6 +27,8 @@
   --sug-hover-border: #d1d5db;
   --sug-hover-color: #374151;
   --sug-arrow: #9ca3af;
+  --accent: #373ED8;
+  --accent-hover: #2D34C4;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -147,14 +149,14 @@ body { padding: 6px; }
   from { transform: translateX(0); }
   to   { transform: translateX(var(--marquee-shift, 0)); }
 }
-.tool-pill[data-tool="Bash"]  { background: #d97757; }
+.tool-pill[data-tool="Bash"]  { background: #373ED8; }
 .tool-pill[data-tool="Edit"]  { background: #5b8dd9; }
 .tool-pill[data-tool="Write"] { background: #8b7ec7; }
 .tool-pill[data-tool="Read"]  { background: #5a9e6f; }
 .tool-pill[data-tool="Glob"]  { background: #5a9eab; }
 .tool-pill[data-tool="Grep"]  { background: #5a9eab; }
 .tool-pill[data-tool="Agent"] { background: #c47a9a; }
-.tool-pill[data-tool="Shell"] { background: #d97757; }
+.tool-pill[data-tool="Shell"] { background: #373ED8; }
 .tool-pill[data-tool="CodexExec"] { background: #2563eb; }
 .tool-pill[data-tool="KimiPermission"] { background: #3b82f6; }
 
@@ -321,7 +323,7 @@ body { padding: 6px; }
 
 .option-item input {
   margin-top: 2px;
-  accent-color: #d97757;
+  accent-color: var(--accent);
 }
 
 .option-item-copy {
@@ -365,7 +367,7 @@ body { padding: 6px; }
 }
 .option-item-textarea.visible { display: block; }
 .option-item-textarea:focus {
-  border-color: #d97757;
+  border-color: var(--accent);
 }
 
 /* ── Action buttons ── */
@@ -389,12 +391,12 @@ body { padding: 6px; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-allow {
-  background: #d97757;
+  background: var(--accent);
   color: #fff;
   border: 1px solid transparent;
 }
 .btn-allow:hover:not(:disabled) {
-  background: #c4684a;
+  background: var(--accent-hover);
 }
 
 .btn-deny {
@@ -482,7 +484,7 @@ body { padding: 6px; }
   box-sizing: border-box;
 }
 .plan-feedback-textarea:focus {
-  border-color: #d97757;
+  border-color: var(--accent);
 }
 
 .plan-feedback-actions {

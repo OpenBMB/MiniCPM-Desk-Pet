@@ -20,7 +20,8 @@ describe("update bubble visual style", () => {
     assert.match(updateBubble, /font-family: "SF Mono", "ui-monospace", "Cascadia Code", "Fira Code", monospace;/);
     assert.match(updateBubble, /border-radius: 10px;/);
     assert.match(updateBubble, /box-shadow: var\(--cmd-shadow\);/);
-    assert.match(updateBubble, /\.btn-primary \{[\s\S]*background: #d97757;[\s\S]*\}/);
+    assert.match(updateBubble, /--primary-bg: #373ED8;/);
+    assert.match(updateBubble, /\.btn-primary \{[\s\S]*background: var\(--primary-bg\);[\s\S]*\}/);
     assert.match(updateBubble, /\.btn-secondary \{[\s\S]*background: var\(--deny-bg\);[\s\S]*\}/);
   });
 

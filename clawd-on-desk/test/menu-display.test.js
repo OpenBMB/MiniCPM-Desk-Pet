@@ -405,6 +405,47 @@ describe("menu taskbar recovery", () => {
 });
 
 describe("menu dashboard action", () => {
+  it("labels the MiniCPM chat menu item with the product name", () => {
+    const fakeElectron = {
+      app: { quit: () => {}, setActivationPolicy: () => {}, dock: { show: () => {}, hide: () => {} } },
+      BrowserWindow: function BrowserWindow() {},
+      Menu: {
+        buildFromTemplate(template) {
+          return { template };
+        },
+      },
+      Tray: function Tray() {
+        this.setToolTip = () => {};
+        this.setContextMenu = (menu) => { this.contextMenu = menu; };
+        this.destroy = () => {};
+      },
+      nativeImage: {
+        createFromPath() {
+          return {
+            resize() { return this; },
+            setTemplateImage() {},
+          };
+        },
+      },
+      screen: {
+        getAllDisplays: () => [{ id: 1, bounds: { x: 0, y: 0, width: 1920, height: 1080 }, workArea: { x: 0, y: 0, width: 1920, height: 1040 } }],
+        getCursorScreenPoint: () => ({ x: 0, y: 0 }),
+        getDisplayNearestPoint: () => ({ id: 1 }),
+      },
+    };
+    const initMenu = loadMenuWithElectron(fakeElectron);
+    const ctx = buildBaseCtx({ lang: "zh-CN" });
+
+    const menu = initMenu(ctx);
+    menu.buildContextMenu();
+    menu.createTray();
+
+    assert.ok(ctx.contextMenu.template.some((item) => item.label === "MiniCPM Chat"));
+    assert.ok(ctx.tray.contextMenu.template.some((item) => item.label === "MiniCPM Chat"));
+    assert.strictEqual(ctx.contextMenu.template.some((item) => item.label === "menuMinicpmChat"), false);
+    assert.strictEqual(ctx.tray.contextMenu.template.some((item) => item.label === "menuMinicpmChat"), false);
+  });
+
   it("adds a context menu item that opens the Dashboard", () => {
     const fakeElectron = {
       app: { quit: () => {}, setActivationPolicy: () => {}, dock: { show: () => {}, hide: () => {} } },

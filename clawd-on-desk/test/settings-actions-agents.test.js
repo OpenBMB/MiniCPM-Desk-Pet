@@ -222,6 +222,22 @@ test("settings agent actions return skipped without committing installed intent 
   assert.match(result.message, /Hermes missing/);
 });
 
+test("settings agent actions treat missing Hermes CLI as a skipped install", async () => {
+  const result = await agentCommands.installAgentIntegration({ agentId: "hermes" }, {
+    snapshot: prefs.getDefaults(),
+    syncIntegrationForAgent: async () => ({
+      status: "error",
+      reason: "hermes-cli-unavailable",
+      message: "Hermes plugin files were installed, but Hermes CLI was not found.",
+    }),
+  });
+
+  assert.strictEqual(result.status, "skipped");
+  assert.strictEqual(result.reason, "hermes-cli-unavailable");
+  assert.strictEqual(result.commit, undefined);
+  assert.match(result.message, /Hermes CLI was not found/);
+});
+
 test("settings agent actions uninstall an integration and disable ingress", async () => {
   const snapshot = prefs.getDefaults();
   snapshot.agents["copilot-cli"] = {

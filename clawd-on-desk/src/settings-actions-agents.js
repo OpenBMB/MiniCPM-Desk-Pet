@@ -205,6 +205,12 @@ function resultMessage(result, fallback) {
     : fallback;
 }
 
+function isSkippedInstallResult(agentId, result) {
+  if (!result || typeof result !== "object") return false;
+  if (result.status === "skipped") return true;
+  return agentId === "hermes" && result.status === "error" && result.reason === "hermes-cli-unavailable";
+}
+
 function buildAgentCommit(snapshot, agentId, patch) {
   const currentAgents = (snapshot && snapshot.agents) || {};
   const currentEntry = currentAgents[agentId] && typeof currentAgents[agentId] === "object"
@@ -268,7 +274,7 @@ async function installAgentIntegration(payload, deps = {}) {
     if (result === false) {
       return { status: "error", message: `No automatic integration install is available for ${agentId}` };
     }
-    if (result && typeof result === "object" && result.status === "skipped") {
+    if (isSkippedInstallResult(agentId, result)) {
       return {
         status: "skipped",
         reason: result.reason,

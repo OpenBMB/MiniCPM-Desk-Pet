@@ -357,6 +357,13 @@ function createIntegrationSyncRuntime(options = {}) {
       }
       const result = registerHermesPlugin({ silent: true });
       if (result && result.status === "error") {
+        if (result.reason === "hermes-cli-unavailable") {
+          return {
+            ...result,
+            status: "skipped",
+            message: result.message || "Hermes CLI is unavailable; skipped plugin sync",
+          };
+        }
         console.warn("Clawd: failed to sync Hermes plugin:", result.message);
         return result;
       }

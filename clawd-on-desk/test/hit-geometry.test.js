@@ -7,7 +7,7 @@ const hitGeometry = require("../src/hit-geometry");
 
 themeLoader.init(path.join(__dirname, "..", "src"));
 const calico = themeLoader.loadTheme("calico");
-const clawd = themeLoader.loadTheme("clawd");
+const cloudling = themeLoader.loadTheme("cloudling");
 
 function approx(actual, expected, epsilon = 0.01) {
   assert.ok(
@@ -102,18 +102,18 @@ describe("hit geometry", () => {
     approx(padded.bottom, base.bottom + 8);
   });
 
-  it("derives image sizing from object fit for clawd drag svg", () => {
-    const rect = hitGeometry.getAssetRectScreen(clawd, bounds, null, "clawd-react-drag.svg");
-    approx(rect.x, -30.5);
-    approx(rect.y, -53.6);
-    approx(rect.w, 261);
-    approx(rect.h, 261);
+  it("derives object-channel sizing for cloudling drag svg", () => {
+    const rect = hitGeometry.getAssetRectScreen(cloudling, bounds, null, "cloudling-react-drag.svg");
+    approx(rect.x, -112.67);
+    approx(rect.y, -42);
+    approx(rect.w, 425.33);
+    approx(rect.h, 348);
   });
 
   it("derives the visible content rect from contentBox geometry", () => {
-    const artRect = hitGeometry.getAssetRectScreen(clawd, bounds, "idle", "clawd-idle-follow.svg");
-    const expected = visibleContentRect(clawd, artRect);
-    const actual = hitGeometry.getContentRectScreen(clawd, bounds, "idle", "clawd-idle-follow.svg");
+    const artRect = hitGeometry.getAssetRectScreen(cloudling, bounds, "idle", "cloudling-idle.svg");
+    const expected = visibleContentRect(cloudling, artRect);
+    const actual = hitGeometry.getContentRectScreen(cloudling, bounds, "idle", "cloudling-idle.svg");
 
     approx(actual.left, expected.x);
     approx(actual.top, expected.y);

@@ -94,6 +94,7 @@
       if (!entry || typeof entry.agentId !== "string") return false;
       if (!entry.detectedInstalled) return false;
       if (!INSTALL_HINT_CONFIDENCES.has(entry.confidence)) return false;
+      if (entry.agentId === "hermes" && entry.reason !== "cli-path") return false;
       if (!getAgentMetadata(entry.agentId)) return false;
       if (readers.readAgentIntegrationInstalled(entry.agentId)) return false;
       if (dismissed && dismissed[entry.agentId] === true) return false;
@@ -127,6 +128,7 @@
       entry
       && entry.detectedInstalled === true
       && INSTALL_HINT_CONFIDENCES.has(entry.confidence)
+      && (entry.agentId !== "hermes" || entry.reason === "cli-path")
     );
   }
 

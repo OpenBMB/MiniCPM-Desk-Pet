@@ -381,6 +381,37 @@ describe("integration sync runtime", () => {
     assert.strictEqual(result.reason, "hermes-not-installed");
   });
 
+  it("syncIntegrationForAgent treats missing Hermes CLI as a quiet skipped sync", () => {
+    const warnings = [];
+    const originalWarn = console.warn;
+    console.warn = (...args) => warnings.push(args.join(" "));
+    try {
+      const { runtime } = makeRuntime({
+        ctx: {
+          syncHermesPluginImpl: undefined,
+          isHermesInstalledImpl: () => true,
+        },
+      });
+
+      const result = withPatchedExport(
+        require.resolve("../hooks/hermes-install.js"),
+        "registerHermesPlugin",
+        () => ({
+          status: "error",
+          reason: "hermes-cli-unavailable",
+          message: "Hermes CLI was not found.",
+        }),
+        () => runtime.syncIntegrationForAgent("hermes")
+      );
+
+      assert.strictEqual(result.status, "skipped");
+      assert.strictEqual(result.reason, "hermes-cli-unavailable");
+      assert.strictEqual(warnings.some((line) => /Hermes/i.test(line)), false);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
   it("repairIntegrationForAgent preserves skipped sync results", () => {
     const { runtime } = makeRuntime({
       ctx: {

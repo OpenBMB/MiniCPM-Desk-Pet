@@ -35,6 +35,15 @@ function shouldCheckRuntimeIconEntry(entry) {
   return entry.isFile() && !entry.name.startsWith(".");
 }
 
+const MIGRATED_AGENT_PNG_ICONS = new Set([
+  "antigravity-cli.png",
+  "codewhale.png",
+  "kiro-cli.png",
+  "qoder.png",
+  "qwen-code.png",
+  "reasonix.png",
+]);
+
 describe("state agent icons", () => {
   it("returns undefined for BrowserWindow menu icons when nativeImage is unavailable", () => {
     assert.strictEqual(getAgentIcon("claude-code"), undefined);
@@ -68,26 +77,26 @@ describe("state agent icons", () => {
     assert.strictEqual(getAgentIconPath("kiro-cli"), path.join(AGENT_ICON_DIR, "kiro-cli.png"));
   });
 
-  it("returns bundled PNG icons for Pi and OpenClaw", () => {
+  it("keeps existing Pi and OpenClaw SVG icons from the MiniCPM baseline", () => {
     const iconUrl = getAgentIconUrl("pi");
 
     assert.strictEqual(new URL(iconUrl).protocol, "file:");
     assert.strictEqual(
       path.normalize(fileURLToPath(iconUrl)),
-      path.join(AGENT_ICON_DIR, "pi.png")
+      path.join(AGENT_ICON_DIR, "pi.svg")
     );
-    assert.strictEqual(getAgentIconPath("pi"), path.join(AGENT_ICON_DIR, "pi.png"));
+    assert.strictEqual(getAgentIconPath("pi"), path.join(AGENT_ICON_DIR, "pi.svg"));
 
     const openClawIconUrl = getAgentIconUrl("openclaw");
     assert.strictEqual(new URL(openClawIconUrl).protocol, "file:");
     assert.strictEqual(
       path.normalize(fileURLToPath(openClawIconUrl)),
-      path.join(AGENT_ICON_DIR, "openclaw.png")
+      path.join(AGENT_ICON_DIR, "openclaw.svg")
     );
-    assert.strictEqual(getAgentIconPath("openclaw"), path.join(AGENT_ICON_DIR, "openclaw.png"));
+    assert.strictEqual(getAgentIconPath("openclaw"), path.join(AGENT_ICON_DIR, "openclaw.svg"));
   });
 
-  it("has canonical runtime PNG icons for every registered agent", () => {
+  it("has runtime icons for every registered agent", () => {
     const runtimeIconFiles = new Set(
       fs.readdirSync(AGENT_ICON_DIR, { withFileTypes: true })
         .filter(shouldCheckRuntimeIconEntry)
@@ -96,20 +105,20 @@ describe("state agent icons", () => {
 
     for (const agent of getAllAgents()) {
       assert.ok(
-        runtimeIconFiles.has(`${agent.id}.png`),
-        `Missing exact runtime PNG icon for ${agent.id}`
+        runtimeIconFiles.has(`${agent.id}.png`) || runtimeIconFiles.has(`${agent.id}.svg`),
+        `Missing exact runtime icon for ${agent.id}`
       );
     }
   });
 
-  it("keeps runtime agent PNG icons at 64x64", () => {
+  it("keeps migrated agent PNG icons at 64x64 while preserving baseline icon formats", () => {
     for (const entry of fs.readdirSync(AGENT_ICON_DIR, { withFileTypes: true })) {
       if (!shouldCheckRuntimeIconEntry(entry)) continue;
-      assert.strictEqual(
-        path.extname(entry.name).toLowerCase(),
-        ".png",
-        `${entry.name} should not be stored in the runtime icon directory`
-      );
+      if (path.extname(entry.name).toLowerCase() !== ".png") {
+        assert.ok(["openclaw.svg", "pi.svg"].includes(entry.name), `${entry.name} should be a baseline SVG icon`);
+        continue;
+      }
+      if (!MIGRATED_AGENT_PNG_ICONS.has(entry.name)) continue;
       const iconPath = path.join(AGENT_ICON_DIR, entry.name);
       const size = readPngSize(iconPath);
       assert.deepStrictEqual(size, { width: 64, height: 64 }, `${entry.name} should be 64x64`);

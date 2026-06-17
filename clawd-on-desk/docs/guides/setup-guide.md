@@ -189,7 +189,7 @@ node hooks/openclaw-install.js
 
 ## Windows Notes
 
-- **Installer**: GitHub Releases provide separate NSIS installers for Windows x64 and Windows ARM64. Use `Clawd-on-Desk-Setup-<version>-x64.exe` on Intel/AMD Windows, and `Clawd-on-Desk-Setup-<version>-arm64.exe` on Windows on ARM.
+- **Installer**: OpenBMB MiniCPM Desk Pet releases provide separate NSIS installers for Windows x64 and Windows ARM64. Use `MiniCPM-Desk-Pet-Setup-<version>-x64.exe` on Intel/AMD Windows, and `MiniCPM-Desk-Pet-Setup-<version>-arm64.exe` on Windows on ARM.
 - **Auto-update**: packaged Windows installs use `electron-updater`; updates keep the matching architecture.
 
 ## macOS Notes
@@ -197,11 +197,11 @@ node hooks/openclaw-install.js
 - **From source** (`npm start`): works out of the box on Intel and Apple Silicon.
 - **DMG installer**: the app is not signed with an Apple Developer certificate, so macOS Gatekeeper will block it. To open:
   - Right-click the app → **Open** → click **Open** in the dialog, or
-  - Run `xattr -cr /Applications/Clawd\ on\ Desk.app` in Terminal.
+  - Run `xattr -cr /Applications/MiniCPM\ Desk\ Pet.app` in Terminal.
 
 ## Linux Notes
 
 - **From source** (`npm start`): the Electron sandbox is enabled by default. If your Linux dev environment still fails chrome-sandbox initialization, use `CLAWD_DISABLE_SANDBOX=1 npm start` as a temporary workaround.
-- **Packages**: AppImage and `.deb` are available from [GitHub Releases](https://github.com/rullerzhou-afk/clawd-on-desk/releases). After deb install, the app icon appears in GNOME's app menu.
+- **Packages**: AppImage and `.deb` are available from [OpenBMB MiniCPM Desk Pet Releases](https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases). After deb install, the app icon appears in GNOME's app menu.
 - **Terminal focus**: uses `wmctrl` or `xdotool` (whichever is available). Install one for session terminal jumping to work: `sudo apt install wmctrl` or `sudo apt install xdotool`.
 - **Auto-update**: when running from a cloned repo, "Check for Updates" performs `git pull` + `npm install` (if dependencies changed) and restarts the app automatically.

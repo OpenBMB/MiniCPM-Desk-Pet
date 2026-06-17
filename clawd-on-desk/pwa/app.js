@@ -5,11 +5,11 @@
 
   var STATE_CONFIG = {
     error:        { icon: "error",        color: "#ef4444", priority: 0, label: "错误" },
-    attention:    { icon: "attention",    color: "#b45309", priority: 1, label: "需要关注" },
+    attention:    { icon: "attention",    color: "#373ED8", priority: 1, label: "需要关注" },
     working:      { icon: "working",      color: "#22c55e", priority: 2, label: "工作中" },
     juggling:     { icon: "juggling",     color: "#22c55e", priority: 2, label: "多任务" },
     thinking:     { icon: "thinking",     color: "#3b82f6", priority: 3, label: "思考中" },
-    notification: { icon: "notification", color: "#d97757", priority: 4, label: "通知" },
+    notification: { icon: "notification", color: "#373ED8", priority: 4, label: "通知" },
     sweeping:     { icon: "sweeping",     color: "#71717a", priority: 5, label: "清理中" },
     carrying:     { icon: "carrying",     color: "#71717a", priority: 5, label: "搬运中" },
     idle:         { icon: "idle",         color: "#71717a", priority: 6, label: "空闲" },
@@ -18,7 +18,7 @@
 
   var CONNECTION_STATES = {
     connected:    { dot: "connected", text: "已连接", color: "#22c55e" },
-    connecting:   { dot: "connecting", text: "连接中...", color: "#b45309" },
+    connecting:   { dot: "connecting", text: "连接中...", color: "#373ED8" },
     reconnecting: { dot: "reconnecting", text: "重连中...", color: "#ef4444" },
     disconnected: { dot: "", text: "", color: "#52525b" },
     auth_failed:  { dot: "", text: "认证失败", color: "#ef4444" },

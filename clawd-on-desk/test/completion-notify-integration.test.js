@@ -13,7 +13,7 @@ const themeLoader = require("../src/theme-loader");
 const { createTelegramCompanion } = require("../src/telegram-companion");
 
 themeLoader.init(path.join(__dirname, "..", "src"));
-const theme = themeLoader.loadTheme("clawd");
+const theme = themeLoader.loadTheme("cloudling");
 
 // onSnapshot fires the send fire-and-forget on a microtask chain; flush it.
 function flush() { return new Promise((resolve) => setImmediate(resolve)); }
