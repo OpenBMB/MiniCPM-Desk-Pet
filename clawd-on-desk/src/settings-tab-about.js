@@ -4,7 +4,6 @@
   let runtime = null;
   let helpers = null;
   let ops = null;
-  let i18n = null;
 
   function t(key) {
     return helpers.t(key);
@@ -14,27 +13,19 @@
     return String(version || "").replace(/^v/i, "");
   }
 
-  // #329: getAboutInfo() now returns dynamic fields (pendingUpdateVersion,
-  // autoUpdateCheck) alongside the static identity fields. The static
-  // parts (heroSvgContent, license, copyright, etc.) are still safe to
-  // cache; the dynamic ones must be re-fetched on every render so the
-  // pending hint and the auto-update toggle reflect current state after
-  // the user flips the toggle or the scheduler discovers a new version.
-  const STATIC_ABOUT_KEYS = ["repoUrl", "license", "copyright", "authorName", "authorUrl", "heroSvgContent"];
+  const STATIC_ABOUT_KEYS = ["repoUrl", "modelRepoUrl", "license", "copyright", "upstreamRepoUrl", "upstreamLabel", "heroSvgContent"];
   function fetchAboutInfo() {
     if (!window.settingsAPI || typeof window.settingsAPI.getAboutInfo !== "function") {
       return Promise.resolve(runtime.about.infoCache || null);
     }
     return window.settingsAPI.getAboutInfo().then((info) => {
       if (!info) return runtime.about.infoCache || null;
-      // Preserve any previously cached static field if a future getAboutInfo
-      // call ever omits one (defensive). Dynamic fields always come from
-      // the fresh response — they are not merged from the old cache.
       const merged = { ...(runtime.about.infoCache || {}) };
       for (const key of STATIC_ABOUT_KEYS) {
         if (info[key] != null) merged[key] = info[key];
       }
       merged.version = info.version;
+      merged.appName = info.appName;
       merged.pendingUpdateVersion = info.pendingUpdateVersion || "";
       merged.autoUpdateCheck = info.autoUpdateCheck !== false;
       runtime.about.infoCache = merged;
@@ -42,8 +33,8 @@
     }).catch(() => runtime.about.infoCache || null);
   }
 
-  function handleAboutCrabClick(crabWrap) {
-    const slot = crabWrap.querySelector("#shake-slot");
+  function handleAboutLogoClick(logoWrap) {
+    const slot = logoWrap.querySelector("#shake-slot");
     if (slot) {
       slot.classList.remove("shake");
       void slot.getBoundingClientRect();
@@ -79,6 +70,47 @@
     v.appendChild(a);
     row.appendChild(l);
     row.appendChild(v);
+    return row;
+  }
+
+  function buildAboutLicenseRow(info) {
+    const row = document.createElement("div");
+    row.className = "about-info-row";
+    const label = document.createElement("div");
+    label.className = "about-info-label";
+    label.textContent = t("aboutLicenseLabel");
+    const value = document.createElement("div");
+    value.className = "about-info-value about-license-value";
+
+    const parts = [];
+    if (info.license) parts.push(info.license);
+    if (info.copyright) parts.push(info.copyright);
+
+    if (parts.length > 0) {
+      const text = document.createElement("span");
+      text.textContent = parts.join(" · ");
+      value.appendChild(text);
+    }
+
+    if (info.upstreamRepoUrl && info.upstreamLabel) {
+      if (value.childNodes.length > 0) {
+        value.appendChild(document.createTextNode(" · "));
+      }
+      const prefix = document.createElement("span");
+      prefix.textContent = t("aboutBasedOnUpstream") + " ";
+      value.appendChild(prefix);
+      const link = document.createElement("a");
+      link.href = "#";
+      link.textContent = info.upstreamLabel;
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        helpers.openExternalSafe(info.upstreamRepoUrl);
+      });
+      value.appendChild(link);
+    }
+
+    row.appendChild(label);
+    row.appendChild(value);
     return row;
   }
 
@@ -150,9 +182,9 @@
     const hero = document.createElement("div");
     hero.className = "about-hero";
 
-    const crabWrap = document.createElement("div");
-    crabWrap.className = "about-crab-wrap";
-    crabWrap.title = "MiniCPM Desk Pet";
+    const logoWrap = document.createElement("div");
+    logoWrap.className = "about-logo-wrap";
+    logoWrap.title = "MiniCPM";
 
     const title = document.createElement("h2");
     title.className = "about-title";
@@ -162,7 +194,7 @@
     tagline.className = "about-tagline";
     tagline.textContent = t("aboutTagline");
 
-    hero.appendChild(crabWrap);
+    hero.appendChild(logoWrap);
     hero.appendChild(title);
     hero.appendChild(tagline);
     parent.appendChild(hero);
@@ -170,52 +202,6 @@
     const infoSection = document.createElement("section");
     infoSection.className = "section";
     parent.appendChild(infoSection);
-
-    const maintainersRow = document.createElement("div");
-    maintainersRow.className = "about-info-row";
-    const maintainersLabel = document.createElement("div");
-    maintainersLabel.className = "about-info-label";
-    maintainersLabel.textContent = t("aboutMaintainersLabel");
-    const maintainersValue = document.createElement("div");
-    maintainersValue.className = "about-info-value";
-    maintainersValue.style.display = "flex";
-    maintainersValue.style.flexWrap = "wrap";
-    maintainersValue.style.gap = "12px";
-    maintainersValue.style.justifyContent = "flex-end";
-    for (const name of i18n.MAINTAINERS) {
-      const link = document.createElement("a");
-      link.className = "about-contributor-link";
-      link.textContent = "@" + name;
-      link.href = "#";
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        helpers.openExternalSafe("https://github.com/" + name);
-      });
-      maintainersValue.appendChild(link);
-    }
-    maintainersRow.appendChild(maintainersLabel);
-    maintainersRow.appendChild(maintainersValue);
-
-    const contribRow = document.createElement("div");
-    contribRow.className = "about-info-row";
-    const contribLabel = document.createElement("div");
-    contribLabel.className = "about-info-label";
-    contribLabel.textContent = t("aboutContributorsLabel") + " (" + i18n.CONTRIBUTORS.length + ")";
-    contribRow.appendChild(contribLabel);
-
-    const contribList = document.createElement("div");
-    contribList.className = "about-contributors-list";
-    for (const name of i18n.CONTRIBUTORS) {
-      const link = document.createElement("a");
-      link.className = "about-contributor-link";
-      link.textContent = "@" + name;
-      link.href = "#";
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        helpers.openExternalSafe("https://github.com/" + name);
-      });
-      contribList.appendChild(link);
-    }
 
     const footer = document.createElement("div");
     footer.className = "about-footer";
@@ -226,10 +212,12 @@
     fetchAboutInfo().then((info) => {
       const safe = info || {};
 
+      if (safe.appName) title.textContent = safe.appName;
+
       if (safe.heroSvgContent) {
-        crabWrap.innerHTML = safe.heroSvgContent;
+        logoWrap.innerHTML = safe.heroSvgContent;
       }
-      crabWrap.addEventListener("click", () => handleAboutCrabClick(crabWrap));
+      logoWrap.addEventListener("click", () => handleAboutLogoClick(logoWrap));
 
       infoSection.innerHTML = "";
 
@@ -310,31 +298,17 @@
         ));
       }
 
-      if (safe.license) {
-        const lRow = document.createElement("div");
-        lRow.className = "about-info-row";
-        const ll = document.createElement("div");
-        ll.className = "about-info-label";
-        ll.textContent = t("aboutLicenseLabel");
-        const lv = document.createElement("div");
-        lv.className = "about-info-value";
-        lv.textContent = safe.license + (safe.copyright ? " · " + safe.copyright : "");
-        lRow.appendChild(ll);
-        lRow.appendChild(lv);
-        infoSection.appendChild(lRow);
-      }
-
-      if (safe.authorName) {
+      if (safe.modelRepoUrl) {
         infoSection.appendChild(buildAboutLinkRow(
-          t("aboutAuthorLabel"),
-          safe.authorUrl,
-          safe.authorName
+          t("aboutModelRepositoryLabel"),
+          safe.modelRepoUrl,
+          safe.modelRepoUrl.replace(/^https?:\/\//, "")
         ));
       }
 
-      infoSection.appendChild(maintainersRow);
-      infoSection.appendChild(contribRow);
-      infoSection.appendChild(contribList);
+      if (safe.license || safe.copyright || safe.upstreamRepoUrl) {
+        infoSection.appendChild(buildAboutLicenseRow(safe));
+      }
     });
   }
 
@@ -342,7 +316,6 @@
     runtime = core.runtime;
     helpers = core.helpers;
     ops = core.ops;
-    i18n = core.i18n;
     core.tabs.about = {
       render,
     };

@@ -105,6 +105,8 @@ scripts/*
 !scripts/export-agent-icons.js
 !scripts/verify-sidecar-binaries.js
 !scripts/fetch-sidecar-binaries.js
+!scripts/fetch-adapters.js
+!scripts/verify-adapters.js
 
 # oh-my-cursor state
 .omc/
