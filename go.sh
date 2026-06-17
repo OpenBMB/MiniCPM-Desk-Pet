@@ -177,6 +177,27 @@ install_npm_deps() {
   fi
 }
 
+# LoRA 适配器权重 (.gguf) 不在 git 里,首次/缺失时从 Hugging Face 拉取
+# (脚本幂等:本地已有有效文件即跳过)。
+#   $1 == "required" → 失败即终止 (打包路径,缺文件会出残包)
+#   否则             → 尽力而为 (dev 启动,拉不到也能先用 Base 人格)
+fetch_adapters() {
+  cyan "==> LoRA 适配器权重 (Hugging Face,缺失才下载)..."
+  load_fnm_env
+  if ! command -v node >/dev/null 2>&1; then
+    yellow "    ⚠ Node 不在 PATH,跳过适配器下载"
+    return 0
+  fi
+  if ( cd "$APP_DIR" && node scripts/fetch-adapters.js ); then
+    return 0
+  fi
+  if [[ "${1:-}" == "required" ]]; then
+    red "    适配器下载失败,打包会缺少猫娘人格。检查网络后重试。"
+    exit 1
+  fi
+  yellow "    ⚠ 适配器下载失败;桌宠可先用 Base 人格,稍后 npm run fetch:adapters 重试。"
+}
+
 start_pet() {
   cyan "==> 启动桌宠..."
   load_fnm_env
@@ -213,6 +234,7 @@ case "$cmd" in
     ensure_llama_server
     install_python_deps
     install_npm_deps
+    fetch_adapters
     green ""
     green "✅ 安装完成。下一步: ./go.sh start"
     ;;
@@ -231,6 +253,7 @@ case "$cmd" in
     ensure_llama_server
     install_python_deps
     install_npm_deps
+    fetch_adapters
     start_pet
     ;;
   build)
@@ -240,6 +263,7 @@ case "$cmd" in
     ensure_llama_server
     install_python_deps
     install_npm_deps
+    fetch_adapters required
     cyan "==> 编 gateway + 准备 sidecar-bin..."
     ( cd "$SIDECAR_DIR" && ./scripts/build-all.sh )
     cyan "==> 打包 Electron 应用 (electron-builder)..."

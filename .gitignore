@@ -22,6 +22,11 @@ llama.cpp/build/
 # Model weights — too big to ship, friends/colleagues download separately
 models/
 
+# LoRA adapter weights (.gguf) — fetched from Hugging Face at build time
+# by clawd-on-desk/scripts/fetch-adapters.js, never committed (the PEFT
+# .safetensors source stays in Git LFS via .gitattributes).
+adapters/**/*.gguf
+
 # Editor / OS junk
 .vscode/
 .idea/

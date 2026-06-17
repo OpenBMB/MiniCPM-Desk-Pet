@@ -65,6 +65,10 @@ jobs:
         working-directory: clawd-on-desk
         run: npm install --no-audit --no-fund
 
+      - name: Fetch LoRA adapters
+        working-directory: clawd-on-desk
+        run: node scripts/fetch-adapters.js
+
       - name: electron-builder (AppImage + deb)
         working-directory: clawd-on-desk
         run: npx electron-builder --linux --publish never
@@ -123,6 +127,10 @@ jobs:
         working-directory: clawd-on-desk
         shell: cmd
         run: npm install --no-audit --no-fund
+
+      - name: Fetch LoRA adapters
+        working-directory: clawd-on-desk
+        run: node scripts/fetch-adapters.js
 
       - name: electron-builder (nsis)
         working-directory: clawd-on-desk
