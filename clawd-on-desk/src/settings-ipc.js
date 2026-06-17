@@ -446,11 +446,13 @@ function registerSettingsIpc(options = {}) {
     } catch {}
     return {
       version: app.getVersion(),
+      appName: productMetadata.appDisplayName,
       repoUrl: productMetadata.repoUrl,
+      modelRepoUrl: productMetadata.modelRepoUrl,
       license: productMetadata.licenseId,
       copyright: productMetadata.copyrightLine,
-      authorName: "OpenBMB",
-      authorUrl: "https://github.com/OpenBMB",
+      upstreamRepoUrl: productMetadata.upstreamRepoUrl,
+      upstreamLabel: productMetadata.upstreamLabel,
       heroSvgContent,
       pendingUpdateVersion,
       autoUpdateCheck,

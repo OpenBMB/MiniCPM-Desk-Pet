@@ -19,9 +19,7 @@
 
   const i18nApi = root.ClawdSettingsI18n || {};
   const STRINGS = i18nApi.STRINGS;
-  const CONTRIBUTORS = i18nApi.CONTRIBUTORS;
-  const MAINTAINERS = i18nApi.MAINTAINERS;
-  if (!STRINGS || !CONTRIBUTORS || !MAINTAINERS) {
+  if (!STRINGS) {
     throw new Error("settings-i18n.js failed to load before settings-ui-core.js");
   }
 
@@ -1285,8 +1283,6 @@
 
   core.i18n = {
     STRINGS,
-    MAINTAINERS,
-    CONTRIBUTORS,
     IS_MAC,
     SHORTCUT_ACTIONS,
     SHORTCUT_ACTION_IDS,

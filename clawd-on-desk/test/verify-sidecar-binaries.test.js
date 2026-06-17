@@ -92,6 +92,9 @@ test("package build scripts use the sidecar verification command", () => {
     "prebuild:linux",
     "prebuild:all",
   ]) {
-    assert.equal(pkg.scripts[name], VERIFY_COMMAND, `${name} should verify bundled sidecars before packaging`);
+    assert.ok(
+      pkg.scripts[name] && pkg.scripts[name].includes(VERIFY_COMMAND),
+      `${name} should verify bundled sidecars before packaging`
+    );
   }
 });

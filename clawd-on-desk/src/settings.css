@@ -2870,6 +2870,7 @@ html, body {
   border-bottom: 1px solid var(--row-border);
   margin-bottom: 8px;
 }
+.about-logo-wrap,
 .about-crab-wrap {
   width: 140px;
   height: 112px;
@@ -2881,7 +2882,9 @@ html, body {
   -webkit-user-drag: none;
   transition: transform 0.12s ease;
 }
+.about-logo-wrap:active,
 .about-crab-wrap:active { transform: scale(0.97); }
+.about-logo-wrap svg,
 .about-crab-wrap svg {
   width: 100%;
   height: 100%;
@@ -2930,6 +2933,15 @@ html, body {
   cursor: pointer;
 }
 .about-info-value a:hover { text-decoration: underline; }
+.about-license-value {
+  line-height: 1.5;
+}
+.about-license-value a {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.about-license-value a:hover { text-decoration: underline; }
 .about-check-update-btn {
   background: var(--accent);
   color: #ffffff;
