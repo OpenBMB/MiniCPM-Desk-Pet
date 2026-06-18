@@ -269,13 +269,7 @@
       autoUpdateLabelWrap.className = "about-info-label";
       const autoUpdateLabel = document.createElement("div");
       autoUpdateLabel.textContent = t("autoUpdateCheck");
-      const autoUpdateDesc = document.createElement("div");
-      autoUpdateDesc.className = "about-info-description";
-      autoUpdateDesc.textContent = t("autoUpdateCheckDescription");
-      autoUpdateDesc.style.opacity = "0.7";
-      autoUpdateDesc.style.fontSize = "12px";
       autoUpdateLabelWrap.appendChild(autoUpdateLabel);
-      autoUpdateLabelWrap.appendChild(autoUpdateDesc);
       const autoUpdateValue = document.createElement("div");
       autoUpdateValue.className = "about-info-value";
       const autoUpdateBox = document.createElement("input");
