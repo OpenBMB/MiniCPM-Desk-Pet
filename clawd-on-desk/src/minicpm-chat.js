@@ -1798,6 +1798,7 @@ module.exports = function initMinicpmChat(ctx) {
     let s = 0;
     if (typeof data.session_title === "string" && data.session_title.trim()) s += 10;
     if (typeof data.last_summary === "string" && data.last_summary.trim()) s += 10;
+    if (typeof data.assistant_last_output === "string" && data.assistant_last_output.trim()) s += 10;
     if (data.agent_id === "cursor-agent") s += 1;  // tie-breaker
     return s;
   }
@@ -1898,9 +1899,20 @@ module.exports = function initMinicpmChat(ctx) {
     const title = typeof data.session_title === "string" && data.session_title.trim()
       ? data.session_title.trim()
       : "";
-    const summary = typeof data.last_summary === "string" && data.last_summary.trim()
+    const rawSummary = typeof data.last_summary === "string" && data.last_summary.trim()
       ? data.last_summary.trim()
-      : "";
+      : (typeof data.assistant_last_output === "string" && data.assistant_last_output.trim()
+          ? data.assistant_last_output.trim()
+          : "");
+    // Cap the summary so system prompt + user prompt + generation stay
+    // within the model's 4096-token context window.  System prompt ≈ 700
+    // tokens, event template ≈ 75, max_new_tokens = 50 → budget for
+    // summary text ≈ 3200 tokens.  At ~1.5 tokens/CJK char (worst case)
+    // that's ~2100 chars; use 800 to leave a comfortable margin.
+    const SUMMARY_CHAR_LIMIT = 800;
+    const summary = rawSummary.length > SUMMARY_CHAR_LIMIT
+      ? rawSummary.slice(0, SUMMARY_CHAR_LIMIT) + "…"
+      : rawSummary;
 
     // Build the event description in the user's UI language. The
     // narration system prompt + situation templates live in

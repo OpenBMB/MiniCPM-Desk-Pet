@@ -85,7 +85,7 @@ jobs:
 
   build-windows:
     runs-on: windows-2022
-    name: win-x64
+    name: windows
     defaults:
       run:
         shell: pwsh
@@ -110,10 +110,13 @@ jobs:
         run: |
           .\scripts\fetch-llama-release.ps1 -Backend cpu -Target win-x64
           .\scripts\fetch-llama-release.ps1 -Backend vulkan -Target win-x64
+          .\scripts\fetch-llama-release.ps1 -Backend cpu -Target win-arm64
 
       - name: Build gateway
         working-directory: minicpm-sidecar
-        run: .\scripts\build-gateway.ps1 -Target win-x64
+        run: |
+          .\scripts\build-gateway.ps1 -Target win-x64
+          Copy-Item -Force bin\win-x64\minicpm-sidecar.exe bin\win-arm64\minicpm-sidecar.exe
 
       - name: Verify sidecar binaries
         working-directory: minicpm-sidecar
@@ -122,6 +125,10 @@ jobs:
           .\bin\win-x64\llama-server.exe --version
           .\bin\win-x64\backends\vulkan\llama-server.exe --version
           .\bin\win-x64\minicpm-sidecar.exe --help | Out-Null
+          Write-Host "==> Verify win-arm64 files exist" -ForegroundColor Cyan
+          Get-ChildItem -Recurse bin\win-arm64 | Select-Object FullName,Length
+          if (-not (Test-Path bin\win-arm64\llama-server.exe)) { throw "win-arm64 llama-server missing" }
+          if (-not (Test-Path bin\win-arm64\minicpm-sidecar.exe)) { throw "win-arm64 gateway missing" }
 
       - name: npm install
         working-directory: clawd-on-desk
@@ -135,7 +142,7 @@ jobs:
       - name: electron-builder (nsis)
         working-directory: clawd-on-desk
         shell: cmd
-        run: npx electron-builder --win --x64 --publish never
+        run: npx electron-builder --win --x64 --arm64 --publish never
 
       - uses: actions/upload-artifact@v4
         with:

@@ -13,6 +13,7 @@
 
 // ── i18n bootstrap ──
 const minicpmI18n = (typeof globalThis !== "undefined" && globalThis.ClawdMinicpmI18n) || null;
+const chatContext = (typeof globalThis !== "undefined" && globalThis.ClawdMinicpmChatContext) || null;
 let currentLang = "en";
 const t = minicpmI18n ? minicpmI18n.makeTranslator(() => currentLang) : (k) => k;
 let RGX = minicpmI18n ? minicpmI18n.getCommandPatterns(currentLang) : {};
@@ -873,12 +874,25 @@ async function submit(text) {
   // <think> block doesn't consume the whole generation budget.
   const maxNewTokens = chatParams.max_new_tokens || 768;
 
+  // Bound the prompt before it reaches the sidecar: a sliding window + token
+  // estimate keeps the oldest turns from silently overflowing llama-server's
+  // KV window (default 4096). `messagesToSend` is what we transmit; we also
+  // prune `history` itself to the turn cap so memory stays bounded.
+  let messagesToSend = history;
+  if (chatContext && typeof chatContext.trimHistoryForContext === "function") {
+    messagesToSend = chatContext.trimHistoryForContext(history, { maxNewTokens });
+    const cap = chatContext.MAX_HISTORY_TURNS;
+    if (Number.isFinite(cap) && history.length > cap) {
+      history = history.slice(-cap);
+    }
+  }
+
   try {
     const resp = await fetch(sidecarUrl + "/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        messages: history,
+        messages: messagesToSend,
         stream: true,
         max_new_tokens: maxNewTokens,
         temperature: (typeof chatParams.temperature === "number") ? chatParams.temperature : 0.6,
