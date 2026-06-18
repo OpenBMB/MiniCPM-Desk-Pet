@@ -14,9 +14,13 @@ description: >-
 Sister skill of `deploy-minicpm-pet`. That one runs the pet; **this one
 teaches it a new personality**.
 
-Reference implementation: `adapters/lora_chuuni_20260519_1449` (克莱姆,
-中二勇者). The full pipeline scripts live in `training/` and were proven to
-end-to-end work in ~12 minutes on Apple M5 / 16GB.
+Reference implementations:
+
+- `adapters/lora_moyu_20260519_2003` (摸鱼哥)
+- `adapters/lora_nekoqa_adapter_20260515_0738` (neko)
+
+The full pipeline scripts live in `training/` and were proven to
+end-to-end work on Apple Silicon MPS.
 
 ## Key files (orientation)
 
@@ -90,7 +94,7 @@ Pick a lowercase English word, ≤ 10 chars, no overlap with `neko` /
 
 This exact string will be hardcoded in **two** places — keep them in sync:
 `training/generate_dataset.py:SYSTEM_PROMPT` and
-`minicpm-pet-bridge-uv/server.py:<KEY>_SYSTEM_PROMPT`.
+`minicpm-sidecar/gateway/server.py:PERSONA_SYSTEM_PROMPTS[<key>]`.
 
 > ⚠️ **The single most expensive lesson from the zhiyuan persona** (v5-v8
 > took 4 wasted iterations to learn this): the SYSTEM_PROMPT used in the
@@ -123,8 +127,7 @@ edit the seeds and `SYSTEM_PROMPT`. Recommended minimum per bucket for
 ### Step 4 — Generate
 
 ```bash
-cd minicpm-pet-bridge-uv
-uv run python ../training/generate_dataset.py
+uv run python training/generate_dataset.py
 ```
 
 Confirm counts match the scale target. If too sparse, add more seeds or
@@ -159,27 +162,25 @@ answers and override the length hint at inference. Three concrete rules:
 Validate MPS path before committing to a long run:
 
 ```bash
-cd minicpm-pet-bridge-uv
-uv run python ../training/train_lora.py \
-  --epochs 0.05 --output-dir ../training/runs/_smoke
+uv run python training/train_lora.py \
+  --epochs 0.05 --output-dir training/runs/_smoke
 ```
 
 Expected: finishes in ~30s, loss drops a little (5-step run). If
 **SIGABRT / `LLVM ERROR: mps_matmul`** appears, the eager-attention
 override is missing — `train_lora.py` already forces it, so investigate
 torch version mismatch rather than retry. Clean up: `rm -rf
-../training/runs/_smoke`.
+training/runs/_smoke`.
 
 ### Step 6 — Full train (background)
 
 ```bash
-cd minicpm-pet-bridge-uv
-uv run python ../training/train_lora.py --epochs 3 --copy-to-adapters
+uv run python training/train_lora.py --epochs 3 --copy-to-adapters
 ```
 
 **Run it backgrounded** (`block_until_ms: 0`). Critical: pass
-`working_directory: /absolute/path/to/minicpm-pet-bridge-uv` to Shell —
-**a shell restart loses cwd** and the relative `../training/...` path
+`working_directory: /absolute/path/to/MiniCPM-Desk-Pet` to Shell —
+**a shell restart loses cwd** and the relative `training/...` path
 breaks.
 
 While it runs, poll with AwaitShell pattern `"'step': 30"` to confirm
@@ -197,14 +198,13 @@ restart.
 ### Step 7 — Smoke inference
 
 ```bash
-cd minicpm-pet-bridge-uv
-uv run python ../training/smoke_inference.py \
-  --adapter ../adapters/lora_<key>_<timestamp>
+uv run python training/smoke_inference.py \
+  --adapter adapters/lora_<key>_<timestamp>
 ```
 
-Edit `smoke_inference.py:CHUUNI_SYSTEM_PROMPT` and `PROMPTS` first if
-the persona changed substantially. The 8 default prompts cover identity
-/ emotion / coding / math / refusal / meta — eyeball all of them. Pass
+Edit `training/smoke_inference.py` first if the persona changed
+substantially. The default prompts cover identity / emotion / coding /
+math / refusal / meta — eyeball all of them. Pass
 criteria:
 
 - Identity prompt clearly says the new name in character
@@ -214,54 +214,45 @@ criteria:
 
 ### Step 8 — Wire into `server.py`
 
-Edit `minicpm-pet-bridge-uv/server.py` in two places.
+Edit `minicpm-sidecar/gateway/server.py` in two places.
 
-**a) Add the prompt constant + register in `PERSONA_PROMPTS`:**
+**a) Add the prompt constant + register in `PERSONA_SYSTEM_PROMPTS`:**
 
 Find the existing block:
 
 ```python
-PERSONA_PROMPTS = {
-    "neko": NEKO_SYSTEM_PROMPT,
-    "chuuni": CHUUNI_SYSTEM_PROMPT,
+PERSONA_SYSTEM_PROMPTS = {
+    "moyu": ("..."),
+    "neko": ("..."),
 }
 ```
 
-Add the new persona's constant above and an entry in the dict. Key MUST
-match what `adapter_dir.name` contains.
+Add the new persona prompt string in the same style and an entry in the
+dict. Key MUST match what `adapter_dir.name` contains.
 
-**b) Extend `--persona` argparse choices**:
+**b) Extend `PERSONA_HINTS`:**
 
-Find `parser.add_argument("--persona", choices=[...]`, append the new
-key.
+Find `PERSONA_HINTS = {...}` and append filename / directory-name hints
+for the new persona key.
 
-**c) Sync the conda-path copy** (README requires byte-identical):
+### Step 9 — Wire into `minicpm-i18n.js` + `minicpm-chat-renderer.js`
 
-```bash
-cp minicpm-pet-bridge-uv/server.py minicpm-pet-bridge/server.py
-diff -q minicpm-pet-bridge-uv/server.py minicpm-pet-bridge/server.py
-# expect "Files ... are identical" / empty output
-```
+`clawd-on-desk/src/minicpm-i18n.js` and
+`clawd-on-desk/src/minicpm-chat-renderer.js` replace the old inline HTML
+logic.
 
-### Step 9 — Wire into `minicpm-chat.html`
-
-`clawd-on-desk/src/minicpm-chat.html` has three edit points. Locate by
-anchor text (line numbers drift):
-
-**a) `const SYNONYMS = {` block** — add keyword → persona-key entries.
-Keys here are the **Chinese / English words a user might say**, value is
-the substring that matches the adapter directory name:
+**a) `clawd-on-desk/src/minicpm-i18n.js` command patterns** — add
+keyword → persona-key entries. Keys here are the Chinese / English words
+a user might say, value is the substring that matches the adapter
+directory name:
 
 ```js
 "傲娇": "tsundere",
 "tsundere": "tsundere",
 ```
 
-**b) `const COMMAND_HINTS = /(...)/i;` regex** — append the new
-keywords. Without this, the LLM command classifier won't even fire for
-messages that mention the new persona.
-
-**c) `classifyIntentWithLLM` few-shot prompt** — add 1-2 examples:
+**b) `clawd-on-desk/src/minicpm-i18n.js` hints / classifier few-shot** —
+append the new keywords and add 1-2 positive examples:
 
 ```
 "用户：切到傲娇 → SWITCH_TO=傲娇\n" +
@@ -276,9 +267,9 @@ from at least one positive example.
 Kill cleanly (the pet spawns multiple Electron children):
 
 ```bash
-pkill -f "clawd-on-desk|minicpm-pet-bridge|launch.js" 2>/dev/null || true
+pkill -f "clawd-on-desk|minicpm-sidecar|launch.js" 2>/dev/null || true
 sleep 2
-pgrep -f "clawd-on-desk|minicpm-pet-bridge" || echo "all clean"
+pgrep -f "clawd-on-desk|minicpm-sidecar" || echo "all clean"
 ```
 
 Restart backgrounded:
@@ -291,16 +282,16 @@ Wait for sidecar with AwaitShell pattern `"persona = <new_key>"`. Then
 verify the full chain via the HTTP API:
 
 ```bash
-curl -s http://127.0.0.1:8765/api/health | python3 -m json.tool
+curl -s http://127.0.0.1:18765/api/health | python3 -m json.tool
 # expect: persona = "<new_key>", adapter ends in "lora_<key>_..."
 
-curl -s -X POST http://127.0.0.1:8765/api/chat \
+curl -s -X POST http://127.0.0.1:18765/api/chat \
   -H 'Content-Type: application/json' \
   -d '{"messages":[{"role":"user","content":"你是谁"}],"stream":false,"max_new_tokens":120,"silent":true}' \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['content'])"
 # expect: reply clearly in the new persona's voice
 
-curl -s http://127.0.0.1:8765/api/adapters | python3 -m json.tool
+curl -s http://127.0.0.1:18765/api/adapters | python3 -m json.tool
 # expect: new adapter listed, current_name matches it
 ```
 
@@ -310,19 +301,19 @@ restart.
 
 ### Step 11 — Write USAGE.md
 
-Copy `adapters/lora_chuuni_20260519_1449/USAGE.md` into the new adapter
-directory as a template. Update: persona name, SYSTEM_PROMPT, training
-recipe table (steps, time, eval loss), 10-bucket coverage table,
-limitations section honestly listing what broke during smoke_inference.
+Use an existing adapter README / USAGE in `adapters/` as a template.
+Update: persona name, SYSTEM_PROMPT, training recipe table (steps, time,
+eval loss), 10-bucket coverage table, limitations section honestly
+listing what broke during smoke_inference.
 
 ## Pitfalls cheat sheet
 
 | Pitfall | Symptom | Fix |
 |---|---|---|
 | `MINICPM_ATTN_IMPL` unset on torch 2.6 + macOS 26 | Sidecar SIGABRT on warmup, `LLVM ERROR: mps_matmul ... incompatible dimensions` | `go.sh` defaults to `eager` since v0.2.1. If launching sidecar manually, `export MINICPM_ATTN_IMPL=eager` |
-| Two server.py copies drift | New persona works in uv path, missing in conda path | Always `cp` after edits, verify with `diff -q` |
-| Adapter dir name missing persona key | Adapter loads but sidecar reports `persona = "default"` | Rename dir to contain the key, or extend the `PERSONA_PROMPTS` match logic |
-| `working_directory` not absolute on backgrounded Shell | `[Errno 2] No such file or directory` from `../training/...` | Pass absolute path to `working_directory:` (shell may restart, losing cwd) |
+| Editing the wrong sidecar file | Persona prompt looks right in one place but runtime ignores it | Only edit `minicpm-sidecar/gateway/server.py` in this repo |
+| Adapter dir name missing persona key | Adapter loads but sidecar reports `persona = "default"` | Rename dir to contain the key, or extend the `PERSONA_HINTS` / `PERSONA_SYSTEM_PROMPTS` logic |
+| `working_directory` not absolute on backgrounded Shell | `[Errno 2] No such file or directory` from `training/...` | Pass absolute path to `working_directory:` (shell may restart, losing cwd) |
 | Skipping refusal / math buckets | LoRA wipes base safety + arithmetic | Keep all 10 buckets; minimums in Step 3 table |
 | `enable_thinking=True` during training | Model traps tokens inside `<think>` and never closes | `train_lora.py` and chat template both default to `False`; don't toggle |
 | Loss < 0.1 by epoch 2 on `fast_demo` | Severe overfit, in-distribution prompts echo seeds verbatim | Reduce epochs to 2, or add more seed diversity per bucket |
@@ -345,8 +336,8 @@ limitations section honestly listing what broke during smoke_inference.
 ## References
 
 - `training/README.md` — one-pager on the training pipeline
-- `training/chuuni_persona.md` — worked example of a persona design doc
-- `adapters/lora_chuuni_20260519_1449/USAGE.md` — worked example of the
-  USAGE.md template
+- `training/moyu_persona.md` — worked example of a persona design doc
+- `adapters/lora_moyu_20260519_2003/README.md` — worked example of an
+  adapter note / usage doc
 - `adapters/lora_nekoqa_adapter_20260515_0738/REPORT_4WAY.md` — H100
   regime reference (don't run on M5)
