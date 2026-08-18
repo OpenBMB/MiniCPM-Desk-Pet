@@ -29,6 +29,7 @@
 - **Auto-detect agents** — the app scans your machine for installed coding agents and prompts you to connect them in one click.
 - **Smart model download** — the app can download from Hugging Face or ModelScope and choose the better source for your network.
 - **Persona support** — switch or import character adapters from **Settings -> MiniCPM**.
+-   <a href="https://modelbest.feishu.cn/wiki/UtWxwcERfiRIpIkBOjuc3h9tn1D"><img src="https://img.shields.io/badge/MiniCPM-Wiki-1677FF?logo=readthedocs&logoColor=white" alt="MiniCPM Wiki"></a>
 
 ## Getting Started
 
