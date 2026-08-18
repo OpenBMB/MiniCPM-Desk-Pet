@@ -5,6 +5,7 @@
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="License"></a>
   <a href="https://huggingface.co/openbmb/MiniCPM5-1B-GGUF"><img src="https://img.shields.io/badge/Model-MiniCPM5--1B-green" alt="MiniCPM5-1B"></a>
+  <a href="https://modelbest.feishu.cn/wiki/UtWxwcERfiRIpIkBOjuc3h9tn1D"><img src="https://img.shields.io/badge/MiniCPM-Wiki-1677FF?logo=readthedocs&logoColor=white" alt="MiniCPM Wiki"></a>
   <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey" alt="Platform">
 </p>
 
@@ -29,7 +30,6 @@
 - **Auto-detect agents** — the app scans your machine for installed coding agents and prompts you to connect them in one click.
 - **Smart model download** — the app can download from Hugging Face or ModelScope and choose the better source for your network.
 - **Persona support** — switch or import character adapters from **Settings -> MiniCPM**.
--   <a href="https://modelbest.feishu.cn/wiki/UtWxwcERfiRIpIkBOjuc3h9tn1D"><img src="https://img.shields.io/badge/MiniCPM-Wiki-1677FF?logo=readthedocs&logoColor=white" alt="MiniCPM Wiki"></a>
 
 ## Getting Started
 
