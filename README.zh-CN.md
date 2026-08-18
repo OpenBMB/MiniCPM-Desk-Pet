@@ -30,6 +30,7 @@
 - **智能下载模型**：支持 Hugging Face 和 ModelScope，会根据网络情况选择更合适的下载源。
 - **人格支持**：可在 **Settings -> MiniCPM** 中切换或导入角色适配器。
 
+  <a href="https://modelbest.feishu.cn/wiki/UtWxwcERfiRIpIkBOjuc3h9tn1D"><img src="https://img.shields.io/badge/MiniCPM-Wiki-1677FF?logo=readthedocs&logoColor=white" alt="MiniCPM Wiki"></a>
 ## 快速开始
 
 ### 系统要求
