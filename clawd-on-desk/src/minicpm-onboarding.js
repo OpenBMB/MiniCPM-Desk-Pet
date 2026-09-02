@@ -126,9 +126,9 @@ module.exports = function initOnboarding(ctx) {
   function shouldShow() {
     // Force-rerun via env (developer override).
     if (process.env.MINICPM_FORCE_ONBOARDING === "1") return true;
-    // External backend (e.g. OpenVINO skill) manages its own model —
-    // skip onboarding entirely when MINICPM_BACKEND is set.
-    if (process.env.MINICPM_BACKEND) return false;
+    // NOT skipped for alternate backends: that left a first-run OpenVINO
+    // user with no model and no way to pick one. The model step is
+    // backend-aware instead.
     const s = readSentinel();
     if (!s || s.complete !== true) return true;
     // Future-proof: a schema bump invalidates older sentinels.
@@ -239,6 +239,8 @@ module.exports = function initOnboarding(ctx) {
         modelPresent,
         device: snapshot ? snapshot.device : null,
         platform: process.platform,
+        // Lets the wizard hide the GGUF downloader.
+        backend: (process.env.MINICPM_BACKEND || "").trim().toLowerCase() || "llama.cpp",
         appVersion: app.getVersion(),
       };
     },
@@ -368,21 +370,30 @@ module.exports = function initOnboarding(ctx) {
     },
 
     "onboarding:pick-local-model": async () => {
-      // The llama.cpp backend takes a single .gguf file, but for back-
-      // compat with users who pre-staged HF directories we accept a
-      // directory too (the gateway picks the first .gguf inside).
+      // OpenVINO models are directories, so that backend needs a directory
+      // picker. The llama.cpp path below is left exactly as it shipped.
+      const wantsIr = (process.env.MINICPM_BACKEND || "").trim().toLowerCase() === "openvino";
       const ret = await dialog.showOpenDialog({
-        title: t("onboardingPickerDialogTitle"),
-        properties: ["openFile", "openDirectory"],
-        filters: [{ name: "GGUF model", extensions: ["gguf"] }],
-        message: t("onboardingPickerDialogMessage"),
+        title: wantsIr ? t("onboardingOpenvinoPickerTitle") : t("onboardingPickerDialogTitle"),
+        properties: wantsIr ? ["openDirectory"] : ["openFile", "openDirectory"],
+        filters: wantsIr ? [] : [{ name: "GGUF model", extensions: ["gguf"] }],
+        message: wantsIr ? t("onboardingOpenvinoPickerMessage") : t("onboardingPickerDialogMessage"),
       });
       if (ret.canceled || !ret.filePaths.length) return { ok: false, canceled: true };
       const picked = ret.filePaths[0];
       let target = picked;
       try {
         const st = fs.statSync(picked);
-        if (st.isDirectory()) {
+        if (wantsIr) {
+          const chatMod = ctx.getChat();
+          const found = chatMod && chatMod.firstOpenvinoIrIn
+            ? chatMod.firstOpenvinoIrIn(picked)
+            : null;
+          if (!found) {
+            return { ok: false, error: t("onboardingOpenvinoInvalidDir", { path: picked }) };
+          }
+          target = found;
+        } else if (st.isDirectory()) {
           const entries = fs.readdirSync(picked)
             .filter((n) => n.toLowerCase().endsWith(".gguf"));
           if (!entries.length) {

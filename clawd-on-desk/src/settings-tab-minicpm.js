@@ -244,7 +244,30 @@
   function deviceLabel(device) {
     if (device === "vulkan") return t("minicpmBackendVulkan");
     if (device === "metal") return t("minicpmBackendMetal");
+    if (device === "cuda") return t("minicpmBackendCuda");
+    if (device === "gpu") return t("minicpmBackendGpu");
+    if (device === "npu") return t("minicpmBackendNpu");
     return t("minicpmBackendCpu");
+  }
+
+  // Prefer the gateway's own `experimental` + `reasons` over hardcoded
+  // strings, so a new backend needs no renderer change.
+  function deviceTooltip(devices, device) {
+    const reasons = (devices && devices.reasons) || {};
+    if (typeof reasons[device] === "string" && reasons[device].trim()) {
+      return reasons[device].trim();
+    }
+    const experimental = Array.isArray(devices && devices.experimental)
+      ? devices.experimental : [];
+    if (experimental.includes(device)) return t("minicpmBackendVulkanExperimental");
+    return "";
+  }
+
+  // In the gateway's ranked order; unknown names dropped.
+  function pickableDevices(devices) {
+    const available = Array.isArray(devices && devices.available) ? devices.available : [];
+    const known = ["cpu", "vulkan", "metal", "cuda", "gpu", "npu"];
+    return available.filter((d) => known.includes(d));
   }
 
   function modelPathOpenLabel() {
@@ -347,20 +370,81 @@
       ? window.minicpmSettings.getBackendMode()
       : null;
 
-    if (IS_WINDOWS && backendMode !== "openvino") {
+    // Above the device picker because the device list depends on it:
+    // llama.cpp offers cpu/vulkan, OpenVINO cpu/gpu/npu.
+    let engineInfo = null;
+    try {
+      engineInfo = window.minicpmSettings.getBackend
+        ? await window.minicpmSettings.getBackend()
+        : null;
+    } catch {}
+
+    if (engineInfo && Array.isArray(engineInfo.supported) && engineInfo.supported.length > 1) {
+      const current = engineInfo.current || "llama.cpp";
+      const row = el("div", { className: "row" });
+      const text = el("div", { className: "row-text" });
+      text.appendChild(el("span", { className: "row-label" }, t("minicpmRowEngineSelect")));
+      text.appendChild(el("span", { className: "row-desc" },
+        engineInfo.lockedByEnv
+          ? t("minicpmEngineLockedByEnv")
+          : t("minicpmRowEngineSelectDesc")));
+      row.appendChild(text);
+
+      const seg = el("div", { className: "segmented minicpm-backend-segmented" });
+      for (const backend of engineInfo.supported) {
+        const btn = el("button", {
+          type: "button",
+          className: current === backend ? "active" : "",
+          onClick: async () => {
+            if (btn.disabled || current === backend) return;
+            Array.from(seg.querySelectorAll("button")).forEach((b) => { b.disabled = true; });
+            try {
+              const ret = await window.minicpmSettings.setBackendAndRestart(backend);
+              if (ret && ret.ok === false && ops && typeof ops.showToast === "function") {
+                ops.showToast(
+                  (ret.rolledBack ? t("minicpmEngineSwitchRolledBack") : t("toastSaveFailed"))
+                    + (ret.error || ""),
+                  { error: true, ttl: 8000 }
+                );
+              } else if (ret && ret.ok && ret.modelPresent === false
+                         && ops && typeof ops.showToast === "function") {
+                // Switched, but this engine has no model configured yet.
+                ops.showToast(t("minicpmEngineNeedsModel"), { ttl: 8000 });
+              }
+            } catch (err) {
+              if (ops && typeof ops.showToast === "function") {
+                ops.showToast(t("toastSaveFailed") + (err && err.message || ""), { error: true });
+              }
+            } finally {
+              void ctx.refreshAll();
+            }
+          },
+        }, backend === "openvino" ? t("minicpmEngineOpenvino") : t("minicpmEngineLlamaCpp"));
+        // Env wins over the pref, so the control would do nothing.
+        if (engineInfo.lockedByEnv) btn.disabled = true;
+        seg.appendChild(btn);
+      }
+      const ctl = el("div", { className: "row-control" });
+      ctl.appendChild(seg);
+      row.appendChild(ctl);
+      rows.appendChild(row);
+    }
+
+    // Windows-only: macOS has Metal and nothing to pick.
+    if (IS_WINDOWS || backendMode === "openvino") {
       let devices = null;
       try { devices = await window.minicpmSettings.listDevices(); } catch {}
-      const available = Array.isArray(devices && devices.available) ? devices.available : ["cpu"];
-      if (available.includes("cpu") || available.includes("vulkan")) {
-        const current = (devices && devices.current) || "cpu";
+      const available = pickableDevices(devices);
+      // Only worth a row when there is an actual choice to make.
+      if (available.length > 1) {
+        const current = (devices && devices.current) || available[0];
         const row = el("div", { className: "row" });
         const text = el("div", { className: "row-text" });
         text.appendChild(el("span", { className: "row-label" }, t("minicpmRowBackend")));
         text.appendChild(el("span", { className: "row-desc" }, t("minicpmRowBackendDesc")));
         row.appendChild(text);
         const segmented = el("div", { className: "segmented minicpm-backend-segmented" });
-        for (const device of ["cpu", "vulkan"]) {
-          if (!available.includes(device)) continue;
+        for (const device of available) {
           const btn = el("button", {
             type: "button",
             className: current === device ? "active" : "",
@@ -388,7 +472,8 @@
               }
             },
           }, deviceLabel(device));
-          if (device === "vulkan") btn.setAttribute("title", t("minicpmBackendVulkanExperimental"));
+          const tip = deviceTooltip(devices, device);
+          if (tip) btn.setAttribute("title", tip);
           segmented.appendChild(btn);
         }
         const ctl = el("div", { className: "row-control" });
@@ -419,6 +504,24 @@
     const infoVal = el("div", { className: "row-control minicpm-info-value" }, MODEL_INFO_LABEL);
     infoRow.appendChild(infoVal);
     rows.appendChild(infoRow);
+
+    // The label above is a fixed product name by design, so this row
+    // carries the runtime truth instead.
+    const engineName = (snap.h && snap.h.backend) || null;
+    const engineAccel = (snap.h && snap.h.accel) || null;
+    if (engineName) {
+      const engRow = el("div", { className: "row minicpm-info-row" });
+      const engText = el("div", { className: "row-text" });
+      engText.appendChild(el("span", { className: "row-label" }, t("minicpmRowEngine")));
+      engRow.appendChild(engText);
+      const engLabel = engineAccel
+        ? `${engineName} · ${deviceLabel(engineAccel)}`
+        : engineName;
+      engRow.appendChild(
+        el("div", { className: "row-control minicpm-info-value" }, engLabel)
+      );
+      rows.appendChild(engRow);
+    }
 
     // ── Model path row (truncated + tooltip + two buttons) ────────────
     const pathRow = el("div", { className: "row minicpm-path-row" });
@@ -604,14 +707,14 @@
 
     function buildChoice({ label, value, selected, sub, item }) {
       const wrap = el("label", { className: "minicpm-adapter-choice" + (selected ? " selected" : "") });
-      if (item && item.missing) wrap.classList.add("is-missing");
+      if (item && (item.missing || item.incompatible)) wrap.classList.add("is-missing");
       const input = el("input", {
         type: "radio",
         name: radioName,
       });
       if (selected) input.setAttribute("checked", "checked");
       input.dataset.path = value === null ? "" : value;
-      if (item && item.missing) input.disabled = true;
+      if (item && (item.missing || item.incompatible)) input.disabled = true;
       wrap.appendChild(input);
       const txt = el("span", { className: "minicpm-adapter-choice-label" }, label);
       // Tooltip surfaces filename + aliases so the abbreviated chip
@@ -632,6 +735,15 @@
       // refs without digging into logs.
       if (item && item.missing) {
         const tag = el("span", { className: "minicpm-adapter-choice-tag is-missing" }, t("minicpmAdapterMissingTag"));
+        wrap.appendChild(tag);
+      }
+      // Same for an adapter trained on a different base — picking one
+      // used to take llama-server down with a shape error.
+      if (item && item.incompatible) {
+        const tag = el("span", {
+          className: "minicpm-adapter-choice-tag is-missing",
+          title: item.incompatibleReason || "",
+        }, t("minicpmAdapterIncompatibleTag"));
         wrap.appendChild(tag);
       }
 

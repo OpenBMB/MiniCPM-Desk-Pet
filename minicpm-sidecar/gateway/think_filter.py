@@ -23,6 +23,23 @@ class ThinkBlockFilter:
         self.expose = expose
         self._buf = ""
         self._mode = "inside" if start_inside else "outside"
+        # The template writes "<think>\n" and "</think>\n\n", so the newline
+        # that follows each tag is punctuation, not content. Emitting it
+        # verbatim puts a blank first line in the reasoning bubble and blank
+        # leading lines on the reply. We cannot always strip it inline
+        # because the newline often arrives in the *next* chunk, so remember
+        # that a boundary was just crossed and trim on the way out.
+        self._eat_leading_newlines = 0
+
+    def _trim_boundary_newlines(self, text: str) -> str:
+        while self._eat_leading_newlines > 0 and text.startswith("\n"):
+            text = text[1:]
+            self._eat_leading_newlines -= 1
+        if text:
+            # Only the run of newlines *immediately* after a tag is
+            # punctuation; once real content shows up, stop trimming.
+            self._eat_leading_newlines = 0
+        return text
 
     def feed(self, piece: str) -> list[dict]:
         self._buf += piece
@@ -32,10 +49,11 @@ class ThinkBlockFilter:
         out = list(self._drain(final=True))
         if self._buf:
             ev = "think" if (self._mode == "inside" and self.expose) else "delta"
+            residual = self._trim_boundary_newlines(self._buf)
             if self._mode == "inside" and not self.expose:
                 pass  # drop residual reasoning when caller doesn't want it
-            else:
-                out.append({"event": ev, "content": self._buf})
+            elif residual:
+                out.append({"event": ev, "content": residual})
             self._buf = ""
         return out
 
@@ -47,18 +65,27 @@ class ThinkBlockFilter:
                     safe_len = self._safe_emit_len(self._buf, self.OPEN_TAG)
                     if safe_len <= 0:
                         if final and self._buf:
-                            yield {"event": "delta", "content": self._buf}
+                            out = self._trim_boundary_newlines(self._buf)
                             self._buf = ""
+                            if out:
+                                yield {"event": "delta", "content": out}
                         return
                     out, self._buf = self._buf[:safe_len], self._buf[safe_len:]
+                    out = self._trim_boundary_newlines(out)
                     if out:
                         yield {"event": "delta", "content": out}
                     return
                 if idx > 0:
                     out, self._buf = self._buf[:idx], self._buf[idx:]
-                    yield {"event": "delta", "content": out}
+                    out = self._trim_boundary_newlines(out)
+                    if out:
+                        yield {"event": "delta", "content": out}
                 self._buf = self._buf[len(self.OPEN_TAG):]
                 self._mode = "inside"
+                # "<think>\n" — the newline belongs to the tag, not the
+                # reasoning. It is frequently in the next chunk, hence the
+                # counter rather than an inline strip.
+                self._eat_leading_newlines = 1
             else:  # inside <think>
                 idx = self._buf.find(self.CLOSE_TAG)
                 if idx < 0:
@@ -66,18 +93,19 @@ class ThinkBlockFilter:
                     if safe_len <= 0:
                         return
                     out, self._buf = self._buf[:safe_len], self._buf[safe_len:]
+                    out = self._trim_boundary_newlines(out)
                     if out and self.expose:
                         yield {"event": "think", "content": out}
                     return
                 head, self._buf = self._buf[:idx], self._buf[idx + len(self.CLOSE_TAG):]
+                head = self._trim_boundary_newlines(head)
                 if head and self.expose:
                     yield {"event": "think", "content": head}
                 self._mode = "outside"
-                # Eat exactly one trailing "\n\n" the template inserts after </think>
-                if self._buf.startswith("\n\n"):
-                    self._buf = self._buf[2:]
-                elif self._buf.startswith("\n"):
-                    self._buf = self._buf[1:]
+                # "</think>\n\n" — same deal, and the newlines may straddle
+                # the chunk boundary, so arm the counter as well as taking
+                # whatever is already buffered.
+                self._eat_leading_newlines = 2
 
     @staticmethod
     def _safe_emit_len(buf: str, tag: str) -> int:

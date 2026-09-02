@@ -20,6 +20,7 @@ import uvicorn
 # Absolute imports so this module works both as `python -m gateway`
 # (where __package__ is set) AND as the PyInstaller entry script
 # (where __package__ is empty and relative imports raise).
+from gateway.engine import BACKEND_LLAMA, BACKEND_OPENVINO, resolve_backend
 from gateway.lifecycle import ParentWatchdog
 from gateway.log_setup import init_logging, install_broken_pipe_guard
 from gateway.server import build_app
@@ -39,6 +40,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--update-source",
         default=os.environ.get("MINICPM_UPDATE_SOURCE", DEFAULT_SOURCE),
     )
+    p.add_argument(
+        "--backend",
+        default=os.environ.get("MINICPM_BACKEND", ""),
+        help="inference engine: 'llama.cpp' (default) or 'openvino'",
+    )
     p.add_argument("--ctx-size", type=int, default=int(os.environ.get("MINICPM_CTX", "4096")))
     p.add_argument("--gpu-layers", type=int, default=int(os.environ.get("MINICPM_GPU_LAYERS", "-1")))
     p.add_argument(
@@ -49,12 +55,23 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _resolve_model_arg(raw: str) -> Path | None:
+def _resolve_model_arg(raw: str, backend: str = BACKEND_LLAMA) -> Path | None:
     if not raw:
         return None
     p = Path(raw).expanduser()
     if not p.exists():
         return p  # will be picked up when /api/update-apply finishes
+
+    if backend == BACKEND_OPENVINO:
+        # An OpenVINO model *is* a directory, so never collapse it to a
+        # file the way the gguf branch does.
+        if p.is_dir():
+            if (p / "openvino_model.xml").is_file():
+                return p
+            found = sorted(p.glob("*/openvino_model.xml"))
+            return found[0].parent if found else None
+        return None
+
     if p.is_file():
         return p
     if p.is_dir():
@@ -99,7 +116,8 @@ def main(argv: list[str] | None = None) -> int:
     parent_pid = _resolve_parent_pid()
     ParentWatchdog(parent_pid).start()
 
-    model_path = _resolve_model_arg(args.model)
+    backend = resolve_backend(args.backend)
+    model_path = _resolve_model_arg(args.model, backend)
 
     app = build_app(
         initial_model=model_path,
@@ -107,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         ctx_size=args.ctx_size,
         n_gpu_layers=args.gpu_layers,
         threads=(args.threads or None),
+        backend=backend,
     )
 
     uvicorn.run(

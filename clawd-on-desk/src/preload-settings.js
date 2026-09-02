@@ -164,6 +164,9 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   exitBubbleEdit: (save) => ipcRenderer.invoke("minicpm-settings:exit-bubble-edit", { save: !!save }),
   getBackendMode: () => process.env.MINICPM_BACKEND || null,
   listDevices: () => ipcRenderer.invoke("minicpm-settings:list-devices"),
+  getBackend: () => ipcRenderer.invoke("minicpm-settings:get-backend"),
+  setBackendAndRestart: (backend) =>
+    ipcRenderer.invoke("minicpm-settings:set-backend-and-restart", { backend }),
   setDevice: (device) => ipcRenderer.invoke("minicpm-settings:set-device", { device }),
   setDeviceAndRestart: (device) => ipcRenderer.invoke("minicpm-settings:set-device-and-restart", { device }),
   restartSidecar: () => ipcRenderer.invoke("minicpm-settings:restart-sidecar"),

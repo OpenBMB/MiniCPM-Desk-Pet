@@ -26,6 +26,9 @@ let t = minicpmI18n ? minicpmI18n.makeTranslator(() => currentLang) : (k) => k;
 let currentStep = "env-check";
 let modelStatus = "idle";    // "idle" | "downloading" | "ready"
 let modelSource = null;      // "download" | "local"
+// The bundled downloader only ships GGUF, so OpenVINO gets the download
+// card disabled and a pointer to the conversion script.
+let backendMode = "llama.cpp";
 let modelInfo = null;        // { path, sizeBytes } once ready
 let warmupStatus = "idle";   // "idle" | "running" | "ready" | "error"
 let warmupKicked = false;    // guard against double-firing warmup
@@ -151,13 +154,28 @@ function paintModelCards() {
   localStatus.classList.add("hidden");
   dlProgress.classList.add("hidden");
 
+  // Decided up front, not per-branch: it must hold in "ready" (which
+  // otherwise offers "switch to download") as much as in "idle".
+  const downloadUsable = backendMode !== "openvino";
+  const localPickLabel = downloadUsable
+    ? t("onboardingLocalPickFile")
+    : t("onboardingOpenvinoPickDir");
+
+  function disableDownloadCard() {
+    dlBtn.disabled = true;
+    dlBtn.textContent = t("onboardingDownloadUnavailableForBackend");
+    dlCard.classList.add("disabled");
+    dlStatus.classList.remove("hidden");
+    dlStatusText.textContent = t("onboardingOpenvinoConvertHint");
+  }
+
   if (modelStatus === "downloading") {
     dlCard.classList.add("selected");
     localCard.classList.add("disabled");
     dlBtn.disabled = true;
     dlBtn.textContent = t("onboardingDownloading");
     localBtn.disabled = true;
-    localBtn.textContent = t("onboardingLocalPickFile");
+    localBtn.textContent = localPickLabel;
     dlProgress.classList.remove("hidden");
     return;
   }
@@ -177,19 +195,27 @@ function paintModelCards() {
       localStatusText.textContent = formatModelDetail(modelInfo) || t("onboardingLoaded");
       localBtn.disabled = true;
       localBtn.textContent = t("onboardingLocalPicked");
-      dlBtn.disabled = false;
-      dlBtn.textContent = t("onboardingDownloadSwitchToDownload");
+      if (downloadUsable) {
+        dlBtn.disabled = false;
+        dlBtn.textContent = t("onboardingDownloadSwitchToDownload");
+      } else {
+        disableDownloadCard();
+      }
     }
     return;
   }
 
   // idle
-  dlBtn.disabled = false;
-  dlBtn.textContent = downloadFailed
-    ? t("onboardingDownloadRetry")
-    : t("onboardingDownloadStart");
+  if (!downloadUsable) {
+    disableDownloadCard();
+  } else {
+    dlBtn.disabled = false;
+    dlBtn.textContent = downloadFailed
+      ? t("onboardingDownloadRetry")
+      : t("onboardingDownloadStart");
+  }
   localBtn.disabled = false;
-  localBtn.textContent = t("onboardingLocalPickFile");
+  localBtn.textContent = localPickLabel;
 }
 
 function paintWarmupRow() {
@@ -238,6 +264,7 @@ function paintModelPanel() {
 
 async function detectExistingModel() {
   const state = await window.onboarding.getState().catch(() => null);
+  if (state && state.backend) backendMode = state.backend;
   if (state && state.modelPresent) {
     modelStatus = "ready";
     modelSource = "local";

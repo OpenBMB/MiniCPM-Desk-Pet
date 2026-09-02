@@ -60,6 +60,28 @@ a = Analysis(
         "peft",
         "accelerate",
         "sentencepiece",
+        # OpenVINO is an opt-in extra (see pyproject `[openvino]`) and must
+        # never enter this bundle. Lazy-importing it inside a function body
+        # does NOT hide it: PyInstaller's modulegraph is a static AST walk
+        # and finds those imports just as readily as module-level ones.
+        #
+        # This matters because build-gateway.{sh,ps1} run a bare `uv sync`
+        # against the SAME .venv a developer may have populated with
+        # `--extra openvino`. Without these lines the next `./go.sh build`
+        # silently ships a ~400 MB binary instead of ~30 MB, and nothing
+        # fails to tell you.
+        #
+        # Consequence, on purpose: the frozen sidecar cannot run the
+        # openvino backend. minicpm-chat.js routes to the source tree when
+        # MINICPM_BACKEND=openvino for exactly this reason.
+        "openvino",
+        "openvino_genai",
+        "openvino_tokenizers",
+        "openvino_telemetry",
+        "nncf",
+        "numpy",
+        "optimum",
+        "onnx",
     ],
     noarchive=False,
 )

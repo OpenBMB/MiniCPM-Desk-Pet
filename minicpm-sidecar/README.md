@@ -107,6 +107,65 @@ CI 和默认本地构建不再编译 `llama.cpp`，而是直接下载官方
 3. 跑一次 `./scripts/build-all.sh`。
 4. 用 golden prompt 对一遍 token 与中文输出，与旧 HF 模型对齐。
 
+## OpenVINO 后端（Intel AIPC，可选）
+
+llama.cpp 没有 NPU 后端，所以在 Intel Core Ultra 机器上默认路径只能用到
+CPU 和实验性的 Vulkan iGPU。`--backend openvino` 换成
+`openvino_genai.LLMPipeline` 在**进程内**推理，可以选 CPU / GPU / NPU。
+
+```bash
+# 1) 装可选依赖（默认 `uv sync` 不会装）
+uv sync --extra openvino
+
+# 2) 把 HF checkpoint 转成 OpenVINO IR
+python scripts/convert-openvino.py --source <hf-checkpoint> --preset gpu   # INT8
+python scripts/convert-openvino.py --source <hf-checkpoint> --preset npu   # 对称 INT4
+
+# 3) 启动
+MINICPM_BACKEND=openvino MINICPM_DEVICE=gpu \
+  uv run python -m gateway --model ../models/ov/<name>
+```
+
+Electron 侧同样只需 `MINICPM_BACKEND=openvino`（会跳过只会下 GGUF 的
+onboarding 向导，并改用源码态 sidecar —— 见下方"打包"）。
+
+### ⚠️ NPU 只接受对称 INT4
+
+把 INT8 IR 交给 NPU **不会报错**：`LLMPipeline(ir, "NPU")` 静默接受，然后在
+`generate()` 里以不可捕获的 `0xC0000005` 杀死整个进程 —— 没有 traceback，
+没有日志（[openvino#35641](https://github.com/openvinotoolkit/openvino/issues/35641)）。
+
+因此 `openvino_client` 在构造 pipeline **之前**就校验 IR 精度，并且**失败时从严**：
+精度无法确定的 IR 一律视为不安全。默认 `MINICPM_OV_NPU_FALLBACK=1` 会降级到
+GPU 并在 `/api/health` 的 `device_fallback` 里说明原因；设为 `0` 则硬失败。
+
+### 与 llama.cpp 后端的差异
+
+| | llama.cpp | openvino |
+|---|---|---|
+| 模型形态 | 单个 `.gguf` 文件 | **目录**（`openvino_model.xml` + `.bin` + tokenizer 对） |
+| 子进程 | 有（llama-server） | 无，进程内；`port` 恒为 0，`lifecycle.py` 不适用 |
+| LoRA adapter | 支持 | 不支持，`/api/load-adapter` 返回 501 |
+| 设备 | metal / cuda / vulkan / cpu | cpu / gpu / npu |
+| `<think>` 拆分 | llama-server 预拆到 `reasoning_content` | 引擎只吐 `content`，由 `ThinkBlockFilter` 拆 |
+
+一个实测出来的模型行为，两个后端都受影响但只有 OV 需要额外处理：**MiniCPM5
+无论 prompt 怎么写都会先开一个 `<think>` 块**（给了闭合空块也照样新开）。所以
+`thinking=false` 不是"不推理"，只是"不展示"，被丢弃的推理照样花 token —— 引擎
+因此对隐藏推理套用与 `server.THINKING_MIN_MAX_NEW_TOKENS` 相同的预算下限，
+否则采样时可能在 `</think>` 出现前就耗尽配额、给用户一个空气泡。
+
+### 打包
+
+`build/gateway.spec` 的 `excludes` **显式排除** openvino 系列。函数内 lazy
+import 挡不住 PyInstaller —— 它的 modulegraph 是静态 AST 遍历，函数体里的
+import 一样会被收进去；而两个 build 脚本共用同一个 `.venv`，跑过一次
+`--extra openvino` 之后再打包就会静默塞进约 400 MB。
+
+代价是**冻结的 sidecar 二进制跑不了 OV 后端**，这是刻意的：
+`clawd-on-desk/src/minicpm-chat.js` 在 `MINICPM_BACKEND=openvino` 时会优先走
+源码 + `.venv`，而不是给用户一个无从下手的 ImportError。
+
 ## API
 
 gateway 对 Electron 暴露下列端点（保持与旧 bridge 完全兼容）：

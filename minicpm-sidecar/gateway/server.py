@@ -1,9 +1,18 @@
-"""FastAPI gateway in front of llama.cpp's llama-server.
+"""FastAPI gateway in front of the inference engine.
 
 Exposes the same HTTP/SSE contract the Electron app already speaks with
 the legacy PyTorch sidecar, so the renderer (clawd-on-desk/src/minicpm-chat.*)
-does not need to change. The actual inference happens in the subprocess
-owned by `LlamaServer`; this file is just glue.
+does not need to change. The actual inference happens behind
+`engine.InferenceEngine`; this file is just glue.
+
+Two engines implement that protocol, chosen by `--backend` /
+`MINICPM_BACKEND` and defaulting to llama.cpp:
+
+  · `llama_client.LlamaServer` — GGUF via a llama-server child process.
+    Supports LoRA adapters and every device llama.cpp can reach.
+  · `openvino_client.OpenVinoEngine` — OpenVINO IR in-process, for Intel
+    AIPC (Arc iGPU / AI Boost NPU, which llama.cpp cannot target). No
+    child process and no adapters.
 """
 
 from __future__ import annotations
@@ -23,8 +32,17 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .clawd_state import ClawdBridge
+from . import adapter_compat
+from .engine import (
+    BACKEND_LLAMA,
+    BACKEND_OPENVINO,
+    InferenceEngine,
+    resolve_backend,
+    supports_adapters,
+)
 from .llama_client import LlamaServer, detect_backend
 from .log_setup import get_logger
+from . import openvino_client
 from .think_filter import ThinkBlockFilter
 from .updater import DEFAULT_SOURCE as DEFAULT_UPDATE_SOURCE
 from .updater import ModelUpdater
@@ -75,10 +93,33 @@ def _effective_max_new_tokens(req: ChatRequest) -> int:
 # ── Model discovery ─────────────────────────────────────────────────────────
 
 
-def discover_models(roots: List[Path]) -> List[dict]:
-    """Return [{name, path}] for every *.gguf file under `roots`."""
+def _is_staging(path: Path) -> bool:
+    return any(
+        part.endswith((".update-staging", ".bak", ".partial")) for part in path.parts
+    )
+
+
+def discover_models(roots: List[Path], *, backend: str = BACKEND_LLAMA) -> List[dict]:
+    """Return [{name, path, kind}] for every model under `roots`.
+
+    For llama.cpp a model is a single `*.gguf` file; for OpenVINO it is a
+    *directory* holding `openvino_model.xml` and friends. `backend`
+    defaults to llama.cpp so existing positional callers (and
+    tests/test_discover_models.py) keep their exact behaviour.
+    """
     seen: set[Path] = set()
+    emitted: set[Path] = set()
     out: List[dict] = []
+
+    def _emit(path: Path, kind: str) -> None:
+        # Dedupe on the *result*, not just the root: nested roots are
+        # normal (MINICPM_MODEL_DIR's parent plus <repo>/models, say), and
+        # rglob from the outer one re-finds everything in the inner one.
+        if path in emitted:
+            return
+        emitted.add(path)
+        out.append({"name": path.name, "path": str(path), "kind": kind})
+
     for root in roots:
         try:
             r = root.expanduser().resolve()
@@ -87,15 +128,29 @@ def discover_models(roots: List[Path]) -> List[dict]:
         if not r.exists() or r in seen:
             continue
         seen.add(r)
+
+        if backend == BACKEND_OPENVINO:
+            if r.is_dir() and openvino_client.is_openvino_ir(r):
+                _emit(r, "openvino")
+                continue
+            if not r.is_dir():
+                continue
+            for xml in sorted(r.rglob("openvino_model.xml")):
+                d = xml.parent
+                if _is_staging(d) or not openvino_client.is_openvino_ir(d):
+                    continue
+                _emit(d, "openvino")
+            continue
+
         if r.is_file() and r.suffix.lower() == ".gguf":
-            out.append({"name": r.name, "path": str(r)})
+            _emit(r, "gguf")
             continue
         if not r.is_dir():
             continue
         for p in sorted(r.rglob("*.gguf")):
-            if any(part.endswith(".update-staging") or part.endswith(".bak") for part in p.parts):
+            if _is_staging(p):
                 continue
-            out.append({"name": p.name, "path": str(p)})
+            _emit(p, "gguf")
     return out
 
 
@@ -267,9 +322,11 @@ def build_app(
     ctx_size: int = 4096,
     n_gpu_layers: int = -1,
     threads: Optional[int] = None,
+    backend: Optional[str] = None,
 ) -> FastAPI:
     log = get_logger()
     bridge = ClawdBridge(enabled=True, debug=False)
+    backend = resolve_backend(backend)
 
     # Resolve the adapter root so /api/adapters can scan it; we still
     # show the full list to the UI even when none are loaded yet, so
@@ -295,13 +352,33 @@ def build_app(
         except FileNotFoundError:
             log.warning("MINICPM_ACTIVE_ADAPTER points at missing file: %s", _env_active)
 
-    server = LlamaServer(
-        model_path=initial_model,
-        ctx_size=ctx_size,
-        n_gpu_layers=n_gpu_layers,
-        threads=threads,
-        adapters=[initial_active] if initial_active else [],
-    )
+    if backend == BACKEND_OPENVINO:
+        # In-process pipeline: no child, no adapters, no gguf. See
+        # openvino_client for why the device choice is guarded.
+        server = openvino_client.OpenVinoEngine(
+            model_path=initial_model,
+            ctx_size=ctx_size,
+        )
+        if initial_active:
+            log.warning(
+                "MINICPM_ACTIVE_ADAPTER ignored: the openvino backend has no "
+                "LoRA support (weights are baked into the IR)"
+            )
+            initial_active = None
+    else:
+        server = LlamaServer(
+            model_path=initial_model,
+            ctx_size=ctx_size,
+            n_gpu_layers=n_gpu_layers,
+            threads=threads,
+            adapters=[initial_active] if initial_active else [],
+        )
+
+    def detect_devices() -> dict:
+        """`/api/devices` payload for whichever engine is loaded."""
+        if backend == BACKEND_OPENVINO:
+            return openvino_client.detect_devices()
+        return detect_backend()
 
     # In-memory adapter state. Single source of truth for what the
     # Electron app sees as "the active LoRA". Boots from the persisted
@@ -363,7 +440,7 @@ def build_app(
             return Path(initial_model)
         # Fall back to the first discovered gguf so /api/update-check
         # always has *some* anchor to compare against.
-        items = discover_models(extra_roots)
+        items = discover_models(extra_roots, backend=backend)
         if items:
             return Path(items[0]["path"])
         # Last resort: synthesise a stub path so updater code can still
@@ -377,44 +454,78 @@ def build_app(
     @app.get("/api/health")
     async def health():
         sub_health = await server.health()
-        backend = detect_backend()
+        devices = detect_devices()
         adapter = state["current_adapter"]
-        current = backend.get("current") or backend["recommended"]
+        current = devices.get("current") or devices["recommended"]
         return {
             "ok": True,
             "alive": server.alive,
-            "backend": "llama.cpp",
+            "backend": backend,
             "accel": current,
             "device": current,  # alias used by older Electron code paths
-            "dtype": "gguf",
+            "dtype": "openvino-ir" if backend == BACKEND_OPENVINO else "gguf",
             "model_dir": str(server.model_path) if server.model_path else None,
             "model_name": server.model_path.name if server.model_path else None,
             "adapter": str(adapter) if adapter else None,
             "persona": _persona_for(adapter) if adapter else "default",
+            # Key name kept for compatibility: the Electron host gates
+            # readiness on `health.llama_server.status === "ok"` in five
+            # places. `engine` is the same blob under a truthful name.
             "llama_server": sub_health,
+            "engine": sub_health,
             "port": server.port,
             "startup_error": startup_error,
         }
 
     @app.get("/api/devices")
     def list_devices():
-        info = detect_backend()
-        return info
+        return detect_devices()
 
     @app.post("/api/set-device")
     async def set_device(payload: dict):
         device = str(payload.get("device") or "").strip().lower()
-        if device not in ("metal", "cuda", "cpu", "vulkan", "mps", "auto", ""):
-            return JSONResponse({"error": f"unknown device: {device!r}"}, status_code=400)
-        # "mps" is the legacy name for Apple Silicon; transparently map
-        # to metal for consistency with llama.cpp terminology.
-        if device == "mps":
-            device = "metal"
-        if device == "vulkan" and platform.system() != "Windows":
-            return JSONResponse(
-                {"error": "vulkan backend is only configurable on Windows"},
-                status_code=400,
-            )
+
+        if backend == BACKEND_OPENVINO:
+            if device not in ("cpu", "gpu", "npu", "auto", ""):
+                return JSONResponse({"error": f"unknown device: {device!r}"}, status_code=400)
+            available = detect_devices().get("available") or []
+            if device and device != "auto" and device not in available:
+                return JSONResponse(
+                    {"error": f"device not available on this machine: {device!r}"},
+                    status_code=400,
+                )
+            if device == "npu":
+                # Second line of defence for openvino#35641. The engine
+                # refuses at load time too, but catching it here turns a
+                # dead sidecar into a toast the user can act on.
+                target = server.model_path
+                if target:
+                    precision = openvino_client.inspect_ir_precision(Path(target))
+                    if not precision.npu_ready:
+                        return JSONResponse(
+                            {
+                                "error": (
+                                    f"the loaded model is {precision.describe()}; the NPU "
+                                    "needs a symmetric INT4 IR. Convert one with "
+                                    "scripts/convert-openvino.py --preset npu"
+                                )
+                            },
+                            status_code=400,
+                        )
+            openvino_client.invalidate_device_cache()
+        else:
+            if device not in ("metal", "cuda", "cpu", "vulkan", "mps", "auto", ""):
+                return JSONResponse({"error": f"unknown device: {device!r}"}, status_code=400)
+            # "mps" is the legacy name for Apple Silicon; transparently map
+            # to metal for consistency with llama.cpp terminology.
+            if device == "mps":
+                device = "metal"
+            if device == "vulkan" and platform.system() != "Windows":
+                return JSONResponse(
+                    {"error": "vulkan backend is only configurable on Windows"},
+                    status_code=400,
+                )
+
         if device:
             os.environ["MINICPM_DEVICE"] = device
         else:
@@ -426,12 +537,12 @@ def build_app(
         path = server.model_path or _get_active_model_path()
         present = path.exists() if path else False
         adapter = state["current_adapter"]
-        backend = detect_backend()
+        devices = detect_devices()
         return {
             "model_present": present,
             "model_dir": str(path) if path else None,
-            "device": backend.get("current") or backend["recommended"],
-            "dtype": "gguf",
+            "device": devices.get("current") or devices["recommended"],
+            "dtype": "openvino-ir" if backend == BACKEND_OPENVINO else "gguf",
             "adapter": str(adapter) if adapter else None,
             "persona": _persona_for(adapter) if adapter else "default",
             "stage_hint": "ready" if present else "model-download",
@@ -441,7 +552,7 @@ def build_app(
 
     @app.get("/api/models")
     def list_models():
-        items = discover_models(extra_roots)
+        items = discover_models(extra_roots, backend=backend)
         current = str(server.model_path) if server.model_path else None
         return {
             "items": items,
@@ -456,7 +567,11 @@ def build_app(
         if not path:
             return JSONResponse({"error": "path is required"}, status_code=400)
         target = Path(path).expanduser().resolve()
-        if not target.is_file() or target.suffix.lower() != ".gguf":
+        if backend == BACKEND_OPENVINO:
+            reason = openvino_client.validate_openvino_ir(target)
+            if reason:
+                return JSONResponse({"error": reason}, status_code=400)
+        elif not target.is_file() or target.suffix.lower() != ".gguf":
             return JSONResponse({"error": f"not a .gguf file: {target}"}, status_code=400)
         bridge.post("working", event="LoadModel", title=f"加载 {target.name}")
         try:
@@ -477,6 +592,9 @@ def build_app(
         # mirror on every call so rename / upload mutations show up in
         # the next /api/adapters response without any explicit refresh
         # ping from Electron.
+        if not supports_adapters(server):
+            # Don't offer clickable personas the backend will 501 on.
+            return []
         root = _resolve_adapter_root(server.model_path)
         if not root:
             return []
@@ -504,6 +622,20 @@ def build_app(
                 item["id"] = entry["id"]
             if isinstance(entry.get("persona"), str) and entry["persona"].strip():
                 item["persona"] = entry["persona"].strip()
+
+        # Tell the UI which entries would crash if picked, so it can grey
+        # them out with a reason instead of letting the user find out by
+        # killing their own desk pet.
+        for item in items:
+            try:
+                reason = adapter_compat.adapter_mismatch_reason(
+                    Path(item["path"]), server.model_path
+                )
+            except Exception:
+                reason = None
+            if reason:
+                item["incompatible"] = True
+                item["incompatibleReason"] = reason
         return items
 
     @app.get("/api/adapters")
@@ -537,6 +669,19 @@ def build_app(
             state["current_adapter"] = None
             return {"ok": True, "adapter": None, "persona": "default"}
 
+        # Deactivation above still works on every backend ("back to Base"
+        # is always a valid request); only *activating* one needs support.
+        if not supports_adapters(server):
+            return JSONResponse(
+                {
+                    "error": (
+                        f"LoRA adapters are not supported by the {backend} backend — "
+                        "weights are baked into the IR at conversion time"
+                    )
+                },
+                status_code=501,
+            )
+
         target = Path(str(raw)).expanduser()
         try:
             target = target.resolve(strict=True)
@@ -550,6 +695,17 @@ def build_app(
                 {"error": f"not a .gguf adapter: {target}"},
                 status_code=400,
             )
+
+        # An adapter trained on a different base does not degrade — it
+        # takes llama-server down with a shape error and an access
+        # violation, leaving the user with a wall of logs and a dead pet
+        # after doing nothing worse than picking a persona the UI offered.
+        # Check the geometry first; the helper fails open, so an
+        # unreadable file still loads exactly as it used to.
+        mismatch = adapter_compat.adapter_mismatch_reason(target, server.model_path)
+        if mismatch:
+            log.warning("refusing incompatible adapter %s: %s", target.name, mismatch)
+            return JSONResponse({"error": mismatch}, status_code=409)
 
         # If the requested adapter isn't currently `--lora`-loaded,
         # restart llama-server so that ONLY this adapter is loaded.
@@ -583,7 +739,7 @@ def build_app(
     @app.post("/api/classify")
     def classify_endpoint(payload: dict):
         return JSONResponse(
-            {"error": "/api/classify not implemented for llama.cpp backend yet"},
+            {"error": f"/api/classify not implemented for the {backend} backend yet"},
             status_code=501,
         )
 
@@ -627,7 +783,7 @@ def build_app(
                             # Restart llama-server against the (potentially
                             # renamed) gguf so the new weights take effect
                             # without a full sidecar restart.
-                            items = discover_models(extra_roots)
+                            items = discover_models(extra_roots, backend=backend)
                             if items:
                                 target = Path(items[0]["path"])
                                 await server.swap_model(target)
@@ -667,6 +823,11 @@ def build_app(
         0.0, so base chat never depends on whatever global adapter scale
         the server happened to inherit at startup.
         """
+        if not supports_adapters(server):
+            # None, not [] — "the engine has no adapter concept at all",
+            # as opposed to "explicitly run this request without one".
+            # llama_client only adds the field when it is not None.
+            return None
         if req.disable_adapter:
             return []
         current = state["current_adapter"]
@@ -709,7 +870,7 @@ def build_app(
     def index():
         return JSONResponse({
             "ok": True,
-            "note": "MiniCPM sidecar gateway (llama.cpp backend)",
+            "note": f"MiniCPM sidecar gateway ({backend} backend)",
             "endpoints": [
                 "/api/health", "/api/chat", "/api/warmup",
                 "/api/models", "/api/load-model",
@@ -727,7 +888,7 @@ def build_app(
 
 
 async def _stream_chat(
-    server: LlamaServer,
+    server: InferenceEngine,
     bridge: ClawdBridge,
     req: ChatRequest,
     *,
@@ -804,7 +965,7 @@ async def _stream_chat(
 
 
 async def _blocking_chat(
-    server: LlamaServer,
+    server: InferenceEngine,
     bridge: ClawdBridge,
     req: ChatRequest,
     *,

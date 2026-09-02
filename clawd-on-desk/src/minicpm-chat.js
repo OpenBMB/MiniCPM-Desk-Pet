@@ -148,6 +148,49 @@ function triplet() {
   return process.platform + "-" + arch;
 }
 
+// ── OpenVINO IR detection ──────────────────────────────────────────────
+//
+// A llama.cpp model is one `.gguf`; an OpenVINO model is a directory.
+// Module scope (unlike the closure-scoped `_firstGgufIn`) so tests can
+// reach it without mocking Electron.
+
+const OPENVINO_IR_MARKER = "openvino_model.xml";
+
+// Every IR inside `dir`, or `dir` itself. The picker needs the full list
+// so it can refuse to guess between several.
+function openvinoIrsIn(dir) {
+  try {
+    if (fs.statSync(path.join(dir, OPENVINO_IR_MARKER)).isFile()) return [dir];
+  } catch {}
+  const out = [];
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const sub = path.join(dir, entry.name);
+      try {
+        if (fs.statSync(path.join(sub, OPENVINO_IR_MARKER)).isFile()) out.push(sub);
+      } catch {}
+    }
+  } catch {}
+  return out;
+}
+
+function firstOpenvinoIrIn(dir) {
+  try {
+    if (fs.statSync(path.join(dir, OPENVINO_IR_MARKER)).isFile()) return dir;
+  } catch {}
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const sub = path.join(dir, entry.name);
+      try {
+        if (fs.statSync(path.join(sub, OPENVINO_IR_MARKER)).isFile()) return sub;
+      } catch {}
+    }
+  } catch {}
+  return null;
+}
+
 // ── Adapter manifest pure helpers ──────────────────────────────────────
 //
 // These work on plain JS objects with no IO so they're easy to unit-test
@@ -578,8 +621,14 @@ class Sidecar {
       delete env[v];
     }
 
+    // The frozen sidecar excludes the OpenVINO wheels (gateway.spec), so
+    // that backend only works from the source tree + .venv.
+    const preferSource =
+      (process.env.MINICPM_BACKEND || "").trim().toLowerCase() === "openvino"
+      && !!this.sidecarDir;
+
     let proc;
-    if (this.sidecarBin) {
+    if (this.sidecarBin && !preferSource) {
       // Production path: a self-contained gateway binary. No Python
       // interpreter required on the host. The gateway itself locates
       // and spawns the llama-server binary sitting next to it.
@@ -1456,12 +1505,62 @@ module.exports = function initMinicpmChat(ctx) {
     mergeMinicpmPrefs({ model_dir: next });
     return getEffectiveModelDir();
   }
+
+  // ── Inference backend ─────────────────────────────────────────────────
+  //
+  // Persisted in minicpm-prefs.json (same store as model_dir, NOT
+  // settings-controller) and mirrored into MINICPM_BACKEND for the sidecar.
+  // Precedence matches getEffectiveModelDir: env wins over the pref, so the
+  // existing MINICPM_BACKEND workflow keeps working.
+  const SUPPORTED_BACKENDS = ["llama.cpp", "openvino"];
+
+  function normalizeBackend(value) {
+    const v = String(value || "").trim().toLowerCase();
+    if (v === "openvino" || v === "ov") return "openvino";
+    if (v === "llama.cpp" || v === "llamacpp" || v === "llama" || v === "gguf") {
+      return "llama.cpp";
+    }
+    return null;
+  }
+
+  function getEffectiveBackend() {
+    const fromEnv = normalizeBackend(process.env.MINICPM_BACKEND);
+    if (fromEnv) return fromEnv;
+    const raw = readMinicpmPrefsRaw();
+    return normalizeBackend(raw.inference_backend) || "llama.cpp";
+  }
+
+  // The two backends read different formats, so the model path is
+  // remembered per backend rather than re-picked on every toggle.
+  function getBackendModelDir(backend) {
+    const raw = readMinicpmPrefsRaw();
+    const byBackend = raw.model_dir_by_backend;
+    if (byBackend && typeof byBackend === "object") {
+      const v = byBackend[backend];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return null;
+  }
+
+  function rememberBackendModelDir(backend, dir) {
+    if (!backend || typeof dir !== "string" || !dir.trim()) return;
+    const raw = readMinicpmPrefsRaw();
+    const byBackend = (raw.model_dir_by_backend && typeof raw.model_dir_by_backend === "object")
+      ? { ...raw.model_dir_by_backend }
+      : {};
+    byBackend[backend] = dir.trim();
+    mergeMinicpmPrefs({ model_dir_by_backend: byBackend });
+  }
+
   function isModelPresent(dir) {
     const target = dir || getEffectiveModelDir();
     try {
       const st = fs.statSync(target);
       if (st.isFile()) return target.toLowerCase().endsWith(".gguf");
-      if (st.isDirectory()) return _firstGgufIn(target) !== null;
+      // Not gated on the active backend: a present IR is a present model.
+      if (st.isDirectory()) {
+        return _firstGgufIn(target) !== null || firstOpenvinoIrIn(target) !== null;
+      }
     } catch {}
     return false;
   }
@@ -2521,6 +2620,79 @@ module.exports = function initMinicpmChat(ctx) {
       } catch {}
       return { ok: true, device, note: "下次 sidecar 重启时生效" };
     },
+    // Riskier than switching devices: the model format changes too, so a
+    // rollback must restore the env var *and* the model path.
+    "minicpm-settings:set-backend-and-restart": async (_evt, payload) => {
+      const requested = normalizeBackend(payload && payload.backend);
+      if (!requested) {
+        return { ok: false, error: `unknown backend: ${(payload && payload.backend) || ""}` };
+      }
+      const previousBackend = getEffectiveBackend();
+      if (requested === previousBackend) {
+        return { ok: true, backend: requested, unchanged: true };
+      }
+
+      const previousEnvBackend = process.env.MINICPM_BACKEND;
+      const previousModelDir = getEffectiveModelDir();
+      // So toggling back does not make the user re-pick their model.
+      rememberBackendModelDir(previousBackend, previousModelDir);
+
+      const restore = () => {
+        if (previousEnvBackend === undefined) delete process.env.MINICPM_BACKEND;
+        else process.env.MINICPM_BACKEND = previousEnvBackend;
+        mergeMinicpmPrefs({ inference_backend: previousBackend });
+        setEffectiveModelDir(previousModelDir);
+      };
+
+      process.env.MINICPM_BACKEND = requested;
+      mergeMinicpmPrefs({ inference_backend: requested });
+
+      // Drop a stale path rather than handing an IR loader a .gguf; the
+      // model picker will then prompt for a compatible one.
+      const remembered = getBackendModelDir(requested);
+      if (remembered) setEffectiveModelDir(remembered);
+      else if (!isModelPresent(previousModelDir)) setEffectiveModelDir(undefined);
+
+      try {
+        await sidecar.stopAndWait();
+      } catch (stopErr) {
+        restore();
+        return { ok: false, backend: requested, phase: "stop", error: localizeError(stopErr) };
+      }
+      try {
+        const r = await sidecar.ensureRunning(getEffectiveModelDir());
+        return {
+          ok: true,
+          backend: requested,
+          modelDir: getEffectiveModelDir(),
+          modelPresent: isModelPresent(),
+          status: r && r.status,
+        };
+      } catch (err) {
+        const originalError = localizeError(err);
+        restore();
+        try {
+          await sidecar.stopAndWait();
+          await sidecar.ensureRunning(getEffectiveModelDir());
+        } catch (rollbackErr) {
+          return {
+            ok: false,
+            backend: previousBackend,
+            error: `${originalError}; rollback failed: ${localizeError(rollbackErr)}`,
+          };
+        }
+        log(`[minicpm-chat] backend switch to ${requested} failed; rolled back: ${originalError}`);
+        return { ok: false, backend: previousBackend, rolledBack: true, error: originalError };
+      }
+    },
+
+    "minicpm-settings:get-backend": async () => ({
+      current: getEffectiveBackend(),
+      supported: SUPPORTED_BACKENDS,
+      // Env wins over the pref; let the renderer explain why it is inert.
+      lockedByEnv: !!normalizeBackend(process.env.MINICPM_BACKEND),
+    }),
+
     "minicpm-settings:set-device-and-restart": async (_evt, payload) => {
       const device = (payload && payload.device) || "";
       if (device === "vulkan" && process.platform !== "win32") {
@@ -2580,22 +2752,62 @@ module.exports = function initMinicpmChat(ctx) {
     }),
     "minicpm-settings:pick-model-dir": async () => {
       const { dialog } = require("electron");
+      const wantsIr =
+        (process.env.MINICPM_BACKEND || "").trim().toLowerCase() === "openvino";
+
+      // Electron cannot show a combined file+directory picker on Windows
+      // or Linux — it silently degrades to directory-only, which is why
+      // choosing a specific .gguf never worked there.
+      const properties = wantsIr
+        ? ["openDirectory"]
+        : process.platform === "darwin"
+          ? ["openFile", "openDirectory"]
+          : ["openFile"];
+
       const ret = await dialog.showOpenDialog({
-        title: "选择本地 MiniCPM 模型 (.gguf 文件或包含 .gguf 的目录)",
-        properties: ["openFile", "openDirectory"],
-        filters: [{ name: "GGUF model", extensions: ["gguf"] }],
-        message: "可以是单个 .gguf 文件，或包含 .gguf 的目录",
+        title: wantsIr
+          ? "选择 OpenVINO 模型目录 (含 openvino_model.xml)"
+          : "选择本地 MiniCPM 模型 (.gguf)",
+        properties,
+        filters: wantsIr ? [] : [{ name: "GGUF model", extensions: ["gguf"] }],
+        message: wantsIr
+          ? "OpenVINO 模型是一个目录，请选中它本身或它的上一层"
+          : "选择要加载的 .gguf 文件",
       });
       if (ret.canceled || !ret.filePaths.length) return { ok: false, canceled: true };
       const picked = ret.filePaths[0];
       let target = picked;
       try {
         const st = fs.statSync(picked);
-        if (st.isDirectory()) {
+        if (wantsIr) {
+          // Accept the IR directory itself, or a parent holding one.
+          const irs = openvinoIrsIn(picked);
+          if (irs.length > 1) {
+            return {
+              ok: false,
+              error: `该目录有 ${irs.length} 个 OpenVINO 模型，请直接选中要加载的那一个：\n${irs.map((d) => path.basename(d)).join("\n")}`,
+            };
+          }
+          const found = irs[0];
+          if (!found) {
+            return {
+              ok: false,
+              error: `所选目录不是 OpenVINO 模型（缺 openvino_model.xml）：\n${picked}`,
+            };
+          }
+          target = found;
+        } else if (st.isDirectory()) {
           const entries = fs.readdirSync(picked)
             .filter((n) => n.toLowerCase().endsWith(".gguf"));
           if (!entries.length) {
             return { ok: false, error: `所选目录不包含 .gguf：\n${picked}` };
+          }
+          if (entries.length > 1) {
+            // Loading entries[0] is how you end up on the 4.7 GB F16.
+            return {
+              ok: false,
+              error: `该目录有 ${entries.length} 个 .gguf，请直接选中要加载的那个文件：\n${entries.join("\n")}`,
+            };
           }
           target = path.join(picked, entries[0]);
         } else if (!picked.toLowerCase().endsWith(".gguf")) {
@@ -3027,5 +3239,7 @@ module.exports = function initMinicpmChat(ctx) {
     getDefaultModelDir,
     setModelDir: (dir) => setEffectiveModelDir(dir),
     isModelPresent: () => isModelPresent(),
+    // So onboarding can validate a picked IR without re-implementing it.
+    firstOpenvinoIrIn: (dir) => firstOpenvinoIrIn(dir),
   };
 };
