@@ -1,13 +1,8 @@
 "use strict";
 
-// A llama.cpp model is one .gguf file; an OpenVINO model is a whole
-// directory (openvino_model.xml + .bin + tokenizer pair). Every "is there
-// a model here?" check has to accept both — `isModelPresent` feeds the
-// onboarding wizard's model-vanished re-show test, so getting this wrong
-// nags OpenVINO users with a GGUF download wizard forever.
-//
-// The regression case matters as much as the new one: .gguf detection must
-// keep working exactly as before.
+// A model is a whole directory (openvino_model.xml + .bin + tokenizer pair),
+// not a single file. The .gguf cases are deliberate: a leftover llama.cpp
+// model on disk must never read as a usable one.
 
 const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
@@ -21,10 +16,8 @@ const targetPath = require.resolve("../src/minicpm-chat.js");
 function loadInternals() {
   delete require.cache[targetPath];
   const src = fs.readFileSync(targetPath, "utf-8");
-  // Only module-scope helpers are reachable this way. `_firstGgufIn` and
-  // `isModelPresent` live inside the initMinicpmChat closure and need
-  // Electron's `app`, which is why `firstOpenvinoIrIn` was put at module
-  // scope in the first place.
+  // Only module-scope helpers are reachable this way; `isModelPresent`
+  // lives inside the initMinicpmChat closure and needs Electron's `app`.
   const augmented =
     src + "\nmodule.exports.__internals = { firstOpenvinoIrIn };\n";
   const m = new Module(targetPath, module);
@@ -111,9 +104,6 @@ describe("firstOpenvinoIrIn", () => {
   });
 
   it("ignores a nested .gguf-only directory", () => {
-    // isModelPresent ORs the two detectors together, so this one must not
-    // claim a gguf tree as an IR — otherwise a llama.cpp model would be
-    // handed to the OpenVINO loader.
     fs.mkdirSync(path.join(tmpRoot, "gguf-models"), { recursive: true });
     fs.writeFileSync(path.join(tmpRoot, "gguf-models", "a.gguf"), "");
     assert.equal(internals.firstOpenvinoIrIn(tmpRoot), null);

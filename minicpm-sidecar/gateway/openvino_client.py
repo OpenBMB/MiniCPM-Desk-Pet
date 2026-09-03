@@ -4,11 +4,10 @@ Runs in-process, so `port` is always 0 and `lifecycle.py` does not apply —
 but `stop()` must genuinely free the pipeline, since a leaked compiled
 2.6B model is ~2.5 GB of a 16 GB shared budget.
 
-`_resolve_device()` refuses a non-symmetric-INT4 IR on the NPU. That is
-not defensiveness: `LLMPipeline(ir, "NPU")` accepts an INT8 IR silently
-and then dies inside `generate()` with an uncatchable 0xC0000005 — no
-traceback, no log, the sidecar is simply gone
-(openvinotoolkit/openvino#35641). The guard therefore fails *closed*.
+`_resolve_device()` refuses an INT8 IR on the NPU. `LLMPipeline(ir, "NPU")`
+constructs happily for it and only fails at `generate()`, so the check has
+to happen before that call. See `IRPrecision.npu_ready` for the measurements
+behind the rule; `unknown` is refused too, since it could be int8.
 """
 
 from __future__ import annotations
@@ -38,13 +37,14 @@ OPENVINO_IR_FILES = (
     "openvino_detokenizer.xml",
 )
 
-#: Sidecar device vocabulary → OpenVINO's.
-OV_DEVICE_NAMES = {"cpu": "CPU", "gpu": "GPU", "npu": "NPU"}
+#: Sidecar device vocabulary → OpenVINO's. Intel accelerators only; CPU is
+#: deliberately absent.
+OV_DEVICE_NAMES = {"gpu": "GPU", "npu": "NPU"}
 
-#: llama.cpp device names. MINICPM_DEVICE is shared between backends, so
-#: these must map to something OpenVINO understands rather than reaching
-#: ov::Core verbatim.
-_LLAMA_DEVICE_NAMES = frozenset({"metal", "mps", "cuda", "vulkan"})
+#: Names this build no longer offers. MINICPM_DEVICE persists across versions,
+#: so an upgraded machine may still have one stored; redirect to the GPU
+#: rather than handing an unknown name to ov::Core.
+_RETIRED_DEVICE_NAMES = frozenset({"metal", "mps", "cuda", "vulkan", "cpu"})
 
 _DEVICE_CACHE_TTL_S = 60.0
 
@@ -125,16 +125,37 @@ class IRPrecision:
 
     @property
     def npu_ready(self) -> bool:
+        """Whether the NPU can be handed this IR.
+
+        Measured on Core Ultra 5 225H / AI Boost, openvino 2026.3.1, NPU
+        driver 32.0.100.4778, with a 2.6B model on a 16 GB machine:
+
+          int4-sym-g128  long prompt x 256 tokens x 4 runs, all fine
+          fp16           same, and roughly 2x the throughput of int4
+          int8           ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY at the first
+                         generate(), reproducibly
+
+        So the rule is "not int8" rather than "int4 only": symmetric INT4 is
+        what the OpenVINO docs recommend for this size, but uncompressed
+        weights run too. INT8 weight-only is outside the documented NPU
+        matrix and is what actually fails here.
+
+        `unknown` stays refused — an IR whose precision we cannot read could
+        be int8.
+        """
+        if self.weight_format in ("fp16", "fp32"):
+            return True
         return self.weight_format == "int4" and self.sym is True
 
     def describe(self) -> str:
         bits = [self.weight_format]
-        if self.sym is True:
-            bits.append("sym")
-        elif self.sym is False:
-            bits.append("asym")
-        if self.group_size is not None:
-            bits.append(f"g{self.group_size}")
+        if self.weight_format not in ("fp16", "fp32"):
+            if self.sym is True:
+                bits.append("sym")
+            elif self.sym is False:
+                bits.append("asym")
+            if self.group_size is not None:
+                bits.append(f"g{self.group_size}")
         return "-".join(bits)
 
 
@@ -234,17 +255,29 @@ class NpuPrecisionError(RuntimeError):
     """Raised instead of letting the NPU kill the process."""
 
 
+class NoAcceleratorError(RuntimeError):
+    """No Intel GPU or NPU on this machine, and CPU is not offered."""
+
+
 def assert_npu_compatible(precision: IRPrecision, model_dir: Path) -> None:
     if precision.npu_ready:
         return
+    if precision.weight_format == "unknown":
+        detail = (
+            "its weight precision could not be determined, and an INT8 IR "
+            "exhausts host memory on the NPU"
+        )
+    else:
+        detail = (
+            "INT8 weight-only is outside the documented NPU matrix and "
+            "reproducibly fails with ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY"
+        )
     raise NpuPrecisionError(
-        f"The NPU needs a symmetric INT4 IR; {model_dir.name} is "
-        f"{precision.describe()} (detected via {precision.source}).\n"
-        "Handing anything else to the NPU kills the sidecar with an "
-        "uncatchable access violation rather than raising "
-        "(openvinotoolkit/openvino#35641), so this is refused up front.\n"
-        "Convert a compatible one with:\n"
-        "    python scripts/convert-openvino.py --source <hf-checkpoint> --preset npu"
+        f"{model_dir.name} is {precision.describe()} (detected via "
+        f"{precision.source}) and cannot run on the NPU: {detail}.\n"
+        "The NPU accepts symmetric INT4 (recommended) or uncompressed FP16. "
+        "Convert one with:\n"
+        "    python scripts/convert-openvino.py --source <hf-checkpoint>"
     )
 
 
@@ -259,7 +292,7 @@ def invalidate_device_cache() -> None:
 
 
 def _normalise_ov_device(raw: Optional[str] = None, *, available: Optional[list[str]] = None) -> str:
-    """`MINICPM_DEVICE` → one of cpu/gpu/npu.
+    """`MINICPM_DEVICE` → 'gpu' or 'npu'.
 
     Never auto-selects the NPU: it needs a specially quantised IR and has
     reduced sampling support, so it is opt-in only.
@@ -267,25 +300,43 @@ def _normalise_ov_device(raw: Optional[str] = None, *, available: Optional[list[
     log = get_logger()
     value = (raw if raw is not None else os.environ.get("MINICPM_DEVICE", "")).strip().lower()
 
-    if value in _LLAMA_DEVICE_NAMES:
+    if value in _RETIRED_DEVICE_NAMES:
         log.info(
-            "MINICPM_DEVICE=%r is a llama.cpp device name; the openvino backend "
-            "is using 'gpu' instead", value,
+            "MINICPM_DEVICE=%r is not offered by this build (Intel GPU/NPU only); "
+            "using 'gpu' instead", value,
         )
-        value = ""
+        return "gpu"
 
     if value in ("", "auto"):
-        pool = available if available is not None else []
-        return "gpu" if "gpu" in pool else "cpu"
+        return "gpu"
 
     if value not in OV_DEVICE_NAMES:
-        log.warning("unknown openvino device %r; using 'gpu'", value)
+        log.warning("unknown device %r; using 'gpu'", value)
         return "gpu"
     return value
 
 
+NO_ACCELERATOR_MESSAGE = (
+    "未检测到 Intel GPU 或 NPU。此版本只在 Intel AIPC 上运行，"
+    "需要 Intel Arc / Xe 核显或 AI Boost NPU。\n"
+    "请确认已安装 Intel 显卡驱动（30.0.101.5122 或更新）。"
+)
+
+#: `ov::Core` reported nothing at all — not even CPU, which every install has.
+#: That means the plugin libraries are missing, i.e. a mis-built bundle, not a
+#: hardware problem.
+BROKEN_RUNTIME_MESSAGE = (
+    "OpenVINO 运行时不完整：没有加载到任何推理设备，连 CPU 都没有。\n"
+    "这通常意味着安装包缺少 OpenVINO 的设备插件库，而不是你的硬件有问题。\n"
+    "请重新安装本应用；开发环境下重跑 `uv sync`。"
+)
+
+
 def detect_devices() -> dict:
-    """Same schema as `llama_client.detect_backend()`, for `/api/devices`.
+    """Devices this build offers, for `/api/devices`.
+
+    Only GPU and NPU: this is the Intel AIPC build, and OpenVINO's CPU
+    plugin is deliberately not exposed.
 
     Cached for a minute: `ov.Core()` costs 100-300 ms and the Settings
     panel polls this endpoint.
@@ -300,9 +351,11 @@ def detect_devices() -> dict:
     available: list[str] = []
     error: Optional[str] = None
 
+    saw_any_device = False
     try:
         ov = _import_openvino()
         raw_devices = ov.Core().available_devices
+        saw_any_device = bool(raw_devices)
         seen = set()
         for raw in raw_devices:
             # "GPU.0"/"GPU.1" both collapse to our single "gpu" bucket.
@@ -311,26 +364,20 @@ def detect_devices() -> dict:
                 seen.add(short)
                 available.append(short)
     except Exception as exc:
-        # Degraded, but never lie: an empty list is honest, claiming CPU
-        # works when the runtime is missing is not.
         error = str(exc)
         log.warning("openvino device probe failed: %s", exc)
 
     if "gpu" in available:
-        reasons["gpu"] = "Intel Arc / Xe iGPU（推荐，支持完整采样）"
-    if "cpu" in available:
-        reasons["cpu"] = "纯 CPU 推理，任何机器都能跑"
+        reasons["gpu"] = "Intel Arc / Xe 核显（推荐，支持完整采样）"
     if "npu" in available:
         reasons["npu"] = (
             "Intel AI Boost NPU（低功耗）。需要对称 INT4 模型，"
             "且采样受限，人格表现可能不如 GPU。"
         )
 
-    # Order the list so the recommended device leads, matching the
-    # llama.cpp backend's convention.
-    ordered = [d for d in ("gpu", "cpu", "npu") if d in available]
-    recommended = ordered[0] if ordered else "cpu"
-    current = _normalise_ov_device(available=ordered)
+    ordered = [d for d in ("gpu", "npu") if d in available]
+    recommended = ordered[0] if ordered else "gpu"
+    current = _normalise_ov_device()
 
     info = {
         "available": ordered,
@@ -338,6 +385,8 @@ def detect_devices() -> dict:
         "current": current if current in ordered else recommended,
         "experimental": [d for d in ("npu",) if d in ordered],
         "reasons": reasons,
+        # False means the runtime is broken, not that the machine lacks one.
+        "runtime_ok": saw_any_device,
     }
     if error:
         info["error"] = error
@@ -388,11 +437,7 @@ def _ensure_open_tag(lead: str) -> str:
 
 
 class OpenVinoEngine:
-    """`engine.InferenceEngine` backed by `openvino_genai.LLMPipeline`."""
-
-    #: Read by `engine.supports_adapters()`. OpenVINO IRs bake weights in;
-    #: there is no runtime LoRA equivalent to llama.cpp's `--lora`.
-    supports_adapters = False
+    """In-process inference backed by `openvino_genai.LLMPipeline`."""
 
     def __init__(
         self,
@@ -402,12 +447,10 @@ class OpenVinoEngine:
     ) -> None:
         self.model_path: Optional[Path] = Path(model_path) if model_path else None
         self.ctx_size = int(ctx_size)
-        # No child process — but `/api/health` and the Protocol both want
-        # a port, so report the one value that cannot be mistaken for real.
+        # No child process, but `/api/health` still reports a port.
         self.port = 0
-        self.adapter_paths: list[Path] = []
 
-        self.device = "cpu"
+        self.device = "gpu"
         self.device_fallback: Optional[str] = None
         self.precision: Optional[IRPrecision] = None
 
@@ -427,7 +470,7 @@ class OpenVinoEngine:
         self._threads: set[threading.Thread] = set()
         self._stop_all = threading.Event()
 
-    # ── Protocol: lifecycle ────────────────────────────────────────────
+    # ── Lifecycle ──────────────────────────────────────────────────────
 
     @property
     def alive(self) -> bool:
@@ -473,32 +516,38 @@ class OpenVinoEngine:
         log = get_logger()
         info = detect_devices()
         available = info.get("available") or []
-        device = _normalise_ov_device(available=available)
 
-        if available and device not in available:
+        # With CPU off the menu, no accelerator is a hard failure — say so
+        # instead of letting LLMPipeline throw something native.
+        if not available:
+            raise NoAcceleratorError(
+                NO_ACCELERATOR_MESSAGE if info.get("runtime_ok")
+                else BROKEN_RUNTIME_MESSAGE
+            )
+
+        device = _normalise_ov_device()
+
+        if device not in available:
             log.warning(
                 "requested device %r is not available (%s); using %r",
-                device, ", ".join(available) or "none", info.get("recommended"),
+                device, ", ".join(available), info.get("recommended"),
             )
             self.device_fallback = f"{device} unavailable"
-            device = str(info.get("recommended") or "cpu")
+            device = str(info.get("recommended"))
 
         if device == "npu":
             precision = self.precision or IRPrecision("unknown")
             if not precision.npu_ready:
-                if _env_flag("MINICPM_OV_NPU_FALLBACK", default=True):
-                    # Mirrors the Vulkan→CPU behaviour: degrade with a
-                    # reason rather than refusing to boot.
+                if "gpu" in available and _env_flag("MINICPM_OV_NPU_FALLBACK", default=True):
                     self.device_fallback = (
-                        f"NPU needs sym-INT4, this IR is {precision.describe()}"
+                        f"the NPU cannot run {precision.describe()} weights"
                     )
-                    fallback = "gpu" if "gpu" in available else "cpu"
                     log.warning(
-                        "%s — falling back to %s. Set MINICPM_OV_NPU_FALLBACK=0 "
+                        "%s — falling back to GPU. Set MINICPM_OV_NPU_FALLBACK=0 "
                         "to make this a hard error instead.",
-                        self.device_fallback, fallback.upper(),
+                        self.device_fallback,
                     )
-                    return fallback
+                    return "gpu"
                 assert_npu_compatible(precision, self.model_path or Path("."))
         return device
 
@@ -583,21 +632,7 @@ class OpenVinoEngine:
         self.device_fallback = None
         await self.start()
 
-    # ── Protocol: adapters (unsupported) ───────────────────────────────
-
-    async def reload_adapters(self, paths: list[Path]) -> None:
-        if paths:
-            raise NotImplementedError(
-                "the openvino backend cannot load LoRA adapters; weights are "
-                "baked into the IR at conversion time"
-            )
-        # Empty list means "go back to Base", which is already the only
-        # state we have — succeed quietly so the UI's Base button works.
-
-    def adapter_id_for(self, path: Path) -> Optional[int]:
-        return None
-
-    # ── Protocol: health ───────────────────────────────────────────────
+    # ── Health ─────────────────────────────────────────────────────────
 
     async def health(self) -> Optional[dict]:
         if self._pipe is None:
@@ -614,7 +649,7 @@ class OpenVinoEngine:
             info["device_fallback"] = self.device_fallback
         return info
 
-    # ── Protocol: inference ────────────────────────────────────────────
+    # ── Inference ──────────────────────────────────────────────────────
 
     def _generation_config(
         self,
@@ -688,7 +723,6 @@ class OpenVinoEngine:
         repetition_penalty: float,
         stop: Optional[list[str]] = None,
         enable_thinking: bool = True,
-        lora: Optional[list[dict]] = None,  # accepted and ignored
     ) -> AsyncIterator[tuple[str, str]]:
         pipe = self._pipe
         if pipe is None:

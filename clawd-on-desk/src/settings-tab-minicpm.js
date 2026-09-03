@@ -25,10 +25,6 @@
   // doesn't have to re-expand Advanced every time they revisit the tab.
   let advancedExpanded = false;
 
-  // The product surface treats MiniCPM5 0.9B as the canonical bundled
-  // model. Showing the actual gguf filename here would create noise once
-  // users sideload variants — we still expose that in the path row.
-  const MODEL_INFO_LABEL = "MiniCPM5 0.9B";
   const PATH_TRUNCATE_MAX = 56;
 
   const HEALTH_INTERVAL_MS_SLOW = 60_000;
@@ -104,8 +100,8 @@
   // "starting" labels into a single yellow "starting" pill: at the page
   // level the user only cares whether things are healthy, warming up, or
   // broken. The full debug breakdown lives in the logs.
-  function deriveStatus(sidecarReady, llamaReady, probing) {
-    if (sidecarReady && llamaReady) return { tone: "ready", label: t("minicpmStatusRunning") };
+  function deriveStatus(sidecarReady, engineReady, probing) {
+    if (sidecarReady && engineReady) return { tone: "ready", label: t("minicpmStatusRunning") };
     if (sidecarReady || probing) return { tone: "starting", label: t("minicpmStatusStarting") };
     return { tone: "offline", label: t("minicpmStatusError") };
   }
@@ -242,12 +238,8 @@
   }
 
   function deviceLabel(device) {
-    if (device === "vulkan") return t("minicpmBackendVulkan");
-    if (device === "metal") return t("minicpmBackendMetal");
-    if (device === "cuda") return t("minicpmBackendCuda");
-    if (device === "gpu") return t("minicpmBackendGpu");
     if (device === "npu") return t("minicpmBackendNpu");
-    return t("minicpmBackendCpu");
+    return t("minicpmBackendGpu");
   }
 
   // Prefer the gateway's own `experimental` + `reasons` over hardcoded
@@ -259,14 +251,14 @@
     }
     const experimental = Array.isArray(devices && devices.experimental)
       ? devices.experimental : [];
-    if (experimental.includes(device)) return t("minicpmBackendVulkanExperimental");
+    if (experimental.includes(device)) return t("minicpmDeviceExperimental");
     return "";
   }
 
   // In the gateway's ranked order; unknown names dropped.
   function pickableDevices(devices) {
     const available = Array.isArray(devices && devices.available) ? devices.available : [];
-    const known = ["cpu", "vulkan", "metal", "cuda", "gpu", "npu"];
+    const known = ["gpu", "npu"];
     return available.filter((d) => known.includes(d));
   }
 
@@ -298,8 +290,8 @@
 
   function syncStatusPill(ctx) {
     if (!ctx.statusPillSlot) return;
-    const { sidecarReady, llamaReady, probing } = ctx.healthSnapshot;
-    const { tone, label } = deriveStatus(sidecarReady, llamaReady, probing);
+    const { sidecarReady, engineReady, probing } = ctx.healthSnapshot;
+    const { tone, label } = deriveStatus(sidecarReady, engineReady, probing);
     ctx.statusPillSlot.innerHTML = "";
     ctx.statusPillSlot.appendChild(statusPill(tone, label));
   }
@@ -310,8 +302,8 @@
     try { st = await window.minicpmSettings.getStatus(); } catch {}
     const h = (st && st.health) || {};
     const sidecarReady = !!(st && (st.sidecarReady || (st.health && st.health.ok) || st.healthy));
-    const llamaReady = sidecarReady
-      && (h.alive === true || !!(h.llama_server && h.llama_server.status === "ok"));
+    const engineReady = sidecarReady
+      && (h.alive === true || !!(h.engine && h.engine.status === "ok"));
     if (sidecarReady) ctx.everHealthy = true;
     const probing = !sidecarReady && !ctx.everHealthy && ctx.fastAttemptsLeft > 0;
 
@@ -323,7 +315,7 @@
     }
 
     ctx.healthSnapshot = {
-      st, h, sidecarReady, llamaReady, probing,
+      st, h, sidecarReady, engineReady, probing,
       modelName: modelNameNow
         || ((probing || sidecarReady) ? ctx.lastModelName : null),
       modelDir: h.model_dir || ctx.lastModelDir,
@@ -366,82 +358,27 @@
       },
     ));
 
-    const backendMode = window.minicpmSettings.getBackendMode
-      ? window.minicpmSettings.getBackendMode()
-      : null;
-
-    // Above the device picker because the device list depends on it:
-    // llama.cpp offers cpu/vulkan, OpenVINO cpu/gpu/npu.
-    let engineInfo = null;
-    try {
-      engineInfo = window.minicpmSettings.getBackend
-        ? await window.minicpmSettings.getBackend()
-        : null;
-    } catch {}
-
-    if (engineInfo && Array.isArray(engineInfo.supported) && engineInfo.supported.length > 1) {
-      const current = engineInfo.current || "llama.cpp";
-      const row = el("div", { className: "row" });
-      const text = el("div", { className: "row-text" });
-      text.appendChild(el("span", { className: "row-label" }, t("minicpmRowEngineSelect")));
-      text.appendChild(el("span", { className: "row-desc" },
-        engineInfo.lockedByEnv
-          ? t("minicpmEngineLockedByEnv")
-          : t("minicpmRowEngineSelectDesc")));
-      row.appendChild(text);
-
-      const seg = el("div", { className: "segmented minicpm-backend-segmented" });
-      for (const backend of engineInfo.supported) {
-        const btn = el("button", {
-          type: "button",
-          className: current === backend ? "active" : "",
-          onClick: async () => {
-            if (btn.disabled || current === backend) return;
-            Array.from(seg.querySelectorAll("button")).forEach((b) => { b.disabled = true; });
-            try {
-              const ret = await window.minicpmSettings.setBackendAndRestart(backend);
-              if (ret && ret.ok === false && ops && typeof ops.showToast === "function") {
-                ops.showToast(
-                  (ret.rolledBack ? t("minicpmEngineSwitchRolledBack") : t("toastSaveFailed"))
-                    + (ret.error || ""),
-                  { error: true, ttl: 8000 }
-                );
-              } else if (ret && ret.ok && ret.modelPresent === false
-                         && ops && typeof ops.showToast === "function") {
-                // Switched, but this engine has no model configured yet.
-                ops.showToast(t("minicpmEngineNeedsModel"), { ttl: 8000 });
-              }
-            } catch (err) {
-              if (ops && typeof ops.showToast === "function") {
-                ops.showToast(t("toastSaveFailed") + (err && err.message || ""), { error: true });
-              }
-            } finally {
-              void ctx.refreshAll();
-            }
-          },
-        }, backend === "openvino" ? t("minicpmEngineOpenvino") : t("minicpmEngineLlamaCpp"));
-        // Env wins over the pref, so the control would do nothing.
-        if (engineInfo.lockedByEnv) btn.disabled = true;
-        seg.appendChild(btn);
-      }
-      const ctl = el("div", { className: "row-control" });
-      ctl.appendChild(seg);
-      row.appendChild(ctl);
-      rows.appendChild(row);
-    }
-
-    // Windows-only: macOS has Metal and nothing to pick.
-    if (IS_WINDOWS || backendMode === "openvino") {
+    {
       let devices = null;
       try { devices = await window.minicpmSettings.listDevices(); } catch {}
       const available = pickableDevices(devices);
       // Only worth a row when there is an actual choice to make.
       if (available.length > 1) {
-        const current = (devices && devices.current) || available[0];
+        // Highlight what the engine resolved to, not what was requested —
+        // an IR the NPU cannot take degrades to the GPU at load time.
+        const snap = ctx.healthSnapshot || {};
+        const fallback = snap.h && snap.h.device_fallback;
+        const current = (snap.h && snap.h.accel)
+          || (devices && devices.current)
+          || available[0];
         const row = el("div", { className: "row" });
         const text = el("div", { className: "row-text" });
         text.appendChild(el("span", { className: "row-label" }, t("minicpmRowBackend")));
-        text.appendChild(el("span", { className: "row-desc" }, t("minicpmRowBackendDesc")));
+        text.appendChild(el("span", {
+          className: fallback ? "row-desc is-warning" : "row-desc",
+        }, fallback
+          ? t("minicpmDeviceFellBack", { device: deviceLabel(current), reason: fallback })
+          : t("minicpmRowBackendDesc")));
         row.appendChild(text);
         const segmented = el("div", { className: "segmented minicpm-backend-segmented" });
         for (const device of available) {
@@ -454,14 +391,8 @@
               try {
                 const fn = window.minicpmSettings.setDeviceAndRestart || window.minicpmSettings.setDevice;
                 const ret = await fn(device);
-                if (ret && ret.ok === false) {
-                  if (ret.fallback === "cpu") {
-                    if (ops && typeof ops.showToast === "function") {
-                      ops.showToast(t("minicpmBackendVulkanFallback"), { error: true, ttl: 6000 });
-                    }
-                  } else if (ops && typeof ops.showToast === "function") {
-                    ops.showToast(t("toastSaveFailed") + (ret.error || "unknown error"), { error: true });
-                  }
+                if (ret && ret.ok === false && ops && typeof ops.showToast === "function") {
+                  ops.showToast(t("toastSaveFailed") + (ret.error || "unknown error"), { error: true });
                 }
               } catch (err) {
                 if (ops && typeof ops.showToast === "function") {
@@ -496,17 +427,15 @@
     const section = helpers.buildSection("", []);
     const rows = section.querySelector(".section-rows");
 
-    // ── Model info row (hardcoded product name) ───────────────────────
     const infoRow = el("div", { className: "row minicpm-info-row" });
     const infoText = el("div", { className: "row-text" });
     infoText.appendChild(el("span", { className: "row-label" }, t("minicpmRowModelInfo")));
     infoRow.appendChild(infoText);
-    const infoVal = el("div", { className: "row-control minicpm-info-value" }, MODEL_INFO_LABEL);
+    const infoVal = el("div", { className: "row-control minicpm-info-value" },
+      snap.modelName || t("minicpmModelPathUnset"));
     infoRow.appendChild(infoVal);
     rows.appendChild(infoRow);
 
-    // The label above is a fixed product name by design, so this row
-    // carries the runtime truth instead.
     const engineName = (snap.h && snap.h.backend) || null;
     const engineAccel = (snap.h && snap.h.accel) || null;
     if (engineName) {
@@ -544,7 +473,7 @@
     // The IPC handler also kicks off /api/load-model after persisting, so
     // resolution may take 5–30s depending on model size. Show a busy state
     // on both buttons so the user gets immediate feedback rather than
-    // staring at a frozen dialog while llama-server re-spawns.
+    // staring at a frozen dialog while the pipeline recompiles.
     const changeBtn = softBtn(changeLabel, async () => {
       if (changeBtn.disabled) return;
       showBtn.disabled = true;
@@ -579,366 +508,6 @@
     box.appendChild(section);
   }
 
-  // ── Adapter (LoRA) section ────────────────────────────────────────────
-  //
-  // Lists every *.gguf the gateway finds in `<userData>/adapters/`, lets
-  // the user pick one (radio-style, "Base" included) and refresh after
-  // dropping a new file in via the "Open adapters folder" shortcut. The
-  // actual activation goes through the existing IPC pipeline
-  // (`minicpm-settings:load-adapter`) so the in-bubble notification +
-  // chat-history-reset behaviour stays consistent with the in-chat
-  // command UX.
-  //
-  // Each chip also surfaces the manifest's friendly displayName and
-  // aliases (for chat keyword routing); a small gear icon opens an
-  // inline editor for both. User-uploaded entries get an extra trash
-  // button. A dedicated "Upload .gguf" button on the action row pipes
-  // through the upload IPC handler which copies the file into the
-  // user-writable adapters dir and writes a fresh manifest entry.
-  const SVG_GEAR =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
-    '<circle cx="12" cy="12" r="2.6"/>' +
-    '<path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03z"/>' +
-    "</svg>";
-  const SVG_TRASH =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="100%" height="100%">' +
-    '<path d="M3 6h18"/>' +
-    '<path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
-    '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
-    "</svg>";
-
-  // Tiny inline "modal" rendered in-place under the chip. We don't pull
-  // a real dialog system in because there isn't one in this codebase —
-  // the goal is to stay self-contained and visually consistent with
-  // the existing row-control aesthetic.
-  function openAdapterEditor({ host, initial, busyLabel, onSave }) {
-    // Idempotent: replace any pre-existing editor for the same host.
-    host.querySelectorAll(".minicpm-adapter-editor").forEach((n) => n.remove());
-
-    const wrap = el("div", { className: "minicpm-adapter-editor" });
-    const nameRow = el("label", { className: "minicpm-adapter-editor-field" });
-    nameRow.appendChild(el("span", { className: "minicpm-adapter-editor-label" }, t("minicpmAdapterDisplayNameLabel")));
-    const nameInput = el("input", {
-      type: "text",
-      className: "minicpm-adapter-editor-input",
-      placeholder: t("minicpmAdapterDisplayNamePlaceholder"),
-    });
-    nameInput.value = (initial && initial.displayName) || "";
-    nameRow.appendChild(nameInput);
-    wrap.appendChild(nameRow);
-
-    const aliasRow = el("label", { className: "minicpm-adapter-editor-field" });
-    aliasRow.appendChild(el("span", { className: "minicpm-adapter-editor-label" }, t("minicpmAdapterAliasesLabel")));
-    const aliasInput = el("input", {
-      type: "text",
-      className: "minicpm-adapter-editor-input",
-      placeholder: t("minicpmAdapterAliasesPlaceholder"),
-    });
-    aliasInput.value = (initial && Array.isArray(initial.aliases) ? initial.aliases.join(", ") : "") || "";
-    aliasRow.appendChild(aliasInput);
-    wrap.appendChild(aliasRow);
-
-    const buttons = el("div", { className: "minicpm-adapter-editor-buttons" });
-    const cancelBtn = softBtn(t("minicpmAdapterCancel"), () => { wrap.remove(); });
-    const saveBtn = softBtn(t("minicpmAdapterSave"), async () => {
-      const displayName = nameInput.value.trim();
-      const aliases = aliasInput.value
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      saveBtn.disabled = true;
-      cancelBtn.disabled = true;
-      const prevSaveLabel = saveBtn.textContent;
-      saveBtn.textContent = busyLabel || t("minicpmAdapterApplying");
-      try {
-        const result = await onSave({ displayName, aliases });
-        if (!result || result.ok === false) {
-          const msg = (result && (result.error || result.message)) || "";
-          if (ops && typeof ops.showToast === "function") {
-            ops.showToast(t("minicpmAdapterSaveFailed") + msg, { error: true });
-          } else {
-            alert(t("minicpmAdapterSaveFailed") + msg);
-          }
-          saveBtn.disabled = false;
-          cancelBtn.disabled = false;
-          saveBtn.textContent = prevSaveLabel;
-          return;
-        }
-        wrap.remove();
-      } catch (err) {
-        if (ops && typeof ops.showToast === "function") {
-          ops.showToast(t("minicpmAdapterSaveFailed") + (err && err.message || ""), { error: true });
-        }
-        saveBtn.disabled = false;
-        cancelBtn.disabled = false;
-        saveBtn.textContent = prevSaveLabel;
-      }
-    }, { accent: true });
-    buttons.appendChild(cancelBtn);
-    buttons.appendChild(saveBtn);
-    wrap.appendChild(buttons);
-
-    host.appendChild(wrap);
-    // Auto-focus the display name input so keyboard users can jump
-    // straight into typing.
-    try { nameInput.focus(); nameInput.select(); } catch {}
-  }
-
-  async function renderAdapterSection(box, ctx) {
-    box.innerHTML = "";
-    let payload = null;
-    try { payload = await window.minicpmSettings.listAdapters(); } catch {}
-    const items = (payload && Array.isArray(payload.items)) ? payload.items : [];
-    const currentPath = (payload && payload.current) || null;
-
-    box.appendChild(sectionTitle(t("minicpmSectionAdapter")));
-    const section = helpers.buildSection("", []);
-    const rows = section.querySelector(".section-rows");
-
-    // ── Row 1: radio list (Base + each adapter) ──────────────────────
-    const listRow = el("div", { className: "row minicpm-adapter-row" });
-    const listText = el("div", { className: "row-text" });
-    listText.appendChild(el("span", { className: "row-label" }, t("minicpmRowAdapter")));
-    listText.appendChild(el("span", { className: "row-desc" }, t("minicpmRowAdapterDesc")));
-    listRow.appendChild(listText);
-
-    const choices = el("div", { className: "row-control minicpm-adapter-choices" });
-    const radioName = "minicpm-adapter-radio";
-
-    function buildChoice({ label, value, selected, sub, item }) {
-      const wrap = el("label", { className: "minicpm-adapter-choice" + (selected ? " selected" : "") });
-      if (item && (item.missing || item.incompatible)) wrap.classList.add("is-missing");
-      const input = el("input", {
-        type: "radio",
-        name: radioName,
-      });
-      if (selected) input.setAttribute("checked", "checked");
-      input.dataset.path = value === null ? "" : value;
-      if (item && (item.missing || item.incompatible)) input.disabled = true;
-      wrap.appendChild(input);
-      const txt = el("span", { className: "minicpm-adapter-choice-label" }, label);
-      // Tooltip surfaces filename + aliases so the abbreviated chip
-      // label remains readable for users with multiple adapters that
-      // share a similar friendly name.
-      if (item) {
-        const aliasStr = Array.isArray(item.aliases) && item.aliases.length
-          ? "\n" + item.aliases.join(", ")
-          : "";
-        wrap.title = `${item.name || ""}${aliasStr}`;
-      }
-      wrap.appendChild(txt);
-      if (sub) {
-        const tag = el("span", { className: "minicpm-adapter-choice-tag" }, sub);
-        wrap.appendChild(tag);
-      }
-      // Mark missing-file entries so the user can spot stale manifest
-      // refs without digging into logs.
-      if (item && item.missing) {
-        const tag = el("span", { className: "minicpm-adapter-choice-tag is-missing" }, t("minicpmAdapterMissingTag"));
-        wrap.appendChild(tag);
-      }
-      // Same for an adapter trained on a different base — picking one
-      // used to take llama-server down with a shape error.
-      if (item && item.incompatible) {
-        const tag = el("span", {
-          className: "minicpm-adapter-choice-tag is-missing",
-          title: item.incompatibleReason || "",
-        }, t("minicpmAdapterIncompatibleTag"));
-        wrap.appendChild(tag);
-      }
-
-      input.addEventListener("change", async () => {
-        if (!input.checked) return;
-        const targetPath = input.dataset.path || null;
-        for (const inp of choices.querySelectorAll(`input[name="${radioName}"]`)) {
-          inp.disabled = true;
-        }
-        const prevLabel = txt.textContent;
-        txt.textContent = t("minicpmAdapterApplying");
-        try {
-          const result = await window.minicpmSettings.loadAdapter(targetPath);
-          if (!result || (!result.ok && !result.noop)) {
-            const msg = (result && (result.error || result.message)) || "";
-            if (ops && typeof ops.showToast === "function") {
-              ops.showToast(t("minicpmAdapterApplyFailed") + msg, { error: true });
-            } else {
-              alert(t("minicpmAdapterApplyFailed") + msg);
-            }
-          }
-        } catch (err) {
-          if (ops && typeof ops.showToast === "function") {
-            ops.showToast(t("minicpmAdapterApplyFailed") + (err && err.message || ""), { error: true });
-          }
-        } finally {
-          txt.textContent = prevLabel;
-          void ctx.refreshAll();
-        }
-      });
-
-      // Per-chip controls (edit + optional remove). Only adapters that
-      // have an id (i.e. are tracked in the manifest, including
-      // bundled presets) can be edited. External .gguf files with no
-      // manifest entry would be edited on the next save anyway, so
-      // we let them through too via the `external:<path>` synthetic
-      // id assigned by the IPC merge layer.
-      if (item && item.id) {
-        const controls = el("span", { className: "minicpm-adapter-choice-controls" });
-
-        const editBtn = el("button", {
-          type: "button",
-          className: "minicpm-adapter-icon-btn",
-          "aria-label": t("minicpmAdapterEditName"),
-          title: t("minicpmAdapterEditName"),
-        });
-        editBtn.innerHTML = SVG_GEAR;
-        editBtn.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          openAdapterEditor({
-            host: wrap,
-            initial: { displayName: item.displayName, aliases: item.aliases },
-            onSave: async ({ displayName, aliases }) => {
-              const r = await window.minicpmSettings.renameAdapter({
-                id: item.id,
-                displayName,
-                aliases,
-              });
-              if (r && r.ok) void ctx.refreshAll();
-              return r;
-            },
-          });
-        });
-        controls.appendChild(editBtn);
-
-        if (item.source === "user-upload") {
-          const trashBtn = el("button", {
-            type: "button",
-            className: "minicpm-adapter-icon-btn is-danger",
-            "aria-label": t("minicpmAdapterRemove"),
-            title: t("minicpmAdapterRemove"),
-          });
-          trashBtn.innerHTML = SVG_TRASH;
-          trashBtn.addEventListener("click", async (ev) => {
-            ev.preventDefault();
-            ev.stopPropagation();
-            const ok = window.confirm(t("minicpmAdapterRemoveConfirm"));
-            if (!ok) return;
-            try {
-              const r = await window.minicpmSettings.removeAdapter({
-                id: item.id,
-                deleteFile: true,
-              });
-              if (!r || r.ok === false) {
-                const msg = (r && (r.error || r.message)) || "";
-                if (ops && typeof ops.showToast === "function") {
-                  ops.showToast(t("minicpmAdapterSaveFailed") + msg, { error: true });
-                }
-              }
-            } catch (err) {
-              if (ops && typeof ops.showToast === "function") {
-                ops.showToast(t("minicpmAdapterSaveFailed") + (err && err.message || ""), { error: true });
-              }
-            } finally {
-              void ctx.refreshAll();
-            }
-          });
-          controls.appendChild(trashBtn);
-        }
-
-        wrap.appendChild(controls);
-      }
-
-      return wrap;
-    }
-
-    // "Base" is always first so users always have a way back to a clean
-    // model even if every adapter on disk is broken.
-    choices.appendChild(buildChoice({
-      label: t("minicpmAdapterBase"),
-      value: null,
-      selected: !currentPath,
-    }));
-
-    if (items.length === 0) {
-      const empty = el("div", { className: "minicpm-adapter-empty row-desc" }, t("minicpmAdapterEmpty"));
-      choices.appendChild(empty);
-    } else {
-      for (const item of items) {
-        const label = item.displayName || item.name;
-        // Show a persona pill when meaningful (not "default"/"custom").
-        const persona = item.persona && item.persona !== "default" && item.persona !== "custom"
-          ? item.persona
-          : null;
-        choices.appendChild(buildChoice({
-          label,
-          value: item.path,
-          selected: item.path === currentPath,
-          sub: persona,
-          item,
-        }));
-      }
-    }
-
-    listRow.appendChild(choices);
-    rows.appendChild(listRow);
-
-    // ── Row 2: action buttons (upload + open folder + refresh) ───────
-    const actionsRow = el("div", { className: "row minicpm-adapter-actions-row" });
-    const actionsText = el("div", { className: "row-text" });
-    actionsText.appendChild(el("span", { className: "row-label" }, " "));
-    actionsRow.appendChild(actionsText);
-    const actions = el("div", { className: "row-control minicpm-path-actions" });
-    actions.appendChild(softBtn(t("minicpmAdapterUpload"), async () => {
-      // Inline pre-prompt for displayName / aliases. Using window.prompt
-      // keeps this dependency-free; the modal editor on each chip is
-      // available for post-upload tweaking.
-      const displayName = window.prompt(t("minicpmAdapterDisplayNameLabel"), "");
-      if (displayName === null) return;
-      const aliasesRaw = window.prompt(t("minicpmAdapterAliasesLabel"), "");
-      if (aliasesRaw === null) return;
-      const aliases = aliasesRaw.split(",").map((s) => s.trim()).filter(Boolean);
-      try {
-        const r = await window.minicpmSettings.uploadAdapter({ displayName: displayName.trim(), aliases });
-        if (!r || (r.ok === false && !r.canceled)) {
-          const msg = (r && (r.error || r.message)) || "";
-          if (ops && typeof ops.showToast === "function") {
-            ops.showToast(t("minicpmAdapterUploadFailed") + msg, { error: true });
-          } else {
-            alert(t("minicpmAdapterUploadFailed") + msg);
-          }
-        }
-      } catch (err) {
-        if (ops && typeof ops.showToast === "function") {
-          ops.showToast(t("minicpmAdapterUploadFailed") + (err && err.message || ""), { error: true });
-        }
-      } finally {
-        void ctx.refreshAll();
-      }
-    }));
-    actions.appendChild(softBtn(t("minicpmAdapterOpenDir"), async () => {
-      try {
-        const r = await window.minicpmSettings.openAdapterDir();
-        if (r && !r.ok) alert(r.error || t("minicpmAdapterOpenDirFailed"));
-      } catch (err) {
-        alert(t("minicpmAdapterOpenDirFailed") + " " + (err && err.message || ""));
-      }
-    }));
-    actions.appendChild(softBtn(t("minicpmAdapterRefresh"), () => {
-      void ctx.refreshAll();
-    }, { accent: true }));
-    actionsRow.appendChild(actions);
-    rows.appendChild(actionsRow);
-
-    box.appendChild(section);
-  }
-
-  // ── Advanced (collapsible) — restart Sidecar + open logs ──────────────
-  //
-  // Hand-rolled instead of using helpers.buildCollapsibleGroup so the
-  // disclosure trigger can sit in the small-caps section-title style. The
-  // body is just a standard section-rows block of two rows; we toggle its
-  // visibility with display:none rather than a height animation because
-  // the row count is tiny (2) and reflow is instant.
   function renderAdvancedSection(box, ctx) {
     box.innerHTML = "";
     const wrap = el("section", { className: "section minicpm-advanced-section" });
@@ -1035,7 +604,6 @@
     syncStatusPill(ctx);
     await renderBehaviorSection(ctx.behaviorBox, ctx);
     renderModelSection(ctx.modelBox, ctx);
-    await renderAdapterSection(ctx.adapterBox, ctx);
     renderAdvancedSection(ctx.advancedBox, ctx);
   }
 
@@ -1079,7 +647,6 @@
       headerBox: el("div", {}),
       behaviorBox: el("div", { className: "minicpm-section-box" }),
       modelBox: el("div", { className: "minicpm-section-box" }),
-      adapterBox: el("div", { className: "minicpm-section-box" }),
       advancedBox: el("div", { className: "minicpm-section-box" }),
       statusPillSlot: null,
       everHealthy: false,
@@ -1087,7 +654,7 @@
       lastModelName: null,
       lastModelDir: null,
       healthSnapshot: {
-        st: null, h: {}, sidecarReady: false, llamaReady: false, probing: true,
+        st: null, h: {}, sidecarReady: false, engineReady: false, probing: true,
         modelName: null, modelDir: null,
       },
       refreshAll: null,
@@ -1113,7 +680,6 @@
     parent.appendChild(ctx.headerBox);
     parent.appendChild(ctx.behaviorBox);
     parent.appendChild(ctx.modelBox);
-    parent.appendChild(ctx.adapterBox);
     parent.appendChild(ctx.advancedBox);
 
     mounted = true;

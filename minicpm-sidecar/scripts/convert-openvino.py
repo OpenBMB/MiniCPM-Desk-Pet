@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """Convert a MiniCPM checkpoint to an OpenVINO IR the gateway can load.
 
-    python scripts/convert-openvino.py --source <hf-checkpoint-dir> --preset gpu
-    python scripts/convert-openvino.py --source <hf-checkpoint-dir> --preset npu
+    python scripts/convert-openvino.py --source <hf-checkpoint-dir>
+
+The default is symmetric INT4 / group-size 128. Measured on Arc 130T with a
+2.6B model it is the fastest of the three on the GPU (~22 chunk/s, vs ~17 for
+INT8 and ~4 for FP16) and the smallest (1.5 GB vs 2.4 / 4.8), and it runs on
+the NPU too. One artifact serves both devices.
 
 Why not just call optimum-cli directly:
 
-  · The NPU only accepts symmetric INT4; anything else loads fine and then
-    kills the sidecar with 0xC0000005 inside `generate()`
-    (openvinotoolkit/openvino#35641). The `npu` preset is the supported
-    combination, and `.minicpm-ir.json` lets the gateway prove it.
+  · An INT8 IR loads fine on the NPU and only fails at `generate()`, so
+    `.minicpm-ir.json` records the precision and the gateway refuses
+    before constructing the pipeline.
   · `optimum-intel` pulls in torch/transformers/nncf, which pyproject
     promises never to have — `uv run --no-project` keeps them out of .venv.
   · On a GBK console nncf's rich progress bar dies with UnicodeEncodeError
@@ -46,13 +49,18 @@ REQUIRED_IR_FILES = (
 #: is checked rather than assumed.
 REQUIRED_SUPPORT_FILES = ("config.json", "generation_config.json")
 
+#: Formats that carry no quantization parameters; passing --sym or
+#: --group-size alongside one of these builds a call optimum-cli rejects.
+UNQUANTIZED_FORMATS = frozenset({"fp16", "fp32"})
+
 PRESETS: dict[str, dict] = {
-    # INT8 weight-only: best quality per byte on CPU and Arc iGPU.
-    "cpu": {"weight_format": "int8", "sym": False, "group_size": None, "ratio": None},
-    "gpu": {"weight_format": "int8", "sym": False, "group_size": None, "ratio": None},
-    # The only supported NPU LLM format. group-size 128 rather than
-    # channel-wise, which targets models well above 4-5B.
+    # Symmetric INT4, group-size 128. Runs on both GPU and NPU.
+    "default": {"weight_format": "int4", "sym": True, "group_size": 128, "ratio": 1.0},
+    # Kept as an alias: older docs and the README said `--preset npu`.
     "npu": {"weight_format": "int4", "sym": True, "group_size": 128, "ratio": 1.0},
+    # Uncompressed. Roughly 3.5x the size of the default, and slower —
+    # decode is memory-bandwidth bound.
+    "fp16": {"weight_format": "fp16", "sym": None, "group_size": None, "ratio": None},
 }
 
 DEFAULT_OPTIMUM_SPEC = (
@@ -72,8 +80,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--source", required=True,
                    help="HF checkpoint directory (or a hub id)")
-    p.add_argument("--preset", choices=sorted(PRESETS), default="gpu",
-                   help="target device profile (default: gpu)")
+    p.add_argument("--preset", choices=sorted(PRESETS), default="default",
+                   help="quantization profile (default: symmetric INT4 g128)")
     p.add_argument("--out", default=None,
                    help=f"output root (default: {REPO_ROOT / 'models' / 'ov'})")
     p.add_argument("--name", default=None,
@@ -97,6 +105,10 @@ def resolve_settings(args: argparse.Namespace) -> dict:
     settings = dict(PRESETS[args.preset])
     if args.weight_format is not None:
         settings["weight_format"] = args.weight_format
+        # An overridden format must not inherit the preset's quantization
+        # flags: `--weight-format fp16` with `--sym --group-size 128` fails.
+        if args.weight_format.lower() in UNQUANTIZED_FORMATS:
+            settings.update(sym=None, group_size=None, ratio=None)
     if args.sym is not None:
         settings["sym"] = args.sym
     if args.group_size is not None:
@@ -184,10 +196,14 @@ def write_metadata(target: Path, settings: dict, source: str, argv: list[str], p
         "version": 1,
         "preset": preset,
         "weight_format": settings["weight_format"],
-        "sym": bool(settings.get("sym")),
+        "sym": settings.get("sym"),
         "group_size": settings.get("group_size"),
         "ratio": settings.get("ratio"),
-        "npu_ready": settings["weight_format"] == "int4" and bool(settings.get("sym")),
+        # Mirrors IRPrecision.npu_ready: symmetric INT4 or uncompressed.
+        "npu_ready": (
+            settings["weight_format"] in ("fp16", "fp32")
+            or (settings["weight_format"] == "int4" and bool(settings.get("sym")))
+        ),
         "source": str(source),
         "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "optimum_cli": argv,
@@ -258,10 +274,11 @@ def main(argv: list[str] | None = None) -> int:
 
     size_gb = sum(f.stat().st_size for f in target.rglob("*") if f.is_file()) / 1024 ** 3
     print(f"\n==> OK  {target}  ({size_gb:.2f} GiB, {time.monotonic() - started:.0f}s)")
-    if settings["weight_format"] == "int4" and settings.get("sym"):
-        print("==> NPU-ready. Run the gateway with MINICPM_DEVICE=npu to use it.")
+    fmt = settings["weight_format"]
+    if fmt in ("fp16", "fp32") or (fmt == "int4" and settings.get("sym")):
+        print("==> Runs on both GPU and NPU (MINICPM_DEVICE=gpu|npu).")
     else:
-        print("==> For CPU/GPU. The NPU needs --preset npu (symmetric INT4).")
+        print("==> GPU only. The NPU rejects INT8 — use the default preset.")
     return 0
 
 

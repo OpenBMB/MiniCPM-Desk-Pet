@@ -13,7 +13,6 @@ contextBridge.exposeInMainWorld("onboarding", {
   // User actions
   selectDevice: (device) => ipcRenderer.invoke("onboarding:select-device", { device }),
   pickLocalModel: () => ipcRenderer.invoke("onboarding:pick-local-model"),
-  startModelDownload: () => ipcRenderer.invoke("onboarding:start-model-download"),
   warmup: () => ipcRenderer.invoke("onboarding:warmup"),
   complete: () => ipcRenderer.invoke("onboarding:complete"),
   // Used when the user switches between online download and local file

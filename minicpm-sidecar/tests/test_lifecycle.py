@@ -1,33 +1,22 @@
-"""Tests for gateway/lifecycle.py — parent-watchdog and stale-orphan cleanup.
+"""Tests for gateway/lifecycle.py — the parent watchdog.
 
-These tests exercise the cross-platform helpers without ever touching
-llama-server itself; we use short-lived `sleep` / `python -c` children
-as stand-ins.
+The engine runs in-process, so there is no child server to supervise;
+what remains is noticing that the Electron host died. Short-lived
+`sleep` / `python -c` children stand in for that parent.
 """
 
 from __future__ import annotations
 
 import os
-import platform
-import signal
 import subprocess
 import sys
 import threading
 import time
-from pathlib import Path
 
 import pytest
 
 import gateway.lifecycle as lifecycle
-from gateway.lifecycle import (
-    ParentWatchdog,
-    _pid_alive,
-    _process_name_matches,
-    cleanup_stale_llama_server,
-    clear_pid_file,
-    pdeathsig_preexec,
-    write_pid_file,
-)
+from gateway.lifecycle import ParentWatchdog, _grace_seconds, _pid_alive, hard_exit
 
 
 # ── _pid_alive ───────────────────────────────────────────────────────────
@@ -149,115 +138,84 @@ def test_watchdog_disabled_for_pid_le_1() -> None:
     assert not fired.is_set()
 
 
-# ── PID file + stale cleanup ────────────────────────────────────────────
+# ── hard_exit ────────────────────────────────────────────────────────────
 
 
-def test_write_and_clear_pid_file(tmp_path: Path) -> None:
-    pid_file = tmp_path / "llama-server.pid"
-    write_pid_file(pid_file, 12345)
-    assert pid_file.read_text(encoding="ascii").strip() == "12345"
-    clear_pid_file(pid_file)
-    assert not pid_file.exists()
+def test_hard_exit_uses_terminate_process_on_windows(monkeypatch):
+    """`os._exit` is not enough here.
+
+    It routes through ExitProcess, which runs DLL_PROCESS_DETACH. With the
+    OpenVINO GPU plugin loaded that deadlocks: a sidecar that had served one
+    generation released its port and then sat at 45 threads holding ~2 GB
+    forever. TerminateProcess skips detach, and an external one killed that
+    exact ghost instantly.
+    """
+    calls = []
+    monkeypatch.setattr(lifecycle.platform, "system", lambda: "Windows")
+
+    class _FakeKernel32:
+        @staticmethod
+        def GetCurrentProcess():
+            return 0xDEAD
+
+        @staticmethod
+        def TerminateProcess(handle, code):
+            calls.append((handle, code))
+            raise SystemExit(code)   # stand in for the process going away
+
+    import ctypes
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *a, **k: _FakeKernel32, raising=False)
+    monkeypatch.setattr(lifecycle.os, "_exit", lambda code: calls.append(("os._exit", code)))
+
+    with pytest.raises(SystemExit):
+        hard_exit(3)
+
+    assert calls == [(0xDEAD, 3)]
 
 
-def test_clear_pid_file_idempotent(tmp_path: Path) -> None:
-    pid_file = tmp_path / "missing.pid"
-    # Removing a non-existent file must not raise.
-    clear_pid_file(pid_file)
-    clear_pid_file(pid_file)
+def test_hard_exit_falls_back_to_os_exit_off_windows(monkeypatch):
+    calls = []
+    monkeypatch.setattr(lifecycle.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(lifecycle.os, "_exit", lambda code: calls.append(code))
+    hard_exit(7)
+    assert calls == [7]
 
 
-def test_cleanup_skips_when_no_pid_file(tmp_path: Path) -> None:
-    cleanup_stale_llama_server(tmp_path / "ghost.pid")
-    # Nothing to assert beyond "didn't crash"; the absence path is the
-    # most common one (first ever boot).
+# ── force-exit grace ─────────────────────────────────────────────────────
 
 
-def test_cleanup_clears_pid_file_for_dead_pid(tmp_path: Path) -> None:
-    pid_file = tmp_path / "llama-server.pid"
-    proc = subprocess.Popen([sys.executable, "-c", "pass"])
-    proc.wait()
-    time.sleep(0.05)
-    write_pid_file(pid_file, proc.pid)
-
-    cleanup_stale_llama_server(pid_file)
-    assert not pid_file.exists()
+def test_grace_defaults_when_unset(monkeypatch):
+    monkeypatch.delenv("MINICPM_FORCE_EXIT_GRACE_S", raising=False)
+    assert _grace_seconds() == lifecycle._DEFAULT_FORCE_EXIT_GRACE_S
 
 
-def test_cleanup_skips_when_process_name_does_not_match(tmp_path: Path) -> None:
-    """A live PID that *isn't* llama-server (e.g. PID got recycled to a
-    user's shell) must NOT be killed."""
-    pid_file = tmp_path / "llama-server.pid"
-    # Long-lived stand-in process; its `comm` is `python` (or
-    # `python3`), so the "llama-server" needle doesn't match and we
-    # should leave it alone.
-    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])
-    write_pid_file(pid_file, child.pid)
-    try:
-        cleanup_stale_llama_server(pid_file)
-        # PID file should be cleared (no longer trusted), but the
-        # process must still be alive — that's the whole point.
-        assert _pid_alive(child.pid)
-        assert not pid_file.exists()
-    finally:
-        child.terminate()
-        child.wait(timeout=2)
+def test_grace_is_overridable(monkeypatch):
+    """The force path only runs when something already went wrong, so it
+    needs to be reachable on demand — otherwise it ships untested."""
+    monkeypatch.setenv("MINICPM_FORCE_EXIT_GRACE_S", "0.25")
+    assert _grace_seconds() == 0.25
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="signal-based reaping not exercised on Windows in CI",
-)
-def test_cleanup_kills_matching_stale_process(tmp_path: Path) -> None:
-    """Spawn a sleep'er, lie that its name is the needle, verify cleanup
-    sends SIGTERM. We pass the real process name as `expected_name` so
-    the matcher actually fires."""
-    pid_file = tmp_path / "llama-server.pid"
-    # Use `sleep 60` (POSIX) — its `comm` is just `sleep`, a stable needle.
-    child = subprocess.Popen(["sleep", "60"])
-    write_pid_file(pid_file, child.pid)
-    try:
-        cleanup_stale_llama_server(pid_file, expected_name="sleep")
-        # SIGTERM should have arrived; wait up to 3s for exit.
-        for _ in range(30):
-            if child.poll() is not None:
-                break
-            time.sleep(0.1)
-        assert child.poll() is not None, "stale process survived cleanup"
-        assert not pid_file.exists()
-    finally:
-        if child.poll() is None:
-            child.kill()
-            child.wait(timeout=2)
+@pytest.mark.parametrize("raw", ["", "   ", "abc", "None"])
+def test_grace_falls_back_on_junk(monkeypatch, raw):
+    monkeypatch.setenv("MINICPM_FORCE_EXIT_GRACE_S", raw)
+    assert _grace_seconds() == lifecycle._DEFAULT_FORCE_EXIT_GRACE_S
 
 
-# ── _process_name_matches ───────────────────────────────────────────────
+def test_grace_never_negative(monkeypatch):
+    monkeypatch.setenv("MINICPM_FORCE_EXIT_GRACE_S", "-3")
+    assert _grace_seconds() == 0.0
 
 
-def test_process_name_matches_self() -> None:
-    # Our own interpreter's `comm` always contains "python" on POSIX
-    # and "python.exe" / "python3.exe" on Windows.
-    assert _process_name_matches(os.getpid(), "python")
-
-
-def test_process_name_matches_dead_pid() -> None:
-    # Dead pids return False rather than crashing.
-    assert _process_name_matches(0, "anything") is False
-
-
-# ── pdeathsig_preexec ────────────────────────────────────────────────────
-
-
-def test_pdeathsig_preexec_returns_none_off_linux() -> None:
-    if platform.system() == "Linux":
-        pytest.skip("Linux returns a callable; covered by other test")
-    assert pdeathsig_preexec() is None
-
-
-@pytest.mark.skipif(platform.system() != "Linux", reason="prctl is Linux-only")
-def test_pdeathsig_preexec_returns_callable_on_linux() -> None:
-    fn = pdeathsig_preexec()
-    assert callable(fn)
-    # Calling it from the test process is safe — prctl(PR_SET_PDEATHSIG)
-    # just configures a per-task attribute; it doesn't fire on success.
-    fn()  # type: ignore[misc]
+def test_default_action_arms_the_fallback_before_signalling(monkeypatch):
+    """Order matters: on Windows the signal call may not return, and a
+    fallback armed after it would never start."""
+    events = []
+    monkeypatch.setattr(lifecycle.threading, "Thread",
+                        lambda *a, **k: type("T", (), {
+                            "start": lambda self: events.append("armed")
+                        })())
+    monkeypatch.setattr(lifecycle.os, "kill",
+                        lambda _pid, _sig: events.append("signalled"))
+    ParentWatchdog._default_action()
+    assert events == ["armed", "signalled"]

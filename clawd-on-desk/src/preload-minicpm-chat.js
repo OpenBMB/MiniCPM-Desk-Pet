@@ -15,18 +15,8 @@ contextBridge.exposeInMainWorld("minicpm", {
   focusWindow: () => ipcRenderer.invoke("minicpm:focus-window"),
   openContextMenu: () => ipcRenderer.send("minicpm:open-context-menu"),
 
-  // Updater
-  updateStatus: () => ipcRenderer.invoke("minicpm:update-status"),
-  updateApply:  () => ipcRenderer.invoke("minicpm:update-apply"),
-
   // Chat generation parameters (shared with Settings tab)
   getChatParams: () => ipcRenderer.invoke("minicpm:get-chat-params"),
-
-  // Adapter (LoRA) load/unload — same IPC handler the Settings tab
-  // uses, so chat-based switching ("切到猫娘") persists the user's
-  // choice to prefs and shares the 90s timeout + bubble notification
-  // pipeline. Pass `null` to unload.
-  loadAdapter: (pathOrNull) => ipcRenderer.invoke("minicpm-settings:load-adapter", { path: pathOrNull }),
 
   // i18n: initial fetch + live updates
   getI18n: () => ipcRenderer.invoke("minicpm:get-i18n"),
@@ -41,8 +31,6 @@ contextBridge.exposeInMainWorld("minicpm", {
   onDismiss:        (cb) => ipcRenderer.on("minicpm:cmd-dismiss",         () => cb()),
   onReset:          (cb) => ipcRenderer.on("minicpm:cmd-reset",           () => cb()),
   onToggleThinking: (cb) => ipcRenderer.on("minicpm:cmd-toggle-thinking", () => cb()),
-  onUpdateStatus:   (cb) => ipcRenderer.on("minicpm:update-status",       (_e, p) => cb(p || {})),
-  onUpdateApplying: (cb) => ipcRenderer.on("minicpm:update-applying",     (_e, p) => cb(p || {})),
   onNarrate:        (cb) => ipcRenderer.on("minicpm:narrate",             (_e, p) => cb(p || {})),
   onCmdReply:       (cb) => ipcRenderer.on("minicpm:cmd-reply",           (_e, p) => cb(p || {})),
   onEditMode:       (cb) => ipcRenderer.on("minicpm:edit-mode",           (_e, p) => cb(p || {})),

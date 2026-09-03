@@ -1,8 +1,7 @@
 """MiniCPM sidecar gateway.
 
-Thin FastAPI shim that talks to a bundled llama.cpp `llama-server` and
-exposes the same HTTP/SSE contract the Electron app was already using
-with the old PyTorch sidecar.
+Thin FastAPI shim that runs OpenVINO in-process on an Intel GPU or NPU
+and exposes the HTTP/SSE contract the Electron app speaks.
 """
 
 __version__ = "0.1.0"

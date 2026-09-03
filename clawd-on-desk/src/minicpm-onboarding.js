@@ -4,18 +4,11 @@
 //
 // Lives as a single BrowserWindow (NOT a panel) shown before the pet
 // when <userData>/minicpm-onboarding.json is missing or stale. Drives
-// the user through 3 stages (compressed from the earlier 5 in v0.8.1):
-//   1 env-check  — disk space + network + platform sanity
-//   2 model      — user picks online download OR loads a local .gguf;
-//                  warmup runs inline on the same panel
+// the user through 3 stages:
+//   1 env-check  — Intel GPU / NPU detection, disk space, platform sanity
+//   2 model      — user points at an OpenVINO IR directory; warmup runs
+//                  inline on the same panel
 //   3 ready      — handoff to the pet window
-//
-// Accelerator selection was retired in this redesign — sidecar picks
-// the right backend automatically (Metal on mac, CUDA/CPU elsewhere).
-// The legacy `onboarding:list-devices` / `onboarding:select-device`
-// IPC handlers are kept untouched so that other call sites (Settings
-// tab, automation scripts) keep working, but the wizard renderer no
-// longer invokes them.
 //
 // On `onboarding:complete` we write a sentinel file and invoke the
 // `onComplete` callback supplied by main.js, which then constructs the
@@ -28,7 +21,6 @@ const http = require("http");
 const path = require("path");
 const os = require("os");
 const minicpmI18n = require("./minicpm-i18n");
-const { downloadMiniCpmModel } = require("./minicpm-model-download");
 
 const isMac = process.platform === "darwin";
 const SENTINEL_FILE = "minicpm-onboarding.json";
@@ -79,8 +71,8 @@ module.exports = function initOnboarding(ctx) {
   //                         creates the pet window inside this callback
   //   onCancel()         — called when the user closes the wizard window
   //                         without finishing it; main.js should quit the
-  //                         entire app so the spawned sidecar / llama-
-  //                         server children don't get orphaned (LSUIElement
+  //                         entire app so the spawned sidecar doesn't
+  //                         get orphaned (LSUIElement
   //                         apps never reach `window-all-closed` → quit
   //                         on their own with no pet window or tray yet).
   const log = (msg) => { try { console.log(msg); } catch {} };
@@ -126,16 +118,11 @@ module.exports = function initOnboarding(ctx) {
   function shouldShow() {
     // Force-rerun via env (developer override).
     if (process.env.MINICPM_FORCE_ONBOARDING === "1") return true;
-    // NOT skipped for alternate backends: that left a first-run OpenVINO
-    // user with no model and no way to pick one. The model step is
-    // backend-aware instead.
     const s = readSentinel();
     if (!s || s.complete !== true) return true;
     // Future-proof: a schema bump invalidates older sentinels.
     if (typeof s.version === "number" && s.version < CURRENT_VERSION) return true;
-    // If the model directory the user picked has vanished (e.g. they
-    // deleted ~/Library/.../models/ manually) we re-show the wizard so
-    // they can pick a new path or re-download.
+    // If the IR the user picked has vanished, re-show the wizard.
     try {
       const chat = ctx && ctx.getChat && ctx.getChat();
       if (chat && typeof chat.isModelPresent === "function" && !chat.isModelPresent()) {
@@ -175,8 +162,8 @@ module.exports = function initOnboarding(ctx) {
     });
     // User-initiated close (red traffic light, Cmd+W, Cmd+Q) reaches us
     // through "closed" with `internalClose === false`. In that case the
-    // sidecar / llama-server children we may have spawned during the
-    // download / warmup phases would be orphaned (no pet window or tray
+    // sidecar we may have spawned during the model / warmup phases
+    // would be orphaned (no pet window or tray
     // yet, so window-all-closed has nothing to anchor onto). Bubble up
     // a cancel so main.js can drive a clean app shutdown.
     win.on("closed", () => {
@@ -238,9 +225,9 @@ module.exports = function initOnboarding(ctx) {
         defaultModelDir,
         modelPresent,
         device: snapshot ? snapshot.device : null,
+        accelerators: snapshot && Array.isArray(snapshot.accelerators)
+          ? snapshot.accelerators : [],
         platform: process.platform,
-        // Lets the wizard hide the GGUF downloader.
-        backend: (process.env.MINICPM_BACKEND || "").trim().toLowerCase() || "llama.cpp",
         appVersion: app.getVersion(),
       };
     },
@@ -275,7 +262,7 @@ module.exports = function initOnboarding(ctx) {
             fs.statfs(probedPath, (err, s) => err ? reject(err) : resolve(s));
           });
           // bavail × bsize is "free space available to a non-root user",
-          // which is what we actually care about for the download.
+          // which is what an IR conversion actually needs room for.
           freeBytes = Number(stats.bavail) * Number(stats.bsize);
           totalBytes = Number(stats.blocks) * Number(stats.bsize);
         }
@@ -334,32 +321,20 @@ module.exports = function initOnboarding(ctx) {
     "onboarding:list-devices": async () => {
       try {
         const r = await httpJson("GET", `${ctx.getSidecarUrl()}/api/devices`, null, 2000);
-        return r.json || { available: ["cpu"], recommended: "cpu" };
-      } catch (err) {
-        // Sidecar isn't up yet — synthesize from platform.
-        if (isMac && process.arch === "arm64") {
-          return {
-            available: ["mps", "cpu"],
-            recommended: "mps",
-            current: null,
-            reasons: { mps: t("onboardingReasonMps"), cpu: t("onboardingReasonCpu") },
-            offline: true,
-          };
-        }
+        return r.json || { available: [], recommended: "gpu" };
+      } catch {
+        // Sidecar isn't up yet — only the gateway can enumerate devices.
         return {
-          available: ["cpu"],
-          recommended: "cpu",
+          available: [],
+          recommended: "gpu",
           current: null,
-          reasons: { cpu: t("onboardingReasonCpu") },
+          reasons: {},
           offline: true,
         };
       }
     },
 
     "onboarding:select-device": async (_evt, { device } = {}) => {
-      if (device === "vulkan" && process.platform !== "win32") {
-        return { ok: false, device, error: "Vulkan backend is only configurable on Windows" };
-      }
       // Persist for next sidecar start; if sidecar is already up, ask it
       // to record the env var too (no-op when not running).
       process.env.MINICPM_DEVICE = device || "";
@@ -370,66 +345,23 @@ module.exports = function initOnboarding(ctx) {
     },
 
     "onboarding:pick-local-model": async () => {
-      // OpenVINO models are directories, so that backend needs a directory
-      // picker. The llama.cpp path below is left exactly as it shipped.
-      const wantsIr = (process.env.MINICPM_BACKEND || "").trim().toLowerCase() === "openvino";
       const ret = await dialog.showOpenDialog({
-        title: wantsIr ? t("onboardingOpenvinoPickerTitle") : t("onboardingPickerDialogTitle"),
-        properties: wantsIr ? ["openDirectory"] : ["openFile", "openDirectory"],
-        filters: wantsIr ? [] : [{ name: "GGUF model", extensions: ["gguf"] }],
-        message: wantsIr ? t("onboardingOpenvinoPickerMessage") : t("onboardingPickerDialogMessage"),
+        title: t("onboardingOpenvinoPickerTitle"),
+        properties: ["openDirectory"],
+        message: t("onboardingOpenvinoPickerMessage"),
       });
       if (ret.canceled || !ret.filePaths.length) return { ok: false, canceled: true };
       const picked = ret.filePaths[0];
-      let target = picked;
-      try {
-        const st = fs.statSync(picked);
-        if (wantsIr) {
-          const chatMod = ctx.getChat();
-          const found = chatMod && chatMod.firstOpenvinoIrIn
-            ? chatMod.firstOpenvinoIrIn(picked)
-            : null;
-          if (!found) {
-            return { ok: false, error: t("onboardingOpenvinoInvalidDir", { path: picked }) };
-          }
-          target = found;
-        } else if (st.isDirectory()) {
-          const entries = fs.readdirSync(picked)
-            .filter((n) => n.toLowerCase().endsWith(".gguf"));
-          if (!entries.length) {
-            return { ok: false, error: t("onboardingPickerInvalidDir", { path: picked }) };
-          }
-          target = path.join(picked, entries[0]);
-        } else if (!picked.toLowerCase().endsWith(".gguf")) {
-          return { ok: false, error: t("onboardingPickerInvalidFile", { path: picked }) };
-        }
-      } catch (err) {
-        return { ok: false, error: String(err && err.message || err) };
-      }
-      const chat = ctx.getChat();
-      if (chat && chat.setModelDir) chat.setModelDir(target);
-      return { ok: true, modelDir: target };
-    },
 
-    "onboarding:start-model-download": async () => {
-      const chat = ctx.getChat();
-      const destinationDir = chat && chat.getDefaultModelDir ? chat.getDefaultModelDir() : userDataPath("models");
-      progress("start", { phase: "download" });
-      try {
-        const result = await downloadMiniCpmModel({
-          destinationDir,
-          onProgress: (ev) => progress("download", ev),
-        });
-        if (chat && chat.setModelDir && result && result.path) {
-          chat.setModelDir(result.path);
-        }
-        progress("done", { phase: "download", ok: true, provider: result.provider, path: result.path });
-        return { ok: true, ...result };
-      } catch (err) {
-        const msg = String(err && err.message || err);
-        progress("error", { phase: "download", message: msg });
-        return { ok: false, error: msg };
+      const chatMod = ctx.getChat();
+      const target = chatMod && chatMod.firstOpenvinoIrIn
+        ? chatMod.firstOpenvinoIrIn(picked)
+        : null;
+      if (!target) {
+        return { ok: false, error: t("onboardingOpenvinoInvalidDir", { path: picked }) };
       }
+      if (chatMod && chatMod.setModelDir) chatMod.setModelDir(target);
+      return { ok: true, modelDir: target };
     },
 
     "onboarding:warmup": async () => {
@@ -469,10 +401,8 @@ module.exports = function initOnboarding(ctx) {
       return { ok: true };
     },
 
-    // Triggered when the user switches model source mid-wizard (download
-    // ↔ local). We stop and re-spawn the sidecar so it picks up the new
-    // effective model path; otherwise warmup would no-op against the
-    // previously-loaded weights.
+    // Re-spawn so the sidecar picks up a newly-picked IR; otherwise warmup
+    // no-ops against the previously-loaded weights.
     "onboarding:restart-sidecar": async () => {
       try {
         const chat = ctx.getChat();

@@ -1,20 +1,24 @@
-"""Never hand the NPU an IR it will die on.
+"""Never hand the NPU an IR it cannot run.
 
-`LLMPipeline(ir, "NPU")` accepts an INT8 weight-only IR without a warning
-and then kills the process from inside `generate()` with a 0xC0000005
-access violation — no Python traceback, no log line, the sidecar just
-disappears (openvinotoolkit/openvino#35641). There is nothing to catch and
-nothing to report, so the only defence is refusing before the pipeline is
-ever constructed.
+Measured on Core Ultra 5 225H / AI Boost, openvino 2026.3.1, NPU driver
+32.0.100.4778, 2.6B model, 16 GB machine — long prompt, 256 tokens, 4 runs:
 
-That makes these the highest-stakes tests in the backend, and it is why
-the guard **fails closed**: an IR whose precision we cannot determine is
-treated as unsafe. A false positive costs one clear error message; a false
-negative costs the user's whole desk pet with no diagnostics.
+    int4-sym-g128   all runs fine
+    fp16            all runs fine, ~2x the throughput of int4
+    int8            ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY at the first
+                    generate(), reproducibly
 
-The negative assertion in `test_int8_ir_never_reaches_pipeline_construction`
-is the one that actually matters — it proves we bail *before* the native
-call, not merely that we log something afterwards.
+So the guard refuses INT8 (and anything unreadable), not "everything that
+is not INT4". `LLMPipeline(ir, "NPU")` constructs happily for all three, so
+the check has to happen before that call rather than relying on it to fail.
+
+The guard still **fails closed** on `unknown`: an IR whose precision cannot
+be read could be int8. A false positive costs one clear error message.
+
+Note: openvinotoolkit/openvino#35641 reports an *uncatchable* 0xC0000005 for
+this combination. That did not reproduce on this stack — the failure here is
+an ordinary catchable RuntimeError — but the combination is still outside
+the documented NPU matrix, so it stays refused.
 """
 
 from __future__ import annotations
@@ -95,19 +99,36 @@ def test_unreadable_precision_reports_unknown(tmp_path: Path):
     "meta",
     [
         {"weight_format": "int8", "sym": False},
-        {"weight_format": "int8", "sym": True},   # symmetric INT8 is still not INT4
-        {"weight_format": "int4", "sym": False},  # asymmetric INT4 is still refused
-        {"weight_format": "fp16", "sym": None},
+        {"weight_format": "int8", "sym": True},   # symmetric INT8 is still int8
+        {"weight_format": "int4", "sym": False},  # asymmetric INT4 is undocumented
         {"weight_format": "unknown", "sym": None},
     ],
 )
-def test_guard_refuses_everything_that_is_not_sym_int4(tmp_path: Path, meta: dict):
+def test_guard_refuses_int8_and_anything_unreadable(tmp_path: Path, meta: dict):
     d = _write_ir(tmp_path, "bad", meta=meta)
     with pytest.raises(ov.NpuPrecisionError) as excinfo:
         ov.assert_npu_compatible(ov.inspect_ir_precision(d), d)
     # The message has to be actionable, not just correct.
     assert "convert-openvino.py" in str(excinfo.value)
-    assert "--preset npu" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "meta",
+    [
+        {"weight_format": "fp16", "sym": False},   # optimum writes sym=false here
+        {"weight_format": "fp32", "sym": None},
+    ],
+)
+def test_guard_allows_uncompressed_weights(tmp_path: Path, meta: dict):
+    """Measured: FP16 runs on the NPU. Refusing it cost real functionality
+    and the refusal cited a crash that does not happen."""
+    d = _write_ir(tmp_path, "plain", meta=meta)
+    ov.assert_npu_compatible(ov.inspect_ir_precision(d), d)
+
+
+def test_uncompressed_describe_omits_quantization_noise(tmp_path: Path):
+    d = _write_ir(tmp_path, "plain", meta={"weight_format": "fp16", "sym": False})
+    assert ov.inspect_ir_precision(d).describe() == "fp16"
 
 
 def test_guard_passes_symmetric_int4(int4_sym_ir: Path):
@@ -154,29 +175,127 @@ def test_fallback_downgrades_instead_of_failing_by_default(int8_ir: Path, monkey
     )
 
     assert engine._resolve_device() == "gpu"
-    assert engine.device_fallback and "sym-INT4" in engine.device_fallback
+    assert engine.device_fallback and "int8" in engine.device_fallback
 
 
 # ── Device normalisation ────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("raw", ["metal", "mps", "cuda", "vulkan"])
-def test_llama_device_names_never_leak_into_openvino(raw, monkeypatch):
-    # MINICPM_DEVICE is shared between both backends and persisted by
-    # Electron. Passing "metal" through verbatim would hand ov::Core a
-    # device it has never heard of and produce an opaque native throw.
+@pytest.mark.parametrize("raw", ["metal", "mps", "cuda", "vulkan", "cpu"])
+def test_retired_device_names_migrate_to_gpu(raw, monkeypatch):
+    # MINICPM_DEVICE persists across versions, so an upgraded machine may
+    # still have one of these stored.
     monkeypatch.delenv("MINICPM_DEVICE", raising=False)
-    got = ov._normalise_ov_device(raw, available=["gpu", "cpu", "npu"])
+    got = ov._normalise_ov_device(raw)
     assert got == "gpu"
-    assert got not in ("metal", "mps", "cuda", "vulkan")
+    assert got not in ("metal", "mps", "cuda", "vulkan", "cpu")
 
 
 def test_auto_never_selects_npu(monkeypatch):
     # The NPU needs a specially quantised IR and has reduced sampling, so
     # it must stay opt-in even when present.
     monkeypatch.delenv("MINICPM_DEVICE", raising=False)
-    assert ov._normalise_ov_device("auto", available=["npu", "cpu"]) == "cpu"
-    assert ov._normalise_ov_device("", available=["gpu", "cpu", "npu"]) == "gpu"
+    assert ov._normalise_ov_device("auto") == "gpu"
+    assert ov._normalise_ov_device("") == "gpu"
+
+
+# ── This build offers accelerators only ─────────────────────────────────────
+
+
+def _fake_core(devices: list[str]):
+    class _Core:
+        available_devices = devices
+
+    return type("_OV", (), {"Core": lambda self=None: _Core()})()
+
+
+def test_cpu_is_never_offered_even_though_openvino_exposes_it(monkeypatch):
+    # ov::Core always reports CPU, so this is the Intel-accelerator picker.
+    ov.invalidate_device_cache()
+    monkeypatch.setattr(ov, "_import_openvino", lambda: _fake_core(["CPU", "GPU", "NPU"]))
+    monkeypatch.delenv("MINICPM_DEVICE", raising=False)
+
+    info = ov.detect_devices()
+    assert info["available"] == ["gpu", "npu"]
+    assert "cpu" not in info["available"]
+    assert "cpu" not in info["reasons"]
+    assert info["recommended"] == "gpu"
+    assert info["experimental"] == ["npu"]
+
+
+def test_gpu_ordinals_collapse_to_one_entry(monkeypatch):
+    ov.invalidate_device_cache()
+    monkeypatch.setattr(ov, "_import_openvino", lambda: _fake_core(["CPU", "GPU.0", "GPU.1"]))
+    monkeypatch.delenv("MINICPM_DEVICE", raising=False)
+
+    assert ov.detect_devices()["available"] == ["gpu"]
+
+
+def test_empty_device_list_is_reported_as_a_broken_runtime(int4_sym_ir: Path, monkeypatch):
+    """Reporting no devices at all means the plugin libraries are missing —
+    a mis-built bundle, not absent hardware."""
+    ov.invalidate_device_cache()
+    monkeypatch.setattr(ov, "_import_openvino", lambda: _fake_core([]))
+    monkeypatch.delenv("MINICPM_DEVICE", raising=False)
+
+    assert ov.detect_devices()["runtime_ok"] is False
+
+    engine = ov.OpenVinoEngine(model_path=int4_sym_ir)
+    with pytest.raises(ov.NoAcceleratorError) as excinfo:
+        engine._resolve_device()
+    assert "OpenVINO 运行时不完整" in str(excinfo.value)
+
+
+def test_machine_without_an_intel_accelerator_fails_with_a_readable_error(
+    int4_sym_ir: Path, monkeypatch
+):
+    # The one failure mode dropping CPU introduces — it has to be a
+    # sentence, never a native LLMPipeline throw.
+    ov.invalidate_device_cache()
+    monkeypatch.setattr(ov, "_import_openvino", lambda: _fake_core(["CPU"]))
+    monkeypatch.delenv("MINICPM_DEVICE", raising=False)
+    built = []
+    monkeypatch.setattr(
+        ov.OpenVinoEngine, "_build_pipeline",
+        lambda self: built.append(self.device),
+    )
+
+    engine = ov.OpenVinoEngine(model_path=int4_sym_ir)
+    with pytest.raises(ov.NoAcceleratorError) as excinfo:
+        engine._resolve_device()
+
+    assert "Intel Arc" in str(excinfo.value)
+    assert ov.detect_devices()["runtime_ok"] is True   # CPU seen, just filtered
+    assert built == []
+
+
+# ── /api/health must not lie about the device ───────────────────────────────
+
+
+def test_health_reports_the_device_the_engine_actually_used(int8_ir: Path, monkeypatch):
+    """A fallback must be visible in `accel`, not just buried in `engine`.
+
+    Reporting the *requested* device here made "INT8 on the NPU" look like a
+    working combination: the guard had quietly degraded to the GPU but the
+    Settings picker kept showing NPU selected.
+    """
+    monkeypatch.setenv("MINICPM_DEVICE", "npu")
+    monkeypatch.setattr(
+        ov, "detect_devices",
+        lambda: {"available": ["gpu", "npu"], "recommended": "gpu",
+                 "current": "npu", "experimental": ["npu"], "reasons": {}},
+    )
+    monkeypatch.setattr(ov.OpenVinoEngine, "_build_pipeline", lambda self: None)
+    monkeypatch.setattr(ov.OpenVinoEngine, "alive", property(lambda self: True))
+
+    app = server_mod.build_app(initial_model=int8_ir)
+    with TestClient(app) as client:
+        body = client.get("/api/health").json()
+
+    assert body["accel"] == "gpu"
+    assert body["device"] == "gpu"
+    assert body["requested_device"] == "npu"
+    assert "int8" in (body["device_fallback"] or "")
 
 
 # ── /api/set-device ─────────────────────────────────────────────────────────
@@ -185,10 +304,10 @@ def test_auto_never_selects_npu(monkeypatch):
 def _client(monkeypatch, model: Path | None):
     monkeypatch.setattr(
         ov, "detect_devices",
-        lambda: {"available": ["gpu", "cpu", "npu"], "recommended": "gpu",
+        lambda: {"available": ["gpu", "npu"], "recommended": "gpu",
                  "current": "gpu", "experimental": ["npu"], "reasons": {}},
     )
-    app = server_mod.build_app(initial_model=model, backend="openvino")
+    app = server_mod.build_app(initial_model=model)
     return TestClient(app)
 
 
@@ -199,18 +318,22 @@ def test_set_device_rejects_npu_for_an_int8_model(int8_ir: Path, monkeypatch):
 
     assert response.status_code == 400
     assert "symmetric INT4" in response.json()["error"]
-    # Rejection must not mutate the env — same convention as the existing
-    # vulkan-off-Windows test in test_backend_selection.py.
+    # Rejection must not mutate the env — same convention as the other
+    # rejected-device tests below.
     assert ov.os.environ["MINICPM_DEVICE"] == "gpu"
 
 
-def test_set_device_rejects_llama_device_names(int8_ir: Path, monkeypatch):
+@pytest.mark.parametrize("device", ["vulkan", "metal", "cuda", "cpu"])
+def test_set_device_rejects_devices_this_build_does_not_offer(
+    device, int8_ir: Path, monkeypatch
+):
     monkeypatch.setenv("MINICPM_DEVICE", "gpu")
     with _client(monkeypatch, int8_ir) as client:
-        response = client.post("/api/set-device", json={"device": "vulkan"})
+        response = client.post("/api/set-device", json={"device": device})
 
     assert response.status_code == 400
     assert "unknown device" in response.json()["error"]
+    # Rejection must not mutate the env.
     assert ov.os.environ["MINICPM_DEVICE"] == "gpu"
 
 

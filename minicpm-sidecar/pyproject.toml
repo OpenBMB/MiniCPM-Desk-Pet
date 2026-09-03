@@ -1,37 +1,25 @@
 [project]
 name = "minicpm-sidecar-gateway"
 version = "0.1.0"
-description = "Thin FastAPI gateway in front of llama.cpp's llama-server for the MiniCPM desk pet."
+description = "OpenVINO inference gateway for the MiniCPM desk pet on Intel AIPC."
 requires-python = ">=3.10,<3.13"
 readme = "README.md"
 
-# Intentionally NO torch / transformers / peft — the gateway is a pure
-# stdlib + HTTP shim. All ML happens inside the bundled llama-server
-# (C++ binary). End users get a few-MB Python runtime + native server.
+# Intentionally NO torch / transformers / peft — convert-openvino.py shells
+# out to a throwaway environment for those. Only openvino-genai is pinned; it
+# pins openvino-tokenizers and openvino to matching patch versions.
 dependencies = [
   "fastapi>=0.115.0",
   "uvicorn[standard]>=0.30.0",
   "pydantic>=2.7.0",
   "httpx>=0.27.0",
-  "huggingface_hub>=0.25.0",
+  "openvino-genai>=2026.3,<2027",
 ]
 
 [project.optional-dependencies]
 # Build-only: PyInstaller is invoked from scripts/build-gateway.sh.
 build = [
   "pyinstaller>=6.0",
-]
-# Opt-in Intel AIPC backend (Arc iGPU / AI Boost NPU). NOT installed by a
-# plain `uv sync` — enable with `uv sync --extra openvino`. Kept out of
-# `dependencies` on purpose so the default install stays the pure
-# stdlib + HTTP shim described above, and so the PyInstaller bundle stays
-# in the tens of MB (build/gateway.spec `excludes` enforces that half).
-#
-# Only the top of the chain is pinned: openvino-genai pins
-# openvino-tokenizers which pins openvino, all to matching patch
-# versions, so pinning the leaves too would just invite a version skew.
-openvino = [
-  "openvino-genai>=2026.3,<2027",
 ]
 
 [project.scripts]

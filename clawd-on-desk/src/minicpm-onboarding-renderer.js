@@ -3,9 +3,8 @@
 //
 // Stages:
 //   1 env-check  — disk / network / platform sanity checks
-//   2 model      — pick how to obtain the GGUF: online download OR local
-//                   file. Once the model is in place, warmup runs inline on
-//                   the same panel; "Next" is unlocked when BOTH are ready.
+//   2 model      — point at an OpenVINO IR directory; warmup runs inline on
+//                   the same panel, "Next" unlocks when BOTH are ready.
 //   3 ready      — handoff to the pet window.
 //
 // Strings come from `minicpm-i18n.js` (loaded as a UMD <script> in
@@ -24,16 +23,11 @@ let currentLang = "en";
 let t = minicpmI18n ? minicpmI18n.makeTranslator(() => currentLang) : (k) => k;
 
 let currentStep = "env-check";
-let modelStatus = "idle";    // "idle" | "downloading" | "ready"
-let modelSource = null;      // "download" | "local"
-// The bundled downloader only ships GGUF, so OpenVINO gets the download
-// card disabled and a pointer to the conversion script.
-let backendMode = "llama.cpp";
+let modelStatus = "idle";    // "idle" | "ready"
 let modelInfo = null;        // { path, sizeBytes } once ready
 let warmupStatus = "idle";   // "idle" | "running" | "ready" | "error"
 let warmupKicked = false;    // guard against double-firing warmup
 let envCheckRan = false;     // re-paint env-check details on lang change
-let downloadFailed = false;  // show an explicit retry affordance after failure
 
 // Apply translations to all `data-i18n` elements. Called once on boot
 // and again on every language change.
@@ -131,91 +125,26 @@ async function runEnvCheck() {
 }
 
 // ── Step 2: model panel ───────────────────────────────────────────────
-function setProgress(percent, detail) {
-  el("progress-fill").style.width = `${Math.max(0, Math.min(100, percent))}%`;
-  el("progress-percent").textContent = `${Math.round(percent)}%`;
-  if (detail !== undefined) el("progress-detail").textContent = detail;
-}
-
 function paintModelCards() {
-  const dlCard = el("model-card-download");
   const localCard = el("model-card-local");
-  const dlBtn = el("model-download-btn");
   const localBtn = el("model-pick-local");
-  const dlStatus = el("model-download-status");
-  const dlStatusText = el("model-download-status-text");
-  const dlProgress = el("model-progress-card");
   const localStatus = el("model-local-status");
   const localStatusText = el("model-local-status-text");
 
-  dlCard.classList.remove("selected", "disabled");
   localCard.classList.remove("selected", "disabled");
-  dlStatus.classList.add("hidden");
   localStatus.classList.add("hidden");
-  dlProgress.classList.add("hidden");
-
-  // Decided up front, not per-branch: it must hold in "ready" (which
-  // otherwise offers "switch to download") as much as in "idle".
-  const downloadUsable = backendMode !== "openvino";
-  const localPickLabel = downloadUsable
-    ? t("onboardingLocalPickFile")
-    : t("onboardingOpenvinoPickDir");
-
-  function disableDownloadCard() {
-    dlBtn.disabled = true;
-    dlBtn.textContent = t("onboardingDownloadUnavailableForBackend");
-    dlCard.classList.add("disabled");
-    dlStatus.classList.remove("hidden");
-    dlStatusText.textContent = t("onboardingOpenvinoConvertHint");
-  }
-
-  if (modelStatus === "downloading") {
-    dlCard.classList.add("selected");
-    localCard.classList.add("disabled");
-    dlBtn.disabled = true;
-    dlBtn.textContent = t("onboardingDownloading");
-    localBtn.disabled = true;
-    localBtn.textContent = localPickLabel;
-    dlProgress.classList.remove("hidden");
-    return;
-  }
 
   if (modelStatus === "ready") {
-    if (modelSource === "download") {
-      dlCard.classList.add("selected");
-      dlStatus.classList.remove("hidden");
-      dlStatusText.textContent = formatModelDetail(modelInfo) || t("onboardingDownloaded");
-      dlBtn.disabled = true;
-      dlBtn.textContent = t("onboardingDownloadDone");
-      localBtn.disabled = false;
-      localBtn.textContent = t("onboardingDownloadSwitchToLocal");
-    } else {
-      localCard.classList.add("selected");
-      localStatus.classList.remove("hidden");
-      localStatusText.textContent = formatModelDetail(modelInfo) || t("onboardingLoaded");
-      localBtn.disabled = true;
-      localBtn.textContent = t("onboardingLocalPicked");
-      if (downloadUsable) {
-        dlBtn.disabled = false;
-        dlBtn.textContent = t("onboardingDownloadSwitchToDownload");
-      } else {
-        disableDownloadCard();
-      }
-    }
+    localCard.classList.add("selected");
+    localStatus.classList.remove("hidden");
+    localStatusText.textContent = formatModelDetail(modelInfo) || t("onboardingLoaded");
+    localBtn.disabled = false;
+    localBtn.textContent = t("onboardingOpenvinoPickAnother");
     return;
   }
 
-  // idle
-  if (!downloadUsable) {
-    disableDownloadCard();
-  } else {
-    dlBtn.disabled = false;
-    dlBtn.textContent = downloadFailed
-      ? t("onboardingDownloadRetry")
-      : t("onboardingDownloadStart");
-  }
   localBtn.disabled = false;
-  localBtn.textContent = localPickLabel;
+  localBtn.textContent = t("onboardingOpenvinoPickDir");
 }
 
 function paintWarmupRow() {
@@ -264,81 +193,17 @@ function paintModelPanel() {
 
 async function detectExistingModel() {
   const state = await window.onboarding.getState().catch(() => null);
-  if (state && state.backend) backendMode = state.backend;
   if (state && state.modelPresent) {
     modelStatus = "ready";
-    modelSource = "local";
     modelInfo = { path: state.modelDir || null, sizeBytes: null };
     paintModelPanel();
     void runWarmupInline();
   } else {
     modelStatus = "idle";
-    modelSource = null;
     modelInfo = null;
     warmupStatus = "idle";
     warmupKicked = false;
-    downloadFailed = false;
     paintModelPanel();
-  }
-}
-
-async function startModelDownload() {
-  const errBox = el("model-error");
-  errBox.classList.add("hidden");
-
-  const switching = modelStatus === "ready" && modelSource !== "download";
-  if (switching) {
-    resetWarmup();
-    try { await window.onboarding.restartSidecar(); } catch {}
-  }
-
-  modelStatus = "downloading";
-  modelSource = "download";
-  downloadFailed = false;
-  paintModelPanel();
-  setProgress(0, t("onboardingDownloadProgressInit"));
-
-  const unsub = window.onboarding.onProgress((p) => {
-    if (p.event === "download" && p.phase === "transfer") {
-      const done = p.bytes_done || 0;
-      const total = p.bytes_total || 0;
-      const pct = total > 0 ? (done / total) * 100 : 0;
-      const detail = `${bytesPretty(done)} / ${bytesPretty(total)}${p.file ? "  ·  " + p.file : ""}`;
-      setProgress(pct, detail);
-    } else if (p.event === "download" && p.phase === "swap") {
-      setProgress(98, t("onboardingDownloading"));
-    } else if (p.event === "download" && p.phase === "complete") {
-      setProgress(100, t("onboardingDownloadDone"));
-    } else if (p.event === "download" && p.phase === "reloaded") {
-      setProgress(100, t("onboardingLoaded"));
-    } else if (p.event === "error") {
-      errBox.textContent = t("onboardingWarmupErrorTitle", { msg: p.message || p.phase || "" });
-      errBox.classList.remove("hidden");
-    }
-  });
-
-  const r = await window.onboarding.startModelDownload();
-  if (unsub) unsub();
-
-  if (r && r.ok) {
-    const state = await window.onboarding.getState().catch(() => null);
-    modelStatus = "ready";
-    modelSource = "download";
-    modelInfo = {
-      path: (state && state.modelDir) || null,
-      sizeBytes: null,
-    };
-    paintModelPanel();
-    void runWarmupInline();
-  } else {
-    modelStatus = "idle";
-    modelSource = null;
-    downloadFailed = true;
-    paintModelPanel();
-    errBox.textContent = t("onboardingDownloadErrorHint", {
-      msg: (r && r.error) || "",
-    });
-    errBox.classList.remove("hidden");
   }
 }
 
@@ -346,17 +211,16 @@ async function pickLocalModel() {
   const errBox = el("model-error");
   errBox.classList.add("hidden");
 
-  const switching = modelStatus === "ready" && modelSource !== "local";
+  const previousPath = modelInfo && modelInfo.path;
 
   const r = await window.onboarding.pickLocalModel();
   if (r && r.ok) {
-    downloadFailed = false;
-    if (switching) {
+    // Only restart when the IR actually changed.
+    if (previousPath && r.modelDir !== previousPath) {
       resetWarmup();
       try { await window.onboarding.restartSidecar(); } catch {}
     }
     modelStatus = "ready";
-    modelSource = "local";
     modelInfo = { path: r.modelDir || null, sizeBytes: null };
     paintModelPanel();
     void runWarmupInline();
@@ -383,7 +247,7 @@ async function runWarmupInline() {
   const errBox = el("model-error");
 
   const unsub = window.onboarding.onProgress((p) => {
-    if (p.event === "error" && p.phase && p.phase !== "download") {
+    if (p.event === "error" && p.phase) {
       errBox.textContent = t("onboardingWarmupErrorTitle", { msg: `${p.phase}: ${p.message}` });
       errBox.classList.remove("hidden");
     }
@@ -446,7 +310,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     await detectExistingModel();
   });
 
-  el("model-download-btn").addEventListener("click", () => { void startModelDownload(); });
   el("model-pick-local").addEventListener("click", () => { void pickLocalModel(); });
   el("warmup-retry").addEventListener("click", () => {
     warmupKicked = false;
