@@ -252,56 +252,6 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Tiny "● new revision available" pill that sits in the corner of the
-     bubble. Click to apply the update. */
-  .upd-pill {
-    position: absolute;
-    top: 6px; right: 8px;
-    z-index: 10;
-    font-size: 10px;
-    color: var(--accent);
-    background: rgba(155,140,255,0.10);
-    border: 1px solid rgba(155,140,255,0.35);
-    padding: 2px 7px;
-    border-radius: 999px;
-    cursor: pointer;
-    user-select: none;
-    -webkit-app-region: no-drag;
-    display: none;
-    align-items: center;
-    gap: 5px;
-    line-height: 1.2;
-  }
-  .upd-pill::before {
-    content: "●";
-    color: var(--accent);
-    font-size: 8px;
-    animation: thinkBlink 1.4s ease-in-out infinite;
-  }
-  .upd-pill:hover { background: rgba(155,140,255,0.18); }
-  /* Inline progress shown inside the bubble while updating. */
-  .upd-progress {
-    font-size: 12px;
-    color: var(--muted);
-    text-align: center;
-    padding: 6px 4px;
-  }
-  .upd-progress .bar {
-    margin-top: 7px;
-    height: 4px;
-    background: rgba(155,140,255,0.15);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .upd-progress .bar > i {
-    display: block;
-    height: 100%;
-    background: var(--accent);
-    width: 0%;
-    transition: width 200ms ease;
-    border-radius: 2px;
-  }
-
   .err-text { color: var(--danger, #ff6b6b); font-size: 11px; }
   .err-text pre {
     margin-top: 6px; padding: 6px; background: rgba(255,255,255,0.04);
@@ -317,7 +267,6 @@
 <div class="shell">
   <div class="bubble" id="bubble" data-side="right">
     <div class="tail"></div>
-    <div class="upd-pill" id="updPill"></div>
     <div id="content"></div>
   </div>
 </div>

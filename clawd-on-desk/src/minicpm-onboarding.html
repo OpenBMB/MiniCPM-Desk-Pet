@@ -39,31 +39,8 @@
       <p class="lede" data-i18n="onboardingModelLede"></p>
 
       <div class="model-cards">
-        <!-- Card A: online download -->
-        <div class="model-card" id="model-card-download">
-          <div class="model-card-head">
-            <span class="model-card-title" data-i18n="onboardingDownloadCardTitle"></span>
-            <span class="badge-check" aria-hidden="true">✓</span>
-          </div>
-          <div class="model-card-body">
-            <p class="model-card-desc" data-i18n="onboardingDownloadCardDesc"></p>
-            <div class="progress-card hidden" id="model-progress-card">
-              <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-              <div class="progress-text">
-                <span id="progress-percent">0%</span>
-                <span class="dim" id="progress-detail" data-i18n="onboardingDownloadProgressInit"></span>
-              </div>
-            </div>
-            <div class="model-card-status hidden" id="model-download-status">
-              <span class="model-status-text" id="model-download-status-text"></span>
-            </div>
-          </div>
-          <div class="model-card-foot">
-            <button class="btn primary" id="model-download-btn" data-i18n="onboardingDownloadStart"></button>
-          </div>
-        </div>
-
-        <!-- Card B: local file -->
+        <!-- Only one way in: point at an IR converted with
+             minicpm-sidecar/scripts/convert-openvino.py. -->
         <div class="model-card" id="model-card-local">
           <div class="model-card-head">
             <span class="model-card-title" data-i18n="onboardingLocalCardTitle"></span>
@@ -71,12 +48,13 @@
           </div>
           <div class="model-card-body">
             <p class="model-card-desc" data-i18n="onboardingLocalCardDesc"></p>
+            <p class="model-card-desc dim" data-i18n="onboardingOpenvinoConvertHint"></p>
             <div class="model-card-status hidden" id="model-local-status">
               <span class="model-status-text" id="model-local-status-text"></span>
             </div>
           </div>
           <div class="model-card-foot">
-            <button class="btn ghost" id="model-pick-local" data-i18n="onboardingLocalPickFile"></button>
+            <button class="btn primary" id="model-pick-local" data-i18n="onboardingOpenvinoPickDir"></button>
           </div>
         </div>
       </div>

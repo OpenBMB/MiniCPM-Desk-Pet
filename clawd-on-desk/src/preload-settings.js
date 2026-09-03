@@ -149,10 +149,6 @@ contextBridge.exposeInMainWorld("settingsAPI", {
 // ── MiniCPM settings tab API ──
 contextBridge.exposeInMainWorld("minicpmSettings", {
   getStatus: () => ipcRenderer.invoke("minicpm-settings:get-status"),
-  listAdapters: () => ipcRenderer.invoke("minicpm-settings:list-adapters"),
-  loadAdapter: (path) => ipcRenderer.invoke("minicpm-settings:load-adapter", { path }),
-  checkUpdate: () => ipcRenderer.invoke("minicpm-settings:check-update"),
-  applyUpdate: () => ipcRenderer.invoke("minicpm-settings:apply-update"),
   setNarration: (enabled) => ipcRenderer.invoke("minicpm-settings:set-narration", { enabled }),
   getChatParams: () => ipcRenderer.invoke("minicpm-settings:get-chat-params"),
   setChatParams: (params) => ipcRenderer.invoke("minicpm-settings:set-chat-params", { params }),
@@ -162,7 +158,6 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   resetBubblePos: () => ipcRenderer.invoke("minicpm-settings:reset-bubble-pos"),
   enterBubbleEdit: () => ipcRenderer.invoke("minicpm-settings:enter-bubble-edit"),
   exitBubbleEdit: (save) => ipcRenderer.invoke("minicpm-settings:exit-bubble-edit", { save: !!save }),
-  getBackendMode: () => process.env.MINICPM_BACKEND || null,
   listDevices: () => ipcRenderer.invoke("minicpm-settings:list-devices"),
   setDevice: (device) => ipcRenderer.invoke("minicpm-settings:set-device", { device }),
   setDeviceAndRestart: (device) => ipcRenderer.invoke("minicpm-settings:set-device-and-restart", { device }),
@@ -176,12 +171,6 @@ contextBridge.exposeInMainWorld("minicpmSettings", {
   openLogsDir: () => ipcRenderer.invoke("minicpm-settings:open-logs-dir"),
   getResources: () => ipcRenderer.invoke("minicpm-settings:get-resources"),
   openModelDir: () => ipcRenderer.invoke("minicpm-settings:open-model-dir"),
-  getAdapterDir: () => ipcRenderer.invoke("minicpm-settings:get-adapter-dir"),
-  openAdapterDir: () => ipcRenderer.invoke("minicpm-settings:open-adapter-dir"),
-  getAdapterManifest: () => ipcRenderer.invoke("minicpm-settings:get-adapter-manifest"),
-  uploadAdapter: (payload) => ipcRenderer.invoke("minicpm-settings:upload-adapter", payload || {}),
-  renameAdapter: (payload) => ipcRenderer.invoke("minicpm-settings:rename-adapter", payload || {}),
-  removeAdapter: (payload) => ipcRenderer.invoke("minicpm-settings:remove-adapter", payload || {}),
 });
 
 contextBridge.exposeInMainWorld("doctor", {

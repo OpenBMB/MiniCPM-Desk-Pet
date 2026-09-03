@@ -13,7 +13,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases"><img src="https://img.shields.io/github/v/release/OpenBMB/MiniCPM-Desk-Pet" alt="Version"></a>
-  <img src="https://img.shields.io/badge/model-MiniCPM5--1B--GGUF-blue" alt="Model">
+  <img src="https://img.shields.io/badge/model-MiniCPM5%20%C2%B7%20OpenVINO-blue" alt="Model">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--only-green" alt="License">
 </p>
@@ -24,7 +24,7 @@ MiniCPM Desk Pet は MiniCPM で動くローカルファーストの AI デス�
 
 ## 主な機能
 
-- **ローカル MiniCPM チャット**: 初回環境チェック、MiniCPM5-1B-GGUF モデルダウンロード、ウォームアップ、チャットバブル、ローカルモデル状態。
+- **ローカル MiniCPM チャット**: 初回環境チェック、OpenVINO モデルダウンロード、ウォームアップ、チャットバブル、ローカルモデル状態。
 - **モデル管理**: Hugging Face / ModelScope ダウンロード、ローカルモデルパス選択、バックエンド再起動、ログ表示。
 - **Persona LoRA**: `Settings...` -> `MiniCPM` で LoRA adapter を管理します。ペットのナレーションは base モデルを使います。
 - **デスクトップペットの反応**: 対応 Agent のセッション、ツール実行、権限要求、完了、アイドル、睡眠、mini-mode に応じて状態を切り替えます。

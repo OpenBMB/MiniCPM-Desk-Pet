@@ -1,8 +1,8 @@
 # minicpm-sidecar
 
-MiniCPM 桌宠的端侧推理 sidecar。基于 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供 GGUF 推理，外面包一层轻量 Python gateway（FastAPI）以保持对 Electron 的现有 HTTP/SSE 契约不变。
-
-> 本目录取代了旧的 `minicpm-pet-bridge/` 与 `minicpm-pet-bridge-uv/`。它们已被标记为 deprecated，仅用于历史追溯。
+MiniCPM 桌宠的端侧推理 sidecar。基于 [OpenVINO GenAI](https://github.com/openvinotoolkit/openvino.genai)
+在 Intel AIPC 上做**进程内**推理，外面包一层轻量 Python gateway（FastAPI）以保持
+对 Electron 的 HTTP/SSE 契约。
 
 ## 设计
 
@@ -10,159 +10,229 @@ MiniCPM 桌宠的端侧推理 sidecar。基于 [llama.cpp](https://github.com/gg
 Electron (clawd-on-desk)
    │ HTTP/SSE :18765
    ▼
-gateway (FastAPI, 无 torch)             ← 本目录 gateway/
-   │ HTTP :18766 OpenAI-compat (stream)
+gateway (FastAPI)                       ← 本目录 gateway/
+   │ openvino_genai.LLMPipeline（进程内，无子进程）
    ▼
-llama-server (原生 C++)                 ← 官方 llama.cpp release 产物
-   │
-   ▼
-*.gguf  在 <userData>/models/
+OpenVINO IR 目录  在 <userData>/models/
 ```
 
-为什么拆两段：
+只有一个进程。gateway 负责协议翻译（`event: start|delta|think|end|error`）、
+`<think>` 块拆分、桌宠状态推送和模型目录管理；推理由 `LLMPipeline` 直接跑在
+Intel GPU 或 NPU 上。
 
-- `llama-server` 已经是上游成熟的 OpenAI 兼容服务器，但它的协议是 OpenAI SSE（`event: data\n` 风格、`choices[].delta.content`），与 Electron UI 现有的 `event: start|delta|think|end|error` 自定义 SSE 不兼容。
-- gateway 负责协议翻译、`<think>` 块拆分、桌宠状态推送、`/api/update-apply` 流程、模型/适配器目录管理等 Electron 端已经依赖的接口。
-
-打包后两个二进制都放在 `clawd-on-desk` 的 `resources/sidecar-bin/`：
+**模型是一个目录，不是单个文件**：
 
 ```
-sidecar-bin/
-  minicpm-sidecar(.exe)   ← gateway，PyInstaller 出
-  llama-server(.exe)      ← 官方 llama.cpp release 产物
-  <runtime libs ...>
+MiniCPM5-2.6B-int4-sym-g128/
+  openvino_model.xml        openvino_model.bin
+  openvino_tokenizer.xml    openvino_detokenizer.xml
+  config.json  generation_config.json  chat_template.jinja
+  .minicpm-ir.json          ← 转换脚本写的精度元数据
 ```
 
-Electron 只 spawn `minicpm-sidecar`，由 gateway 自己 fork 出 `llama-server`。
+## 只支持 GPU 和 NPU
+
+这是给 Intel AIPC 做的构建，设备白名单只有 `gpu` 和 `npu`，**没有 CPU**。
+`ov::Core` 永远会报告 CPU，gateway 会把它过滤掉；没有 Intel 核显/独显也没有
+NPU 的机器上，`start()` 抛一条明确的中文错误而不是让 `LLMPipeline` 抛 native 异常。
+
+`MINICPM_DEVICE` 是跨版本持久化的，所以 `cpu` / `vulkan` / `metal` / `cuda`
+这些旧值会被识别并重定向到 `gpu`（记一条 info 日志），不会把未知名字丢给
+`ov::Core`。
+
+## 一份模型，两个设备
+
+实测（MiniCPM5-2.6B / Core Ultra 5 225H / Arc 130T / AI Boost NPU，openvino
+2026.3.1、NPU 驱动 32.0.100.4778、14.9 GB 内存；同一套直连引擎的测量口径，
+`enable_thinking=False`，三个 prompt 各一轮）：
+
+| 精度 | 体积 | GPU 加载 | **GPU chunk/s** | NPU 加载 | **NPU chunk/s** |
+|---|---|---|---|---|---|
+| **int4-sym-g128** | **1.5 GB** | **2.3s** | **21.9 / 23.0 / 22.3** | 5.8s | 10.1 / 11.7 / 12.0 |
+| int8 | 2.4 GB | 6.1s | 15.5 / 18.7 | — | ❌ 见下 |
+| fp16 | 4.8 GB | 10.5s | 4.3 / 4.3 / 3.4 | 26.4s | 8.3 / 8.4 / 6.8 |
+
+结论：
+
+- **GPU 上 int4 最快**，比 int8 快约 1.3 倍、比 fp16 快约 **5 倍**。decode 是显存
+  带宽瓶颈，而 Arc 130T 用共享系统内存，所以权重越小越快 —— 不量化不是「更准更慢一点」，
+  是慢 5 倍。
+- **int4 在两个设备上都能跑**，且体积最小、加载最快。所以只需要转一份。
+- fp16 在 NPU 上也能跑（见下），但没有理由选它：GPU 上慢 5 倍，NPU 上慢 1.4 倍，
+  还多占 3.3 GB。
+
+> ⚠️ 未做过输出质量的正式对比，只比了速度和可用性。
+
+### NPU 拒绝 INT8
+
+实测（长 prompt × 256 token × 4 轮，绕过守卫直连 `LLMPipeline(ir, "NPU")`）：
+
+| 精度 | 结果 |
+|---|---|
+| int4-sym-g128 | ✅ 全过 |
+| fp16 | ✅ 全过 |
+| **int8** | ❌ `ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY`，可复现 |
+
+三个精度**构造 `LLMPipeline` 都成功**，int8 只在第一次 `generate()` 时失败 ——
+所以检查必须发生在构造之前，不能指望构造失败来兜底。
+
+`IRPrecision.npu_ready` 因此是「**不是 int8**」而不是「只能 int4」：对称 INT4 是
+OpenVINO 文档对这个尺寸的推荐配置，未压缩的 FP16 也能跑。精度**读不出来**的 IR
+仍然拒绝（它可能就是 int8）。
+
+> [openvinotoolkit/openvino#35641](https://github.com/openvinotoolkit/openvino/issues/35641)
+> 报告这个组合会产生**不可捕获**的 `0xC0000005`。在本机这套版本上**没有复现** ——
+> 观察到的是一个普通的、可捕获的 `RuntimeError`。但这个组合仍在文档支持矩阵之外，
+> 所以继续拒绝。
+
+默认 `MINICPM_OV_NPU_FALLBACK=1` 会在精度不合时降级到 GPU，并在
+`/api/health` 的 `device_fallback` 里说明原因；设为 `0` 则硬失败。
+`/api/set-device` 也做同样的检查，让拒绝变成一条可操作的报错。
+
+> `/api/health` 的 `accel` 报的是引擎**实际**解析到的设备，不是请求的那个 ——
+> 请求值另放在 `requested_device`。发生降级时 `accel` 会显示 `gpu`，
+> 设置页也会跟着高亮 GPU 并显示原因。
 
 ## 目录
 
 ```
-<repo-root>/
-  llama.cpp/                  # git submodule（ggml-org/llama.cpp @ b9371，用于源码追踪 / 手动 fallback）
-
 minicpm-sidecar/
-  gateway/                  # FastAPI gateway 源码
-    __main__.py             # 入口：python -m gateway --model ... --port ...
-    server.py               # FastAPI app + /api/* 路由
-    llama_client.py         # llama-server 子进程管理 + OpenAI streaming
-    think_filter.py         # <think>...</think> 块拆分（从旧 bridge 移植）
-    clawd_state.py          # 桌宠状态推送（从旧 bridge 移植）
-    updater.py              # GGUF 模型下载/校验
-    log_setup.py            # 跨平台日志目录解析
+  gateway/
+    __main__.py         # 入口：python -m gateway --model <ir-dir> --port ...
+    server.py           # FastAPI app + /api/* 路由
+    openvino_client.py  # LLMPipeline 封装、精度守卫、设备发现、流式桥接
+    think_filter.py     # <think>...</think> 块拆分
+    clawd_state.py      # 桌宠状态推送
+    lifecycle.py        # 父进程（Electron）看门狗
+    log_setup.py        # 跨平台日志目录解析
   scripts/
-    fetch-llama-release.sh  # 下载官方 llama.cpp release（mac/linux）
-    fetch-llama-release.ps1 # 下载官方 llama.cpp release（windows）
-    build-llama.sh          # 手动 fallback：本地 cmake 编 llama-server（mac/linux）
-    build-llama.ps1         # 手动 fallback：本地 cmake 编 llama-server（windows）
-    build-gateway.sh        # PyInstaller 出 gateway 单文件
-    build-gateway.ps1       # Windows PyInstaller 出 gateway 单文件
-    build-all.sh            # 一键：下载官方 llama-server + 编 gateway
-    run-dev.sh              # 本地开发：直接启动 gateway，由它拉 llama-server
-  build/
-    gateway.spec            # PyInstaller spec（gateway 用）
-  pyproject.toml            # uv 项目，仅 fastapi/uvicorn/httpx/huggingface_hub
-  .python-version
+    convert-openvino.py # HF checkpoint → OpenVINO IR
+    build-gateway.sh    # PyInstaller 出 gateway 单文件
+    build-gateway.ps1
+    build-all.sh
+    run-dev.sh
+  build/gateway.spec    # PyInstaller spec
+  pyproject.toml
 ```
 
 ## 开发态启动
 
 ```bash
-# 1) 第一次：下载官方 llama.cpp release 里的 llama-server
-./scripts/fetch-llama-release.sh
-
-# 2) 安装 gateway 依赖（瘦小，几十 MB）
+# 1) 装依赖（含 OpenVINO runtime，约 100 MB）
 uv sync
 
-# 3) 启动 gateway（它会自动拉起 llama-server）
-./scripts/run-dev.sh --model /path/to/minicpm5.gguf
+# 2) 把 HF checkpoint 转成 OpenVINO IR
+python scripts/convert-openvino.py --source <hf-checkpoint>
+
+# 3) 启动
+MINICPM_DEVICE=gpu uv run python -m gateway --model ../models/ov/<name>
 ```
 
-或者直接走仓库根的 `./go.sh`（已改造为新流程）。
+或者直接走仓库根的 `./go.sh`。
 
-## 生产构建
+## 环境变量
 
-```bash
-./scripts/build-all.sh
-# 产物：
-#   bin/<os>-<arch>/minicpm-sidecar(.exe)
-#   bin/<os>-<arch>/llama-server(.exe)
-# 之后由 clawd-on-desk/package.json 的 extraResources 自动打入安装包
-```
-
-## Official llama.cpp Release
-
-CI 和默认本地构建不再编译 `llama.cpp`，而是直接下载官方
-[`ggml-org/llama.cpp` b9371 release](https://github.com/ggml-org/llama.cpp/releases/tag/b9371)
-里的 `llama-server` 二进制。MiniCPM5 tokenizer 支持已经随
-[PR #23384](https://github.com/ggml-org/llama.cpp/pull/23384) 进入上游。
-
-`llama.cpp` 仍作为仓库顶层 git submodule pin 在同一 release，用于源码追踪和
-极端情况下的手动本地 fallback；它不再是 CI 出包路径的一部分。
-
-升级到新的官方 release 时：
-
-1. 更新 `LLAMA_CPP_RELEASE` 默认值（`fetch-llama-release.*`）并确认官方 release assets 命名。
-2. `cd llama.cpp && git fetch origin <tag> && git checkout <tag>`，然后在仓库根 `git add llama.cpp`。
-3. 跑一次 `./scripts/build-all.sh`。
-4. 用 golden prompt 对一遍 token 与中文输出，与旧 HF 模型对齐。
+| 变量 | 默认 | 作用 |
+|---|---|---|
+| `MINICPM_DEVICE` | `gpu` | `gpu` \| `npu`；旧的 cpu/vulkan/metal/cuda 会重定向到 gpu |
+| `MINICPM_MODEL_DIR` | — | IR 目录 |
+| `MINICPM_OV_NPU_FALLBACK` | `1` | NPU 精度不合时降级到 GPU；`0` 则硬失败 |
+| `MINICPM_OV_NPU_SAMPLING` | `0` | 允许 NPU 上采样（默认 greedy-only） |
+| `MINICPM_OV_CACHE_DIR` | 日志目录旁 | 编译缓存；不设会每次启动重编译 |
+| `MINICPM_CTX` | `4096` | 上下文长度 |
 
 ## API
 
-gateway 对 Electron 暴露下列端点（保持与旧 bridge 完全兼容）：
+| 类型 | 说明 |
+|------|------|
+| `GET /api/health` | `backend` / `accel` / `engine` / `startup_error` |
+| `POST /api/chat` (SSE) | `event: start\|think\|delta\|end\|error` |
+| `POST /api/warmup` | 1-token completion，让编译缓存升温 |
+| `GET /api/models` | 扫描 `<MODEL_ROOT>/**` 下的 IR 目录 |
+| `POST /api/load-model` | 热切换到另一个 IR（重新编译 pipeline） |
+| `GET /api/devices`, `POST /api/set-device` | 报告 / 切换 gpu\|npu |
+| `GET /api/onboarding` | `model_present` / `accelerators` / `stage_hint` |
+| `POST /api/state` | 手动桌宠状态推送 |
+| `POST /api/classify` | stub，返回 501 |
 
-| 类型 | 状态 | 说明 |
-|------|------|------|
-| `GET /api/health` | ok | 包装 llama-server health + 报告 backend |
-| `POST /api/chat` (SSE) | ok | OpenAI stream → 自定义 SSE + ThinkBlockFilter |
-| `POST /api/warmup` | ok | 1-token completion，让 mmap/KV cache 升温 |
-| `GET /api/models` | ok | 扫描 `<MODEL_ROOT>/**/*.gguf` |
-| `POST /api/load-model` | ok | 重启 llama-server 子进程指向新 gguf |
-| `GET /api/devices`, `POST /api/set-device` | ok | 报告 metal/cuda/cpu backend |
-| `GET /api/onboarding` | ok | model_present / stage_hint |
-| `GET /api/update-check`, `POST /api/update-apply` | ok | GGUF 增量下载 |
-| `POST /api/state` | ok | 手动桌宠状态推送 |
-| `GET /api/adapters` | ok | 扫描 `<MINICPM_ADAPTER_DIR>/**/*.gguf`，返回 `{items, current, current_name, adapter_dir}` |
-| `POST /api/load-adapter` | ok | 切换全局激活 LoRA（`{path}`，`null` 卸载）；新文件会触发 llama-server 子进程重启 |
-| `POST /api/classify` | stub | v1 返回 501 |
+> `/api/health` 的引擎子对象键名是 `engine`。（llama.cpp 时代叫 `llama_server`。）
 
-字段细节参见 [`gateway/server.py`](gateway/server.py)。
+## thinking 协议
 
-### LoRA 适配器协议
+MiniCPM5 的 chat template 默认 prefill `<think>\n` 让模型先做 reasoning。
+一个实测出来的模型行为：**无论 prompt 怎么写，模型都会先开一个 `<think>` 块**
+（给了闭合空块也照样新开）。所以 `thinking=false` 不是"不推理"，只是"不展示"，
+被丢弃的推理照样花 token —— 引擎因此对隐藏推理套用与
+`server.THINKING_MIN_MAX_NEW_TOKENS` 相同的预算下限，否则采样时可能在
+`</think>` 出现前就耗尽配额、给用户一个空气泡。
 
-- gateway 默认不预加载 LoRA；只有当前激活的 adapter 会随 `llama-server --lora` 启动。
-- "激活"是 gateway 内存里的单值 `current_adapter`，每次请求通过 `lora` 字段显式选择 adapter scale。
-- 每次 `POST /api/chat` 时，根据当前激活 adapter + 请求体的 `disable_adapter` 注入 OpenAI 请求体的 `lora: [...]` 字段（PR #10994）：
+引擎只吐 `content`，`<think>` / `</think>` 的切分全部交给 `ThinkBlockFilter`。
+模板写的是 `"<think>\n"` 和 `"</think>\n\n"`，那些换行属于标签而不是内容，
+filter 会跨 chunk 把它们吃掉，否则思考气泡会以空行开头。
 
-| `disable_adapter` | active adapter | 注入到 llama-server 的 `lora` |
-|------|------|------|
-| `false`（默认） | 无 | `[]`（显式禁用所有 adapter，走 base） |
-| `false` | `lora_neko.gguf` | `[{"id": 0, "scale": 1.0}]` |
-| `true` | 任意 | `[]`（本次请求显式禁用所有 adapter，桌宠旁白用） |
+## 打包
 
-这样主对话和旁白可以并发，不会因为全局 scale 切换产生人格污染。
+`build/gateway.spec` **包含** OpenVINO runtime —— 它是唯一的推理引擎。转换期依赖
+（`nncf` / `optimum` / `onnx`）仍然排除：`scripts/convert-openvino.py` 把它们
+shell out 到一次性 uv 环境，运行期用不到。
 
-- 用户切换到某个 `.gguf` LoRA 时，gateway 会重启 llama-server（~2-4s）并只加载该 adapter；切回 Base 时也会重启一次来释放 LoRA 内存。
-- 适配器持久权重格式必须是 GGUF。从 PEFT safetensors 转换的脚本与示例在 [`adapters/README.md`](../adapters/README.md)。
+### 两个踩过的坑
 
-## 与 llama-server 的 thinking 协议
+**① `collect_submodules` 收不了原生 DLL。** OpenVINO 的 Python 包只是薄壳，引擎是
+`openvino/libs/` 下 212 MB 的 DLL，设备插件（`intel_gpu_plugin`、`intel_npu_plugin`
+和 78 MB 的 NPU 编译器）是**运行时按名字加载**的。用 `collect_submodules` 打出来的
+二进制只有 40 MB，能启动、能响应，然后在一台有 GPU 也有 NPU 的机器上报告
+「未检测到 Intel GPU 或 NPU」。必须用 `collect_all`，它才会带上 binaries 和 datas。
 
-MiniCPM5 的 chat template 默认会 prefill `<think>\n` 让模型先做 reasoning。
-本 gateway 通过 OpenAI 请求体的 `chat_template_kwargs.enable_thinking`
-字段把客户端 `thinking` 标志透传给 llama-server：
+**② onefile 每次启动解压 300 MB。** 实测（Core Ultra 5 225H）：
 
-| 客户端 `thinking` | llama-server | gateway 输出 |
-|------|------|------|
-| `true`  | 走 `<think>` 模板，reasoning 落到 `delta.reasoning_content` | `event: think` 帧 + `event: delta` 帧 |
-| `false` | 跳过 `<think>` 模板，所有 token 都落到 `delta.content` | 仅 `event: delta` 帧 |
+| 方式 | 冷启动 | 热启动 |
+|---|---|---|
+| onefile（105 MB 单文件） | 18.9s | ~19s，**每次都解压约 14s** |
+| **onedir（301 MB 目录）** | 12.9s | **6.1s**（其中 2.9s 是模型编译） |
 
-这是 v0.7 PyTorch sidecar `enable_thinking` 的等价语义，旧 UI 行为完全保持。
-ThinkBlockFilter 仍然挂在 `content` 流路径上作为 safety net，应对未来切到
-非 MiniCPM5 模型时 `<think>` 标签泄漏到 content 的情况。
+桌宠在应用启动时就拉起 sidecar，14 秒的静默不可接受，所以用 onedir。
+`clawd-on-desk` 通过 `extraResources` 整目录搬运，`locateSidecarBinary()`
+已经会探测 `sidecar-bin/minicpm-sidecar/minicpm-sidecar[.exe]`。
 
-## 实测性能（M4 Pro / 18 GB / Metal）
+### 实测产物（win-x64）
 
-- Q4_K_M (657 MB) 加载到就绪：~4 秒
-- 推理速度：~198 tok/s
-- `/api/warmup` 往返：~20 ms（命中 prompt cache）
-- `/api/load-model` 热切换（Q4_K_M → Q8_0）：~3 秒，包括关旧 / 起新 / 健康轮询
+```
+minicpm-sidecar/bin/win-x64/minicpm-sidecar/   301 MB   PyInstaller onedir
+clawd-on-desk/dist/win-unpacked/               800 MB   Electron + sidecar
+```
+
+打包后的 sidecar 已验证：从 bundle 启动 → 探测到 gpu/npu → `/api/chat` 的
+think/delta 分帧正常 → `/api/set-device` 正常。
+
+### ⚠️ NSIS 安装包这一步在本机会失败
+
+`win-unpacked` 能出来，但 `electron-builder` 生成 `.exe` 时会卡在 `winCodeSign`：
+它下载的签名工具包里含 macOS dylib 的**符号链接**，Windows 默认不允许非管理员
+创建符号链接。
+
+```
+ERROR: Cannot create symbolic link : 客户端没有所需的特权
+```
+
+跟本项目无关，是 electron-builder 在 Windows 上的通用问题。两种解法：
+
+- 打开 **Windows 开发者模式**（设置 → 隐私和安全性 → 开发者选项），或
+- 用**管理员权限**的终端跑一次 `npm run build:win:x64`
+
+CI（`.github/workflows/`）的 runner 上没有这个限制。
+
+## 模型转换
+
+```bash
+# 默认 preset：对称 INT4 / group-size 128，GPU 和 NPU 都能用，且最快
+python scripts/convert-openvino.py --source <hf-checkpoint>
+
+# 不量化（GPU 上慢约 5 倍，体积 3.2 倍；一般没有理由用）
+python scripts/convert-openvino.py --source <ckpt> --preset fp16
+```
+
+脚本 shell out 到 `uv run --no-project --with "optimum-intel[openvino]" ...`，
+所以 torch / transformers / nncf **不会进入本项目的 `.venv`**。导出到 `.partial`
+再原子 rename，避免 `discover_models` 扫到半写的 IR。导出后校验四个 IR 文件齐全、
+chat template 存在且含 `enable_thinking`，最后写 `.minicpm-ir.json` 供精度守卫读取。

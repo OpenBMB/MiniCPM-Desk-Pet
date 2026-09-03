@@ -45,7 +45,7 @@ describe("minicpm-i18n", () => {
   it("COMMAND_PATTERNS share the same structure across langs", () => {
     const baseKeys = Object.keys(minicpm.COMMAND_PATTERNS.en).sort();
     assert.ok(baseKeys.includes("hints"), "expected `hints` pattern");
-    assert.ok(baseKeys.includes("swap"), "expected `swap` pattern");
+    assert.ok(baseKeys.includes("status"), "expected `status` pattern");
     for (const lang of SUPPORTED) {
       const patterns = minicpm.COMMAND_PATTERNS[lang];
       assert.deepStrictEqual(

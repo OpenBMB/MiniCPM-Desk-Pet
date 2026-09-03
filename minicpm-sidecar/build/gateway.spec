@@ -4,15 +4,14 @@
 #   ../scripts/build-gateway.sh
 #
 # Produces:
-#   <repo>/minicpm-sidecar/bin/<os>-<arch>/minicpm-sidecar[.exe]
+#   <repo>/minicpm-sidecar/bin/<os>-<arch>/minicpm-sidecar/
 #
-# This is intentionally lean: no torch, no transformers, no peft. The
-# only Python deps are FastAPI + uvicorn + httpx + huggingface_hub, all
-# of which are well-behaved under PyInstaller. Bundle size lands in the
-# tens of MB instead of the 700 MB the legacy torch sidecar weighed in at.
+# No torch, no transformers, no peft — but the OpenVINO runtime IS bundled,
+# because it is the only inference engine this build has. That puts the
+# output around 300 MB.
 
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 from pathlib import Path
 
 HERE = Path(SPECPATH).resolve()
@@ -34,14 +33,24 @@ hidden += [
     "httpx",
     "httpcore",
     "anyio._backends._asyncio",
-    "huggingface_hub",
 ]
+# collect_all, NOT collect_submodules: the device plugins (intel_gpu_plugin,
+# intel_npu_plugin) are native DLLs loaded at runtime by name, so walking
+# Python modules alone yields a binary that reports no GPU/NPU on hardware
+# that has both.
+ov_datas, ov_binaries, ov_hidden = [], [], []
+for _pkg in ("openvino", "openvino_genai", "openvino_tokenizers"):
+    _d, _b, _h = collect_all(_pkg)
+    ov_datas += _d
+    ov_binaries += _b
+    ov_hidden += _h
+hidden += ov_hidden
 
 a = Analysis(
     [str(PKG / "__main__.py")],
     pathex=[str(ROOT)],
-    binaries=[],
-    datas=[],
+    binaries=ov_binaries,
+    datas=ov_datas,
     hiddenimports=hidden,
     hookspath=[],
     runtime_hooks=[],
@@ -60,6 +69,10 @@ a = Analysis(
         "peft",
         "accelerate",
         "sentencepiece",
+        # Conversion-time only — convert-openvino.py shells out for these.
+        "nncf",
+        "optimum",
+        "onnx",
     ],
     noarchive=False,
 )
@@ -69,9 +82,8 @@ pyz = PYZ(a.pure, a.zipped_data)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="minicpm-sidecar",
     debug=False,
     bootloader_ignore_signals=False,
@@ -82,6 +94,16 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # Onefile: easier to drop next to llama-server in resources/sidecar-bin/.
-    onefile=True,
+)
+
+# onedir, not onefile: onefile would unpack ~300 MB to a temp directory on
+# every launch (measured ~14 s) and the pet spawns this on app start.
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name="minicpm-sidecar",
 )

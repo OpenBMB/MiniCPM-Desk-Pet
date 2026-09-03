@@ -35,12 +35,6 @@ function applyLang(lang) {
 }
 
 function refreshStaticUi() {
-  if (!updPill) return;
-  updPill.title = t("chatUpdatePillTitle");
-  // If pill is showing default text (no remote_revision merged in), refresh.
-  if (updPillRevision == null) {
-    updPill.textContent = t("chatUpdatePillText");
-  }
   // If the user is currently in ask phase with the empty placeholder,
   // refresh it so a language change takes effect immediately.
   if (inputEl) {
@@ -62,7 +56,6 @@ const SIDECAR_URL = "http://127.0.0.1:18765";
 // ── element refs ──
 const bubble = document.getElementById("bubble");
 const content = document.getElementById("content");
-const updPill = document.getElementById("updPill");
 
 // ── module state ──
 let phase = "hidden";        // hidden | starting | ask | thinking | speak | error
@@ -72,9 +65,6 @@ let history = [];            // multi-turn conversation; persists across opens
 let abortCtrl = null;
 let fadeTimer = null;
 let inputEl = null;          // <textarea> while in ask state
-// Tracks the latest remote revision shown in the update pill so we can
-// re-render its label on a language change without losing the version.
-let updPillRevision = null;
 
 // Persisted default lives in minicpm-prefs.json (Settings → 默认思考模式).
 // thinkingOverride is a per-session override from ⌘⇧T; null means follow
@@ -470,7 +460,7 @@ async function showCommandReply(cmd) {
 }
 
 // Same visual as showCommandReply, but pinned in place — no fade — used
-// while a long-running command (adapter swap, model update) is mid-flight.
+// while a long-running command (a model swap) is mid-flight.
 async function showCommandProgress(text) {
   clearFade();
   phase = "narration";
@@ -528,23 +518,6 @@ const TRAILING_PARTICLES = /(吧|啊|呢|了|嘛|哦|哈|喵|よ|ね|ぞ|だ|で
 function matchByRegex(text) {
   // Patterns can be missing if the dictionary load failed — guard each.
   if (RGX.status && RGX.status.test(text)) return { intent: "status" };
-  if (RGX.uapply && RGX.uapply.test(text)) return { intent: "update_apply" };
-  if (RGX.ucheck && RGX.ucheck.test(text)) return { intent: "update_check" };
-  if (RGX.list && RGX.list.test(text))   return { intent: "list" };
-  if (RGX.off && RGX.off.test(text))    return { intent: "off" };
-  if (RGX.off2 && RGX.off2.test(text))   return { intent: "off" };
-  if (RGX.swap) {
-    const m = text.match(RGX.swap);
-    if (m) {
-      // Some languages capture the persona name in group 1, others in
-      // group 2 — pick whichever non-trivial group we get.
-      const candidate = (m[2] || m[1] || "").trim();
-      if (candidate) {
-        const kw = candidate.replace(TRAILING_PARTICLES, "").trim();
-        if (kw) return { intent: "switch", keyword: kw };
-      }
-    }
-  }
   return null;
 }
 
@@ -565,7 +538,6 @@ async function classifyIntentWithLLM(text) {
     top_p: 1,
     repetition_penalty: 1.0,
     silent: true,
-    disable_adapter: true,
   };
   const resp = await fetch(sidecarUrl + "/api/chat", {
     method: "POST",
@@ -583,225 +555,25 @@ async function classifyIntentWithLLM(text) {
 
   // Search anywhere in the reply for one of the known labels — handles
   // any leading garbage the model leaks through.
-  if (/\bNONE\b/i.test(reply))             return null;
-  if (/\bLIST_ADAPTER\b/i.test(reply))     return { intent: "list" };
-  if (/\bDISABLE_ADAPTER\b/i.test(reply))  return { intent: "off" };
-  if (/\bUPDATE_CHECK\b/i.test(reply))     return { intent: "update_check" };
-  if (/\bUPDATE_APPLY\b/i.test(reply))     return { intent: "update_apply" };
-  if (/\bSTATUS\b/i.test(reply))           return { intent: "status" };
-  const m = reply.match(/SWITCH_TO\s*=\s*([^\s,。]+)/i);
-  if (m) {
-    const kw = m[1].replace(/[「」『』"'""''.。]/g, "").trim();
-    if (kw) return { intent: "switch", keyword: kw };
-  }
+  if (/\bNONE\b/i.test(reply))   return null;
+  if (/\bSTATUS\b/i.test(reply)) return { intent: "status" };
   return null;
 }
 
-async function dispatch(intent, fullMsg, progress) {
+async function dispatch(intent) {
   switch (intent.intent) {
-    case "status":       return runStatusQuery();
-    case "list":         return runAdapterList();
-    case "off":          return runAdapterOff(progress);
-    case "switch":       return runAdapterSwitchByKeyword(intent.keyword, fullMsg, progress);
-    case "update_check": return runUpdateCheck();
-    case "update_apply": return runUpdateApply(progress);
-    default:             return null;
+    case "status": return runStatusQuery();
+    default:       return null;
   }
 }
 
 async function runStatusQuery() {
   const r = await fetch(sidecarUrl + "/api/health");
   const d = await r.json();
-  const persona = d.persona || "default";
   const model = d.model_name || "(unknown)";
-  const adapter = d.adapter ? (d.adapter.split("/").pop()) : null;
-  const text = adapter
-    ? t("chatStatusWithAdapter", { model, adapter, persona })
-    : t("chatStatusNoAdapter", { model, persona });
+  const device = d.accel || d.device || "(unknown)";
+  const text = t("chatStatusEngine", { model, device });
   return { ok: true, text };
-}
-
-async function runUpdateCheck() {
-  const r = await fetch(sidecarUrl + "/api/update-check");
-  const d = await r.json();
-  if (!d) return { ok: false, text: t("chatUpdateNoConn") };
-  if (d.available) {
-    return {
-      ok: true,
-      text: t("chatUpdateAvailable", {
-        remote: d.remote_revision || "?",
-        local: d.local_revision || "?",
-      }),
-    };
-  }
-  return { ok: true, text: t("chatUpdateUpToDate", { local: d.local_revision || "?" }) };
-}
-
-async function runUpdateApply(progress) {
-  await progress(t("chatUpdateApplyStart"));
-  showUpdateProgress({ phase: "start" });
-  if (window.minicpm && window.minicpm.updateApply) {
-    await window.minicpm.updateApply();
-  }
-  await refreshUpdateBadge();
-  return {
-    ok: true,
-    text: t("chatUpdateApplyDone"),
-    resetHistory: true,
-  };
-}
-
-async function runAdapterList() {
-  const r = await fetch(sidecarUrl + "/api/adapters");
-  const d = await r.json();
-  if (!d.items || !d.items.length) {
-    return { ok: true, text: t("chatAdapterListEmpty") };
-  }
-  const lines = d.items.map((a) => t("chatAdapterListItem", { name: a.name }) + (a.path === d.current ? "  ←" : ""));
-  return {
-    ok: true,
-    text: t("chatAdapterListIntro") + "\n" + lines.join("\n"),
-  };
-}
-
-async function runAdapterOff(progress) {
-  await (progress || (() => {}))(t("chatAdapterUnloading"));
-  // Route through the main-proc IPC so we get the same 90s timeout
-  // and the same `active_adapter_id` persistence the Settings tab
-  // enjoys. Direct fetch from the renderer used to hit a shorter
-  // implicit timeout on cold restart of llama-server and skipped
-  // the prefs write, leaving the user's choice unsaved across
-  // sidecar restarts.
-  const d = (window.minicpm && window.minicpm.loadAdapter)
-    ? await window.minicpm.loadAdapter(null)
-    : null;
-  if (!d || !d.ok) {
-    return { ok: false, text: t("chatUpdateApplyFail", { err: (d && d.error) || t("chatSidecarUnknownError") }) };
-  }
-  return {
-    ok: true,
-    text: t("chatAdapterOff"),
-    resetHistory: true,  // submit() will skip pushing this turn AND wipe `history`
-  };
-}
-
-// Keywords that mean "stop using any LoRA" rather than "switch to a
-// specific persona". These stay hardcoded because they're product
-// vocabulary, not adapter metadata; the rest of the routing is fully
-// data-driven from the manifest exposed via /api/adapters.
-// Cross-language vocabulary for "go back to the base model". These are
-// product-level keywords (not localized strings the user reads), so we
-// keep them as a single Set covering all supported UI langs.
-const DISABLE_ADAPTER_KEYWORDS = new Set([
-  // English
-  "base", "default", "vanilla", "plain", "original",
-  // 简体中文
-  "原版", "默认", "原始", "裸", "纯净", "普通",
-  // 繁體中文
-  "原版", "預設", "純淨", "純净",
-  // 한국어
-  "원본", "기본", "순정", "디폴트",
-  // 日本語
-  "素", "デフォルト", "オリジナル", "ベース",
-]);
-
-// Find the manifest item that best matches `kw` (already lowercased).
-// Strategies in descending confidence:
-//   1) exact alias hit
-//   2) alias substring (tolerates classifier truncation like "猫娘"→"娘")
-//   3) displayName substring
-//   4) filename substring (legacy fallback for adapters without a
-//      manifest entry — preserves the pre-manifest UX)
-function pickAdapterByKeyword(items, kw) {
-  const probe = (kw || "").toLowerCase().trim();
-  if (!probe) return null;
-  const visible = items.filter((it) => !it.missing);
-  // 1) exact alias
-  for (const it of visible) {
-    const aliases = Array.isArray(it.aliases) ? it.aliases : [];
-    if (aliases.some((a) => String(a).toLowerCase() === probe)) return it;
-  }
-  // 2) alias substring
-  for (const it of visible) {
-    const aliases = Array.isArray(it.aliases) ? it.aliases : [];
-    if (aliases.some((a) => {
-      const al = String(a).toLowerCase();
-      return al && (al.includes(probe) || probe.includes(al));
-    })) return it;
-  }
-  // 3) displayName substring
-  for (const it of visible) {
-    const dn = String(it.displayName || "").toLowerCase();
-    if (dn && (dn.includes(probe) || probe.includes(dn))) return it;
-  }
-  // 4) filename substring fallback
-  for (const it of visible) {
-    if (String(it.name || "").toLowerCase().includes(probe)) return it;
-  }
-  return null;
-}
-
-async function runAdapterSwitchByKeyword(keyword, fullMessage, progress) {
-  const onProgress = progress || (async () => {});
-  const kw = (keyword || "").toLowerCase().trim();
-
-  // Disable keywords short-circuit before we even touch /api/adapters,
-  // so "切回原版" still works when the user has no LoRAs registered.
-  if (DISABLE_ADAPTER_KEYWORDS.has(kw)) {
-    return runAdapterOff(onProgress);
-  }
-
-  const r = await fetch(sidecarUrl + "/api/adapters");
-  const d = await r.json();
-  const items = (d && Array.isArray(d.items)) ? d.items : [];
-  if (!items.length) {
-    return { ok: true, text: t("chatAdapterListEmpty") };
-  }
-
-  const pick = pickAdapterByKeyword(items, kw);
-  if (!pick) {
-    return { ok: true, text: t("chatAdapterNotFound", { keyword }) };
-  }
-  if (pick.path === d.current) {
-    return { ok: true, text: t("chatAdapterSwitched", { name: pick.displayName || pick.name }) };
-  }
-  return await doSwap(pick);
-
-  async function doSwap(picked) {
-    const label = picked.displayName || picked.name;
-    await onProgress(t("chatAdapterSwitching", { name: label }));
-    // Route through the main-proc IPC (same handler the Settings tab
-    // uses) so we share its 90s timeout + the `active_adapter_id`
-    // persistence. The direct-fetch flow used to skip both: chat-side
-    // switches worked in the current session but didn't survive a
-    // sidecar restart, and a cold reload (Base → LoRA) sometimes
-    // hit shorter renderer timeouts.
-    const sd = (window.minicpm && window.minicpm.loadAdapter)
-      ? await window.minicpm.loadAdapter(picked.path)
-      : null;
-    if (!sd || !sd.ok) {
-      return { ok: false, text: t("chatUpdateApplyFail", { err: (sd && sd.error) || t("chatSidecarUnknownError") }) };
-    }
-
-    // Persona-LoRAs don't follow the <think> chat template, so flip
-    // thinking off when switching INTO one. Going back to base leaves
-    // the user's preference alone.
-    const newPersona = sd.persona || "default";
-    let chatParams = {};
-    try {
-      chatParams = (window.minicpm && typeof window.minicpm.getChatParams === "function")
-        ? (await window.minicpm.getChatParams()) || {}
-        : {};
-    } catch {}
-    if (newPersona !== "default" && resolveThinking(chatParams)) {
-      thinkingOverride = false;
-    }
-    return {
-      ok: true,
-      text: t("chatAdapterSwitched", { name: label }),
-      resetHistory: true,
-    };
-  }
 }
 
 async function submit(text) {
@@ -810,14 +582,13 @@ async function submit(text) {
   try {
     const cmd = await tryHandleAsCommand(text, async (progressText) => {
       // Show interim progress immediately so the user knows the request
-      // is being worked on (adapter swaps take ~3-4 s).
+      // is being worked on.
       await showCommandProgress(progressText);
     });
     if (cmd) {
       if (cmd.resetHistory) {
-        // Adapter / model swap: the chat "voice" just changed, so we wipe
-        // the entire prior history AND we don't even keep this admin turn
-        // — meta-config chatter shouldn't anchor the new model.
+        // Model swap: the chat "voice" changed, so drop the prior history
+        // and this admin turn with it.
         history = [];
       } else {
         history.push({ role: "user", content: text });
@@ -875,7 +646,7 @@ async function submit(text) {
   const maxNewTokens = chatParams.max_new_tokens || 768;
 
   // Bound the prompt before it reaches the sidecar: a sliding window + token
-  // estimate keeps the oldest turns from silently overflowing llama-server's
+  // estimate keeps the oldest turns from silently overflowing the engine's
   // KV window (default 4096). `messagesToSend` is what we transmit; we also
   // prune `history` itself to the turn cap so memory stays bounded.
   let messagesToSend = history;
@@ -1113,15 +884,6 @@ if (window.minicpm) {
   if (window.minicpm.onDismiss) window.minicpm.onDismiss(cmdDismiss);
   if (window.minicpm.onReset) window.minicpm.onReset(cmdReset);
   if (window.minicpm.onToggleThinking) window.minicpm.onToggleThinking(async () => {
-    // When a persona LoRA is loaded, thinking-mode is broken (the model
-    // doesn't emit </think>). Warn instead of letting the user flip it on
-    // and stare at an empty bubble.
-    let persona = "default";
-    try {
-      const r = await fetch(sidecarUrl + "/api/health");
-      const d = await r.json();
-      persona = d.persona || "default";
-    } catch {}
     let chatParams = {};
     try {
       chatParams = (window.minicpm && typeof window.minicpm.getChatParams === "function")
@@ -1129,20 +891,11 @@ if (window.minicpm) {
         : {};
     } catch {}
     const willEnable = !resolveThinking(chatParams);
-    if (willEnable && persona !== "default") {
-      showToast(t("chatThinkingNotSupportedForPersona", { persona }));
-      return;
-    }
     thinkingOverride = willEnable;
     showToast(willEnable ? t("chatThinkingOn") : t("chatThinkingOff"));
   });
-  if (window.minicpm.onUpdateStatus) window.minicpm.onUpdateStatus(updateBadge);
-  if (window.minicpm.onUpdateApplying) window.minicpm.onUpdateApplying(showUpdateProgress);
   if (window.minicpm.onNarrate) window.minicpm.onNarrate(showNarration);
-  // Out-of-band system messages (e.g. "已切换到 X" pushed from the
-  // Settings panel after an adapter swap). Routed to the same
-  // showCommandReply path the in-chat commands use, with optional
-  // history wipe so the new persona starts clean.
+  // Out-of-band system messages pushed from the Settings panel.
   if (window.minicpm.onCmdReply) window.minicpm.onCmdReply(async (cmd) => {
     if (!cmd || !cmd.text) return;
     if (cmd.resetHistory) history = [];
@@ -1206,84 +959,6 @@ async function showNarration({ text, kind }) {
   await measureAndShow({ animate: true, width: naturalDisplayWidth(text, { min: 220, padding: 56 }) });
 }
 
-// ── Updater UI ────────────────────────────────────────────────────────────
-updPill.addEventListener("click", async () => {
-  // Switch to "applying" mode immediately, then start the SSE flow.
-  showUpdateProgress({ phase: "start" });
-  if (window.minicpm && window.minicpm.updateApply) {
-    await window.minicpm.updateApply();
-  }
-  // updateBadge will fire via onUpdateStatus after refresh
-  await refreshUpdateBadge();
-});
-
-async function refreshUpdateBadge() {
-  if (window.minicpm && window.minicpm.updateStatus) {
-    const s = await window.minicpm.updateStatus();
-    updateBadge(s);
-  }
-}
-
-function updateBadge(status) {
-  if (!status || !status.available) {
-    updPill.style.display = "none";
-    updPillRevision = null;
-    return;
-  }
-  updPillRevision = status.remote_revision || null;
-  updPill.textContent = updPillRevision
-    ? `${t("chatUpdatePillText")} ${updPillRevision}`
-    : t("chatUpdatePillText");
-  updPill.title = t("chatUpdatePillTitle");
-  updPill.style.display = "inline-flex";
-}
-
-let updProgressEl = null;
-function showUpdateProgress(ev) {
-  // Render a focused "downloading" view that takes over the bubble until done.
-  if (ev.phase === "start" || !updProgressEl) {
-    phase = "speak"; // borrow speak phase so toast/transitions don't fire
-    content.innerHTML =
-      '<div class="upd-progress">' +
-        '<div id="upd-text">' + escapeHtml(t("chatUpdateApplyStart")) + '</div>' +
-        '<div class="bar"><i id="upd-bar"></i></div>' +
-      '</div>';
-    measureAndShow({ width: 280 });
-    updProgressEl = {
-      text: document.getElementById("upd-text"),
-      bar: document.getElementById("upd-bar"),
-    };
-  }
-  if (!updProgressEl) return;
-
-  if (ev.phase === "transfer" && ev.bytes_total > 0) {
-    const pct = Math.min(100, (ev.bytes_done / ev.bytes_total) * 100);
-    updProgressEl.bar.style.width = pct.toFixed(1) + "%";
-    const mb = (n) => (n / (1024 * 1024)).toFixed(1);
-    updProgressEl.text.textContent = t("onboardingDownloading") + ` ${mb(ev.bytes_done)} / ${mb(ev.bytes_total)} MB`;
-  } else if (ev.phase === "swap") {
-    updProgressEl.text.textContent = t("onboardingDownloading");
-  } else if (ev.phase === "complete") {
-    updProgressEl.bar.style.width = "100%";
-    updProgressEl.text.textContent = t("chatUpdateApplyDone");
-  } else if (ev.phase === "reloaded") {
-    updProgressEl.text.textContent = "✓ " + t("onboardingWarmupReady");
-    setTimeout(() => {
-      updProgressEl = null;
-      hideBubble({ fade: true });
-      refreshUpdateBadge();
-    }, 1500);
-  } else if (ev.phase === "error" || ev.phase === "reload-error") {
-    updProgressEl.text.textContent = t("chatUpdateApplyFail", {
-      err: ev.message || t("chatSidecarUnknownError"),
-    });
-    setTimeout(() => {
-      updProgressEl = null;
-      hideBubble({ fade: true });
-    }, 4000);
-  }
-}
-
 // ── i18n bootstrap (after all functions are declared) ──
 async function bootstrapI18n() {
   if (window.minicpm && typeof window.minicpm.getI18n === "function") {
@@ -1300,9 +975,6 @@ async function bootstrapI18n() {
     });
   }
 }
-
-// Initial check on first load (will also fire when main pushes status).
-refreshUpdateBadge();
 
 // First-render: attempt to open right away (the main process opens us
 // after creating the window, but we also handle the case where we're

@@ -43,13 +43,23 @@ try {
   $out = Join-Path $root "bin\$Target"
   New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-  $src = Join-Path $root "build\dist\minicpm-sidecar.exe"
-  if (-not (Test-Path $src)) {
-    throw "PyInstaller output not found: $src"
+  # onedir: the plugin DLLs sit next to the exe, so stage the whole thing.
+  $src = Join-Path $root "build\dist\minicpm-sidecar"
+  if (-not (Test-Path (Join-Path $src "minicpm-sidecar.exe"))) {
+    throw "PyInstaller output not found: $src\minicpm-sidecar.exe"
   }
 
-  Copy-Item -Force $src (Join-Path $out "minicpm-sidecar.exe")
-  Write-Host "==> OK -> $out\minicpm-sidecar.exe" -ForegroundColor Green
+  # Copy the *contents*: `Copy-Item -Recurse $src $dst` nests when $dst
+  # already exists, which silently yields minicpm-sidecar\minicpm-sidecar\.
+  $dst = Join-Path $out "minicpm-sidecar"
+  if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+  New-Item -ItemType Directory -Force -Path $dst | Out-Null
+  Copy-Item -Recurse -Force (Join-Path $src "*") $dst
+
+  if (-not (Test-Path (Join-Path $dst "minicpm-sidecar.exe"))) {
+    throw "staging produced the wrong layout: $dst\minicpm-sidecar.exe missing"
+  }
+  Write-Host "==> OK -> $dst\minicpm-sidecar.exe" -ForegroundColor Green
 } finally {
   Pop-Location
 }

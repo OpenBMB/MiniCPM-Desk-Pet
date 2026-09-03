@@ -11,9 +11,9 @@ description: >-
 
 > **重要**：这个 Skill 只针对开发者。普通最终用户走的是 **下载 dmg → Onboarding** 流程，不应使用本 Skill。如果对方只是想"用一下这个应用"，请引导他们去 [Releases](https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases) 下载 dmg。
 
-> v0.8 起推理后端从 PyTorch / transformers 切换到 llama.cpp。本 Skill 已按 v0.9 平铺布局更新；sidecar 结构与构建方式以 [`minicpm-sidecar/README.md`](../../minicpm-sidecar/README.md) 为准。
+> 本分支的推理后端是 OpenVINO（Intel GPU / NPU，进程内），没有 llama.cpp 也没有 CPU 兜底。sidecar 结构与构建方式以 [`minicpm-sidecar/README.md`](../../minicpm-sidecar/README.md) 为准。
 
-This skill walks the agent through deploying the MiniCPM-Desk-Pet project on a colleague's machine **from source**. The project has 3 moving parts that need to come up in the right order: `llama-server` (compiled from vendored llama.cpp), the FastAPI `gateway`, and the Electron `clawd-on-desk` app.
+This skill walks the agent through deploying the MiniCPM-Desk-Pet project on a colleague's machine **from source**. The project has 2 moving parts: the FastAPI `gateway` (which runs OpenVINO in-process) and the Electron `clawd-on-desk` app. The machine must have an Intel GPU or NPU — there is no CPU fallback.
 
 ## Quick assessment first
 
@@ -26,41 +26,39 @@ ls README.md go.sh clawd-on-desk minicpm-sidecar 2>&1 | head -5
 # What's already installed?
 command -v node && node -v          # need 18+
 command -v uv && uv --version       # go.sh installs if missing
-command -v cmake && cmake --version # go.sh installs if missing (needed for llama-server)
+python -c "import openvino as ov; print(ov.Core().available_devices)"  # need GPU and/or NPU
 ```
 
 If the user isn't in the repo root, `cd` to wherever they cloned it first.
 
-## Critical prerequisite: GGUF model
+## Critical prerequisite: an OpenVINO IR
 
-The model weight (~600 MB – 1 GB GGUF) is **NOT** in the repo. Without it, the gateway boots in "waiting for model" mode and Onboarding prompts the user to download one.
+A model here is a **directory** (`openvino_model.xml` + `.bin` + the tokenizer pair), and nothing downloads it for you. Without one the gateway boots in "waiting for model" mode and Onboarding asks for a directory.
 
 **Check first**:
 
 ```bash
-ls -la models/*.gguf 2>&1
+ls -d models/ov/*/ 2>&1
 ```
 
-If missing, three ways to obtain it:
+If missing, two ways to obtain one:
 
-1. **Already have a `.gguf` locally** (most likely if the colleague worked on MiniCPM before):
-
-   ```bash
-   mkdir -p models
-   ln -s /absolute/path/to/your/minicpm5-0.9b.Q4_K_M.gguf models/
-   ```
-
-2. **Let Onboarding download** — just run `./go.sh` and follow the wizard's "Download model" step (~2–5 minutes from Hugging Face).
-
-3. **From a teammate's machine** (`scp`):
+1. **Convert a checkpoint** (~5–15 min, needs network for the HF download):
 
    ```bash
-   scp teammate@host:/path/to/minicpm5-0.9b.Q4_K_M.gguf ./models/
+   cd minicpm-sidecar
+   python scripts/convert-openvino.py --source openbmb/MiniCPM5-1B
    ```
 
-The gateway accepts both a `.gguf` file path and a directory containing `.gguf` files.
+   The default profile is symmetric INT4 / group-size 128, which runs on both the GPU and the NPU.
 
-## Install path (uv + cmake, what go.sh uses)
+2. **Copy one from a teammate** (`scp -r` — it is a directory, not a file):
+
+   ```bash
+   scp -r teammate@host:/path/to/MiniCPM5-2.6B-int4-sym-g128 ./models/ov/
+   ```
+
+## Install path (what go.sh does)
 
 ```bash
 ./go.sh
@@ -70,12 +68,10 @@ The gateway accepts both a `.gguf` file path and a directory containing `.gguf` 
 
 1. Check Node 18+ (auto-install via brew or fnm if missing)
 2. Auto-install `uv` if missing (`curl install.sh`)
-3. Auto-install `cmake` if missing (brew / apt)
-4. First-time: clone vendored `llama.cpp` + `cmake` build `llama-server` (~5–10 min)
-5. `uv sync` in `minicpm-sidecar/` (a few dozen MB: fastapi / uvicorn / httpx / huggingface_hub — no torch)
-6. `npm install` in `clawd-on-desk/` (~1 minute, first time only)
-7. Export `MINICPM_SIDECAR_DIR` + `MINICPM_PYTHON` + `MINICPM_MODEL_DIR`
-8. `npm start` to launch Electron
+3. `uv sync` in `minicpm-sidecar/` (~100 MB: fastapi / uvicorn / httpx / openvino-genai — no torch)
+4. `npm install` in `clawd-on-desk/` (~1 minute, first time only)
+5. Export `MINICPM_SIDECAR_DIR` + `MINICPM_PYTHON` + `MINICPM_MODEL_DIR`
+6. `npm start` to launch Electron
 
 If only the dependency-install part is needed (no launch yet):
 
@@ -89,19 +85,13 @@ Environment-check only (no install, no launch):
 ./go.sh doctor
 ```
 
-Force a rebuild of `llama-server` (after pulling a new vendor pin):
-
-```bash
-./go.sh build-llama
-```
-
 ## Verifying the deploy
 
 Once Electron starts, you should see:
 
 1. **Menu bar icon** — paw, top-right
 2. **Floating pet** — sitting on the desktop, can be dragged
-3. **Sidecar log** in terminal — `[sidecar]` lines, eventually `llama-server` ready + gateway listening on `:18765`
+3. **Sidecar log** in terminal — `[sidecar]` lines, eventually `OpenVINO pipeline ready` + gateway listening on `:18765`
 
 Quick sanity check (in another terminal):
 
@@ -109,7 +99,7 @@ Quick sanity check (in another terminal):
 curl -s http://127.0.0.1:18765/api/health | python3 -m json.tool
 ```
 
-Expected `ok: true` plus reported backend (`metal` on Apple Silicon, `cuda`, or `cpu`).
+Expected `ok: true`, `backend: "openvino"`, and `accel` of `gpu` or `npu`.
 
 Then click the pet (or `⌘⇧M`), type "你好" — pet should think and reply within a few seconds.
 
@@ -127,19 +117,24 @@ cd clawd-on-desk && npm install
 cd minicpm-sidecar && uv sync
 ```
 
-### `llama-server: command not found` / `bin/<triple>/llama-server` missing
+### Sidecar log says 未检测到 Intel GPU 或 NPU
 
-The vendored llama.cpp didn't build. Re-run:
+This build has no CPU fallback. Confirm the hardware and the graphics driver:
 
 ```bash
-./go.sh build-llama
+cd minicpm-sidecar
+uv run python -c "import openvino as ov; print(ov.Core().available_devices)"
 ```
 
-If cmake errors out, check `cmake --version` (need 3.20+) and re-install via brew / apt.
+If only `['CPU']` comes back, the machine cannot run this build.
 
-### Sidecar log says `model not found` / `No GGUF files in MODEL_DIR`
+### Sidecar log says the NPU needs a symmetric INT4 IR
 
-The gateway couldn't locate a `.gguf`. Drop one into `models/` or override:
+Handing the NPU an INT8 IR would kill the process outright (openvino#35641), so it is refused up front. Re-convert with the default preset, or run on the GPU.
+
+### Sidecar log says `model not found`
+
+The gateway couldn't locate an IR directory. Drop one into `models/ov/` or override:
 
 ```bash
 MINICPM_MODEL_DIR=/abs/path/to/dir ./go.sh start
@@ -151,7 +146,7 @@ MINICPM_MODEL_DIR=/abs/path/to/dir ./go.sh start
 Probably the sidecar didn't come up. In the `clawd-on-desk` terminal, look for `[sidecar]` lines.
 
 - If gateway can't find Python: ensure `minicpm-sidecar/.venv/bin/python` exists (`cd minicpm-sidecar && uv sync`)
-- If `llama-server` crashed during model load: check memory (Q4_K_M needs ~1 GB RAM resident; F16 needs ~2 GB)
+- If the pipeline failed to compile: check memory (a 2.6B INT4 IR needs ~2 GB resident; INT8 needs ~3 GB)
 
 ### `port 18765 in use` (or `23333`)
 
@@ -177,11 +172,11 @@ If a teammate already has an older checkout and wants the latest:
 
 ```bash
 git pull
-./go.sh setup     # re-syncs deps + rebuilds llama-server if vendor pin changed
+./go.sh setup     # re-syncs deps
 ./go.sh start
 ```
 
-`uv sync`, `npm install`, and `cmake` are idempotent — no-op if nothing changed.
+`uv sync` and `npm install` are idempotent — no-op if nothing changed.
 
 ## What "success" looks like
 

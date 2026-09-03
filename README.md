@@ -4,9 +4,9 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="License"></a>
-  <a href="https://huggingface.co/openbmb/MiniCPM5-1B-GGUF"><img src="https://img.shields.io/badge/Model-MiniCPM5--1B-green" alt="MiniCPM5-1B"></a>
+  <a href="https://huggingface.co/openbmb/MiniCPM5-1B"><img src="https://img.shields.io/badge/Model-MiniCPM5--1B-green" alt="MiniCPM5-1B"></a>
   <a href="https://modelbest.feishu.cn/wiki/UtWxwcERfiRIpIkBOjuc3h9tn1D"><img src="https://img.shields.io/badge/MiniCPM-Wiki-1677FF?logo=readthedocs&logoColor=white" alt="MiniCPM Wiki"></a>
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Intel%20AIPC-lightgrey" alt="Platform">
 </p>
 
 <p align="center">
@@ -21,15 +21,14 @@
 
 ## Highlights
 
-- **Local by default** — after the model is downloaded, everyday chat runs on your machine.
-- **Zero manual setup** — first launch guides you through environment check, model download, and warm-up.
+- **Local by default** — everything runs on your machine, on the Intel GPU or NPU.
+- **Zero manual setup** — first launch guides you through hardware detection, model selection, and warm-up.
 - **Desktop companion** — open a floating chat bubble, talk with MiniCPM, and keep the pet on screen while you work.
 - **Agent-aware reactions** — the pet can react to coding activity from tools such as Cursor, Claude Code, and Codex.
 - **Task narration** — when a coding-agent session finishes, the pet summarizes what the AI just did in a speech bubble, so you can catch up at a glance.
 - **Idle alerts** — if a coding agent has been waiting for your input, the pet plays a bell animation and sound to get your attention.
 - **Auto-detect agents** — the app scans your machine for installed coding agents and prompts you to connect them in one click.
-- **Smart model download** — the app can download from Hugging Face or ModelScope and choose the better source for your network.
-- **Persona support** — switch or import character adapters from **Settings -> MiniCPM**.
+- **Intel GPU and NPU** — inference runs on OpenVINO, so you can switch between the Arc/Xe GPU and the AI Boost NPU without changing model.
 
 ## Getting Started
 
@@ -37,25 +36,12 @@
 
 | Item | Recommended |
 | --- | --- |
-| macOS | 14.0+, Apple Silicon (M1/M2/M3/M4), about 2 GB disk space |
-| Windows | x64 with Vulkan support, about 2 GB disk space |
-| Network | Required on first launch unless you already have a local model file |
+| Windows | Intel Core Ultra with Arc/Xe graphics (an AI Boost NPU is optional), about 3 GB disk space |
+| Model | An OpenVINO IR you converted yourself — see Getting Started |
 
-> macOS Apple Silicon is the primary tested platform. A Windows installer is also available — feedback is welcome.
+> This build targets Intel AIPC hardware and has no CPU fallback: an Intel GPU or NPU is required. Windows on Intel Core Ultra is the tested platform.
 
 ### Installation
-
-**macOS**
-
-1. Go to [Releases](https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases) and download the latest `MiniCPM Desk Pet-*-arm64.dmg`.
-2. Open the DMG and drag **MiniCPM Desk Pet** into `Applications`.
-3. Launch the app and follow the setup guide.
-
-If macOS blocks the first launch, right-click the app and choose **Open**. If needed, remove the quarantine flag:
-
-```bash
-xattr -cr /Applications/MiniCPM\ Desk\ Pet.app
-```
 
 **Windows**
 
@@ -67,9 +53,9 @@ xattr -cr /Applications/MiniCPM\ Desk\ Pet.app
 
 MiniCPM Desk Pet includes a complete first-launch guide:
 
-**Environment Check** -> **Model Download** -> **Model Warm-up** -> **Ready to Use**
+**Environment Check** -> **Choose Model** -> **Model Warm-up** -> **Ready to Use**
 
-The default model is [MiniCPM5-1B-GGUF](https://huggingface.co/openbmb/MiniCPM5-1B-GGUF). You can let the app download it automatically, or choose an existing local `.gguf` file.
+There is no bundled download: convert a checkpoint such as [MiniCPM5-1B](https://huggingface.co/openbmb/MiniCPM5-1B) yourself with `python minicpm-sidecar/scripts/convert-openvino.py --source <checkpoint>`, then point the wizard at the resulting directory. The default profile is symmetric INT4, which runs on both the GPU and the NPU.
 
 ## Features
 
@@ -91,27 +77,20 @@ MiniCPM Desk Pet can stay beside your workspace and react to coding-agent activi
 
 The MiniCPM settings page lets you:
 
-- download the default model or choose a local model file
+- choose a different OpenVINO model directory
 - rerun onboarding
-- manage character/persona adapters
 - restart the local model runtime when needed
-
-### Persona Adapters
-
-The app includes a neko-style persona adapter. You can switch adapters or import your own from **Settings -> MiniCPM**.
 
 ## Roadmap
 
-- Broader Linux validation.
-- More persona presets.
-- Clearer model download diagnostics and retry guidance.
+- Ship a ready-made OpenVINO IR so no manual conversion is needed.
 - Faster first launch and smaller app footprint.
 - Richer desktop-pet narration for long-running coding sessions.
 
 ## Known Limitations
 
-- The primary tested release target is macOS Apple Silicon. Windows is supported with a bundled installer; report issues if something does not work on your setup.
-- First launch requires an internet connection unless you provide a local model file.
+- Requires an Intel GPU or NPU. There is no CPU fallback, so non-Intel machines cannot run this build.
+- You must convert an OpenVINO IR yourself before first use; nothing is downloaded for you.
 - Response speed depends on your chip, memory pressure, and selected model.
 - Coding-agent reactions depend on each tool's integration behavior and may vary by version.
 
@@ -122,11 +101,11 @@ For development setup, packaging, and repository layout, see [`docs/development.
 ## Acknowledgments
 
 - Desktop pet UI is based on [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk). Full attribution is listed in [`NOTICE.md`](./NOTICE.md).
-- Model weights come from the OpenBMB MiniCPM model family and are downloaded separately.
-- The bundled neko persona uses the **neko30k** dataset ([liumindmind/NekoQA-30K](https://huggingface.co/datasets/liumindmind/NekoQA-30K)) for fine-tuning data.
+- Model weights come from the OpenBMB MiniCPM model family and are converted locally.
+- Inference runs on [OpenVINO GenAI](https://github.com/openvinotoolkit/openvino.genai) (Apache-2.0, Intel Corporation).
 
 ## License
 
 This repository is distributed under [GNU AGPL-3.0-only](./LICENSE).
 
-MiniCPM model weights are downloaded separately and governed by the [OpenBMB MiniCPM Model License](https://github.com/OpenBMB/MiniCPM/blob/main/MiniCPM%20Model%20License.md). Artwork, third-party code, and datasets keep their own notices; see [`NOTICE.md`](./NOTICE.md) and [`clawd-on-desk/NOTICE.md`](clawd-on-desk/NOTICE.md).
+MiniCPM model weights are obtained separately and governed by the [OpenBMB MiniCPM Model License](https://github.com/OpenBMB/MiniCPM/blob/main/MiniCPM%20Model%20License.md). Artwork, third-party code, and datasets keep their own notices; see [`NOTICE.md`](./NOTICE.md) and [`clawd-on-desk/NOTICE.md`](clawd-on-desk/NOTICE.md).

@@ -1,7 +1,7 @@
 """CLI entry point for the gateway.
 
 Invoked one of three ways:
-  · python -m gateway --port 18765 --model /path/to/x.gguf
+  · python -m gateway --port 18765 --model /path/to/openvino-ir-dir
   · ./minicpm-sidecar --port 18765 --model ...      (PyInstaller binary)
   · uvicorn gateway.server:build_app  --factory     (not used; we drive
     uvicorn programmatically so the CLI matches the legacy bridge flags
@@ -20,10 +20,9 @@ import uvicorn
 # Absolute imports so this module works both as `python -m gateway`
 # (where __package__ is set) AND as the PyInstaller entry script
 # (where __package__ is empty and relative imports raise).
-from gateway.lifecycle import ParentWatchdog
+from gateway.lifecycle import ParentWatchdog, hard_exit
 from gateway.log_setup import init_logging, install_broken_pipe_guard
 from gateway.server import build_app
-from gateway.updater import DEFAULT_SOURCE
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -33,38 +32,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--model",
         default=os.environ.get("MINICPM_MODEL_DIR") or os.environ.get("MINICPM_MODEL", ""),
-        help=".gguf file to load (or directory containing exactly one)",
-    )
-    p.add_argument(
-        "--update-source",
-        default=os.environ.get("MINICPM_UPDATE_SOURCE", DEFAULT_SOURCE),
+        help="OpenVINO IR directory (or a directory containing exactly one)",
     )
     p.add_argument("--ctx-size", type=int, default=int(os.environ.get("MINICPM_CTX", "4096")))
-    p.add_argument("--gpu-layers", type=int, default=int(os.environ.get("MINICPM_GPU_LAYERS", "-1")))
-    p.add_argument(
-        "--threads",
-        type=int,
-        default=int(os.environ["MINICPM_THREADS"]) if os.environ.get("MINICPM_THREADS") else 0,
-    )
     return p.parse_args(argv)
 
 
 def _resolve_model_arg(raw: str) -> Path | None:
+    """An OpenVINO model is a directory, never a single file."""
     if not raw:
         return None
     p = Path(raw).expanduser()
     if not p.exists():
-        return p  # will be picked up when /api/update-apply finishes
-    if p.is_file():
-        return p
-    if p.is_dir():
-        # Pick the first .gguf inside if a directory was provided (matches
-        # the legacy behaviour where Electron passed a model *directory*).
-        ggufs = sorted(p.rglob("*.gguf"))
-        if ggufs:
-            return ggufs[0]
+        return p  # the user may still pick one from onboarding
+    if not p.is_dir():
         return None
-    return None
+    if (p / "openvino_model.xml").is_file():
+        return p
+    found = sorted(p.glob("*/openvino_model.xml"))
+    return found[0].parent if found else None
 
 
 def _resolve_parent_pid() -> int:
@@ -99,14 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     parent_pid = _resolve_parent_pid()
     ParentWatchdog(parent_pid).start()
 
-    model_path = _resolve_model_arg(args.model)
-
     app = build_app(
-        initial_model=model_path,
-        update_source=args.update_source,
+        initial_model=_resolve_model_arg(args.model),
         ctx_size=args.ctx_size,
-        n_gpu_layers=args.gpu_layers,
-        threads=(args.threads or None),
     )
 
     uvicorn.run(
@@ -115,11 +96,13 @@ def main(argv: list[str] | None = None) -> int:
         port=args.port,
         log_level="info",
         # Reload is intentionally off — this is a packaged sidecar, not a
-        # web framework, and any uvicorn watcher conflicts with the
-        # llama-server subprocess we own.
+        # web framework.
         reload=False,
         access_log=False,
     )
+    # Unwinding normally would run DLL_PROCESS_DETACH and deadlock; see
+    # lifecycle.hard_exit. Nothing is left to clean up.
+    hard_exit(0)
     return 0
 
 

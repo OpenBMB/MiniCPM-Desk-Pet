@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# One-shot build: download the official llama.cpp llama-server release and
-# package the gateway. Produces ../bin/<os>-<arch>/{minicpm-sidecar,llama-server}
-# ready to drop into clawd-on-desk's extraResources.
+# One-shot build: package the gateway into ../bin/<os>-<arch>/.
 
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-"$HERE/fetch-llama-release.sh"
 "$HERE/build-gateway.sh"
 
 case "$(uname -s)-$(uname -m)" in

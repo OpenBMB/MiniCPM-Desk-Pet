@@ -16,16 +16,11 @@ minicpm-sidecar/bin/
 minicpm-sidecar/build/build/
 minicpm-sidecar/build/dist/
 
-# llama.cpp submodule build outputs (the submodule itself is tracked)
-llama.cpp/build/
+# Not used on this branch; may still exist from a llama.cpp checkout.
+llama.cpp/
 
 # Model weights — too big to ship, friends/colleagues download separately
 models/
-
-# LoRA adapter weights (.gguf) — fetched from Hugging Face at build time
-# by clawd-on-desk/scripts/fetch-adapters.js, never committed (the PEFT
-# .safetensors source stays in Git LFS via .gitattributes).
-adapters/**/*.gguf
 
 # Editor / OS junk
 .vscode/
@@ -53,8 +48,8 @@ CLAUDE.md
 *.pid
 runtime-port.json
 
-# Adapter manifest is rebuilt at runtime with machine-local absolute paths
-adapters/.manifest.json
+# Not used on this branch; may still exist from a llama.cpp checkout.
+adapters/
 
 # uv lock — keep
 # (don't ignore uv.lock; it's needed for reproducible installs)

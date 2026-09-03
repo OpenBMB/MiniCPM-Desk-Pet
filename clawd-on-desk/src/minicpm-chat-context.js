@@ -4,7 +4,7 @@
 //
 // The chat renderer keeps an in-memory `history` array of {role, content}
 // turns and sends it verbatim to the sidecar on every turn. Without trimming,
-// the array grows unbounded and llama-server silently drops the oldest tokens
+// the array grows unbounded and the engine silently drops the oldest tokens
 // once the prompt exceeds its --ctx-size KV window (default 4096) — the user
 // has no signal that earlier turns were forgotten.
 //

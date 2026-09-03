@@ -4,7 +4,7 @@ const pkg = require("../package.json");
 
 const DEFAULT_UPSTREAM_LABEL = "clawd-on-desk";
 const DEFAULT_UPSTREAM_URL = "https://github.com/rullerzhou-afk/" + DEFAULT_UPSTREAM_LABEL;
-const MODEL_REPO_URL = "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF";
+const MODEL_REPO_URL = "https://huggingface.co/openbmb/MiniCPM5-1B";
 
 function normalizeRepoUrl(url) {
   if (!url || typeof url !== "string") return null;

@@ -13,7 +13,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases"><img src="https://img.shields.io/github/v/release/OpenBMB/MiniCPM-Desk-Pet" alt="Version"></a>
-  <img src="https://img.shields.io/badge/model-MiniCPM5--1B--GGUF-blue" alt="Model">
+  <img src="https://img.shields.io/badge/model-MiniCPM5%20%C2%B7%20OpenVINO-blue" alt="Model">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--only-green" alt="License">
 </p>
@@ -24,7 +24,7 @@ MiniCPM Desk Pet은 MiniCPM으로 동작하는 로컬 우선 AI 데스크톱 펫
 
 ## 주요 기능
 
-- **로컬 MiniCPM 채팅**: 첫 실행 환경 점검, MiniCPM5-1B-GGUF 모델 다운로드, 워밍업, 채팅 버블, 로컬 모델 상태.
+- **로컬 MiniCPM 채팅**: 첫 실행 환경 점검, OpenVINO 모델 다운로드, 워밍업, 채팅 버블, 로컬 모델 상태.
 - **모델 관리**: Hugging Face / ModelScope 다운로드 흐름, 로컬 모델 경로 선택, 백엔드 재시작, 로그 보기.
 - **Persona LoRA**: `Settings...` -> `MiniCPM`에서 LoRA adapter를 관리합니다. 펫 내레이션은 base 모델을 사용합니다.
 - **데스크톱 펫 반응**: 지원 Agent의 세션, 도구 실행, 권한 요청, 완료, 유휴, 수면, mini-mode 상태에 따라 반응합니다.

@@ -13,7 +13,7 @@
 </p>
 <p align="center">
   <a href="https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases"><img src="https://img.shields.io/github/v/release/OpenBMB/MiniCPM-Desk-Pet" alt="Version"></a>
-  <img src="https://img.shields.io/badge/model-MiniCPM5--1B--GGUF-blue" alt="Model">
+  <img src="https://img.shields.io/badge/model-MiniCPM5%20%C2%B7%20OpenVINO-blue" alt="Model">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--only-green" alt="License">
 </p>
@@ -24,7 +24,7 @@ MiniCPM Desk Pet 是由 MiniCPM 驅動的本地優先 AI 桌寵。它整合桌�
 
 ## 功能亮點
 
-- **本地 MiniCPM 對話**：首次啟動環境檢查、MiniCPM5-1B-GGUF 模型下載、預熱、聊天氣泡與本地模型狀態。
+- **本地 MiniCPM 對話**：首次啟動環境檢查、OpenVINO 模型下載、預熱、聊天氣泡與本地模型狀態。
 - **模型管理**：支援 Hugging Face / ModelScope 下載流程、本地模型路徑選擇、後端重啟與日誌查看。
 - **人格 LoRA**：在 `設定...` -> `MiniCPM` 中管理 LoRA adapter；桌寵旁白仍固定使用 base 模型。
 - **桌寵狀態回饋**：根據受支援 Agent 的會話、工具呼叫、權限請求、完成、閒置、睡眠與 mini-mode 狀態切換動畫。

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Launch the gateway in dev mode against an already-built llama-server.
+# Launch the gateway in dev mode.
 #
 # Prerequisites:
-#   ./fetch-llama-release.sh   # one-time
-#   uv sync                                 # populates .venv/
+#   uv sync            # populates .venv/ (includes the OpenVINO runtime)
 #
 # Usage:
-#   ./scripts/run-dev.sh --model /path/to/minicpm.gguf [--port 18765]
+#   ./scripts/run-dev.sh --model /path/to/openvino-ir-dir [--port 18765]
 
 set -euo pipefail
 

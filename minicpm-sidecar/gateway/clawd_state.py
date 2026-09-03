@@ -5,8 +5,7 @@ The desktop pet listens on 127.0.0.1:23333-23337 and writes the active port to
 the pet is not running.
 
 Ported verbatim from the legacy minicpm-pet-bridge so the pet state mapping
-(thinking / working / attention / etc.) keeps the same semantics under the
-new llama.cpp backend.
+(thinking / working / attention / etc.) keeps the same semantics.
 """
 
 from __future__ import annotations

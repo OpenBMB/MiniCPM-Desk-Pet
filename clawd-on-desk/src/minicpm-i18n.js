@@ -156,24 +156,12 @@
     onboardingBack: "Back",
     // Step 2: model
     onboardingModelTitle: "Set up the model",
-    onboardingModelLede: "Install MiniCPM5 0.9B",
-    onboardingDownloadCardTitle: "Download online",
-    onboardingDownloadCardDesc: "Default GGUF Q8_0; the source is auto-selected based on your network.",
-    onboardingDownloadProgressInit: "Preparing…",
-    onboardingDownloadStart: "Start download",
-    onboardingDownloadRetry: "Retry download",
-    onboardingDownloading: "Downloading…",
-    onboardingDownloadDone: "Done",
-    onboardingDownloadSwitchToLocal: "Switch to local…",
-    onboardingDownloadSwitchToDownload: "Switch to download",
-    onboardingDownloadErrorHint: "Download failed: {msg}. Retry, or choose a local GGUF file.",
-    onboardingLocalCardTitle: "Load a local model",
-    onboardingLocalCardDesc: "Already have a GGUF? Import the model file directly.",
-    onboardingLocalPickFile: "Choose file…",
+    onboardingModelLede: "Point the pet at an OpenVINO model you converted",
+    onboardingLocalCardTitle: "Load an OpenVINO model",
+    onboardingLocalCardDesc: "Choose the IR directory — the folder holding openvino_model.xml.",
     onboardingLocalPicked: "Selected",
     onboardingModelPathHint: "{name}",
     onboardingModelPathHintWithSize: "{name}  ·  {size}",
-    onboardingDownloaded: "Downloaded",
     onboardingLoaded: "Loaded",
     onboardingWarmupRunning: "Loading model…",
     onboardingWarmupReady: "Model loaded",
@@ -188,13 +176,12 @@
     onboardingMoreHint: "Want to swap models, see resource usage, or restart the sidecar? Open the right-click menu's Settings → MiniCPM.",
     onboardingFinish: "Let the pet appear",
     // File picker dialog
-    onboardingPickerDialogTitle: "Choose a local MiniCPM model (a .gguf file or a directory containing one)",
-    onboardingPickerDialogMessage: "Pick a single .gguf file, or a directory containing .gguf files",
-    onboardingPickerInvalidDir: "The selected directory has no .gguf files:\n{path}",
-    onboardingPickerInvalidFile: "Please pick a .gguf file:\n{path}",
-    // Reasons
-    onboardingReasonMps: "Apple Silicon GPU (Metal)",
-    onboardingReasonCpu: "CPU inference",
+    onboardingOpenvinoPickerTitle: "Choose an OpenVINO model directory",
+    onboardingOpenvinoPickerMessage: "Pick the folder holding openvino_model.xml, or its parent",
+    onboardingOpenvinoInvalidDir: "Not an OpenVINO model — openvino_model.xml is missing:\n{path}",
+    onboardingOpenvinoPickDir: "Choose model folder",
+    onboardingOpenvinoPickAnother: "Choose a different folder",
+    onboardingOpenvinoConvertHint: "OpenVINO needs a converted model. Run: python minicpm-sidecar/scripts/convert-openvino.py --source <checkpoint> --preset gpu",
     // Errors
     onboardingSidecarStartFailed: "sidecar failed to start",
     onboardingSidecarNotReady: "sidecar not ready",
@@ -207,69 +194,34 @@
     chatAskPlaceholder: "Ask anything…",
     chatHotkeyHint: "⌘⇧M to toggle, ⌘⇧T for thinking",
     chatErrorPrefixGeneric: "Something went wrong",
-    chatUpdatePillText: "New version",
-    chatUpdatePillTitle: "Click to update the model",
-    chatUpdatePillUpdating: "Updating…",
-    chatUpdatePillTitleUpdating: "Updating the model… don't close the pet.",
-    // Chat command replies
-    chatStatusWithAdapter: "Currently {model}, with the {adapter} LoRA loaded (persona: {persona})",
-    chatStatusNoAdapter: "Currently {model}, no LoRA loaded (persona: {persona})",
-    chatUpdateNoConn: "Can't reach the update source — try again in a bit",
-    chatUpdateAvailable: "v{remote} is out! You're on {local}. Reply \"update\" and I'll pull it.",
-    chatUpdateUpToDate: "You're already on the latest ({local}); nothing to do",
-    chatUpdateApplyStart: "Pulling the new model — keep the pet open until it finishes",
-    chatUpdateApplyDone: "Update done; switching to the new model now",
-    chatUpdateApplyFail: "Update failed: {err}",
-    chatAdapterListEmpty: "No personas configured.",
-    chatAdapterListIntro: "Available personas:",
-    chatAdapterListItem: "• {name}",
-    chatAdapterOff: "Switched off; back to the base model",
-    chatAdapterAlreadyOff: "No persona was loaded already",
-    chatAdapterSwitched: "Switched to {name}",
-    chatAdapterNotFound: "Couldn't find a persona matching \"{keyword}\"",
-    chatAdapterSwitching: "Switching to {name}…",
-    chatAdapterUnloading: "Unloading the persona…",
     // Chat sidecar errors
     chatSidecarMissingBin: "sidecar binary not found. Packaged builds should ship sidecar-bin/; for dev mode, run cd minicpm-sidecar && uv sync.",
     chatSidecarMissingPython: "Python interpreter not found. Install the packaged build (recommended), or cd minicpm-sidecar && uv sync.",
     chatSidecarPyExited: "Python exited early. stderr tail:\n{tail}",
     chatSidecarTimeout: "Timed out waiting for the Python service (90s).",
     chatSidecarUnknownError: "Unknown sidecar error",
+    chatStatusEngine: "Running {model} on the {device}",
     chatLogOpenFailed: "Couldn't open the log file: {err}",
-    chatThinkingNotSupportedForPersona: "Thinking mode isn't supported with the current {persona} persona; switch to base first.",
     chatThinkingOn: "Thinking mode: on",
     chatThinkingOff: "Thinking mode: off",
     chatEditModeHint: "Drag me where you want me, then hit Save in Settings.",
     chatEditModeHintShort: "Drag me where you want me",
   };
   const EN_PATTERNS = {
-    status: /\b(what|which|current|now)\b.{0,30}\b(model|persona|adapter|lora)\b/i,
-    list: /\b(list|show|what).{0,12}\b(personas?|adapters?|loras?|skins?)\b/i,
-    off: /\b(disable|remove|unload|turn off|take off|drop)\b.{0,12}\b(adapter|lora|persona|skin)\b/i,
-    off2: /\b(back to|reset to|use)\b.{0,12}\b(base|default|original|plain|vanilla)\b/i,
-    swap: /\b(switch to|change to|put on|use|load)\b\s+([\w\u4e00-\u9fff-]{1,16})/i,
-    ucheck: /\b(check|any|is there).{0,12}\bupdates?\b|\b(update|new\s*version)\b\s*(?:available|out|yet)?\??/i,
-    uapply: /^(update|upgrade|pull).{0,15}(now|please|it)?\b/i,
-    hints: /\b(adapter|lora|persona|skin|model|update|upgrade|version|switch|load|disable|unload|hf|huggingface|default|vanilla|base)\b/i,
+    status: /\b(what|which|current|now)\b.{0,30}\b(model|device|gpu|npu|running)\b/i,
+    hints: /\b(model|device|gpu|npu|openvino|running|status)\b/i,
   };
   const EN_CLASSIFIER =
     "You are a command classifier. Map the user's message to one of the labels below and output ONLY the label:\n" +
-    "LIST_ADAPTER / SWITCH_TO=name / DISABLE_ADAPTER / UPDATE_CHECK / UPDATE_APPLY / STATUS / NONE\n\n" +
-    "User: list personas → LIST_ADAPTER\n" +
-    "User: show me the available LoRAs → LIST_ADAPTER\n" +
-    "User: switch to neko → SWITCH_TO=neko\n" +
-    "User: load the cat persona → SWITCH_TO=cat\n" +
-    "User: put on neko → SWITCH_TO=neko\n" +
-    "User: back to default → DISABLE_ADAPTER\n" +
-    "User: take off the persona → DISABLE_ADAPTER\n" +
-    "User: I don't want neko anymore → DISABLE_ADAPTER\n" +
+    "STATUS / NONE\n\n" +
     "User: which model are you using → STATUS\n" +
-    "User: check for updates → UPDATE_CHECK\n" +
-    "User: update now → UPDATE_APPLY\n" +
+    "User: what are you running on → STATUS\n" +
+    "User: are you on the GPU or the NPU → STATUS\n" +
+    "User: what device is this running on → STATUS\n" +
     "User: hi → NONE\n" +
     "User: what's the weather → NONE\n" +
     "User: what is 1+1 → NONE\n" +
-    "User: explain LoRA → NONE\n" +
+    "User: explain OpenVINO → NONE\n" +
     "Now classify the next line:";
   const EN_NARRATION = {
     eventStopFailureWithSubject: "The owner ran into an error while working with AI on {subject}",
@@ -318,24 +270,12 @@
     onboardingNext: "下一步",
     onboardingBack: "上一步",
     onboardingModelTitle: "准备模型",
-    onboardingModelLede: "安装 MiniCPM5 0.9B",
-    onboardingDownloadCardTitle: "在线下载",
-    onboardingDownloadCardDesc: "默认 GGUF Q8_0，会根据你的网络情况自动选择下载源。",
-    onboardingDownloadProgressInit: "准备中...",
-    onboardingDownloadStart: "开始下载",
-    onboardingDownloadRetry: "重试下载",
-    onboardingDownloading: "下载中...",
-    onboardingDownloadDone: "已完成",
-    onboardingDownloadSwitchToLocal: "改为本地…",
-    onboardingDownloadSwitchToDownload: "改为下载",
-    onboardingDownloadErrorHint: "下载失败：{msg}。可以重试，或选择本地 GGUF 文件。",
-    onboardingLocalCardTitle: "加载本地模型",
-    onboardingLocalCardDesc: "已经下好 GGUF 权重？直接导入模型文件。",
-    onboardingLocalPickFile: "选择文件…",
+    onboardingModelLede: "指向你转换好的 OpenVINO 模型",
+    onboardingLocalCardTitle: "加载 OpenVINO 模型",
+    onboardingLocalCardDesc: "选择 IR 目录，也就是包含 openvino_model.xml 的那个文件夹。",
     onboardingLocalPicked: "已选择",
     onboardingModelPathHint: "{name}",
     onboardingModelPathHintWithSize: "{name}  ·  {size}",
-    onboardingDownloaded: "已下载",
     onboardingLoaded: "已加载",
     onboardingWarmupRunning: "正在加载模型...",
     onboardingWarmupReady: "模型已加载",
@@ -348,12 +288,12 @@
     onboardingHotkeyEscClose: "在气泡内焦点时关闭气泡",
     onboardingMoreHint: "想换模型、查看资源占用、重启 sidecar？打开右键菜单的 Settings → MiniCPM。",
     onboardingFinish: "让桌宠登场",
-    onboardingPickerDialogTitle: "选择本地 MiniCPM 模型 (.gguf 文件或包含 .gguf 的目录)",
-    onboardingPickerDialogMessage: "可以是单个 .gguf 文件，或包含 .gguf 的目录",
-    onboardingPickerInvalidDir: "所选目录不包含 .gguf：\n{path}",
-    onboardingPickerInvalidFile: "请选择 .gguf 文件：\n{path}",
-    onboardingReasonMps: "Apple Silicon GPU (Metal)",
-    onboardingReasonCpu: "纯 CPU 推理",
+    onboardingOpenvinoPickerTitle: "选择 OpenVINO 模型目录",
+    onboardingOpenvinoPickerMessage: "请选中包含 openvino_model.xml 的文件夹，或它的上一层",
+    onboardingOpenvinoInvalidDir: "所选目录不是 OpenVINO 模型（缺 openvino_model.xml）：\n{path}",
+    onboardingOpenvinoPickDir: "选择模型目录",
+    onboardingOpenvinoPickAnother: "换一个目录",
+    onboardingOpenvinoConvertHint: "OpenVINO 需要先转换模型。运行：python minicpm-sidecar/scripts/convert-openvino.py --source <检查点> --preset gpu",
     onboardingSidecarStartFailed: "sidecar 启动失败",
     onboardingSidecarNotReady: "sidecar 未就绪",
     chatStarting: "启动中…",
@@ -364,68 +304,34 @@
     chatAskPlaceholder: "问问看…",
     chatHotkeyHint: "⌘⇧M 开关，⌘⇧T 思考模式",
     chatErrorPrefixGeneric: "出错了",
-    chatUpdatePillText: "新版本",
-    chatUpdatePillTitle: "点击更新模型",
-    chatUpdatePillUpdating: "更新中…",
-    chatUpdatePillTitleUpdating: "正在更新模型…，更新完成前请勿关闭桌宠。",
-    chatStatusWithAdapter: "当前是 {model}，套着 {adapter} 这个 LoRA（人格: {persona}）",
-    chatStatusNoAdapter: "当前是 {model}，没套 LoRA（人格: {persona}）",
-    chatUpdateNoConn: "查不动更新源诶，待会儿再问",
-    chatUpdateAvailable: "有新版 {remote}！本地是 {local}。回我\"更新\"我就拉。",
-    chatUpdateUpToDate: "已经是最新啦（{local}），不用动",
-    chatUpdateApplyStart: "开始更新模型，下载完成前别关掉桌宠",
-    chatUpdateApplyDone: "更新完成，正在切到新模型",
-    chatUpdateApplyFail: "更新失败：{err}",
-    chatAdapterListEmpty: "还没有配置任何人格。",
-    chatAdapterListIntro: "可用人格：",
-    chatAdapterListItem: "• {name}",
-    chatAdapterOff: "已脱掉，回到原版模型",
-    chatAdapterAlreadyOff: "本来就没套 LoRA",
-    chatAdapterSwitched: "已切到 {name}",
-    chatAdapterNotFound: "找不到叫\"{keyword}\"的人格",
-    chatAdapterSwitching: "正在切到 {name}…",
-    chatAdapterUnloading: "正在卸下当前人格…",
     chatSidecarMissingBin: "找不到 sidecar。打包模式下应内置 sidecar-bin/，开发模式请 cd minicpm-sidecar && uv sync。",
     chatSidecarMissingPython: "找不到 Python 解释器。请安装应用打包版（推荐），或 cd minicpm-sidecar && uv sync。",
     chatSidecarPyExited: "Python 进程提前退出。stderr 末尾：\n{tail}",
     chatSidecarTimeout: "等待 Python 服务就绪超时 (90s)。",
     chatSidecarUnknownError: "sidecar 未知错误",
+    chatStatusEngine: "当前在 {device} 上跑 {model}",
     chatLogOpenFailed: "打开日志文件失败：{err}",
-    chatThinkingNotSupportedForPersona: "当前 {persona} 人格不支持思考模式，先切到原版再开",
     chatThinkingOn: "思考已开启",
     chatThinkingOff: "思考已关闭",
     chatEditModeHint: "把我拖到喜欢的位置 🐾\n然后回到设置点「保存」",
     chatEditModeHintShort: "把我拖到喜欢的位置 🐾",
   };
   const ZH_PATTERNS = {
-    status: /(你现在|当前|目前|现在).{0,4}(是什么|是啥|用的什么|用啥|什么模型|什么人格|哪个模型|哪个人格|是哪个)/,
-    list: /(看看|看下|查看|有啥|有什么|哪些|列|列出).{0,5}(adapter|插件|皮肤|人格|风格|lora)/i,
-    off: /(关掉|关闭|去掉|不要|脱掉|取消|卸|卸载).{0,4}(adapter|人格|皮肤|lora)/i,
-    off2: /(用回|回到|切到|切回|换成|换到|去).{0,4}(原版|默认|base|普通|原始|裸|本来|纯净)/i,
-    swap: /(切到|换到|换成|切换到|切换成|换上|穿上|戴上|启用|载入|加载|装上|套上|挂上).{0,2}([\u4e00-\u9fff\w-]{1,16})/i,
-    ucheck: /(检查|看看|查|有没|看一下).{0,4}(更新|新版|新版本)|(更新|新版).{0,4}(吗|么|嘛|没|？|\?)/,
-    uapply: /^(更新|升级|马上更新|去更新|更新一下|开始更新|马上升级|拉新版)\b/,
-    hints: /(adapter|lora|人格|皮肤|风格|默认|原版|裸|纯净|普通|猫娘|宝宝|更新|升级|新版|hf|hugging|切|换|装|穿|戴|脱|关掉|关闭|启用|禁用|卸|挂上|套上|不要|别|去掉|取消|废|废掉|model|模型|皮)/i,
+    status: /(你现在|当前|目前|现在).{0,4}(是什么|是啥|用的什么|用啥|什么模型|哪个模型|什么设备|哪个设备|跑在)/,
+    hints: /(模型|设备|显卡|核显|gpu|npu|openvino|状态|在跑|跑在|model)/i,
   };
   const ZH_CLASSIFIER =
-    "你是命令分类器。把用户的话归到下面一个标签，只输出标签本身：\n" +
-    "LIST_ADAPTER / SWITCH_TO=名字 / DISABLE_ADAPTER / UPDATE_CHECK / UPDATE_APPLY / STATUS / NONE\n\n" +
-    "用户：看看有哪些人格 → LIST_ADAPTER\n" +
-    "用户：列出 lora → LIST_ADAPTER\n" +
-    "用户：切到猫娘 → SWITCH_TO=猫娘\n" +
-    "用户：把猫娘装上 → SWITCH_TO=猫娘\n" +
-    "用户：来个 neko → SWITCH_TO=neko\n" +
-    "用户：回到原版 → DISABLE_ADAPTER\n" +
-    "用户：脱掉皮肤 → DISABLE_ADAPTER\n" +
-    "用户：我不要用猫娘了 → DISABLE_ADAPTER\n" +
-    "用户：你现在用什么模型 → STATUS\n" +
-    "用户：检查更新 → UPDATE_CHECK\n" +
-    "用户：去更新一下 → UPDATE_APPLY\n" +
+    "你是一个命令分类器。把用户的话映射到下面的标签之一，只输出标签：\n" +
+    "STATUS / NONE\n\n" +
+    "用户：你现在用的什么模型 → STATUS\n" +
+    "用户：你跑在什么设备上 → STATUS\n" +
+    "用户：现在是 GPU 还是 NPU → STATUS\n" +
+    "用户：当前状态 → STATUS\n" +
     "用户：你好 → NONE\n" +
-    "用户：今天天气真好 → NONE\n" +
+    "用户：今天天气怎么样 → NONE\n" +
     "用户：1+1 等于几 → NONE\n" +
-    "用户：解释一下 LoRA 是什么 → NONE\n" +
-    "现在分类下面这句：";
+    "用户：讲讲 OpenVINO → NONE\n" +
+    "现在分类下一句：";
   const ZH_NARRATION = {
     eventStopFailureWithSubject: "主人和 AI 处理{subject}的时候出错了",
     eventStopFailureNoSubject: "主人那边的 AI 报错了",
@@ -472,24 +378,12 @@
     onboardingNext: "下一步",
     onboardingBack: "上一步",
     onboardingModelTitle: "準備模型",
-    onboardingModelLede: "安裝 MiniCPM5 0.9B",
-    onboardingDownloadCardTitle: "線上下載",
-    onboardingDownloadCardDesc: "預設 GGUF Q8_0，會根據你的網路狀況自動選擇下載來源。",
-    onboardingDownloadProgressInit: "準備中...",
-    onboardingDownloadStart: "開始下載",
-    onboardingDownloadRetry: "重試下載",
-    onboardingDownloading: "下載中...",
-    onboardingDownloadDone: "已完成",
-    onboardingDownloadSwitchToLocal: "改為本機…",
-    onboardingDownloadSwitchToDownload: "改為下載",
-    onboardingDownloadErrorHint: "下載失敗：{msg}。可以重試，或選擇本機 GGUF 檔案。",
-    onboardingLocalCardTitle: "載入本機模型",
-    onboardingLocalCardDesc: "已經下好 GGUF 權重？直接匯入模型檔案。",
-    onboardingLocalPickFile: "選擇檔案…",
+    onboardingModelLede: "指向你轉換好的 OpenVINO 模型",
+    onboardingLocalCardTitle: "載入 OpenVINO 模型",
+    onboardingLocalCardDesc: "選擇 IR 目錄，也就是包含 openvino_model.xml 的那個資料夾。",
     onboardingLocalPicked: "已選擇",
     onboardingModelPathHint: "{name}",
     onboardingModelPathHintWithSize: "{name}  ·  {size}",
-    onboardingDownloaded: "已下載",
     onboardingLoaded: "已載入",
     onboardingWarmupRunning: "正在載入模型...",
     onboardingWarmupReady: "模型已載入",
@@ -502,12 +396,12 @@
     onboardingHotkeyEscClose: "在對話框輸入時關閉對話框",
     onboardingMoreHint: "想換模型、查看資源占用、重啟 sidecar？開啟右鍵選單的 Settings → MiniCPM。",
     onboardingFinish: "讓桌寵登場",
-    onboardingPickerDialogTitle: "選擇本機 MiniCPM 模型 (.gguf 檔案或包含 .gguf 的目錄)",
-    onboardingPickerDialogMessage: "可以是單一 .gguf 檔案，或包含 .gguf 的目錄",
-    onboardingPickerInvalidDir: "所選目錄不包含 .gguf：\n{path}",
-    onboardingPickerInvalidFile: "請選擇 .gguf 檔案：\n{path}",
-    onboardingReasonMps: "Apple Silicon GPU (Metal)",
-    onboardingReasonCpu: "純 CPU 推論",
+    onboardingOpenvinoPickerTitle: "選擇 OpenVINO 模型目錄",
+    onboardingOpenvinoPickerMessage: "請選取包含 openvino_model.xml 的資料夾，或它的上一層",
+    onboardingOpenvinoInvalidDir: "所選目錄不是 OpenVINO 模型（缺 openvino_model.xml）：\n{path}",
+    onboardingOpenvinoPickDir: "選擇模型目錄",
+    onboardingOpenvinoPickAnother: "換一個目錄",
+    onboardingOpenvinoConvertHint: "OpenVINO 需要先轉換模型。執行：python minicpm-sidecar/scripts/convert-openvino.py --source <檢查點> --preset gpu",
     onboardingSidecarStartFailed: "sidecar 啟動失敗",
     onboardingSidecarNotReady: "sidecar 尚未就緒",
     chatStarting: "啟動中…",
@@ -518,68 +412,34 @@
     chatAskPlaceholder: "問問看…",
     chatHotkeyHint: "⌘⇧M 開關，⌘⇧T 思考模式",
     chatErrorPrefixGeneric: "出錯了",
-    chatUpdatePillText: "新版本",
-    chatUpdatePillTitle: "點擊更新模型",
-    chatUpdatePillUpdating: "更新中…",
-    chatUpdatePillTitleUpdating: "正在更新模型…，更新完成前請勿關閉桌寵。",
-    chatStatusWithAdapter: "目前是 {model}，套著 {adapter} 這個 LoRA（人格: {persona}）",
-    chatStatusNoAdapter: "目前是 {model}，沒套 LoRA（人格: {persona}）",
-    chatUpdateNoConn: "查不到更新來源耶，等一下再問",
-    chatUpdateAvailable: "有新版 {remote}！本機是 {local}。回我「更新」我就拉。",
-    chatUpdateUpToDate: "已經是最新囉（{local}），不用動",
-    chatUpdateApplyStart: "開始更新模型，下載完成前別關掉桌寵",
-    chatUpdateApplyDone: "更新完成，正在切到新模型",
-    chatUpdateApplyFail: "更新失敗：{err}",
-    chatAdapterListEmpty: "還沒有設定任何人格。",
-    chatAdapterListIntro: "可用人格：",
-    chatAdapterListItem: "• {name}",
-    chatAdapterOff: "已脫掉，回到原版模型",
-    chatAdapterAlreadyOff: "本來就沒套 LoRA",
-    chatAdapterSwitched: "已切到 {name}",
-    chatAdapterNotFound: "找不到叫「{keyword}」的人格",
-    chatAdapterSwitching: "正在切到 {name}…",
-    chatAdapterUnloading: "正在卸下目前人格…",
     chatSidecarMissingBin: "找不到 sidecar。打包模式下應內建 sidecar-bin/，開發模式請 cd minicpm-sidecar && uv sync。",
     chatSidecarMissingPython: "找不到 Python 直譯器。請安裝應用打包版（建議），或 cd minicpm-sidecar && uv sync。",
     chatSidecarPyExited: "Python 程序提前結束。stderr 末尾：\n{tail}",
     chatSidecarTimeout: "等待 Python 服務就緒逾時 (90s)。",
     chatSidecarUnknownError: "sidecar 未知錯誤",
+    chatStatusEngine: "目前在 {device} 上跑 {model}",
     chatLogOpenFailed: "開啟記錄檔失敗：{err}",
-    chatThinkingNotSupportedForPersona: "目前 {persona} 人格不支援思考模式，先切到原版再開",
     chatThinkingOn: "思考已開啟",
     chatThinkingOff: "思考已關閉",
     chatEditModeHint: "把我拖到喜歡的位置 🐾\n然後回到設定點「儲存」",
     chatEditModeHintShort: "把我拖到喜歡的位置 🐾",
   };
   const ZH_TW_PATTERNS = {
-    status: /(你現在|目前|現在).{0,4}(是什麼|是啥|用的什麼|什麼模型|什麼人格|哪個模型|哪個人格|是哪個)/,
-    list: /(看看|看一下|查看|有啥|有什麼|哪些|列|列出).{0,5}(adapter|外掛|皮膚|人格|風格|lora)/i,
-    off: /(關掉|關閉|去掉|不要|脫掉|取消|卸|卸載).{0,4}(adapter|人格|皮膚|lora)/i,
-    off2: /(用回|回到|切到|切回|換成|換到|去).{0,4}(原版|預設|base|普通|原始|裸|本來|純淨)/i,
-    swap: /(切到|換到|換成|切換到|切換成|換上|穿上|戴上|啟用|載入|裝上|套上|掛上).{0,2}([\u4e00-\u9fff\w-]{1,16})/i,
-    ucheck: /(檢查|看看|查|有沒|看一下).{0,4}(更新|新版|新版本)|(更新|新版).{0,4}(嗎|沒|？|\?)/,
-    uapply: /^(更新|升級|馬上更新|去更新|更新一下|開始更新|馬上升級|拉新版)\b/,
-    hints: /(adapter|lora|人格|皮膚|風格|預設|原版|裸|純淨|普通|貓娘|寶寶|更新|升級|新版|hf|hugging|切|換|裝|穿|戴|脫|關掉|關閉|啟用|禁用|卸|掛上|套上|不要|別|去掉|取消|廢|model|模型|皮)/i,
+    status: /(你現在|目前|現在).{0,4}(是什麼|是啥|用的什麼|什麼模型|哪個模型|什麼裝置|哪個裝置|跑在)/,
+    hints: /(模型|裝置|顯卡|核顯|gpu|npu|openvino|狀態|在跑|跑在|model)/i,
   };
   const ZH_TW_CLASSIFIER =
-    "你是命令分類器。把使用者的話歸到下面一個標籤，只輸出標籤本身：\n" +
-    "LIST_ADAPTER / SWITCH_TO=名字 / DISABLE_ADAPTER / UPDATE_CHECK / UPDATE_APPLY / STATUS / NONE\n\n" +
-    "使用者：看看有哪些人格 → LIST_ADAPTER\n" +
-    "使用者：列出 lora → LIST_ADAPTER\n" +
-    "使用者：切到貓娘 → SWITCH_TO=貓娘\n" +
-    "使用者：把貓娘裝上 → SWITCH_TO=貓娘\n" +
-    "使用者：來個 neko → SWITCH_TO=neko\n" +
-    "使用者：回到原版 → DISABLE_ADAPTER\n" +
-    "使用者：脫掉皮膚 → DISABLE_ADAPTER\n" +
-    "使用者：我不要用貓娘了 → DISABLE_ADAPTER\n" +
-    "使用者：你現在用什麼模型 → STATUS\n" +
-    "使用者：檢查更新 → UPDATE_CHECK\n" +
-    "使用者：去更新一下 → UPDATE_APPLY\n" +
+    "你是一個命令分類器。把使用者的話對應到下面的標籤之一，只輸出標籤：\n" +
+    "STATUS / NONE\n\n" +
+    "使用者：你現在用的什麼模型 → STATUS\n" +
+    "使用者：你跑在什麼裝置上 → STATUS\n" +
+    "使用者：現在是 GPU 還是 NPU → STATUS\n" +
+    "使用者：目前狀態 → STATUS\n" +
     "使用者：你好 → NONE\n" +
-    "使用者：今天天氣真好 → NONE\n" +
+    "使用者：今天天氣如何 → NONE\n" +
     "使用者：1+1 等於幾 → NONE\n" +
-    "使用者：解釋一下 LoRA 是什麼 → NONE\n" +
-    "現在分類下面這句：";
+    "使用者：講講 OpenVINO → NONE\n" +
+    "現在分類下一句：";
   const ZH_TW_NARRATION = {
     eventStopFailureWithSubject: "主人和 AI 處理{subject}時出錯了",
     eventStopFailureNoSubject: "主人那邊的 AI 報錯了",
@@ -626,24 +486,12 @@
     onboardingNext: "다음",
     onboardingBack: "이전",
     onboardingModelTitle: "모델 준비",
-    onboardingModelLede: "MiniCPM5 0.9B 설치",
-    onboardingDownloadCardTitle: "온라인 다운로드",
-    onboardingDownloadCardDesc: "기본 GGUF Q8_0; 네트워크 환경에 맞춰 다운로드 소스가 자동 선택됩니다.",
-    onboardingDownloadProgressInit: "준비 중...",
-    onboardingDownloadStart: "다운로드 시작",
-    onboardingDownloadRetry: "다운로드 다시 시도",
-    onboardingDownloading: "다운로드 중...",
-    onboardingDownloadDone: "완료",
-    onboardingDownloadSwitchToLocal: "로컬로 전환…",
-    onboardingDownloadSwitchToDownload: "다운로드로 전환",
-    onboardingDownloadErrorHint: "다운로드 실패: {msg}. 다시 시도하거나 로컬 GGUF 파일을 선택하세요.",
-    onboardingLocalCardTitle: "로컬 모델 불러오기",
-    onboardingLocalCardDesc: "이미 GGUF 가중치를 받았다면 바로 가져오세요.",
-    onboardingLocalPickFile: "파일 선택…",
+    onboardingModelLede: "변환해 둔 OpenVINO 모델을 지정하세요",
+    onboardingLocalCardTitle: "OpenVINO 모델 불러오기",
+    onboardingLocalCardDesc: "openvino_model.xml이 들어 있는 IR 디렉터리를 선택하세요.",
     onboardingLocalPicked: "선택됨",
     onboardingModelPathHint: "{name}",
     onboardingModelPathHintWithSize: "{name}  ·  {size}",
-    onboardingDownloaded: "다운로드 완료",
     onboardingLoaded: "불러옴",
     onboardingWarmupRunning: "모델을 불러오는 중...",
     onboardingWarmupReady: "모델 로드 완료",
@@ -656,12 +504,12 @@
     onboardingHotkeyEscClose: "입력에 포커스가 있을 때 말풍선 닫기",
     onboardingMoreHint: "모델 변경, 리소스 사용량 확인, sidecar 재시작? 우클릭 메뉴의 Settings → MiniCPM에서 가능합니다.",
     onboardingFinish: "펫 등장",
-    onboardingPickerDialogTitle: "로컬 MiniCPM 모델 선택 (.gguf 파일 또는 .gguf가 포함된 디렉터리)",
-    onboardingPickerDialogMessage: "단일 .gguf 파일이거나 .gguf가 포함된 디렉터리여야 합니다",
-    onboardingPickerInvalidDir: "선택한 디렉터리에 .gguf 파일이 없습니다:\n{path}",
-    onboardingPickerInvalidFile: ".gguf 파일을 선택해 주세요:\n{path}",
-    onboardingReasonMps: "Apple Silicon GPU (Metal)",
-    onboardingReasonCpu: "CPU 추론",
+    onboardingOpenvinoPickerTitle: "OpenVINO 모델 디렉터리 선택",
+    onboardingOpenvinoPickerMessage: "openvino_model.xml이 있는 폴더 또는 그 상위 폴더를 선택하세요",
+    onboardingOpenvinoInvalidDir: "OpenVINO 모델이 아닙니다 — openvino_model.xml 없음:\n{path}",
+    onboardingOpenvinoPickDir: "모델 폴더 선택",
+    onboardingOpenvinoPickAnother: "다른 폴더 선택",
+    onboardingOpenvinoConvertHint: "OpenVINO는 변환된 모델이 필요합니다. 실행: python minicpm-sidecar/scripts/convert-openvino.py --source <체크포인트> --preset gpu",
     onboardingSidecarStartFailed: "sidecar 시작 실패",
     onboardingSidecarNotReady: "sidecar 준비 안 됨",
     chatStarting: "시작 중…",
@@ -672,68 +520,34 @@
     chatAskPlaceholder: "물어보세요…",
     chatHotkeyHint: "⌘⇧M 토글, ⌘⇧T 생각 모드",
     chatErrorPrefixGeneric: "오류 발생",
-    chatUpdatePillText: "새 버전",
-    chatUpdatePillTitle: "클릭해서 모델 업데이트",
-    chatUpdatePillUpdating: "업데이트 중…",
-    chatUpdatePillTitleUpdating: "모델 업데이트 중… 펫을 닫지 마세요.",
-    chatStatusWithAdapter: "현재 {model}, {adapter} LoRA 적용 중 (페르소나: {persona})",
-    chatStatusNoAdapter: "현재 {model}, LoRA 없음 (페르소나: {persona})",
-    chatUpdateNoConn: "업데이트 소스에 접근할 수 없어요. 잠시 뒤 다시 물어봐 주세요",
-    chatUpdateAvailable: "새 버전 {remote}가 있어요! 현재는 {local}입니다. \"업데이트\"라고 답하면 가져올게요.",
-    chatUpdateUpToDate: "이미 최신이에요 ({local}), 할 게 없네요",
-    chatUpdateApplyStart: "모델 업데이트 시작; 끝날 때까지 펫을 닫지 마세요",
-    chatUpdateApplyDone: "업데이트 완료, 새 모델로 전환 중",
-    chatUpdateApplyFail: "업데이트 실패: {err}",
-    chatAdapterListEmpty: "구성된 페르소나가 없습니다.",
-    chatAdapterListIntro: "사용 가능한 페르소나:",
-    chatAdapterListItem: "• {name}",
-    chatAdapterOff: "벗었어요. 기본 모델로 돌아갑니다",
-    chatAdapterAlreadyOff: "원래 LoRA가 적용돼 있지 않았어요",
-    chatAdapterSwitched: "{name}(으)로 전환했어요",
-    chatAdapterNotFound: "\"{keyword}\"에 해당하는 페르소나를 찾을 수 없어요",
-    chatAdapterSwitching: "{name}(으)로 전환 중…",
-    chatAdapterUnloading: "현재 페르소나 해제 중…",
     chatSidecarMissingBin: "sidecar 바이너리를 찾을 수 없습니다. 패키지 빌드는 sidecar-bin/을 포함해야 하며, 개발 모드에서는 cd minicpm-sidecar && uv sync를 실행하세요.",
     chatSidecarMissingPython: "Python 인터프리터를 찾을 수 없습니다. 패키지 빌드(권장)를 설치하거나, cd minicpm-sidecar && uv sync를 실행하세요.",
     chatSidecarPyExited: "Python 프로세스가 일찍 종료되었습니다. stderr 끝부분:\n{tail}",
     chatSidecarTimeout: "Python 서비스 준비 대기 시간이 초과되었습니다 (90s).",
     chatSidecarUnknownError: "sidecar 알 수 없는 오류",
+    chatStatusEngine: "{device}에서 {model} 실행 중",
     chatLogOpenFailed: "로그 파일 열기 실패: {err}",
-    chatThinkingNotSupportedForPersona: "현재 {persona} 페르소나에서는 생각 모드를 지원하지 않아요. 먼저 기본 모델로 돌려주세요.",
     chatThinkingOn: "생각 모드: 켬",
     chatThinkingOff: "생각 모드: 끔",
     chatEditModeHint: "원하는 곳으로 드래그해 주세요 🐾\n다 되면 설정에서 \"저장\"을 눌러 주세요",
     chatEditModeHintShort: "원하는 곳으로 드래그해 주세요 🐾",
   };
   const KO_PATTERNS = {
-    status: /(지금|현재|어떤).{0,12}(모델|페르소나|어댑터|lora)/i,
-    list: /(보여|목록|뭐|어떤|있어).{0,12}(페르소나|어댑터|lora|스킨)/i,
-    off: /(꺼|해제|벗|제거|끄|내려).{0,8}(페르소나|어댑터|lora|스킨)/i,
-    off2: /(원본|기본|디폴트|base|순정).{0,8}(으로|로|돌아)/,
-    swap: /([\w\u3131-\u318e\uac00-\ud7a3-]{1,16})\s*(으로|로)\s*(바꿔|전환|변경|입혀|적용|로드)/,
-    ucheck: /(업데이트|새\s*버전).{0,8}(있|확인|체크)/,
-    uapply: /^(업데이트|업그레이드|지금\s*업데이트|당겨와)\b/,
-    hints: /(adapter|lora|페르소나|스킨|모델|업데이트|업그레이드|버전|전환|로드|해제|hf|hugging|기본|디폴트|순정|네코|猫娘|model)/i,
+    status: /(지금|현재|어떤).{0,12}(모델|장치|그래픽|gpu|npu)/i,
+    hints: /(모델|장치|그래픽|gpu|npu|openvino|상태|실행|model)/i,
   };
   const KO_CLASSIFIER =
-    "당신은 명령 분류기입니다. 사용자의 말을 아래 라벨 중 하나로 분류하고, 라벨만 출력하세요:\n" +
-    "LIST_ADAPTER / SWITCH_TO=이름 / DISABLE_ADAPTER / UPDATE_CHECK / UPDATE_APPLY / STATUS / NONE\n\n" +
-    "사용자: 어떤 페르소나가 있어 → LIST_ADAPTER\n" +
-    "사용자: lora 목록 보여줘 → LIST_ADAPTER\n" +
-    "사용자: 네코로 바꿔줘 → SWITCH_TO=네코\n" +
-    "사용자: 네코 입혀줘 → SWITCH_TO=네코\n" +
-    "사용자: neko 적용 → SWITCH_TO=neko\n" +
-    "사용자: 원본으로 돌아가 → DISABLE_ADAPTER\n" +
-    "사용자: 페르소나 벗어 → DISABLE_ADAPTER\n" +
-    "사용자: 네코 더 이상 안 쓸래 → DISABLE_ADAPTER\n" +
-    "사용자: 지금 어떤 모델 써 → STATUS\n" +
-    "사용자: 업데이트 확인해 → UPDATE_CHECK\n" +
-    "사용자: 지금 업데이트해 → UPDATE_APPLY\n" +
+    "당신은 명령 분류기입니다. 사용자의 말을 아래 라벨 중 하나로 분류하고 라벨만 출력하세요:\n" +
+    "STATUS / NONE\n\n" +
+    "사용자: 지금 어떤 모델 쓰고 있어 → STATUS\n" +
+    "사용자: 어떤 장치에서 실행 중이야 → STATUS\n" +
+    "사용자: GPU야 NPU야 → STATUS\n" +
+    "사용자: 현재 상태 → STATUS\n" +
     "사용자: 안녕 → NONE\n" +
-    "사용자: 오늘 날씨 좋다 → NONE\n" +
+    "사용자: 오늘 날씨 어때 → NONE\n" +
     "사용자: 1+1은 뭐야 → NONE\n" +
-    "사용자: LoRA가 뭔지 설명해줘 → NONE\n" +
-    "이제 다음 문장을 분류하세요:";
+    "사용자: OpenVINO 설명해줘 → NONE\n" +
+    "이제 다음 줄을 분류하세요:";
   const KO_NARRATION = {
     eventStopFailureWithSubject: "주인님이 AI와 {subject} 작업을 하다가 오류를 만났어요",
     eventStopFailureNoSubject: "주인님 쪽 AI가 오류를 냈어요",
@@ -780,24 +594,12 @@
     onboardingNext: "次へ",
     onboardingBack: "戻る",
     onboardingModelTitle: "モデル準備",
-    onboardingModelLede: "MiniCPM5 0.9B をインストール",
-    onboardingDownloadCardTitle: "オンラインダウンロード",
-    onboardingDownloadCardDesc: "デフォルトは GGUF Q8_0。ネットワーク状況に応じてソースが自動選択されます。",
-    onboardingDownloadProgressInit: "準備中...",
-    onboardingDownloadStart: "ダウンロード開始",
-    onboardingDownloadRetry: "ダウンロードを再試行",
-    onboardingDownloading: "ダウンロード中...",
-    onboardingDownloadDone: "完了",
-    onboardingDownloadSwitchToLocal: "ローカルに切替…",
-    onboardingDownloadSwitchToDownload: "ダウンロードに切替",
-    onboardingDownloadErrorHint: "ダウンロード失敗：{msg}。再試行するか、ローカル GGUF ファイルを選んでください。",
-    onboardingLocalCardTitle: "ローカルモデルを読み込み",
-    onboardingLocalCardDesc: "GGUF を入手済みなら、モデルファイルをそのまま取り込めます。",
-    onboardingLocalPickFile: "ファイル選択…",
+    onboardingModelLede: "変換済みの OpenVINO モデルを指定します",
+    onboardingLocalCardTitle: "OpenVINO モデルを読み込み",
+    onboardingLocalCardDesc: "openvino_model.xml がある IR ディレクトリを選んでください。",
     onboardingLocalPicked: "選択済み",
     onboardingModelPathHint: "{name}",
     onboardingModelPathHintWithSize: "{name}  ·  {size}",
-    onboardingDownloaded: "ダウンロード済み",
     onboardingLoaded: "読み込み済み",
     onboardingWarmupRunning: "モデルを読み込み中...",
     onboardingWarmupReady: "モデル読み込み完了",
@@ -810,12 +612,12 @@
     onboardingHotkeyEscClose: "入力にフォーカスがある時に吹き出しを閉じる",
     onboardingMoreHint: "モデル変更、リソース確認、sidecar の再起動は右クリックメニューの Settings → MiniCPM から。",
     onboardingFinish: "ペットを登場させる",
-    onboardingPickerDialogTitle: "ローカルの MiniCPM モデルを選択 (.gguf ファイル、または .gguf を含むディレクトリ)",
-    onboardingPickerDialogMessage: "単一の .gguf ファイル、または .gguf を含むディレクトリを選んでください",
-    onboardingPickerInvalidDir: "選択したディレクトリに .gguf がありません：\n{path}",
-    onboardingPickerInvalidFile: ".gguf ファイルを選んでください：\n{path}",
-    onboardingReasonMps: "Apple Silicon GPU (Metal)",
-    onboardingReasonCpu: "CPU 推論",
+    onboardingOpenvinoPickerTitle: "OpenVINO モデルのディレクトリを選択",
+    onboardingOpenvinoPickerMessage: "openvino_model.xml があるフォルダ、またはその親を選んでください",
+    onboardingOpenvinoInvalidDir: "OpenVINO モデルではありません — openvino_model.xml がありません：\n{path}",
+    onboardingOpenvinoPickDir: "モデルフォルダを選択",
+    onboardingOpenvinoPickAnother: "別のフォルダを選ぶ",
+    onboardingOpenvinoConvertHint: "OpenVINO には変換済みモデルが必要です。実行: python minicpm-sidecar/scripts/convert-openvino.py --source <チェックポイント> --preset gpu",
     onboardingSidecarStartFailed: "sidecar の起動に失敗",
     onboardingSidecarNotReady: "sidecar が未準備",
     chatStarting: "起動中…",
@@ -826,68 +628,34 @@
     chatAskPlaceholder: "なんでも聞いてね…",
     chatHotkeyHint: "⌘⇧M で開閉、⌘⇧T で思考モード",
     chatErrorPrefixGeneric: "エラーが発生しました",
-    chatUpdatePillText: "新バージョン",
-    chatUpdatePillTitle: "クリックでモデル更新",
-    chatUpdatePillUpdating: "更新中…",
-    chatUpdatePillTitleUpdating: "モデルを更新中… ペットを閉じないでください。",
-    chatStatusWithAdapter: "現在は {model}、{adapter} の LoRA を装着中（人格: {persona}）",
-    chatStatusNoAdapter: "現在は {model}、LoRA なし（人格: {persona}）",
-    chatUpdateNoConn: "更新元に届かないみたい、しばらくしてからまた聞いて",
-    chatUpdateAvailable: "新バージョン {remote} が出てるよ！ローカルは {local}。「更新」って返してくれたら取ってくる。",
-    chatUpdateUpToDate: "もう最新だよ（{local}）、何もしなくて OK",
-    chatUpdateApplyStart: "モデル更新開始、終わるまでペットを閉じないでね",
-    chatUpdateApplyDone: "更新完了、新モデルに切り替えてるよ",
-    chatUpdateApplyFail: "更新失敗：{err}",
-    chatAdapterListEmpty: "人格の設定がまだありません。",
-    chatAdapterListIntro: "利用可能な人格：",
-    chatAdapterListItem: "• {name}",
-    chatAdapterOff: "脱がせたよ。素のモデルに戻ったよ",
-    chatAdapterAlreadyOff: "もともと LoRA は付けてなかったよ",
-    chatAdapterSwitched: "{name} に切り替えたよ",
-    chatAdapterNotFound: "「{keyword}」って人格は見つからなかったよ",
-    chatAdapterSwitching: "{name} に切替中…",
-    chatAdapterUnloading: "現在の人格を解除中…",
     chatSidecarMissingBin: "sidecar バイナリが見つかりません。パッケージビルドには sidecar-bin/ が同梱されているはずです。開発モードでは cd minicpm-sidecar && uv sync を実行してください。",
     chatSidecarMissingPython: "Python インタプリタが見つかりません。パッケージビルド（推奨）をインストールするか、cd minicpm-sidecar && uv sync を実行してください。",
     chatSidecarPyExited: "Python プロセスが早期終了しました。stderr の末尾：\n{tail}",
     chatSidecarTimeout: "Python サービスの起動待ちがタイムアウト (90s)。",
     chatSidecarUnknownError: "sidecar の不明なエラー",
+    chatStatusEngine: "{device} で {model} を実行中",
     chatLogOpenFailed: "ログファイルを開けませんでした：{err}",
-    chatThinkingNotSupportedForPersona: "今の {persona} 人格は思考モードに対応していないよ。先に素のモデルに戻してね。",
     chatThinkingOn: "思考モード：オン",
     chatThinkingOff: "思考モード：オフ",
     chatEditModeHint: "好きな場所までドラッグしてね 🐾\n終わったら設定で「保存」を押してね",
     chatEditModeHintShort: "好きな場所までドラッグしてね 🐾",
   };
   const JA_PATTERNS = {
-    status: /(今|現在|どの).{0,12}(モデル|人格|アダプタ|lora)/i,
-    list: /(見せ|一覧|どんな|何が|ある).{0,12}(人格|アダプタ|lora|スキン)/i,
-    off: /(外|解除|脱が|無効|切|オフ).{0,8}(人格|アダプタ|lora|スキン)/i,
-    off2: /(素|デフォルト|オリジナル|base).{0,8}(に|戻)/,
-    swap: /([\w\u3040-\u30ff\u4e00-\u9fff-]{1,16})\s*(に|へ)\s*(切り替え|変更|着せ|装着|ロード|スイッチ)/,
-    ucheck: /(アップデート|新\s*バージョン|新版).{0,8}(ある|確認|チェック)/,
-    uapply: /^(更新|アップデート|アップグレード|今\s*アップデート)\b/,
-    hints: /(adapter|lora|人格|スキン|モデル|アップデート|アップグレード|バージョン|切り替え|装着|外|hf|hugging|デフォルト|素|オリジナル|猫娘|ねこ|model)/i,
+    status: /(今|現在|どの).{0,12}(モデル|デバイス|グラフィック|gpu|npu)/i,
+    hints: /(モデル|デバイス|グラフィック|gpu|npu|openvino|状態|動いて|model)/i,
   };
   const JA_CLASSIFIER =
-    "あなたはコマンド分類器です。ユーザーの発話を以下のラベルのいずれかに分類し、ラベルだけを出力してください：\n" +
-    "LIST_ADAPTER / SWITCH_TO=名前 / DISABLE_ADAPTER / UPDATE_CHECK / UPDATE_APPLY / STATUS / NONE\n\n" +
-    "ユーザー: どんな人格があるの → LIST_ADAPTER\n" +
-    "ユーザー: lora 一覧 → LIST_ADAPTER\n" +
-    "ユーザー: ねこに切り替えて → SWITCH_TO=ねこ\n" +
-    "ユーザー: ねこを着せて → SWITCH_TO=ねこ\n" +
-    "ユーザー: neko 装着 → SWITCH_TO=neko\n" +
-    "ユーザー: 素に戻して → DISABLE_ADAPTER\n" +
-    "ユーザー: 人格を外して → DISABLE_ADAPTER\n" +
-    "ユーザー: もうねこ使わない → DISABLE_ADAPTER\n" +
-    "ユーザー: 今どのモデル使ってる → STATUS\n" +
-    "ユーザー: アップデート確認 → UPDATE_CHECK\n" +
-    "ユーザー: 今アップデートして → UPDATE_APPLY\n" +
+    "あなたはコマンド分類器です。ユーザーの発話を次のラベルのいずれかに分類し、ラベルのみを出力してください:\n" +
+    "STATUS / NONE\n\n" +
+    "ユーザー: 今どのモデルを使ってる → STATUS\n" +
+    "ユーザー: どのデバイスで動いてる → STATUS\n" +
+    "ユーザー: GPU それとも NPU → STATUS\n" +
+    "ユーザー: 現在の状態 → STATUS\n" +
     "ユーザー: こんにちは → NONE\n" +
-    "ユーザー: 今日の天気いいね → NONE\n" +
-    "ユーザー: 1+1 は何 → NONE\n" +
-    "ユーザー: LoRA って何か説明して → NONE\n" +
-    "次の文を分類してください：";
+    "ユーザー: 今日の天気は → NONE\n" +
+    "ユーザー: 1+1は → NONE\n" +
+    "ユーザー: OpenVINO について教えて → NONE\n" +
+    "次の行を分類してください:";
   const JA_NARRATION = {
     eventStopFailureWithSubject: "ご主人が AI と {subject} の作業中にエラーが出たよ",
     eventStopFailureNoSubject: "ご主人の AI がエラーを出したよ",

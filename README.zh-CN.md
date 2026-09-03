@@ -4,9 +4,9 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0--only-blue.svg" alt="License"></a>
-  <a href="https://huggingface.co/openbmb/MiniCPM5-1B-GGUF"><img src="https://img.shields.io/badge/Model-MiniCPM5--1B-green" alt="MiniCPM5-1B"></a>
+  <a href="https://huggingface.co/openbmb/MiniCPM5-1B"><img src="https://img.shields.io/badge/Model-MiniCPM5--1B-green" alt="MiniCPM5-1B"></a>
   <a href="https://modelbest.feishu.cn/wiki/UtWxwcERfiRIpIkBOjuc3h9tn1D"><img src="https://img.shields.io/badge/MiniCPM-Wiki-1677FF?logo=readthedocs&logoColor=white" alt="MiniCPM Wiki"></a>
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows-lightgrey" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Intel%20AIPC-lightgrey" alt="Platform">
 </p>
 
 <p align="center">
@@ -22,14 +22,13 @@
 ## 项目亮点
 
 - **本地运行**：模型下载完成后，日常聊天在你的电脑上完成。
-- **无需手动配置**：首次启动会引导完成环境检查、模型下载和模型预热。
+- **无需手动配置**：首次启动会引导完成硬件检测、模型选择和模型预热。
 - **桌面聊天伙伴**：通过悬浮气泡和 MiniCPM 对话，桌宠可以一直陪在桌面上。
 - **感知工作状态**：可根据 Cursor、Claude Code、Codex 等工具的活动展示不同状态。
 - **任务旁白**：coding agent 会话结束时，桌宠会在气泡中用一句话总结 AI 刚刚做了什么，方便你快速了解进度。
 - **等待提醒**：当 coding agent 在等你回复时，桌宠会播放铃铛动画和提示音，防止你错过。
 - **自动发现 agent**：应用会扫描本地已安装的编程 agent，提示你一键连接。
-- **智能下载模型**：支持 Hugging Face 和 ModelScope，会根据网络情况选择更合适的下载源。
-- **人格支持**：可在 **Settings -> MiniCPM** 中切换或导入角色适配器。
+- **Intel GPU 与 NPU**：推理走 OpenVINO，同一份模型可以在 Arc/Xe 核显和 AI Boost NPU 之间随意切换。
 
 ## 快速开始
 
@@ -37,25 +36,12 @@
 
 | 项目 | 推荐配置 |
 | --- | --- |
-| macOS | 14.0+，Apple Silicon (M1/M2/M3/M4)，约 2 GB 磁盘空间 |
-| Windows | x64，需 Vulkan 支持，约 2 GB 磁盘空间 |
-| 网络 | 首次启动需要联网下载模型；已有本地模型文件时可手动选择 |
+| Windows | Intel Core Ultra，需 Arc/Xe 核显（AI Boost NPU 可选），约 3 GB 磁盘空间 |
+| 模型 | 需要自行转换的 OpenVINO IR 目录，见下方「开始使用」 |
 
-> macOS Apple Silicon 是当前主要验证平台；Windows 已提供安装包，欢迎反馈问题。
+> 本构建面向 Intel AIPC，没有 CPU 兜底：必须有 Intel GPU 或 NPU。当前验证平台是 Windows + Intel Core Ultra。
 
 ### 安装
-
-**macOS**
-
-1. 前往 [Releases](https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases) 下载最新 `MiniCPM Desk Pet-*-arm64.dmg`。
-2. 打开 DMG，将 **MiniCPM Desk Pet** 拖入 `Applications`。
-3. 启动应用，按引导完成设置。
-
-如果 macOS 阻止首次打开，可以右键应用选择 **打开**。必要时也可以移除隔离标记：
-
-```bash
-xattr -cr /Applications/MiniCPM\ Desk\ Pet.app
-```
 
 **Windows**
 
@@ -67,9 +53,9 @@ xattr -cr /Applications/MiniCPM\ Desk\ Pet.app
 
 MiniCPM Desk Pet 内置完整首次启动流程：
 
-**环境检查** -> **模型下载** -> **模型预热** -> **开始使用**
+**环境检查** -> **选择模型** -> **模型预热** -> **开始使用**
 
-默认模型是 [MiniCPM5-1B-GGUF](https://huggingface.co/openbmb/MiniCPM5-1B-GGUF)。你可以让应用自动下载，也可以选择已有的本地 `.gguf` 文件。
+本构建不内置下载：请先用 `python minicpm-sidecar/scripts/convert-openvino.py --source <检查点>` 自行转换（例如 [MiniCPM5-1B](https://huggingface.co/openbmb/MiniCPM5-1B)），再在向导里选中产出的目录。默认量化是对称 INT4，GPU 和 NPU 都能直接跑。
 
 ## 功能介绍
 
@@ -93,25 +79,18 @@ MiniCPM 设置页支持：
 
 - 下载默认模型或选择本地模型文件
 - 重新运行首次启动引导
-- 管理角色 / 人格适配器
 - 在需要时重启本地模型运行环境
-
-### 人格适配器
-
-应用内置一个 neko 风格人格适配器。你可以在 **Settings -> MiniCPM** 中切换适配器，也可以导入自己的适配器。
 
 ## 路线图
 
-- 扩展 Linux 验证。
-- 增加更多人格预设。
 - 优化模型下载提示、重试和诊断体验。
 - 缩短首次启动耗时，减小应用体积。
 - 为长时间 coding 会话提供更丰富的桌宠旁白。
 
 ## 已知限制
 
-- 当前主要验证和发布目标是 macOS Apple Silicon；Windows 已提供安装包，如遇问题欢迎反馈。
-- 首次启动需要联网下载模型，除非你手动提供本地模型文件。
+- 必须有 Intel GPU 或 NPU，没有 CPU 兜底，非 Intel 机器无法运行本构建。
+- 首次使用前需要自己转换一份 OpenVINO IR，本构建不会替你下载模型。
 - 回复速度会受到芯片、内存压力和模型选择影响。
 - Coding agent 状态反应依赖各工具自身的集成方式，不同版本之间可能存在差异。
 
@@ -122,11 +101,11 @@ MiniCPM 设置页支持：
 ## 致谢
 
 - 桌宠 UI 基于 [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)。完整归属信息见 [`NOTICE.md`](./NOTICE.md)。
-- 模型权重来自 OpenBMB MiniCPM 模型家族，并在使用时单独下载。
-- 内置 neko 人格使用 **neko30k** 数据集（[liumindmind/NekoQA-30K](https://huggingface.co/datasets/liumindmind/NekoQA-30K)）作为微调数据。
+- 模型权重来自 OpenBMB MiniCPM 模型家族，由用户在本地转换。
+- 推理由 [OpenVINO GenAI](https://github.com/openvinotoolkit/openvino.genai)（Apache-2.0，Intel Corporation）提供。
 
 ## 许可证
 
 本仓库使用 [GNU AGPL-3.0-only](./LICENSE) 分发。
 
-MiniCPM 模型权重会单独下载，受 [OpenBMB MiniCPM Model License](https://github.com/OpenBMB/MiniCPM/blob/main/MiniCPM%20Model%20License.md) 约束。美术素材、第三方代码和数据集保留各自声明；详见 [`NOTICE.md`](./NOTICE.md) 和 [`clawd-on-desk/NOTICE.md`](clawd-on-desk/NOTICE.md)。
+MiniCPM 模型权重需自行获取，受 [OpenBMB MiniCPM Model License](https://github.com/OpenBMB/MiniCPM/blob/main/MiniCPM%20Model%20License.md) 约束。美术素材、第三方代码和数据集保留各自声明；详见 [`NOTICE.md`](./NOTICE.md) 和 [`clawd-on-desk/NOTICE.md`](clawd-on-desk/NOTICE.md)。

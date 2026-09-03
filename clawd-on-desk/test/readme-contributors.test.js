@@ -23,7 +23,7 @@ test("README files keep MiniCPM Desk Pet as the product identity", () => {
     const markdown = readReadme(filename);
     assert.match(markdown, /<h1 align="center">MiniCPM Desk Pet<\/h1>/, `${filename} should use the MiniCPM product title`);
     assert.ok(markdown.includes("assets/tray-icon.png"), `${filename} should use the MiniCPM tray icon asset`);
-    assert.ok(markdown.includes("MiniCPM5-1B-GGUF"), `${filename} should describe the MiniCPM model`);
+    assert.ok(markdown.includes("MiniCPM5"), `${filename} should describe the MiniCPM model`);
     assert.ok(markdown.includes("OpenBMB/MiniCPM-Desk-Pet"), `${filename} should link to the OpenBMB repository or releases`);
   }
 });
