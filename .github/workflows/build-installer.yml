@@ -1,8 +1,7 @@
 name: Build installer (Linux + Windows)
 
-# Build Linux / Windows installers without compiling llama.cpp in CI.
-# Each job downloads the official ggml-org/llama.cpp release binary,
-# builds only our thin Python gateway, then runs electron-builder.
+# Build Linux / Windows installers. Each job builds the Python gateway
+# (which freezes in the OpenVINO runtime) and then runs electron-builder.
 
 on:
   workflow_dispatch:
@@ -11,7 +10,6 @@ on:
     paths:
       - "clawd-on-desk/**"
       - "minicpm-sidecar/**"
-      - "adapters/**"
       - "NOTICE.md"
       - ".github/workflows/build-installer.yml"
 
@@ -42,12 +40,6 @@ jobs:
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Fetch official llama.cpp release
-        working-directory: minicpm-sidecar
-        env:
-          TARGET_TRIPLE: linux-x64
-          LLAMA_BACKEND: cpu
-        run: bash ./scripts/fetch-llama-release.sh
 
       - name: Build gateway
         working-directory: minicpm-sidecar
@@ -57,17 +49,13 @@ jobs:
         working-directory: minicpm-sidecar/bin/linux-x64
         run: |
           ls -la
-          chmod +x llama-server minicpm-sidecar
-          ./llama-server --version
-          ./minicpm-sidecar --help >/dev/null
+          chmod +x minicpm-sidecar/minicpm-sidecar
+          ./minicpm-sidecar/minicpm-sidecar --help >/dev/null
 
       - name: npm install
         working-directory: clawd-on-desk
         run: npm install --no-audit --no-fund
 
-      - name: Fetch LoRA adapters
-        working-directory: clawd-on-desk
-        run: node scripts/fetch-adapters.js
 
       - name: electron-builder (AppImage + deb)
         working-directory: clawd-on-desk
@@ -105,30 +93,30 @@ jobs:
           irm https://astral.sh/uv/install.ps1 | iex
           Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.local\bin"
 
-      - name: Fetch official llama.cpp release
-        working-directory: minicpm-sidecar
-        run: |
-          .\scripts\fetch-llama-release.ps1 -Backend cpu -Target win-x64
-          .\scripts\fetch-llama-release.ps1 -Backend vulkan -Target win-x64
-          .\scripts\fetch-llama-release.ps1 -Backend cpu -Target win-arm64
 
       - name: Build gateway
         working-directory: minicpm-sidecar
         run: |
           .\scripts\build-gateway.ps1 -Target win-x64
-          Copy-Item -Force bin\win-x64\minicpm-sidecar.exe bin\win-arm64\minicpm-sidecar.exe
+          # The arm64 installer reuses the x64 gateway build — the Electron
+          # side differs, the Python side does not.
+          $dst = "bin\win-arm64\minicpm-sidecar"
+          if (Test-Path $dst) { Remove-Item -Recurse -Force $dst }
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          Copy-Item -Recurse -Force "bin\win-x64\minicpm-sidecar\*" $dst
 
       - name: Verify sidecar binaries
         working-directory: minicpm-sidecar
         run: |
-          Get-ChildItem -Recurse bin\win-x64 | Select-Object FullName,Length
-          .\bin\win-x64\llama-server.exe --version
-          .\bin\win-x64\backends\vulkan\llama-server.exe --version
-          .\bin\win-x64\minicpm-sidecar.exe --help | Out-Null
-          Write-Host "==> Verify win-arm64 files exist" -ForegroundColor Cyan
-          Get-ChildItem -Recurse bin\win-arm64 | Select-Object FullName,Length
-          if (-not (Test-Path bin\win-arm64\llama-server.exe)) { throw "win-arm64 llama-server missing" }
-          if (-not (Test-Path bin\win-arm64\minicpm-sidecar.exe)) { throw "win-arm64 gateway missing" }
+          Get-ChildItem bin\win-x64\minicpm-sidecar | Select-Object Name,Length
+          .\bin\win-x64\minicpm-sidecar\minicpm-sidecar.exe --help | Out-Null
+          # Assert the layout: Copy-Item -Recurse nests when the destination
+          # already exists, and a nested sidecar is invisible to the app.
+          foreach ($t in "win-x64", "win-arm64") {
+            if (-not (Test-Path "bin\$t\minicpm-sidecar\minicpm-sidecar.exe")) {
+              throw "$t gateway missing, or nested one level too deep"
+            }
+          }
 
       - name: Download ARM64 VC++ Redistributable
         run: |
@@ -140,9 +128,6 @@ jobs:
         shell: cmd
         run: npm install --no-audit --no-fund
 
-      - name: Fetch LoRA adapters
-        working-directory: clawd-on-desk
-        run: node scripts/fetch-adapters.js
 
       - name: electron-builder (nsis)
         working-directory: clawd-on-desk

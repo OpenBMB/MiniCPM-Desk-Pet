@@ -54,12 +54,21 @@ cyan "==> 运行 PyInstaller..."
 
 OUT="$ROOT/bin/$TARGET"
 mkdir -p "$OUT"
-SRC_BIN="$ROOT/build/dist/minicpm-sidecar${EXE}"
-if [[ ! -f "$SRC_BIN" ]]; then
-  red "PyInstaller 没找到产物：$SRC_BIN"
+# onedir: the plugin libraries sit next to the exe, so stage the whole thing.
+SRC_DIR="$ROOT/build/dist/minicpm-sidecar"
+if [[ ! -f "$SRC_DIR/minicpm-sidecar${EXE}" ]]; then
+  red "PyInstaller 没找到产物：$SRC_DIR/minicpm-sidecar${EXE}"
   exit 1
 fi
-cp -f "$SRC_BIN" "$OUT/"
+# Copy the *contents*: `cp -R src dst` nests when dst already exists.
+rm -rf "$OUT/minicpm-sidecar"
+mkdir -p "$OUT/minicpm-sidecar"
+cp -R "$SRC_DIR"/. "$OUT/minicpm-sidecar/"
 
-green "==> OK -> $OUT/minicpm-sidecar${EXE}"
-green "    试跑: $OUT/minicpm-sidecar${EXE} --help"
+if [[ ! -f "$OUT/minicpm-sidecar/minicpm-sidecar${EXE}" ]]; then
+  red "staging 布局不对：$OUT/minicpm-sidecar/minicpm-sidecar${EXE} 不存在"
+  exit 1
+fi
+
+green "==> OK -> $OUT/minicpm-sidecar/minicpm-sidecar${EXE}"
+green "    试跑: $OUT/minicpm-sidecar/minicpm-sidecar${EXE} --help"
