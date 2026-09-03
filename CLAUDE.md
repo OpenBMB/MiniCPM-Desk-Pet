@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MiniCPM Desk Pet is a local-first desktop pet powered by MiniCPM. It combines an Electron desktop pet app (forked from clawd-on-desk) with a llama.cpp inference sidecar. Users get a floating chat companion that runs entirely on-device after the initial model download.
+MiniCPM Desk Pet is a local-first desktop pet powered by MiniCPM. It combines an Electron desktop pet app (forked from clawd-on-desk) with an OpenVINO inference sidecar. Users get a floating chat companion that runs entirely on-device.
 
-The app supports macOS (Apple Silicon primary), Windows (x64 with Vulkan), and Linux. It reacts to coding-agent activity from Claude Code, Codex, Cursor, Gemini, Copilot, Kiro, CodeBuddy, and others.
+**This branch is the Intel AIPC variant.** OpenVINO is the only inference engine and the only supported devices are the Intel GPU (Arc / Xe) and the AI Boost NPU — there is no llama.cpp path and no CPU fallback. It reacts to coding-agent activity from Claude Code, Codex, Cursor, Gemini, Copilot, Kiro, CodeBuddy, and others.
 
 ## Repository Structure
 
@@ -18,13 +18,11 @@ MiniCPM-Desk-Pet/
 │   ├── agents/                Agent registry + log monitors
 │   ├── themes/                Built-in theme packs
 │   └── test/                  Node built-in test runner tests
-├── minicpm-sidecar/        ← llama.cpp inference + thin FastAPI gateway
-│   ├── gateway/               Python gateway (FastAPI/uvicorn/httpx, no torch)
-│   ├── scripts/               Build and fetch scripts for llama-server
+├── minicpm-sidecar/        ← OpenVINO inference + thin FastAPI gateway
+│   ├── gateway/               Python gateway (FastAPI/uvicorn/openvino-genai, no torch)
+│   ├── scripts/               Gateway build + HF→OpenVINO IR conversion
 │   └── tests/                 pytest suite
-├── adapters/               ← LoRA persona adapters (.gguf)
-├── llama.cpp/              ← Git submodule (ggml-org/llama.cpp)
-├── models/                 ← GGUF model files (gitignored)
+├── models/ov/              ← OpenVINO IR directories (gitignored)
 └── go.sh                   ← Dev launcher and build entry point
 ```
 
@@ -38,7 +36,6 @@ MiniCPM-Desk-Pet/
 ./go.sh setup        # Install deps only, don't start
 ./go.sh start        # Skip dependency checks, just start
 ./go.sh build        # Full packaged build (mac arm64 dmg)
-./go.sh fetch-llama  # Re-download official llama-server binary
 ```
 
 ### Tests
@@ -94,7 +91,7 @@ MINICPM_FORCE_ONBOARDING=1 ./go.sh start
 ### Two-Process Model
 
 1. **Electron host** (`clawd-on-desk/`): Desktop pet UI, hook management, state machine, settings, chat bubble, onboarding wizard.
-2. **Inference sidecar** (`minicpm-sidecar/`): A bundled `llama-server` binary (from official llama.cpp releases) fronted by a thin FastAPI gateway. The gateway handles model lifecycle, adapter switching, and chat completions. No PyTorch — all ML runs inside llama-server.
+2. **Inference sidecar** (`minicpm-sidecar/`): A FastAPI gateway that runs `openvino_genai.LLMPipeline` **in-process** — no child server. It handles model lifecycle, device selection, and chat completions. No PyTorch; the OpenVINO runtime is a native wheel.
 
 ### Electron Event Flow
 
@@ -114,7 +111,7 @@ Each coding agent integrates via hooks, log monitors, or plugins. `src/agent-gat
 
 ### Onboarding
 
-5-step state machine: environment check → model download → warm-up → ready. Sentinel file at `<userData>/minicpm-onboarding.json`. Key files: `src/minicpm-onboarding.js` (main process), `src/minicpm-onboarding-renderer.js` (renderer).
+3-stage state machine: environment check (Intel GPU/NPU detection) → pick an OpenVINO IR directory → warm-up. There is no bundled downloader; the user converts a checkpoint with `minicpm-sidecar/scripts/convert-openvino.py` and points the wizard at the result. Sentinel file at `<userData>/minicpm-onboarding.json`. Key files: `src/minicpm-onboarding.js` (main process), `src/minicpm-onboarding-renderer.js` (renderer).
 
 ## Conventions
 
@@ -128,5 +125,8 @@ Each coding agent integrates via hooks, log monitors, or plugins. `src/agent-gat
 ## Key Constraints
 
 - `clawd-on-desk/` AGENTS.md contains detailed runtime constraints and high-risk gotchas — read it before modifying state machine, permissions, window management, or hook logic.
-- The sidecar gateway is intentionally dependency-light (no torch/transformers). All ML inference happens in the native llama-server binary.
-- macOS Apple Silicon is the primary tested platform. Windows and Linux changes should be code-reviewed carefully.
+- The sidecar gateway is intentionally dependency-light (no torch/transformers). Inference runs on the OpenVINO runtime, a native wheel; the conversion tooling that does need torch is shelled out to a throwaway environment by `scripts/convert-openvino.py`.
+- **A model is a directory** (`openvino_model.xml` + `.bin` + the tokenizer pair), never a single file.
+- **The NPU only accepts symmetric INT4.** Handing it anything else does not raise — it kills the process with an uncatchable `0xC0000005` (openvino#35641), so `openvino_client` verifies IR precision before constructing the pipeline and fails closed.
+- Packaging: the frozen sidecar is a PyInstaller **onedir** bundle (~301 MB) because onefile re-extracts the OpenVINO runtime on every launch (~14 s). The spec must use `collect_all`, not `collect_submodules` — the latter misses the native device plugins and yields a binary that reports no GPU/NPU on hardware that has both.
+- Windows on Intel Core Ultra is the primary tested platform for this branch. macOS and Linux have no Intel NPU and generally no supported GPU, so they are effectively unsupported here.

@@ -13,20 +13,19 @@
 </p>
 <p align="center">
   <a href="https://github.com/OpenBMB/MiniCPM-Desk-Pet/releases"><img src="https://img.shields.io/github/v/release/OpenBMB/MiniCPM-Desk-Pet" alt="Version"></a>
-  <img src="https://img.shields.io/badge/model-MiniCPM5--1B--GGUF-blue" alt="Model">
+  <img src="https://img.shields.io/badge/model-MiniCPM5%20%C2%B7%20OpenVINO-blue" alt="Model">
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
   <img src="https://img.shields.io/badge/license-AGPL--3.0--only-green" alt="License">
 </p>
 
 MiniCPM Desk Pet is a local-first desktop pet powered by MiniCPM. It brings a lightweight desktop companion, a local MiniCPM chat bubble, first-launch model onboarding, and coding-agent state reactions into one app.
 
-This fork keeps the MiniCPM product identity, default themes, model onboarding, packaged sidecar resources, and adapter paths. The v0.8 to v0.10 upstream feature migration is integrated around the Electron app, settings, hooks, state management, packaging, and tests; inframodel inference code is intentionally left untouched.
+This fork keeps the MiniCPM product identity, default themes, model onboarding, and packaged sidecar resources. The v0.8 to v0.10 upstream feature migration is integrated around the Electron app, settings, hooks, state management, packaging, and tests; inframodel inference code is intentionally left untouched.
 
 ## Highlights
 
-- **Local MiniCPM chat**: first-launch environment checks, MiniCPM5-1B-GGUF model download, warm-up, chat bubble, and local model status.
+- **Local MiniCPM chat**: first-launch environment checks, OpenVINO model selection, warm-up, chat bubble, and local model status.
 - **Model management**: Hugging Face / ModelScope download flow, local model path selection, backend restart, and log access.
-- **Persona adapters**: LoRA adapters are managed from `Settings...` -> `MiniCPM` without changing the base model used for pet narration.
 - **Desktop pet reactions**: the pet reacts to supported coding-agent sessions, tool activity, permissions, completion, idle, sleep, and mini-mode states.
 - **On-demand agent integrations**: fresh installs manage Claude Code and Codex by default; other migrated agents are installed explicitly from Settings.
 - **Remote features migrated but off**: Telegram approval/native bot, completion notification, Direct Send, mobile PWA, Hardware Buddy, and auto-pilot are present for later validation but disabled by default.
@@ -70,7 +69,7 @@ The application folder remains `clawd-on-desk` for compatibility with the upstre
 
 ## Development Notes
 
-- Keep MiniCPM sidecar, adapters, model resources, and default product metadata intact.
+- Keep MiniCPM sidecar, model resources, and default product metadata intact.
 - Do not enable remote approval, mobile preview, Direct Send, Hardware Buddy, or auto-pilot without a separate test-and-release task.
 - Planning artifacts such as `task_plan.md`, `findings.md`, `progress.md`, and `.planning/` are intentionally ignored by Git.
 

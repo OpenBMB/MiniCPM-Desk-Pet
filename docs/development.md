@@ -52,11 +52,10 @@ MINICPM_FORCE_ONBOARDING=1 ./go.sh start
 MiniCPM-Desk-Pet/
 ├── clawd-on-desk/              ← Electron 桌宠 (vendored fork of clawd-on-desk@5b1f003)
 │                                  + MiniCPM 集成层：聊天气泡 / Onboarding / Settings
-├── minicpm-sidecar/            ← llama.cpp 推理服务 + 瘦 FastAPI gateway
-├── adapters/                   ← LoRA 适配器（.gguf + safetensors source）
+├── minicpm-sidecar/            ← OpenVINO 推理（进程内）+ 瘦 FastAPI gateway
 ├── skills/deploy-minicpm-pet/  ← Cursor Agent Skill（dev 部署引导）
 ├── docs/                       ← 开发者文档
-├── models/                     ← GGUF 模型文件（gitignored）
+├── models/ov/                  ← OpenVINO IR 目录（gitignored）
 ├── go.sh                       ← 开发者快捷脚本
 └── README.md                   ← 用户向（dmg 安装 + 引导）
 ```
@@ -69,11 +68,10 @@ MiniCPM-Desk-Pet/
 
 最终用户拿到的 dmg 内含：
 - Electron 主程序（clawd-on-desk）
-- PyInstaller 打的 sidecar 二进制（无需用户装 Python）
-- LoRA 适配器（adapters/）
+- PyInstaller 打的 sidecar 二进制（含 OpenVINO runtime，无需用户装 Python）
 - sidecar 源码（备用 / debug 用）
 
-模型权重 **不** 在 dmg 里——首次启动由 Onboarding 引导用户下载到 `<userData>/models/`。
+模型权重 **不** 在 dmg 里——用户先用 `minicpm-sidecar/scripts/convert-openvino.py` 转出 OpenVINO IR，再由 Onboarding 选中它。
 
 ### 单步出包
 
@@ -84,7 +82,7 @@ MiniCPM-Desk-Pet/
 等价于：
 
 ```bash
-# 1. 下载官方 llama.cpp 的 llama-server + PyInstaller 打 gateway
+# 1. PyInstaller 打 gateway（含 OpenVINO runtime）
 cd minicpm-sidecar && ./scripts/build-all.sh && cd ..
 
 # 2. electron-builder 出 dmg
